@@ -27,6 +27,7 @@ export type DatabaseResetModel =
   | "DebtPaymentLog"
   | "CashierShift"
   | "Expense"
+  | "ManualIncome"
   | "InvoiceDateChangeLog"
   | "ProductionActivityLog"
   | "TransactionLifecycleAudit"

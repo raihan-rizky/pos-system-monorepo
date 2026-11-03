@@ -1,5 +1,11 @@
 # Laporan Keuangan (Financial Report)
 
+## Pemasukan dan belanja manual dari Keuangan
+
+- **Tambah Pemasukan** di `/keuangan` mencatat pendapatan tanpa membuat transaksi penjualan. Isian: tanggal, keterangan / sumber, nominal, dan kategori RC (**ATK, Cetak, Spanduk, Print, Stempel**). Excel bulanan menempatkan seluruh nominal pada kategori yang dipilih di **RC {BULAN}**.
+- **Tambah Belanja Transfer** mencatat tanggal transfer, penerima / supplier, keterangan, nominal, dan bukti opsional tanpa mengubah stok. Catatan masuk **PENGELUARAN BELANJA → VIA TRANSFER** dan RP, dengan satu kontribusi pada total pengeluaran.
+- Setelah menyimpan, mengubah, atau menghapus catatan sesuai izin, **unduh ulang Excel** untuk mendapatkan rincian dan total terbaru. File yang telah diunduh tidak diperbarui otomatis.
+
 ## Lokasi dan Fungsi
 
 Buka sidebar **Keuangan > Laporan Keuangan** (`/financial-report`) untuk melihat analisis finansial toko secara mendalam. 

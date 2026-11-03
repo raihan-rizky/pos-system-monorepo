@@ -9,6 +9,7 @@ import { getLogger } from "@/lib/logger";
 import { apiError } from "@/lib/api/responses";
 import { NextResponse } from "next/server";
 import { customExpenseCategoryKey } from "@/features/keuangan/helpers/category-meta";
+import { validateManualTransferExpense } from "@/features/keuangan/helpers/manual-transfer-expense";
 
 const log = getLogger("api:finance:expenses:id");
 export const dynamic = "force-dynamic";
@@ -33,6 +34,7 @@ export async function PATCH(
         backdatedPurchaseDueId: true,
         backdatedPurchasePaymentId: true,
         customCategoryId: true,
+        manualPurchasePaymentMethod: true,
       },
     });
     if (!existing || existing.deletedAt) {
@@ -47,8 +49,11 @@ export async function PATCH(
       );
     }
 
-    const body = await request.json();
-    const result = validateExpensePayload(body, { now: new Date() });
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return apiError('Isian pengeluaran tidak valid.', 422, { code: 'ValidationError' });
+    const isManualTransfer = existing.manualPurchasePaymentMethod === 'TRANSFER';
+    if (!isManualTransfer && body.manualPurchasePaymentMethod != null) return apiError('Sumber pengeluaran tidak dapat diubah.', 422, { code: 'ValidationError' });
+    const result = isManualTransfer ? validateManualTransferExpense(body) : validateExpensePayload(body, { now: new Date() });
     if (!result.success) {
       const errors: Record<string, string[]> = {};
       for (const err of result.errors) {
@@ -90,7 +95,7 @@ export async function PATCH(
     }
     const occurredAt = new Date(`${data.occurredAt}T00:00:00+07:00`);
     const updated = await db.expense.update({
-      where: { id },
+      where: { id, storeId, deletedAt: null },
       data: {
         applicantName: data.applicantName.trim(),
         category: data.category,
@@ -101,6 +106,7 @@ export async function PATCH(
         occurredAt,
         transactionId: data.transactionId || null,
         attachmentUrl: data.attachmentUrl || null,
+        manualPurchasePaymentMethod: isManualTransfer ? 'TRANSFER' : null,
       },
       select: {
         id: true,

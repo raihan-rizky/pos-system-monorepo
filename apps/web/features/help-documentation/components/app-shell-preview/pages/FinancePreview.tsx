@@ -8,7 +8,23 @@ import type { PreviewContext } from "../types";
 export function FinancePreview(ctx: PreviewContext) {
   const report = ctx.state === "finance-report";
   const formOpen = ctx.state === "finance-expense-form-open";
-  return <PreviewPageRoot ctx={ctx} className="bg-surface-50"><GuideTarget ctx={ctx} target="finance-primary" className="min-h-[1040px]">{report ? <ReportView ctx={ctx} /> : <CashFlowView ctx={ctx} />}</GuideTarget>{formOpen ? <ExpenseModal ctx={ctx} /> : null}</PreviewPageRoot>;
+  const manualFormOpen = ["finance-manual-income-form", "finance-manual-transfer-form"].includes(ctx.activeTarget);
+  return <PreviewPageRoot ctx={ctx} className="bg-surface-50"><GuideTarget ctx={ctx} target="finance-primary" className="min-h-[1040px]">{report ? <ReportView ctx={ctx} /> : <CashFlowView ctx={ctx} />}</GuideTarget>{formOpen ? <ExpenseModal ctx={ctx} /> : null}{manualFormOpen ? <ManualFinancePreview ctx={ctx} /> : null}</PreviewPageRoot>;
+}
+
+function ManualFinancePreview({ ctx }: { ctx: PreviewContext }) {
+  const income = ctx.activeTarget === "finance-manual-income-form";
+  return <PreviewModal ctx={ctx} target={ctx.activeTarget} title={income ? "Tambah Pemasukan" : "Tambah Belanja Transfer"}>
+    <div className="space-y-4">
+      <p className="text-sm text-surface-500">{income ? "Catat pemasukan tanpa transaksi ke kategori RC pilihan." : "Catat belanja transfer tanpa menambah stok."}</p>
+      <PreviewField label={income ? "Tanggal" : "Tanggal transfer"} value="03 November 2026" />
+      {!income && <PreviewField label="Nama penerima / supplier" value="Pemasok contoh" />}
+      <PreviewField label={income ? "Keterangan / sumber" : "Keterangan belanja"} value={income ? "Pemasukan ATK contoh" : "Belanja kertas contoh"} />
+      <PreviewField label="Nominal (Rp)" value={income ? "100000" : "25000"} />
+      <PreviewField label={income ? "Kategori RC" : "Bukti transfer (opsional)"} value={income ? "ATK Â· Cetak Â· Spanduk Â· Print Â· Stempel" : "Pilih gambar bukti"} />
+      <div className="flex justify-end gap-2"><span className="px-4 py-2 text-sm">Batal</span><span className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white">Simpan</span></div>
+    </div>
+  </PreviewModal>;
 }
 
 function CashFlowView({ ctx }: { ctx: PreviewContext }) {

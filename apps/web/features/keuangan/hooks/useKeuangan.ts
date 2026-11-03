@@ -12,7 +12,7 @@ export type IncomeSummary = {
   month: string;
   monthlyTotal: number;
   transactionCount: number;
-  daily: { date: string; total: number; count: number }[];
+  daily: { date: string; total: number; count: number; manualCount?: number }[];
   cashDaily?: { date: string; total: number }[];
   cashTotal?: number;
 };
@@ -52,6 +52,7 @@ export type ExpenseListItem = {
   hasMissingCostSnapshot: boolean;
   source:
     | { type: "MANUAL" }
+    | { type: "MANUAL_TRANSFER_PURCHASE" }
     | { type: "SHOPPING_REQUEST"; id: string; number: string }
     | { type: "BACKDATED_PURCHASE"; id: string; number: string }
     | { type: "GOODS_PURCHASE"; id: string; number: string };

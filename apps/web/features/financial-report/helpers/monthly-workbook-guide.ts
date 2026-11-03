@@ -69,8 +69,8 @@ export function buildMonthlyGuide({ monthName, debtRow, period }: GuideContext):
   block("A29:D29", "RC = UANG MASUK", success, { solid: true, target: link(`RC ${monthName}`, "A7") });
   block("E29:H29", "RP = UANG KELUAR", accent, { solid: true, target: link(`RP ${monthName}`, "A7") });
   block("I29:L29", "PIUTANG = BELUM DIBAYAR", brandDeep, { solid: true, target: link("PIUTANG & HUTANG", "A7") });
-  block("A30:D32", "Rincian uang yang sudah diterima. Excel menjumlahkannya ke rekap harian dan total pendapatan.", success);
-  block("E30:H32", "RP berisi pengeluaran manual, termasuk gaji. Belanja dan pembayaran giro dirinci pada tab belanja.", accent);
+  block("A30:D32", "Penerimaan transaksi dan Tambah Pemasukan di Keuangan masuk RC sesuai kategori, lalu dijumlahkan ke rekap.", success);
+  block("E30:H32", "Semua pengeluaran dihitung sekali. Tambah Belanja Transfer juga tampil di PENGELUARAN BELANJA → VIA TRANSFER.", accent);
   block("I30:L32", "Ini sisa tagihan pelanggan di tanggal akhir laporan. Masuk ke ringkasan harta, tapi belum jadi uang yang diterima.", brand);
   block("A34:B36", "RC + RP + BELANJA", brandDeep, { solid: true, center: true });
   block("C34:C36", "→", surface, { size: 22, center: true });

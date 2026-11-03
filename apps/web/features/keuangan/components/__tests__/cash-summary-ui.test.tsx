@@ -12,7 +12,15 @@ const state = vi.hoisted(() => ({
 vi.mock("next/dynamic", () => ({ default: () => () => null }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams("month=2026-11") }));
 vi.mock("next/link", () => ({ default: ({ children }: { children: React.ReactNode }) => children }));
-vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  useQuery: () => ({
+    isLoading: false,
+    isError: false,
+    data: { data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } },
+    refetch: vi.fn(),
+  }),
+}));
 vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({ canPerform: (resource: string, action: string) => action === "read" ? (resource === "income" ? state.incomePermission : state.expensePermission) : false }) }));
 vi.mock("@/features/ai-assistant/hooks/useAssistantModalAction", () => ({ useAssistantModalAction: () => {} }));
 vi.mock("@/features/keuangan/components/SupplierPayablesPanel", () => ({ SupplierPayablesPanel: () => null }));

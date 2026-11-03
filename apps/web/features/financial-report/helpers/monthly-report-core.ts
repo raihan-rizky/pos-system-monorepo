@@ -19,6 +19,8 @@ export type MonthlyExpenseInput = {
   goodsPurchaseId?: string | null; shoppingRequestId?: string | null;
   backdatedPurchaseDueId?: string | null; backdatedPurchasePaymentId?: string | null;
   hasMissingCostSnapshot?: boolean;
+  applicantName?: string;
+  manualPurchasePaymentMethod?: string | null;
   purchaseAmountMismatch?: boolean;
   ambiguousPurchaseDueDates?: Date[];
   shoppingRequest?: { status: string; number?: string } | null;
@@ -28,6 +30,10 @@ export type MonthlyExpenseInput = {
 export type MonthlyManualReceivableInput = {
   id: string; debtDate: Date; dueDate: Date; amount: Money; note: string | null;
   customer: { name: string }; payments: Payment[];
+};
+export type MonthlyManualIncomeInput = {
+  id: string; occurredAt: Date; description: string; amount: Money;
+  category: "ATK" | "CETAK" | "SPANDUK" | "PRINT" | "STEMPEL"; deletedAt?: Date | null;
 };
 export type MonthlyBackdatedPurchaseInput = {
   id: string; purchaseDate: Date; dueDate: Date; reference: string; paymentMethod: string; amount: Money;
@@ -114,6 +120,7 @@ function transactionEvents(transaction: MonthlyTransactionInput) {
 export function buildMonthlyReport(input: {
   year: number; month: number; period: MonthlyPeriod; transactions: MonthlyTransactionInput[];
   expenses: MonthlyExpenseInput[]; manualReceivables: MonthlyManualReceivableInput[];
+  manualIncome?: MonthlyManualIncomeInput[];
   backdatedPurchases?: MonthlyBackdatedPurchaseInput[];
 }): MonthlyFinancialReport {
   const { year, month, period } = input;
@@ -136,6 +143,14 @@ export function buildMonthlyReport(input: {
       const outstanding = Math.max(0, cents(transaction.total) - paid) / 100;
       if (outstanding > 0) report.receivables.push({ id: transaction.id, date: dateKey(transaction.invoiceDate), dueDate: null, reference, description, customer: transaction.customerName || transaction.customer?.name || 'Tanpa nama pelanggan', amount: outstanding });
     }
+  }
+  for (const row of uniquePayments(input.manualIncome ?? [])) {
+    if (row.deletedAt || !inPeriod(row.occurredAt)) continue;
+    report.income.push({
+      id: `manual-income:${row.id}`, date: dateKey(row.occurredAt),
+      reference: `Pemasukan manual ${row.id}`, description: row.description,
+      amounts: allocateMonthlyIncome(cents(row.amount) / 100, [{ group: row.category, amount: 1 }]),
+    });
   }
   for (const receivable of input.manualReceivables) {
     const payments = uniquePayments(receivable.payments);
@@ -168,11 +183,17 @@ export function buildMonthlyReport(input: {
     const ambiguousDueInMonth = expense.ambiguousPurchaseDueDates?.some(date => calendarKey(date).slice(0, 7) === period.from.slice(0, 7));
     if (!obligationInScope && ambiguousDueInMonth && !report.warnings.some(warning => warning.includes('jadwal belanja lama'))) report.warnings.push('Sebagian jadwal belanja lama tidak dapat dipastikan karena hubungan pembelian ambigu.');
     const row: MonthlyExpense = { id: expense.id, date: dateKey(expense.occurredAt), description: expense.description || 'Pengeluaran', categoryName: expense.customCategory?.name ?? null, amount: Math.max(0, cents(expense.amount) - cents(expense.changeAmount)) / 100, group: expense.category === 'SALARY' ? 'SALARY' : 'OTHER' };
-    if (!automatic) {
+    const manualTransfer = expense.manualPurchasePaymentMethod === 'TRANSFER';
+    if (!automatic && !manualTransfer) {
       if (inPeriod(expense.occurredAt)) {
         if (expense.hasMissingCostSnapshot && !report.warnings.some(warning => warning.includes('snapshot biaya'))) report.warnings.push('Sebagian pengeluaran belum memiliki snapshot biaya lengkap; total pengeluaran dapat belum lengkap.');
         report.expenses.push(row);
       }
+      continue;
+    }
+    if (manualTransfer && !automatic) {
+      row.purchase = { reference: `Belanja manual ${expense.id}`, method: 'TRANSFER', dueDate: null, supplier: expense.applicantName || 'Tanpa nama penerima' };
+      if (inPeriod(expense.occurredAt)) purchases.push(row);
       continue;
     }
 

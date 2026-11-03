@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ permission: vi.fn(), report: vi.fn(), transaction: vi.fn(), expense: vi.fn() }));
-vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transaction }, expense: { findMany: mocks.expense } } }));
+const mocks = vi.hoisted(() => ({ permission: vi.fn(), report: vi.fn(), transaction: vi.fn(), expense: vi.fn(), manualIncome: vi.fn() }));
+vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transaction }, expense: { findMany: mocks.expense }, manualIncome: { findMany: mocks.manualIncome } } }));
 vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.permission, handleAuthError: () => null }));
 vi.mock("@/features/financial-report/services/monthly-report", () => ({ getMonthlyFinancialReport: mocks.report }));
 vi.mock("@/lib/logger", () => ({ getLogger: () => ({ error: vi.fn() }) }));
@@ -16,6 +16,7 @@ describe("finance dashboard report count", () => {
     mocks.permission.mockResolvedValue({ id: "user-1", storeId: "store-1" });
     mocks.transaction.mockResolvedValue([]);
     mocks.expense.mockResolvedValue([]);
+    mocks.manualIncome.mockResolvedValue([]);
     mocks.report.mockResolvedValue({
       income: [{ date: "2026-11-03", amounts: { CETAK: 100_000 } }],
       expenses: [{ date: "2026-11-01", amount: 10_000 }],

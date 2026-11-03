@@ -58,6 +58,8 @@ export type AssistantModalId =
   | "supplier-create"
   | "salesperson-create"
   | "expense-create"
+  | "income-create"
+  | "manual-transfer-create"
   | "shift-open"
   | "inventory-stock-single"
   | "inventory-inbound";
