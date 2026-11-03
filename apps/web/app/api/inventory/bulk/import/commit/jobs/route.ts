@@ -17,7 +17,7 @@ export const maxDuration = 300;
 
 export async function POST(request: Request) {
   try {
-    const user = await requirePermission("inventory", "update");
+    const user = await requirePermission("inventory.bulk", "update");
     const input = bulkStockImportJobCreateSchema.parse(await request.json());
     const job = await createBulkStockImportJob(input, user);
     startBulkStockImportJobProcessing(job.id);

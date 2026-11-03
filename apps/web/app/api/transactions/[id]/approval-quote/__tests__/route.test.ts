@@ -92,8 +92,8 @@ describe("GET /api/transactions/[id]/approval-quote", () => {
     expect(buildApprovalQuoteMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ canEditTransactionPrice: false }));
   });
 
-  it("forwards product-update capability separately from cost visibility", async () => {
-    canRolePerformActionMock.mockImplementation((_role, resource, action) => resource === "product" && action === "update");
+  it("forwards invoice-price capability separately from cost visibility", async () => {
+    canRolePerformActionMock.mockImplementation((_role, resource, action) => resource === "transaction.custom_price" && action === "update");
     const response = await POST(new Request("http://localhost/api/transactions/tx-1/approval-quote", {
       method: "POST", body: JSON.stringify({ type: "draft", items: [{ productId: "paper", quantity: 1 }] }),
     }), { params: Promise.resolve({ id: "tx-1" }) });

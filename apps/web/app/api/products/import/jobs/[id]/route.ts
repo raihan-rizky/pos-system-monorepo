@@ -16,7 +16,7 @@ export async function GET(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await requirePermission("product", "read");
+    const user = await requirePermission("product.import", "read");
     const params = productImportJobIdSchema.parse(await context.params);
     const job = await progressProductImportJobForPolling(params.id, user);
     return NextResponse.json(job);

@@ -184,10 +184,11 @@ export function useProductImportCommit() {
   });
 }
 
-export function useActiveProductImportJob() {
+export function useActiveProductImportJob(enabled = true) {
   return useQuery({
     queryKey: PRODUCT_IMPORT_ACTIVE_JOB_QUERY_KEY,
     queryFn: fetchActiveProductImportJob,
+    enabled,
     refetchInterval: 5_000,
   });
 }

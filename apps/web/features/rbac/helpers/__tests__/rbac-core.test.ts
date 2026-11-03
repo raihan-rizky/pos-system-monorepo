@@ -280,6 +280,14 @@ describe("RBAC permission matrix", () => {
     expect(normalized.ADMIN.resources).not.toHaveProperty("product.typo");
   });
 
+  it("does not allow configured RBAC management grants to override Owner policy", () => {
+    const permissions = normalizeRolePermissions([
+      { role: "ADMIN", scope: "resource", target: "rbac", action: "update", allowed: true },
+    ]);
+    expect(canRolePerformAction("ADMIN", "rbac", "update", permissions)).toBe(false);
+    expect(canRolePerformAction("OWNER", "rbac", "update", permissions)).toBe(true);
+  });
+
   it("restricts inventory.approve to OWNER by default", () => {
     const defaults = buildDefaultRolePermissions();
     expect(canRolePerformAction("OWNER", "inventory.approve", "update", defaults)).toBe(true);

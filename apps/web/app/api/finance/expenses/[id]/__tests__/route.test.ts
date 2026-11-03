@@ -6,7 +6,7 @@ const expenseFindFirstMock = vi.hoisted(() => vi.fn());
 const expenseUpdateMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
-  requirePermission: requirePermissionMock,
+  requireRole: requirePermissionMock, requirePermission: requirePermissionMock,
   handleAuthError: handleAuthErrorMock,
 }));
 

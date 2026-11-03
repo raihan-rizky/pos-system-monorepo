@@ -81,7 +81,7 @@ export async function POST(request: Request) {
   if (rateLimited) return rateLimited;
 
   try {
-    const user = await requirePermission("product", "create");
+    const user = await requirePermission("product.import", "create");
     if (request.headers.get("content-type")?.includes("application/json")) {
       const parsed = z.object({
         rows: z.array(importRowCommitSchema.extend({

@@ -7,6 +7,7 @@ export const PAGE_SCOPE = "page" as const;
 export const RESOURCE_SCOPE = "resource" as const;
 export const OWNER_LOCKED_RESOURCE_TARGETS: ReadonlySet<string> = new Set([
   "inventory.approve",
+  "rbac",
 ]);
 
 export type OwnerRole = typeof OWNER_ROLE;
@@ -91,7 +92,27 @@ export const RESOURCE_TARGETS = [
   "expense",
   "income",
   "proof_upload",
+  "transaction.custom_price",
+  "income.manual",
+  "expense.manual_transfer",
+  "expense.payable",
+  "expense.giro",
+  "financial-report.export",
+  "product.import",
+  "inventory.bulk",
 ] as const;
+
+/** Missing transition rows inherit the effective legacy action, until first save. */
+export const TRANSITION_RESOURCE_PERMISSIONS: Record<string, { legacyTarget: string; actions: readonly ResourceAction[] }> = {
+  "transaction.custom_price": { legacyTarget: "product", actions: ["update"] },
+  "income.manual": { legacyTarget: "income", actions: ["create", "read", "update", "delete"] },
+  "expense.manual_transfer": { legacyTarget: "expense", actions: ["create", "update", "delete"] },
+  "expense.payable": { legacyTarget: "expense", actions: ["create", "read", "update"] },
+  "expense.giro": { legacyTarget: "expense", actions: ["read", "update"] },
+  "financial-report.export": { legacyTarget: "financial-report", actions: ["read"] },
+  "product.import": { legacyTarget: "product", actions: ["create", "read", "update"] },
+  "inventory.bulk": { legacyTarget: "inventory", actions: ["read", "update"] },
+};
 
 type LegacyAction = "read" | "write" | "delete";
 
@@ -313,13 +334,25 @@ export function buildDefaultRolePermissions(): RolePermissions {
         delete: LEGACY_ACTION_ACCESS[resource]?.delete.includes(role) ?? false,
       };
     }
+    for (const [target, transition] of Object.entries(TRANSITION_RESOURCE_PERMISSIONS)) {
+      for (const action of ACTIONS) {
+        permissions[role].resources[target][action] = transition.actions.includes(action)
+          && permissions[role].resources[transition.legacyTarget][action];
+      }
+    }
   }
 
   return permissions;
 }
 
+/** A verification failure must not restore the installation's default grants. */
+export function buildDeniedRolePermissions(): RolePermissions {
+  return emptyRolePermissions();
+}
+
 export function normalizeRolePermissions(entries: PermissionEntry[] | null): RolePermissions {
   const permissions = buildDefaultRolePermissions();
+  const explicitTransitions = new Set<string>();
 
   for (const entry of entries ?? []) {
     if (!isEditableRole(entry.role)) continue;
@@ -341,6 +374,9 @@ export function normalizeRolePermissions(entries: PermissionEntry[] | null): Rol
       isKnownResourceTarget(entry.target) &&
       !isOwnerLockedResource(entry.target)
     ) {
+      const transition = TRANSITION_RESOURCE_PERMISSIONS[entry.target];
+      if (transition && !transition.actions.includes(entry.action)) continue;
+      if (transition) explicitTransitions.add(`${entry.role}:${entry.target}:${entry.action}`);
       permissions[entry.role].resources[entry.target] ??= {
         create: false,
         read: false,
@@ -348,6 +384,16 @@ export function normalizeRolePermissions(entries: PermissionEntry[] | null): Rol
         delete: false,
       };
       permissions[entry.role].resources[entry.target][entry.action] = entry.allowed;
+    }
+  }
+
+  for (const role of EDITABLE_ROLES) {
+    for (const [target, transition] of Object.entries(TRANSITION_RESOURCE_PERMISSIONS)) {
+      for (const action of transition.actions) {
+        if (!explicitTransitions.has(`${role}:${target}:${action}`)) {
+          permissions[role].resources[target][action] = permissions[role].resources[transition.legacyTarget][action];
+        }
+      }
     }
   }
 
@@ -394,6 +440,7 @@ export function canRolePerformAction(
 ): boolean {
   if (role === OWNER_ROLE) return true;
   if (!isEditableRole(role)) return false;
+  if (isOwnerLockedResource(resource)) return false;
 
   return permissions[role].resources[resource]?.[action] ?? false;
 }

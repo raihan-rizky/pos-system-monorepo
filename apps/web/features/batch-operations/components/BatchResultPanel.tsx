@@ -3,15 +3,21 @@
 import { Button } from "@pos/ui";
 import { RotateCcw } from "lucide-react";
 import { useUndoBatchOperation } from "../hooks/useUndoBatchOperation";
+import { useRole } from "@/components/providers/RoleProvider";
+import type { ResourceAction } from "@/features/rbac/helpers/rbac-core";
 
 export function BatchResultPanel({
   batchOperationId,
   summary,
+  undoPermission,
 }: {
   batchOperationId: string;
   summary: Array<{ label: string; value: string | number }>;
+  undoPermission: { resource: string; action: ResourceAction };
 }) {
   const undo = useUndoBatchOperation();
+  const { canPerform } = useRole();
+  const canUndo = canPerform(undoPermission.resource, undoPermission.action);
 
   return (
     <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 space-y-4">
@@ -33,7 +39,7 @@ export function BatchResultPanel({
           Undo selesai. Reversal logs: {undo.data.reversalInventoryLogCount}
         </div>
       )}
-      <Button
+      {canUndo && <Button
         type="button"
         variant="secondary"
         icon={<RotateCcw className="w-4 h-4" />}
@@ -42,7 +48,7 @@ export function BatchResultPanel({
         onClick={() => undo.mutate(batchOperationId)}
       >
         Undo Batch
-      </Button>
+      </Button>}
     </div>
   );
 }

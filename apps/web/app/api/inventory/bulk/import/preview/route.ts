@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   if (rateLimited) return rateLimited;
 
   try {
-    const user = await requirePermission("inventory", "update");
+    const user = await requirePermission("inventory.bulk", "update");
     const formData = await request.formData();
     const file = formData.get("file");
     if (!(file instanceof File)) {

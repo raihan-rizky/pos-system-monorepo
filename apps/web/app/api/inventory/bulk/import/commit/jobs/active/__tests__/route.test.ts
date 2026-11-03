@@ -21,7 +21,7 @@ describe("GET active bulk stock import job", () => {
     const response = await GET();
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ job: { id: "job-1", status: "RUNNING", storeId: "store-1" } });
-    expect(permission).toHaveBeenCalledWith("inventory", "update");
+    expect(permission).toHaveBeenCalledWith("inventory.bulk", "read");
     expect(activeJob).toHaveBeenCalledWith({ id: "user-1", role: "ADMIN", storeId: "store-1" });
   });
 

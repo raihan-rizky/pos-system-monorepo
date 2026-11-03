@@ -86,7 +86,7 @@ export function ManualFinanceFormModal({ open, kind, initial, onClose, onSaved }
             {MANUAL_INCOME_CATEGORIES.map(value => <option key={value} value={value}>{MANUAL_INCOME_LABELS[value]}</option>)}
           </select>
         </Field>}
-        {!income && <ProofImageUploader context="expense" label="Bukti transfer (opsional)" value={attachmentUrl} onChange={setAttachmentUrl} disabled={submitting} onDelete={async url => {
+        {!income && <ProofImageUploader context={initial?.id ? "manual-transfer-edit" : "manual-transfer"} label="Bukti transfer (opsional)" value={attachmentUrl} onChange={setAttachmentUrl} disabled={submitting} onDelete={async url => {
           if (!initial?.id || initial.attachmentUrl !== url) return deleteUploadedProof(url);
           const response = await fetch(`/api/finance/expenses/${initial.id}/attachment`, { method: 'DELETE' });
           if (!response.ok) throw new Error('Bukti transfer belum dapat dihapus.');

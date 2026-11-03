@@ -141,7 +141,7 @@ export function TransactionActionMenu({
   }, [isMounted, isOpen, showUpward]);
 
   // Determine if we have any items to show in the dropdown
-  const hasUpdateAction = !isBundled && !isSalesRole && canUpdateTransactions;
+  const hasUpdateAction = !isBundled && canUpdateTransactions;
   const hasInvoiceDateAction = !isBundled && !isSalesRole && canChangeInvoiceDate;
   const hasDeleteAction = !isBundled && !isSalesRole && canDeleteTransactions;
   const hasVoidAction = !isBundled && !isSalesRole && canVoid;

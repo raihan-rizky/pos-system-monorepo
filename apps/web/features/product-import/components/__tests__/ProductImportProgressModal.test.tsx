@@ -33,6 +33,7 @@ describe("ProductImportProgressModal", () => {
     const html = renderToStaticMarkup(
       <ProductImportProgressModal
         open
+        canManage
         job={{
           id: "job-1",
           batchOperationId: "batch-1",

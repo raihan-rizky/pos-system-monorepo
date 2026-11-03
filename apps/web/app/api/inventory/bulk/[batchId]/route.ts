@@ -12,7 +12,7 @@ export async function GET(
   context: { params: Promise<{ batchId: string }> },
 ) {
   try {
-    const user = await requirePermission("inventory", "read");
+    const user = await requirePermission("inventory.bulk", "read");
     const storeId = user.storeId || "store-main";
     const { batchId } = await context.params;
     const batch = await db.batchOperation.findFirst({

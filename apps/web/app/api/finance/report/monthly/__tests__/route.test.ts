@@ -10,7 +10,7 @@ describe('endpoint bulanan', () => {
   it('memakai permission dan toko sesi, mengabaikan storeId browser serta menonaktifkan cache', async () => {
     const response = await GET(new Request('http://localhost/api/finance/report/monthly?year=2026&month=9&storeId=other'));
     expect(response.status).toBe(200);
-    expect(mocks.permission).toHaveBeenCalledWith('financial-report', 'read');
+    expect(mocks.permission).toHaveBeenCalledWith("financial-report.export", "read");
     expect(mocks.report).toHaveBeenCalledWith('authorized-store', 2026, 9);
     expect(response.headers.get('cache-control')).toContain('no-store');
   });

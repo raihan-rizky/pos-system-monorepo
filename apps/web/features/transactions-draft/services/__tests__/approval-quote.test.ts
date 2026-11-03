@@ -7,9 +7,9 @@ import {
 } from "../approval-quote";
 
 describe("buildApprovalFingerprint", () => {
-  it.each([false, true])("authorizes changes to a saved custom price with product permission %s", async canEditTransactionPrice => {
-    const client = makeQuoteClient({ customerType: "UMUM" });
-    client.storeSettings.findUnique.mockResolvedValue({ specialPricingEnabled: false });
+  it.each([false, true].flatMap(canEditTransactionPrice => ["UMUM", "INDUSTRI", "PEMERINTAH"].map(customerType => ({canEditTransactionPrice,customerType}))))("authorizes saved invoice prices with grant $canEditTransactionPrice for $customerType", async ({canEditTransactionPrice,customerType}) => {
+    const client = makeQuoteClient({ customerType });
+    client.storeSettings.findUnique.mockResolvedValue({ specialPricingEnabled: true });
     const current = await client.transaction.findFirst();
     client.transaction.findFirst.mockResolvedValue({ ...current, items: [{
       id: "custom-line", productId: "paper", printingServiceId: null, discount: 0,

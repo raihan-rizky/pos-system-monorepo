@@ -14,7 +14,7 @@ const validRequestKey = (value: string | null): value is string =>
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const user = await requirePermission('expense', 'update');
+    const user = await requirePermission("expense.payable", "update");
     if (!user.storeId) return apiError('Toko pengguna belum tersedia.', 403, { code: 'Forbidden' });
     const body = await request.json().catch(() => null) as { amount?: unknown; paidAt?: unknown; expectedBalance?: unknown } | null;
     const amount = parseAmount(body?.amount);

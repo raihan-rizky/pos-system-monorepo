@@ -14,7 +14,7 @@ export async function POST(
   context: { params: Promise<{ batchId: string }> },
 ) {
   try {
-    const user = await requirePermission("inventory", "update");
+    const user = await requirePermission("inventory.bulk", "update");
     const { batchId } = await context.params;
 
     const result = await db.$transaction(async (tx) => {

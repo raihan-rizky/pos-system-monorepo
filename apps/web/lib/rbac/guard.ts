@@ -143,9 +143,14 @@ export async function requireRole(...allowedRoles: Role[]) {
  */
 export async function requirePermission(resource: string, action: Action) {
   const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES", "INVENTORY");
-  const permissions = isE2EAuthBypassEnabled()
-    ? buildDefaultRolePermissions()
-    : await getGlobalRolePermissions();
+  let permissions;
+  try {
+    permissions = isE2EAuthBypassEnabled()
+      ? buildDefaultRolePermissions()
+      : await getGlobalRolePermissions();
+  } catch {
+    throw new AuthError(503, "Hak akses belum dapat diverifikasi. Silakan coba lagi.");
+  }
 
   if (!canRolePerformAction(user.role as Role, resource, action, permissions)) {
     throw new AuthError(403, "Insufficient permissions");
@@ -193,7 +198,7 @@ export async function getCurrentUser() {
 export function handleAuthError(error: unknown) {
   if (error instanceof AuthError) {
     return apiError(error.message, error.statusCode, {
-      code: error.statusCode === 401 ? "Unauthorized" : "Forbidden",
+      code: error.statusCode === 503 ? "ServiceUnavailable" : error.statusCode === 401 ? "Unauthorized" : "Forbidden",
     });
   }
   return null;

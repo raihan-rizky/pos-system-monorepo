@@ -502,6 +502,7 @@ export function ProductImportDrawer({
             <div className="space-y-4">
               <BatchResultPanel
                 batchOperationId={commit.data.batchOperationId}
+                undoPermission={{ resource: "product.import", action: "create" }}
                 summary={buildProductImportResultSummary(commit.data)}
               />
               {commit.data.failedRowCount > 0 && (

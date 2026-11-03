@@ -5,6 +5,19 @@ import {
 } from "../rbac-settings";
 
 describe("RBAC settings persistence helpers", () => {
+  it("rejects malformed permission entries with a validation error", () => {
+    for (const entry of [null, undefined, "ADMIN", 4, []]) {
+      expect(() => parseRolePermissionPayload([entry])).toThrow("Invalid permission entry");
+    }
+  });
+
+  it("rejects duplicate permission keys instead of accepting ambiguous saves", () => {
+    expect(() => parseRolePermissionPayload([
+      { role: "SALES", scope: "resource", target: "transaction", action: "update", allowed: true },
+      { role: "SALES", scope: "resource", target: "transaction", action: "update", allowed: false },
+    ])).toThrow("Invalid duplicate permission");
+  });
+
   it("rejects owner permission edits from client payloads", () => {
     expect(() =>
       parseRolePermissionPayload([

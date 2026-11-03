@@ -211,6 +211,7 @@ export function BulkStockDrawer({
             )}
             <BatchResultPanel
               batchOperationId={commit.data.batchOperationId}
+              undoPermission={{ resource: "inventory.bulk", action: "update" }}
               summary={[
                 {
                   label: commit.data.pendingApproval ? "Produk diajukan" : "Produk",

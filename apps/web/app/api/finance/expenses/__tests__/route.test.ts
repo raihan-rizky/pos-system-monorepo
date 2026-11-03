@@ -9,7 +9,7 @@ const expenseCreateMock = vi.hoisted(() => vi.fn());
 const transactionFindFirstMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
-  requirePermission: requirePermissionMock,
+  requireRole: requirePermissionMock, requirePermission: requirePermissionMock,
   handleAuthError: handleAuthErrorMock,
 }));
 

@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
-    const user = await requirePermission('income', 'read');
+    const user = await requirePermission("income.manual", "read");
     if (!user.storeId) return apiError('Toko pengguna belum tersedia.', 403, { code: 'Forbidden' });
     const { searchParams } = new URL(request.url);
     const month = searchParams.get('month') ?? manualFinanceDateBounds().max.slice(0, 7);
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requirePermission('income', 'create');
+    const user = await requirePermission("income.manual", "create");
     if (!user.storeId) return apiError('Toko pengguna belum tersedia.', 403, { code: 'Forbidden' });
     const body: unknown = await request.json().catch(() => null);
     const result = validateManualIncome(body);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRef } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -21,7 +22,6 @@ import {
 import {
   ACTIONS,
   EDITABLE_ROLES,
-  flattenRolePermissions,
   normalizeRolePermissions,
 } from "@/features/rbac/helpers/rbac-core";
 import type {
@@ -32,10 +32,18 @@ import type {
 } from "@/features/rbac/helpers/rbac-core";
 import {
   RBAC_PERMISSION_MODULES,
+  buildModuleGroups,
+  buildEffectiveActivities,
+  RBAC_RESOURCE_METADATA,
+  countSupportedResourceActions,
+  bindDialogFocus,
   buildModuleWarnings,
   buildPermissionChanges,
+  buildPermissionPresentation,
   buildRoleSummaries,
 } from "@/features/rbac/helpers/rbac-settings-ui";
+import { loadRbacSettings, saveRbacChanges, notifyPermissionsChanged, PermissionSaveError } from "@/features/rbac/helpers/rbac-client";
+import type { PermissionAuditEntry } from "@/features/rbac/helpers/rbac-client";
 import type {
   PermissionChange,
   PermissionSensitivity,
@@ -43,10 +51,6 @@ import type {
 } from "@/features/rbac/helpers/rbac-settings-ui";
 
 /* ─── Constants ─────────────────────────────────────────────────────────────── */
-
-type RbacResponse = {
-  permissions: PermissionEntry[];
-};
 
 const ROLE_LABELS: Record<EditableRole, string> = {
   ADMIN: "Admin",
@@ -96,7 +100,7 @@ const ACTION_LABELS: Record<ResourceAction, string> = {
 const SENSITIVITY_STYLES: Record<PermissionSensitivity, { dot: string; label: string }> = {
   normal: { dot: "bg-emerald-400", label: "Normal" },
   sensitive: { dot: "bg-amber-400", label: "Sensitif" },
-  critical: { dot: "bg-red-400", label: "Critical" },
+  critical: { dot: "bg-red-400", label: "Kritis" },
 };
 
 /* ─── Exported helpers (used by tests) ──────────────────────────────────────── */
@@ -165,6 +169,9 @@ export default function RbacTab() {
   const [error, setError] = useState<string | null>(null);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isSensitiveConfirmOpen, setIsSensitiveConfirmOpen] = useState(false);
+  const [version, setVersion] = useState("");
+  const [audit, setAudit] = useState<PermissionAuditEntry[]>([]);
+  const [hasConflict, setHasConflict] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -174,17 +181,14 @@ export default function RbacTab() {
       setError(null);
 
       try {
-        const response = await fetch("/api/settings/rbac");
-        const data = (await response.json()) as RbacResponse & { message?: string };
-
-        if (!response.ok) {
-          throw new Error(data.message || "Gagal memuat pengaturan RBAC");
-        }
+        const data = await loadRbacSettings();
 
         if (!cancelled) {
           const normalized = buildSavedPermissionsFromEntries(data.permissions);
           setPermissions(normalized);
           setSavedPermissions(normalized);
+          setVersion(data.version);
+          setAudit(data.audit);
         }
       } catch (err) {
         if (!cancelled) {
@@ -247,35 +251,54 @@ export default function RbacTab() {
   }
 
   async function saveSettings() {
-    if (!permissions) return;
+    if (!permissions || !savedPermissions || !version || hasConflict) return;
     setIsSaving(true);
     setSaved(false);
     setError(null);
 
     try {
-      const response = await fetch("/api/settings/rbac", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ permissions: flattenRolePermissions(permissions) }),
-      });
-      const data = (await response.json()) as RbacResponse & { message?: string };
-
-      if (!response.ok) {
-        throw new Error(data.message || "Gagal menyimpan pengaturan RBAC");
-      }
+      const data = await saveRbacChanges(permissions, savedPermissions, version);
 
       const normalized = buildSavedPermissionsFromEntries(data.permissions);
       setPermissions(normalized);
       setSavedPermissions(normalized);
+      setVersion(data.version);
+      setAudit(previous => [...data.audit, ...previous].filter((entry, index, entries) => entries.findIndex(other => other.id === entry.id) === index).slice(0, 20));
+      notifyPermissionsChanged(data.version);
       setIsReviewOpen(false);
       setIsSensitiveConfirmOpen(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal menyimpan pengaturan RBAC");
+      if (err instanceof PermissionSaveError && err.statusCode === 409) {
+        setHasConflict(true);
+        setIsReviewOpen(false);
+        setIsSensitiveConfirmOpen(false);
+        try {
+          const latest = await loadRbacSettings();
+          setAudit(latest.audit);
+        } catch { /* Local edits remain available if the latest audit cannot be loaded. */ }
+      }
     } finally {
       setIsSaving(false);
     }
+  }
+
+  async function reloadSettings() {
+    setIsSaving(true);
+    try {
+      const data = await loadRbacSettings();
+      const normalized = buildSavedPermissionsFromEntries(data.permissions);
+      setPermissions(normalized);
+      setSavedPermissions(normalized);
+      setVersion(data.version);
+      setAudit(data.audit);
+      setHasConflict(false);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal memuat pengaturan RBAC");
+    } finally { setIsSaving(false); }
   }
 
   function confirmReview() {
@@ -301,17 +324,27 @@ export default function RbacTab() {
         <p className="text-sm font-semibold text-red-700">
           {error || "Gagal memuat pengaturan RBAC"}
         </p>
+        <button type="button" onClick={() => window.location.reload()} className="rounded-lg border border-surface-200 px-4 py-2 text-sm font-semibold text-surface-700">Coba lagi</button>
       </div>
     );
   }
 
   return (
+    <>
+    {hasConflict && (
+      <div role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <p className="font-semibold">Hak akses berubah di sesi lain</p>
+        <p className="mt-1">Edit Anda masih tersedia di bawah. Periksa catatan perubahan, lalu muat versi terbaru sebelum menyusun dan meninjau perubahan lagi. Memuat ulang akan mengganti edit yang belum disimpan.</p>
+        <button type="button" disabled={isSaving} onClick={() => void reloadSettings()} className="mt-3 rounded-lg border border-amber-300 bg-white px-3 py-2 font-semibold disabled:opacity-50">Muat versi terbaru dan ganti edit lokal</button>
+      </div>
+    )}
     <RbacSettingsView
       activeRole={activeRole}
       selectedModuleId={selectedModuleId}
       permissions={permissions}
       savedPermissions={savedPermissions}
       isSaving={isSaving}
+      saveBlocked={hasConflict}
       saved={saved}
       error={error}
       isReviewOpen={isReviewOpen}
@@ -320,12 +353,38 @@ export default function RbacTab() {
       onSelectedModuleChange={setSelectedModuleId}
       onPagePermissionChange={setPagePermission}
       onResourcePermissionChange={setResourcePermission}
-      onRequestSaveReview={() => setIsReviewOpen(true)}
+      onRequestSaveReview={() => { if (!hasConflict) setIsReviewOpen(true); }}
       onCloseReview={() => setIsReviewOpen(false)}
       onConfirmReview={confirmReview}
       onCancelSensitiveConfirm={() => setIsSensitiveConfirmOpen(false)}
       onConfirmSensitiveSave={() => void saveSettings()}
     />
+    <details className="mt-6 rounded-xl border border-surface-200 bg-white p-4">
+      <summary className="cursor-pointer text-sm font-semibold text-surface-800">Catatan perubahan hak akses</summary>
+      <p className="mt-2 text-xs text-surface-500">20 perubahan terbaru oleh Owner, berlaku untuk seluruh toko. Waktu dalam WIB.</p>
+      {audit.length === 0 ? <p className="mt-3 text-sm text-surface-500">Belum ada perubahan yang tercatat.</p> : (
+        <ol className="mt-3 space-y-3">
+          {audit.map(entry => (
+            <li key={entry.id} className="rounded-lg bg-surface-50 p-3 text-sm">
+              <p className="font-medium text-surface-800">{entry.actorName} · {new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Jakarta" }).format(new Date(entry.createdAt))}</p>
+              <p className="text-xs text-surface-500">{entry.changes.length} izin diubah</p>
+              <ul className="mt-2 space-y-1 text-xs text-surface-600">
+                {entry.changes.map(change => {
+                  const presentation = buildPermissionPresentation(change);
+                  return (
+                  <li key={`${change.role}:${change.scope}:${change.target}:${change.action}`}>
+                    {ROLE_LABELS[change.role]} · {presentation.label}: {change.allowed ? "Diizinkan" : "Tidak diizinkan"}
+                    <details className="mt-1 text-surface-500"><summary className="cursor-pointer">Detail teknis</summary><code>{presentation.technicalId}</code></details>
+                  </li>
+                  );
+                })}
+              </ul>
+            </li>
+          ))}
+        </ol>
+      )}
+    </details>
+    </>
   );
 }
 
@@ -337,6 +396,7 @@ type RbacSettingsViewProps = {
   permissions: RolePermissions;
   savedPermissions: RolePermissions;
   isSaving: boolean;
+  saveBlocked?: boolean;
   saved: boolean;
   error: string | null;
   isReviewOpen: boolean;
@@ -357,43 +417,7 @@ type RbacSettingsViewProps = {
   onConfirmSensitiveSave: () => void;
 };
 
-const MODULE_GROUPS = [
-  {
-    id: "operations",
-    label: "Operasi",
-    moduleIds: ["dashboard", "pos", "transaction-approval"],
-  },
-  {
-    id: "catalog",
-    label: "Katalog",
-    moduleIds: ["products", "price-logs", "suppliers", "production"],
-  },
-  {
-    id: "inventory",
-    label: "Manajemen Inventaris",
-    moduleIds: [
-      "inventory",
-      "inventory-approval",
-      "surat-jalan",
-      "surat-jalan-auto-approve",
-    ],
-  },
-  {
-    id: "finance",
-    label: "Keuangan",
-    moduleIds: ["keuangan", "finance-report"],
-  },
-  {
-    id: "crm",
-    label: "Pelanggan",
-    moduleIds: ["customers", "salespersons"],
-  },
-  {
-    id: "utils",
-    label: "Lainnya",
-    moduleIds: ["whatsapp", "shift", "settings", "help"],
-  },
-];
+const MODULE_GROUPS = buildModuleGroups();
 
 /* ─── Main View ─────────────────────────────────────────────────────────────── */
 
@@ -403,6 +427,7 @@ export function RbacSettingsView({
   permissions,
   savedPermissions,
   isSaving,
+  saveBlocked = false,
   saved,
   error,
   isReviewOpen,
@@ -418,8 +443,10 @@ export function RbacSettingsView({
   onConfirmSensitiveSave,
 }: RbacSettingsViewProps) {
   const [isMatrixExpanded, setIsMatrixExpanded] = useState(false);
+  const [moduleSearch, setModuleSearch] = useState("");
+  const filteredGroups = buildModuleGroups(moduleSearch);
   const [expandedSidebarGroups, setExpandedSidebarGroups] = useState<Record<string, boolean>>(() => {
-    const activeGroup = MODULE_GROUPS.find((g) => g.moduleIds.includes(selectedModuleId));
+    const activeGroup = MODULE_GROUPS.find((g) => g.modules.some((module) => module.id === selectedModuleId));
     const initial: Record<string, boolean> = {};
     MODULE_GROUPS.forEach((g) => {
       initial[g.id] = activeGroup ? activeGroup.id === g.id : false;
@@ -428,7 +455,7 @@ export function RbacSettingsView({
   });
 
   useEffect(() => {
-    const parentGroup = MODULE_GROUPS.find((g) => g.moduleIds.includes(selectedModuleId));
+    const parentGroup = MODULE_GROUPS.find((g) => g.modules.some((module) => module.id === selectedModuleId));
     if (parentGroup) {
       setExpandedSidebarGroups((prev) => ({
         ...prev,
@@ -463,12 +490,12 @@ export function RbacSettingsView({
             Permission RBAC
           </h2>
           <p className="text-sm text-surface-500 leading-relaxed">
-            Akses Owner selalu penuh dan tidak bisa diedit. Built-in roles only.
+            Atur akses Admin, Kasir, Sales, dan Inventaris. Akses Owner selalu penuh dan tidak bisa diedit.
           </p>
           <div className="inline-flex items-center gap-2 rounded-lg border border-surface-100 bg-surface-50 px-3 py-1.5">
             <Info className="h-3.5 w-3.5 text-surface-400 shrink-0" />
             <p className="text-xs text-surface-500">
-              Bukan bukti enforcement route/API; backend tetap sumber kebenaran.
+              Akses halaman, data, dan tindakan diatur terpisah. Sesuaikan ketiganya agar aktivitas yang dibutuhkan bisa dipakai.
             </p>
           </div>
         </div>
@@ -477,7 +504,7 @@ export function RbacSettingsView({
           <button
             type="button"
             onClick={onRequestSaveReview}
-            disabled={isSaving || !isDirty}
+            disabled={isSaving || !isDirty || saveBlocked}
             className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 text-sm font-bold text-white shadow-sm transition-all duration-200 hover:bg-brand-700 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
             aria-label="Review dan simpan perubahan permission"
           >
@@ -587,6 +614,8 @@ export function RbacSettingsView({
         <button
           type="button"
           onClick={() => setIsMatrixExpanded(!isMatrixExpanded)}
+          aria-expanded={isMatrixExpanded}
+          aria-controls="rbac-module-matrix"
           className="w-full flex items-center justify-between px-5 py-4 text-left font-bold text-surface-900 hover:bg-surface-50/50 transition-colors focus:outline-none cursor-pointer"
         >
           <div className="flex items-center gap-2.5">
@@ -607,7 +636,7 @@ export function RbacSettingsView({
         </button>
 
         {isMatrixExpanded && (
-          <div className="border-t border-surface-100 overflow-x-auto">
+          <div id="rbac-module-matrix" className="border-t border-surface-100 overflow-x-auto">
             {/* Scroll hint gradient on mobile */}
             <div className="relative">
               <table className="min-w-full divide-y divide-surface-100 text-sm">
@@ -688,6 +717,13 @@ export function RbacSettingsView({
         </div>
 
         <div className="p-5 space-y-5">
+          <div className="space-y-1.5">
+            <label htmlFor="rbac-module-search" className="block text-sm font-semibold text-surface-700">Cari modul hak akses</label>
+            <input id="rbac-module-search" type="search" value={moduleSearch} onChange={(event) => setModuleSearch(event.target.value)}
+              aria-label="Cari modul hak akses" placeholder="Cari nama modul atau aktivitas…"
+              className="w-full rounded-xl border border-surface-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+            {filteredGroups.length === 0 && <p role="status" className="text-sm text-surface-500">Modul belum ditemukan. Coba nama lain, ya.</p>}
+          </div>
           {/* Warnings */}
           {activeWarnings.length > 0 && (
             <div className="space-y-2">
@@ -715,8 +751,9 @@ export function RbacSettingsView({
                 onChange={(e) => onSelectedModuleChange(e.target.value)}
                 className="w-full px-4 py-2.5 pr-10 rounded-xl border border-surface-200 bg-white text-sm font-semibold text-surface-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all appearance-none cursor-pointer"
               >
-                {MODULE_GROUPS.map((group) => {
-                  const groupModules = RBAC_PERMISSION_MODULES.filter(m => group.moduleIds.includes(m.id));
+                {moduleSearch.trim() && !filteredGroups.some((group) => group.modules.some((module) => module.id === selectedModule.id)) && <option value={selectedModule.id} hidden>{selectedModule.label} (sedang dipilih)</option>}
+                {filteredGroups.map((group) => {
+                  const groupModules = group.modules;
                   if (groupModules.length === 0) return null;
 
                   return (
@@ -744,16 +781,18 @@ export function RbacSettingsView({
           <div className="grid gap-5 lg:grid-cols-[240px_1fr]">
             {/* Desktop Sidebar (Grouped & Collapsible Accordion Dropdowns) */}
             <div className="hidden lg:block space-y-2 lg:border-r lg:border-surface-100 lg:pr-5 max-h-[70vh] overflow-y-auto pr-1">
-              {MODULE_GROUPS.map((group) => {
-                const groupModules = RBAC_PERMISSION_MODULES.filter(m => group.moduleIds.includes(m.id));
+              {filteredGroups.map((group) => {
+                const groupModules = group.modules;
                 if (groupModules.length === 0) return null;
-                const isExpanded = !!expandedSidebarGroups[group.id];
+                const isExpanded = moduleSearch.trim() ? true : !!expandedSidebarGroups[group.id];
 
                 return (
                   <div key={group.id} className="space-y-1">
                     <button
                       type="button"
                       onClick={() => toggleSidebarGroup(group.id)}
+                      aria-expanded={isExpanded}
+                      aria-controls={`rbac-group-${group.id}`}
                       className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-[10px] font-black text-surface-400 uppercase tracking-widest hover:bg-surface-50 hover:text-surface-600 transition-colors focus:outline-none cursor-pointer select-none"
                     >
                       <span>{group.label}</span>
@@ -764,7 +803,7 @@ export function RbacSettingsView({
                       />
                     </button>
                     {isExpanded && (
-                      <div className="space-y-0.5 pl-1.5 border-l border-surface-100 ml-3">
+                      <div id={`rbac-group-${group.id}`} className="space-y-0.5 pl-1.5 border-l border-surface-100 ml-3">
                         {groupModules.map((module) => {
                           const isSelected = selectedModule.id === module.id;
                           const enabledCount = getModuleEnabledCount(module, activeRole, permissions);
@@ -839,6 +878,22 @@ export function RbacSettingsView({
                 onPagePermissionChange={onPagePermissionChange}
                 onResourcePermissionChange={onResourcePermissionChange}
               />
+              {(selectedModule.id === "transaction-approval" || selectedModule.id === "pos") && (
+                <section className="space-y-3 rounded-xl border border-surface-100 bg-surface-50/50 p-4" aria-label="Pratinjau aktivitas Riwayat">
+                  <h4 className="text-sm font-bold text-surface-900">Pratinjau aktivitas Riwayat</h4>
+                  <p className="text-xs text-surface-600">Akses halaman hanya membuka menu. Data dan tindakan memerlukan izin masing-masing. Pratinjau ini menilai izin; status transaksi dan batas data tetap berlaku.</p>
+                  <button type="button" onClick={() => { setModuleSearch(""); onSelectedModuleChange(selectedModule.id === "pos" ? "transaction-approval" : "pos"); }} className="text-sm font-semibold text-brand-700 underline underline-offset-2">
+                    {selectedModule.id === "pos" ? "Atur akses halaman Riwayat dan persetujuan" : "Atur Lihat / Ubah transaksi di Kasir / POS"}
+                  </button>
+                  <ul className="space-y-2">
+                    {buildEffectiveActivities(activeRole, permissions).map((activity) => <li key={activity.id} className="text-sm text-surface-700">
+                      <span className="font-semibold">{activity.label}: </span>{activity.available ? "Izin lengkap" : "Belum bisa dipakai"}
+                      {activity.missing.length > 0 && <p className="mt-0.5 text-xs text-amber-800">Perlu {activity.missing.map((item) => item.label).join(" + ")}.</p>}
+                      {activity.note && <p className="mt-0.5 text-xs text-surface-500">{activity.note}</p>}
+                    </li>)}
+                  </ul>
+                </section>
+              )}
             </div>
           </div>
         </div>
@@ -895,18 +950,14 @@ function ModuleAccessBadge({
   permissions: RolePermissions;
 }) {
   const hasPageAccess = module.pageTargets.some((page) => permissions[role].pages[page]);
-  const enabledActions = module.resourceTargets.reduce(
-    (count, resource) =>
-      count + ACTIONS.filter((action) => permissions[role].resources[resource]?.[action]).length,
-    0,
-  );
+  const enabledActions = countSupportedResourceActions(module.resourceTargets, role, permissions);
   const hasAccess = hasPageAccess || enabledActions > 0;
 
   if (!hasAccess) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full border border-surface-100 bg-surface-50 px-2.5 py-1 text-xs font-medium text-surface-400">
         <Lock className="h-3 w-3" />
-        No access
+        Belum ada akses
       </span>
     );
   }
@@ -921,7 +972,7 @@ function ModuleAccessBadge({
       {hasPageAccess && (
         <span className="flex items-center gap-0.5">
           <FileText className="h-3 w-3" />
-          Page
+          Halaman
         </span>
       )}
       {hasPageAccess && enabledActions > 0 && <span className="text-current/40">+</span>}
@@ -998,6 +1049,7 @@ function ModulePermissionEditor({
             <Eye className="h-3.5 w-3.5" />
             Akses Halaman
           </h4>
+          <p className="text-xs text-surface-500">Akses halaman hanya membuka menu. Izin data dan tindakan diatur terpisah di bawah.</p>
           <div className="space-y-2">
             {module.pageTargets.map((page) => {
               const isChecked = permissions[role].pages[page] ?? false;
@@ -1037,8 +1089,11 @@ function ModulePermissionEditor({
         <div className="space-y-2.5">
           <h4 className="text-xs font-bold uppercase tracking-wider text-surface-400 flex items-center gap-1.5">
             <Pencil className="h-3.5 w-3.5" />
-            Aksi Resource
+            Izin Data dan Tindakan
           </h4>
+          {module.pageTargets.length > 0 && <p className="text-xs text-surface-500">Untuk memakai fitur dari menu ini, aktifkan akses halaman serta izin Lihat data yang sesuai.</p>}
+          {module.groupId === "inventory" && module.pageTargets.length === 0 && <p className="text-xs text-surface-500">Aktivitas ini dibuka dari Inventory. Aktifkan akses halaman Inventory dan Lihat data gudang di modul Inventory.</p>}
+          {module.id === "price-logs" && <p className="text-xs text-surface-500">Riwayat harga dibuka dari halaman Produk dengan izin Lihat produk.</p>}
           <div className="overflow-x-auto rounded-xl border border-surface-100">
             <table className="min-w-full divide-y divide-surface-100 text-sm">
               <thead>
@@ -1058,29 +1113,16 @@ function ModulePermissionEditor({
                   <tr key={resource} className={idx % 2 === 1 ? "bg-surface-50/30" : ""}>
                     <td className="px-4 py-3">
                       <span className="font-semibold text-surface-800">
-                        {resource === "transaction.auto_approve"
-                          ? "Auto Approve Transaksi"
-                          : resource === "surat_jalan.auto_approve"
-                            ? "Auto Approve Surat Jalan"
-                            : resource}
+                        {RBAC_RESOURCE_METADATA[resource]?.label ?? resource}
                       </span>
-                      {resource === "transaction.auto_approve" ? (
-                        <p className="mt-1 max-w-xs text-[11px] font-normal text-surface-500">
-                          Aktifkan aksi Buat agar transaksi role ini langsung final tanpa menunggu approval.
-                        </p>
-                      ) : resource === "surat_jalan.auto_approve" ? (
-                        <p className="mt-1 max-w-xs text-[11px] font-normal text-surface-500">
-                          Aktifkan aksi Buat agar Surat Jalan role ini langsung dikonfirmasi tanpa menunggu approval.
-                        </p>
-                      ) : null}
+                      {RBAC_RESOURCE_METADATA[resource]?.guidance && <p className="mt-1 max-w-xs text-[11px] font-normal text-surface-500">{RBAC_RESOURCE_METADATA[resource].guidance}</p>}
+                      {RBAC_RESOURCE_METADATA[resource]?.ownerOnlyReason && <p className="mt-1 max-w-xs text-xs text-amber-800"><strong>Khusus Owner.</strong> {RBAC_RESOURCE_METADATA[resource].ownerOnlyReason}</p>}
+                      <details className="mt-1 text-[11px] text-surface-500"><summary className="cursor-pointer">Detail teknis</summary><code>{resource}</code></details>
                     </td>
                     {ACTIONS.map((action) => {
                       const isChecked = permissions[role].resources[resource]?.[action] ?? false;
-                      const isAutoApproveAction =
-                        resource === "transaction.auto_approve" ||
-                        resource === "surat_jalan.auto_approve";
-
-                      if (isAutoApproveAction && action !== "create") {
+                      const metadata = RBAC_RESOURCE_METADATA[resource];
+                      if (metadata?.ownerOnlyReason || !metadata?.actions.includes(action)) {
                         return <td key={action} className="px-4 py-3 text-center text-surface-300">—</td>;
                       }
 
@@ -1092,9 +1134,10 @@ function ModulePermissionEditor({
                               onChange={(newVal) =>
                                 onResourcePermissionChange(role, resource, action, newVal)
                               }
-                              label={`${ROLE_LABELS[role]} ${action} ${resource}`}
+                              label={`${ROLE_LABELS[role]} ${metadata.actionLabels?.[action] ?? ACTION_LABELS[action]} ${metadata.label}`}
                             />
                           </div>
+                          {metadata.actionLabels?.[action] && <span className="mt-1 block text-[10px] text-surface-500">{metadata.actionLabels[action]}</span>}
                         </td>
                       );
                     })}
@@ -1128,11 +1171,19 @@ function PermissionReviewModal({
   onCancelSensitiveConfirm: () => void;
   onConfirmSensitiveSave: () => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeReviewRef = useRef(onCloseReview);
+  closeReviewRef.current = onCloseReview;
+  useEffect(() => {
+    if (dialogRef.current) return bindDialogFocus(dialogRef.current, () => closeReviewRef.current());
+  }, []);
   const sensitiveChanges = changes.filter((change) => change.requiresConfirmation);
   const normalChanges = changes.filter((change) => !change.requiresConfirmation);
 
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-label="Review perubahan permission"
@@ -1177,7 +1228,7 @@ function PermissionReviewModal({
           ) : (
             <>
               {sensitiveChanges.length > 0 && (
-                <ChangeList title="Perubahan sensitif / critical" changes={sensitiveChanges} variant="sensitive" />
+                <ChangeList title="Perubahan sensitif / kritis" changes={sensitiveChanges} variant="sensitive" />
               )}
               {normalChanges.length > 0 && (
                 <ChangeList title="Perubahan normal" changes={normalChanges} variant="normal" />
@@ -1193,7 +1244,7 @@ function PermissionReviewModal({
                 <div>
                   <h4 className="font-bold text-amber-900">Konfirmasi perubahan sensitif</h4>
                   <p className="mt-1 text-sm text-amber-800 leading-relaxed">
-                    Anda sudah meninjau akses sensitif atau critical yang akan berubah.
+                    Anda sudah meninjau akses sensitif atau kritis yang akan berubah.
                   </p>
                 </div>
               </div>
@@ -1264,7 +1315,9 @@ function ChangeList({
         {title}
       </h4>
       <div className="rounded-xl border border-surface-100 bg-white overflow-hidden divide-y divide-surface-50">
-        {changes.map((change) => (
+        {changes.map((change) => {
+          const presentation = buildPermissionPresentation(change);
+          return (
           <div
             key={`${change.role}-${change.scope}-${change.target}-${change.action}`}
             className="flex items-center gap-3 px-4 py-2.5 text-sm"
@@ -1280,10 +1333,10 @@ function ChangeList({
             <span className="text-surface-500 min-w-[100px] hidden md:block">
               {change.moduleLabel}
             </span>
-            {/* Target.action */}
-            <span className="flex-1 font-mono text-xs text-surface-500 truncate">
-              {change.target}.{change.action}
-            </span>
+            <div className="min-w-0 flex-1 text-xs text-surface-600">
+              <p className="font-medium leading-relaxed">{presentation.label}</p>
+              <details className="mt-1 text-surface-500"><summary className="cursor-pointer">Detail teknis</summary><code>{presentation.technicalId}</code></details>
+            </div>
             {/* Direction arrow */}
             <span
               className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${
@@ -1305,7 +1358,8 @@ function ChangeList({
               )}
             </span>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -1319,10 +1373,6 @@ function getModuleEnabledCount(
   permissions: RolePermissions,
 ): number {
   const pages = module.pageTargets.filter((page) => permissions[role].pages[page]).length;
-  const actions = module.resourceTargets.reduce(
-    (count, resource) =>
-      count + ACTIONS.filter((action) => permissions[role].resources[resource]?.[action]).length,
-    0,
-  );
+  const actions = countSupportedResourceActions(module.resourceTargets, role, permissions);
   return pages + actions;
 }

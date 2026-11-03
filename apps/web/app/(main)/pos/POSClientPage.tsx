@@ -210,6 +210,7 @@ export default function POSClientPage({
   const isSales = role === "SALES";
   const shiftRequired = shiftSettings?.enabled !== false;
   const canQuickEdit = canPerform("product", "update");
+  const canEditPrice = canPerform("transaction.custom_price", "update");
 
   const productsQuery = useProductsPage(deferredSearch, selectedCategory, {
     page,
@@ -880,6 +881,7 @@ export default function POSClientPage({
               onRemoveItem={cart.removeItem}
               onClearCart={cart.clearCart}
               canQuickEdit={canQuickEdit}
+              canEditPrice={canEditPrice}
               onEditProduct={setProductEditItem}
               onEditPrice={setPriceEditItem}
               onCheckout={
@@ -931,6 +933,7 @@ export default function POSClientPage({
               onRemoveItem={cart.removeItem}
               onClearCart={cart.clearCart}
               canQuickEdit={canQuickEdit}
+              canEditPrice={canEditPrice}
               onEditProduct={setProductEditItem}
               onEditPrice={setPriceEditItem}
               onCheckout={() => {

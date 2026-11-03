@@ -10,7 +10,7 @@ const log = getLogger('api:finance:report:monthly');
 
 export async function GET(request: Request) {
   try {
-    const user = await requirePermission('financial-report', 'read');
+    const user = await requirePermission("financial-report.export", "read");
     if (!user.storeId) return apiError('Toko pengguna belum tersedia.', 403, { code: 'Forbidden' });
     const params = new URL(request.url).searchParams;
     const yearText = params.get('year') || '';

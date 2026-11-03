@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   if (rateLimited) return rateLimited;
 
   try {
-    const user = await requirePermission("product", "create");
+    const user = await requirePermission("product.import", "create");
     const storeId = user.storeId || "store-main";
     const formData = await req.formData();
     

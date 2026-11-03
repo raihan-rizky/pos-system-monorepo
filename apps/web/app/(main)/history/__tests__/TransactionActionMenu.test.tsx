@@ -43,6 +43,24 @@ const mockProps = {
 };
 
 describe("TransactionActionMenu z-level and positioning", () => {
+  it("mengizinkan upload bukti Sales dengan grant tanpa membuka tanggal invoice, void, atau hapus", () => {
+    const html = renderToStaticMarkup(<TransactionActionMenu {...mockProps} isSalesRole initialOpen />);
+    expect(html).toContain("Upload Bukti Transaksi");
+    expect(html).not.toContain("Ubah Tanggal Invoice");
+    expect(html).not.toMatch(/>\s*Void\s*</);
+    expect(html).not.toMatch(/>\s*Hapus\s*</);
+  });
+
+  it("tidak menawarkan upload bukti tanpa grant update", () => {
+    const html = renderToStaticMarkup(<TransactionActionMenu {...mockProps} canUpdateTransactions={false} initialOpen />);
+    expect(html).not.toContain("Upload Bukti Transaksi");
+  });
+
+  it("menyembunyikan aksi menu untuk transaksi gabungan", () => {
+    const html = renderToStaticMarkup(<TransactionActionMenu {...mockProps} isBundled initialOpen />);
+    expect(html).toBe("");
+  });
+
   it("prefers the bottom placement when showUpward is false or not provided", () => {
     const html = renderToStaticMarkup(
       <TransactionActionMenu {...mockProps} initialOpen={true} />

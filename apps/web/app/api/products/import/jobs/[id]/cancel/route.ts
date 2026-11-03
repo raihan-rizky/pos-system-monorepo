@@ -16,7 +16,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await requirePermission("product", "create");
+    const user = await requirePermission("product.import", "create");
     const params = productImportJobIdSchema.parse(await context.params);
     const job = await cancelProductImportJob(params.id, user);
     return NextResponse.json(job);

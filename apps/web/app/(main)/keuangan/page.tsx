@@ -101,6 +101,14 @@ export default function KeuanganDashboardPage() {
   const canCreate = canPerform("expense", "create");
   const canEdit = canPerform("expense", "update");
   const canDelete = canPerform("expense", "delete");
+  const canCreateTransfer = canPerform("expense.manual_transfer", "create");
+  const canEditTransfer = canPerform("expense.manual_transfer", "update");
+  const canDeleteTransfer = canPerform("expense.manual_transfer", "delete");
+  const canReadPayables = canPerform("expense.payable", "read");
+  const canCreatePayables = canPerform("expense.payable", "create");
+  const canUpdatePayables = canPerform("expense.payable", "update");
+  const canReadGiro = canPerform("expense.giro", "read");
+  const canUpdateGiro = canPerform("expense.giro", "update");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
@@ -134,8 +142,8 @@ export default function KeuanganDashboardPage() {
   }, [canCreate]);
   useAssistantModalAction("expense-create", openCreateExpense);
   const openCreateTransfer = useCallback(() => {
-    if (canCreate) setTransferModal({});
-  }, [canCreate]);
+    if (canCreateTransfer) setTransferModal({});
+  }, [canCreateTransfer]);
   useAssistantModalAction("manual-transfer-create", openCreateTransfer);
 
   const handleEdit = useCallback((item: ExpenseListItem) => {
@@ -236,7 +244,7 @@ export default function KeuanganDashboardPage() {
         </div>
       </section>
 
-      {canReadExpense && <SupplierPayablesPanel canCreate={canCreate} canUpdate={canEdit} />}
+      {(canReadPayables || canCreatePayables || canReadGiro) && <SupplierPayablesPanel canRead={canReadPayables} canCreate={canCreatePayables} canUpdate={canUpdatePayables} canReadGiro={canReadGiro} canUpdateGiro={canUpdateGiro} />}
 
       {/* ───────── Bidirectional Daily Flow ───────── */}
       <section className="rounded-2xl border border-surface-200 bg-white p-3 sm:p-4 md:p-5 shadow-sm">
@@ -351,7 +359,7 @@ export default function KeuanganDashboardPage() {
             )}
           </header>
           <div className="px-3 sm:px-4 py-2 sm:py-3 border-b border-surface-100 space-y-2">
-            {canCreate && <Button type="button" size="sm" onClick={openCreateTransfer}>Tambah Belanja Transfer</Button>}
+            {canCreateTransfer && <Button type="button" size="sm" onClick={openCreateTransfer}>Tambah Belanja Transfer</Button>}
             {pengeluaran.isLoading ? (
               <div className="h-8 w-44 rounded-md bg-surface-100 animate-pulse" />
             ) : (
@@ -571,10 +579,10 @@ export default function KeuanganDashboardPage() {
                         );
                       })()}
                     </div>
-                    {(canEdit || canDelete) && !isAutomaticExpense && (
+                    {((item.source.type === "MANUAL_TRANSFER_PURCHASE" ? canEditTransfer || canDeleteTransfer : canEdit || canDelete)) && !isAutomaticExpense && (
                       <RowActions
-                        canEdit={canEdit}
-                        canDelete={canDelete}
+                        canEdit={item.source.type === "MANUAL_TRANSFER_PURCHASE" ? canEditTransfer : canEdit}
+                        canDelete={item.source.type === "MANUAL_TRANSFER_PURCHASE" ? canDeleteTransfer : canDelete}
                         onEdit={() => handleEdit(item)}
                         onDelete={() => handleDelete(item)}
                       />

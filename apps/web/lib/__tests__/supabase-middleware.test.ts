@@ -9,7 +9,7 @@ const cookieAdapterMock = vi.hoisted(() => ({
     | ((cookies: Array<{ name: string; value: string; options?: Record<string, unknown> }>) => void),
 }));
 const maybeSingleMock = vi.hoisted(() => vi.fn());
-const eqMock = vi.hoisted(() => vi.fn(() => ({ maybeSingle: maybeSingleMock, eq: eqMock })));
+const eqMock = vi.hoisted(() => vi.fn((_column: string, _value: string) => ({ maybeSingle: maybeSingleMock, eq: eqMock })));
 const selectMock = vi.hoisted(() => vi.fn(() => ({ eq: eqMock })));
 const fromMock = vi.hoisted(() => {
   const fn = vi.fn();
@@ -107,7 +107,7 @@ describe("updateSession", () => {
     const response = await updateSession(request);
 
     expect(response.status).toBe(503);
-    await expect(response.text()).resolves.toContain("Unable to verify access");
+    await expect(response.text()).resolves.toContain("Hak akses belum dapat diverifikasi");
   });
 
   it("does not allow E2E auth bypass in production", async () => {
@@ -209,6 +209,39 @@ describe("updateSession", () => {
     // If access is allowed and cookies are fresh, response should pass through (status 200).
     expect(response.headers.get("location")).toBeNull();
     expect(response.status).toBe(200);
+  });
+
+  it("does not restore default page access when permission verification fails", async () => {
+    maybeSingleMock.mockResolvedValueOnce({ data: { id: "admin-1", name: "Admin User", role: "ADMIN", storeId: "store-1", isActive: true }, error: null })
+      .mockResolvedValueOnce({ data: null, error: new Error("permission database unavailable") });
+    const response = await updateSession(new NextRequest("http://localhost/dashboard", {
+      headers: { cookie: "x-pos-role=ADMIN; x-pos-user-id=admin-1; x-pos-store-id=store-1" },
+    }));
+    expect(response.status).toBe(503);
+    expect(await response.text()).toContain("Hak akses belum dapat diverifikasi");
+  });
+
+  it("selects an allowed destination when the role's default page is denied", async () => {
+    let target = "";
+    eqMock.mockImplementation((column: string, value: string) => {
+      if (column === "target") target = value;
+      return { eq: eqMock, maybeSingle: maybeSingleMock };
+    });
+    maybeSingleMock.mockResolvedValueOnce({ data: { id: "admin-1", name: "Admin User", role: "ADMIN", storeId: "store-1", isActive: true }, error: null })
+      .mockImplementation(async () => ({ data: { allowed: target === "/customers" }, error: null }));
+    const response = await updateSession(new NextRequest("http://localhost/dashboard?secret-filter=old", {
+      headers: { cookie: "x-pos-role=ADMIN; x-pos-user-id=admin-1; x-pos-store-id=store-1" },
+    }));
+    expect(response.headers.get("location")).toBe("http://localhost/customers");
+  });
+
+  it("provides a no-access route when no permitted destination remains", async () => {
+    maybeSingleMock.mockResolvedValueOnce({ data: { id: "admin-1", name: "Admin User", role: "ADMIN", storeId: "store-1", isActive: true }, error: null })
+      .mockResolvedValue({ data: { allowed: false }, error: null });
+    const response = await updateSession(new NextRequest("http://localhost/dashboard", {
+      headers: { cookie: "x-pos-role=ADMIN; x-pos-user-id=admin-1; x-pos-store-id=store-1" },
+    }));
+    expect(response.headers.get("location")).toBe("http://localhost/access-denied");
   });
 
   it("allows INVENTORY role to access pages explicitly granted via RBAC settings", async () => {

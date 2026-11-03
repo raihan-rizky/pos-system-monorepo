@@ -36,7 +36,7 @@ function toJakartaBounds(from: string, to: string) {
 
 export async function GET(request: Request) {
   try {
-    const user = await requirePermission("financial-report", "read");
+    const user = await requirePermission("financial-report.export", "read");
     const { searchParams } = new URL(request.url);
     const periodParam = searchParams.get("period");
     if (!isPeriod(periodParam)) {

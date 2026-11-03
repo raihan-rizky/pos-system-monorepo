@@ -64,7 +64,7 @@ describe("supplier payable endpoints", () => {
     expect(response.status).toBe(201);
     expect(await response.json()).toEqual({ id: expect.any(String) });
     expect(mocks.execute).toHaveBeenCalledTimes(2);
-    expect(mocks.permission).toHaveBeenCalledWith("expense", "create");
+    expect(mocks.permission).toHaveBeenCalledWith("expense.payable", "create");
   });
 
   it("rejects invalid or missing-store debts before writing", async () => {
@@ -80,7 +80,7 @@ describe("supplier payable endpoints", () => {
     expect(response.status).toBe(201);
     expect(mocks.execute).toHaveBeenCalledTimes(1);
     expect(mocks.query.mock.calls[0]).toContain("store-1");
-    expect(mocks.permission).toHaveBeenCalledWith("expense", "update");
+    expect(mocks.permission).toHaveBeenCalledWith("expense.payable", "update");
   });
 
   it("rejects overpayment, payments before the debt date, and unknown debts", async () => {

@@ -30,7 +30,7 @@ function jobErrorResponse(error: Error) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requirePermission("product", "create");
+    const user = await requirePermission("product.import", "create");
     const input = productImportJobCreateSchema.parse(await request.json());
     if (input.rows.length === 0) {
       return NextResponse.json({ message: "No rows to import" }, { status: 422 });

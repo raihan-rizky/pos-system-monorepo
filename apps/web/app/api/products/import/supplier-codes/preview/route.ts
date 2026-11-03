@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const user = await requirePermission("product", "update");
+    const user = await requirePermission("product.import", "update");
     const formData = await request.formData();
     const file = formData.get("file");
 

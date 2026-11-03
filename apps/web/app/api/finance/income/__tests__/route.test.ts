@@ -15,7 +15,7 @@ describe('CRUD pemasukan tanpa transaksi',()=>{
   it('menyimpan toko/pencatat sesi dan tanggal WIB',async()=>{
     const response=await POST(request('POST',{...data,storeId:'toko-lain',recordedById:'orang-lain'}));
     expect(response.status).toBe(201);
-    expect(mocks.guard).toHaveBeenCalledWith('income','create');
+    expect(mocks.guard).toHaveBeenCalledWith("income.manual", "create");
     expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({data:expect.objectContaining({...data,storeId:'store-1',recordedById:'user-1',occurredAt:new Date('2026-11-01T17:00:00Z')})}));
   });
   it('membatasi daftar pada toko, bulan, dan catatan aktif dengan pagination',async()=>{

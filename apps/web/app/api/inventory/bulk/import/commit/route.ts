@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   let rowCount = 0;
   let mode: unknown;
   try {
-    const user = await requirePermission("inventory", "update");
+    const user = await requirePermission("inventory.bulk", "update");
     userId = user.id;
     storeId = user.storeId || "store-main";
     const body = await request.json();

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { handleAuthError, requireRole } from "@/lib/rbac/guard";
 import {
-  getGlobalRolePermissionEntries,
+  getGlobalRolePermissionSnapshot,
+  getRolePermissionAudit,
   saveGlobalRolePermissions,
 } from "@/features/rbac/helpers/rbac-server";
 import { parseRolePermissionPayload } from "@/features/rbac/helpers/rbac-settings";
@@ -19,47 +20,57 @@ export async function GET() {
   try {
     await requireRole("OWNER");
 
+    const [snapshot, audit] = await Promise.all([
+      getGlobalRolePermissionSnapshot(),
+      getRolePermissionAudit(),
+    ]);
     return NextResponse.json({
       roles: EDITABLE_ROLES,
       pages: PAGE_TARGETS,
       resources: RESOURCE_TARGETS,
       actions: ACTIONS,
-      permissions: await getGlobalRolePermissionEntries(),
-    });
+      ...snapshot,
+      audit,
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
     log.error("[GET /api/settings/rbac] Failed to load RBAC settings", error);
-    return NextResponse.json({ message: "Failed to load RBAC settings" }, { status: 500 });
+    return NextResponse.json({ message: "Hak akses belum dapat dimuat. Silakan coba lagi." }, { status: 503 });
   }
 }
 
 export async function PUT(request: Request) {
   try {
-    await requireRole("OWNER");
+    const actor = await requireRole("OWNER");
 
     const body = await request.json();
+    if (!body || typeof body !== "object" || Array.isArray(body) ||
+      typeof body.version !== "string" || !/^[a-f0-9]{64}$/.test(body.version)) {
+      return NextResponse.json({ message: "Versi hak akses belum valid. Muat ulang sebelum menyimpan." }, { status: 422 });
+    }
     const permissions = parseRolePermissionPayload(
-      Array.isArray(body) ? body : body.permissions,
+      body.permissions,
     );
 
     return NextResponse.json({
-      permissions: await saveGlobalRolePermissions(permissions),
-    });
+      ...await saveGlobalRolePermissions(permissions, { version: body.version, actor }),
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    if (error instanceof Error && error.message.startsWith("Invalid")) {
-      return NextResponse.json({ message: error.message }, { status: 422 });
+    if (error instanceof Error && "statusCode" in error && error.statusCode === 409) {
+      return NextResponse.json({ message: error.message, code: "Conflict" }, { status: 409 });
     }
 
-    if (error instanceof Error && error.message.includes("OWNER permissions")) {
-      return NextResponse.json({ message: error.message }, { status: 422 });
+    if (error instanceof SyntaxError || (error instanceof Error &&
+      /^(Invalid|OWNER permissions|Permission payload)/.test(error.message))) {
+      return NextResponse.json({ message: "Data hak akses tidak valid. Periksa pilihan dan coba lagi." }, { status: 422 });
     }
 
     log.error("[PUT /api/settings/rbac] Failed to save RBAC settings", error);
-    return NextResponse.json({ message: "Failed to save RBAC settings" }, { status: 500 });
+    return NextResponse.json({ message: "Hak akses belum dapat disimpan. Perubahan Anda tetap tersedia; silakan coba lagi." }, { status: 503 });
   }
 }

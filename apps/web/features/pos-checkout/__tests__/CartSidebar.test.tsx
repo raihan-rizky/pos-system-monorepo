@@ -82,6 +82,7 @@ describe("CartSidebar quick product references", () => {
         onClearCart={vi.fn()}
         onCheckout={vi.fn()}
         canQuickEdit
+        canEditPrice
         onEditProduct={vi.fn()}
         onEditPrice={vi.fn()}
       />,

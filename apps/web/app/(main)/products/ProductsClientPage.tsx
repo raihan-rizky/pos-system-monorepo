@@ -237,7 +237,12 @@ export default function ProductsClientPage() {
   const canUpdateProducts = shouldShowUpdateAction("product", canPerform);
   const canUpdateInventory = shouldShowUpdateAction("inventory", canPerform);
   const canDeleteProducts = shouldShowDeleteAction("product", canPerform);
-  const canSelectProducts = canUpdateProducts || canUpdateInventory || canDeleteProducts;
+  const canImportProducts = canPerform("product.import", "create");
+  const canReadImportProgress = canPerform("product.import", "read");
+  const canImportSupplierCodes = canPerform("product.import", "update");
+  const canBulkUpdateInventory = canPerform("inventory.bulk", "update");
+  const canReadStockImportProgress = canPerform("inventory.bulk", "read");
+  const canSelectProducts = canUpdateProducts || canUpdateInventory || canBulkUpdateInventory || canDeleteProducts;
   const canViewPriceHistory = role === "OWNER" || role === "ADMIN";
   const canManageSpecialPrices = role === "OWNER";
   const canChangePrice = canViewPriceHistory;
@@ -336,14 +341,14 @@ export default function ProductsClientPage() {
   const { data: categoriesData } = useCategories();
   const unitsQuery = useProductUnits();
   const units = unitsQuery.data ?? [];
-  const activeImportJobQuery = useActiveProductImportJob();
-  const activeImportJob = activeImportJobQuery.data ?? null;
-  const stockImportTracking = useBulkStockImportJobTracking(canUpdateInventory);
+  const activeImportJobQuery = useActiveProductImportJob(canReadImportProgress);
+  const activeImportJob = canReadImportProgress ? activeImportJobQuery.data ?? null : null;
+  const stockImportTracking = useBulkStockImportJobTracking(canReadStockImportProgress);
   const hasImportJob = Boolean(stockImportTracking.job || activeImportJob);
   const observedImportJobId = activeImportJob?.id ?? lastObservedImportJob?.id ?? null;
   const observedImportJobQuery = useProductImportJobStatus(
     observedImportJobId,
-    isImportProgressOpen,
+    isImportProgressOpen && canReadImportProgress,
   );
 
   const products = React.useMemo(
@@ -560,7 +565,7 @@ export default function ProductsClientPage() {
               Kelola katalog, harga, dan pantau stok secara real-time.
             </p>
           </div>
-          {(canCreateProducts || canUpdateInventory) && (
+          {(canImportProducts || canBulkUpdateInventory || canImportSupplierCodes || canUpdateProducts || hasImportJob) && (
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative">
                 <button
@@ -591,10 +596,12 @@ export default function ProductsClientPage() {
                     role="menu"
                     className="absolute right-0 z-30 mt-2 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl"
                   >
-                    {canCreateProducts && (
+                    {canImportProducts && (
                       <button
                         type="button"
                         role="menuitem"
+                        disabled={!canReadImportProgress}
+                        title={!canReadImportProgress ? "Aktifkan izin Lihat progres impor produk agar hasil impor dapat dipantau." : undefined}
                         onClick={() => {
                           setIsImportMenuOpen(false);
                           setIsImportOpen(true);
@@ -612,10 +619,12 @@ export default function ProductsClientPage() {
                         </span>
                       </button>
                     )}
-                    {canUpdateInventory && (
+                    {canBulkUpdateInventory && (
                       <button
                         type="button"
                         role="menuitem"
+                        disabled={!canReadStockImportProgress}
+                        title={!canReadStockImportProgress ? "Aktifkan izin Lihat progres stok massal agar hasil impor dapat dipantau." : undefined}
                         onClick={() => {
                           setIsImportMenuOpen(false);
                           setIsBulkStockImportOpen(true);
@@ -633,7 +642,7 @@ export default function ProductsClientPage() {
                         </span>
                       </button>
                     )}
-                    {canUpdateProducts && (
+                    {canImportSupplierCodes && (
                       <button
                         type="button"
                         role="menuitem"
@@ -1321,7 +1330,7 @@ export default function ProductsClientPage() {
                   Pindahkan Kategori
                 </button>
               )}
-              {canUpdateProducts && canUpdateInventory && selectedProductIds.size >= 2 && (
+              {canUpdateProducts && canBulkUpdateInventory && selectedProductIds.size >= 2 && (
                 <button
                   onClick={() => setIsBulkStockGroupOpen(true)}
                   className="min-h-11 rounded-xl bg-sky-600 px-4 text-sm font-bold text-white"
@@ -1329,7 +1338,7 @@ export default function ProductsClientPage() {
                   Buat atau gabungkan grup stok
                 </button>
               )}
-              {canUpdateInventory && (
+              {canBulkUpdateInventory && (
                 <button
                   onClick={() => setIsBulkStockOpen(true)}
                   className="min-h-11 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white"
@@ -1367,13 +1376,13 @@ export default function ProductsClientPage() {
             }}
           />
         )}
-        {isImportOpen && canCreateProducts && (
+        {isImportOpen && canImportProducts && canReadImportProgress && (
           <ProductImportDrawer
             open={isImportOpen}
             onClose={() => setIsImportOpen(false)}
           />
         )}
-        {isBulkStockImportOpen && canUpdateInventory && (
+        {isBulkStockImportOpen && canBulkUpdateInventory && canReadStockImportProgress && (
           <BulkStockImportDrawer
             open={isBulkStockImportOpen}
             onJobStarted={stockImportTracking.onJobStarted}
@@ -1384,7 +1393,7 @@ export default function ProductsClientPage() {
             }}
           />
         )}
-        {stockImportTracking.isOpen && canUpdateInventory && (
+        {stockImportTracking.isOpen && canReadStockImportProgress && (
           <BulkStockImportProgressModal
             open={stockImportTracking.isOpen}
             job={stockImportTracking.job}
@@ -1394,17 +1403,18 @@ export default function ProductsClientPage() {
             onClose={stockImportTracking.close}
           />
         )}
-        {isImportProgressOpen && (
+        {isImportProgressOpen && canReadImportProgress && (
           <ProductImportProgressModal
             open={isImportProgressOpen}
             job={importProgressJob}
+            canManage={canImportProducts}
             isRefreshing={activeImportJobQuery.isFetching || observedImportJobQuery.isFetching}
             refreshError={activeImportJobQuery.error ?? observedImportJobQuery.error}
             onRefresh={refreshImportStatus}
             onClose={() => setIsImportProgressOpen(false)}
           />
         )}
-        {isBulkStockOpen && canUpdateInventory && (
+        {isBulkStockOpen && canBulkUpdateInventory && (
           <BulkStockDrawer
             open={isBulkStockOpen}
             onClose={() => {
@@ -1414,7 +1424,7 @@ export default function ProductsClientPage() {
             products={selectedProducts}
           />
         )}
-        {isBulkStockGroupOpen && (
+        {isBulkStockGroupOpen && canUpdateProducts && canBulkUpdateInventory && (
           <BulkStockGroupDrawer
             open={isBulkStockGroupOpen}
             onClose={() => setIsBulkStockGroupOpen(false)}
@@ -1435,7 +1445,7 @@ export default function ProductsClientPage() {
             }}
           />
         )}
-        {isSupplierCodeImportOpen && canUpdateProducts && (
+        {isSupplierCodeImportOpen && canImportSupplierCodes && (
           <SupplierCodeImportDrawer
             open={isSupplierCodeImportOpen}
             onClose={() => setIsSupplierCodeImportOpen(false)}

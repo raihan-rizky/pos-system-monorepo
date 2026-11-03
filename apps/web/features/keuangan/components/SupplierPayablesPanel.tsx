@@ -39,13 +39,15 @@ function PayableDialog({ title, onClose, busy, children }: { title: string; onCl
   );
 }
 
-export function SupplierPayablesPanel({ canCreate, canUpdate }: { canCreate: boolean; canUpdate: boolean }) {
+type SupplierPayablesPermissions = { canRead?: boolean; canCreate: boolean; canUpdate: boolean; canReadGiro?: boolean; canUpdateGiro?: boolean };
+
+export function SupplierPayablesPanel({ canRead = true, canCreate, canUpdate, canReadGiro = true, canUpdateGiro = canUpdate }: SupplierPayablesPermissions) {
   const { userId, storeId, authorizationFingerprint } = useRole();
-  const identity = JSON.stringify([storeId, userId, authorizationFingerprint, canCreate, canUpdate]);
-  return <SupplierPayablesPanelState key={identity} userId={userId} storeId={storeId} authorizationFingerprint={authorizationFingerprint} canCreate={canCreate} canUpdate={canUpdate} />;
+  const identity = JSON.stringify([storeId, userId, authorizationFingerprint, canRead, canCreate, canUpdate, canReadGiro, canUpdateGiro]);
+  return <SupplierPayablesPanelState key={identity} userId={userId} storeId={storeId} authorizationFingerprint={authorizationFingerprint} canRead={canRead} canCreate={canCreate} canUpdate={canUpdate} canReadGiro={canReadGiro} canUpdateGiro={canUpdateGiro} />;
 }
 
-function SupplierPayablesPanelState({ userId, storeId, authorizationFingerprint, canCreate, canUpdate }: { userId: string | null; storeId: string | null; authorizationFingerprint: string | null; canCreate: boolean; canUpdate: boolean }) {
+function SupplierPayablesPanelState({ userId, storeId, authorizationFingerprint, canRead, canCreate, canUpdate, canReadGiro, canUpdateGiro }: { userId: string | null; storeId: string | null; authorizationFingerprint: string | null } & Required<SupplierPayablesPermissions>) {
   const queryClient = useQueryClient();
   const submitting = useRef(false);
   const active = useRef(false);
@@ -72,7 +74,7 @@ function SupplierPayablesPanelState({ userId, storeId, authorizationFingerprint,
 
   const list = useQuery({
     queryKey: ["finance", "supplier-payables", storeId, userId, authorizationFingerprint, page],
-    enabled: Boolean(storeId && userId),
+    enabled: Boolean(canRead && storeId && userId),
     queryFn: async ({ signal }) => responseJson<PayablePage>(await fetch(`/api/finance/supplier-payables?page=${page}`, { cache: "no-store", signal })),
   });
 
@@ -104,12 +106,13 @@ function SupplierPayablesPanelState({ userId, storeId, authorizationFingerprint,
 
   return (
     <section aria-labelledby="supplier-payables-title" className="rounded-2xl border border-surface-200 bg-white p-3 shadow-sm sm:p-4 md:p-5">
+      {(canRead || canCreate) && <>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><h2 id="supplier-payables-title" className="text-sm font-semibold text-surface-900">Hutang Pemasok</h2><p className="mt-1 text-xs text-surface-600">Catat hutang dan pembayarannya agar saldo masuk ke laporan bulanan.</p></div>
         {canCreate && <Button type="button" variant="secondary" onClick={openCreate} icon={<Plus className="h-4 w-4" aria-hidden="true" />}>Tambahkan Hutang</Button>}
       </div>
       <p className="mt-2 text-xs text-surface-500">Pembayaran hutang dicatat terpisah dari pengeluaran agar tidak dihitung dua kali.</p>
-      {list.isLoading ? <p className="mt-4 text-sm text-surface-500" role="status">Memuat hutang...</p> : list.isError ? <p className="mt-4 text-sm text-red-700" role="alert">Hutang belum dapat dimuat. <button type="button" onClick={() => void list.refetch()} className="underline">Coba lagi</button></p> : !list.data?.items.length ? <p className="mt-4 text-sm text-surface-500">{page > 1 ? "Tidak ada hutang pada halaman ini." : "Belum ada hutang yang dicatat."}</p> : (
+      {!canRead ? <p className="mt-4 text-sm text-surface-500">Izin melihat daftar hutang belum diberikan.</p> : list.isLoading ? <p className="mt-4 text-sm text-surface-500" role="status">Memuat hutang...</p> : list.isError ? <p className="mt-4 text-sm text-red-700" role="alert">Hutang belum dapat dimuat. <button type="button" onClick={() => void list.refetch()} className="underline">Coba lagi</button></p> : !list.data?.items.length ? <p className="mt-4 text-sm text-surface-500">{page > 1 ? "Tidak ada hutang pada halaman ini." : "Belum ada hutang yang dicatat."}</p> : (
         <ul className="mt-3 divide-y divide-surface-100">
           {list.data.items.map(item => {
             const remaining = Math.max(0, (Math.round(item.amount * 100) - Math.round(item.paid * 100)) / 100);
@@ -120,8 +123,9 @@ function SupplierPayablesPanelState({ userId, storeId, authorizationFingerprint,
           })}
         </ul>
       )}
-      {!!list.data && (list.data.total > 20 || page > 1) && <div className="mt-3 flex items-center justify-end gap-2 text-xs"><span>Halaman {page}</span><button type="button" disabled={page <= 1} onClick={() => setPage(value => value - 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Sebelumnya</button><button type="button" disabled={page * 20 >= list.data.total} onClick={() => setPage(value => value + 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Berikutnya</button></div>}
-      <GiroPanel canUpdate={canUpdate} />
+      {canRead && !!list.data && (list.data.total > 20 || page > 1) && <div className="mt-3 flex items-center justify-end gap-2 text-xs"><span>Halaman {page}</span><button type="button" disabled={page <= 1} onClick={() => setPage(value => value - 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Sebelumnya</button><button type="button" disabled={page * 20 >= list.data.total} onClick={() => setPage(value => value + 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Berikutnya</button></div>}
+      </>}
+      {canReadGiro && <GiroPanel canUpdate={canUpdateGiro} />}
       {mode && <PayableDialog title={mode === "create" ? "Tambahkan Hutang" : "Catat Pembayaran Hutang"} busy={busy} onClose={() => { if (!submitting.current) setMode(null); }}>
         <form onSubmit={event => void submit(event)} className="flex min-h-0 flex-col overflow-hidden" aria-busy={busy}>
           <div className="min-h-0 space-y-5 overflow-y-auto px-5 py-5">

@@ -11,6 +11,7 @@ vi.mock("@pos/db", () => ({
   db: { expense: { findFirst: mocks.findFirst, update: mocks.update }, transaction: { findFirst: vi.fn() } },
 }));
 vi.mock("@/lib/rbac/guard", () => ({
+  requireRole: mocks.requirePermission,
   requirePermission: mocks.requirePermission,
   handleAuthError: () => null,
 }));

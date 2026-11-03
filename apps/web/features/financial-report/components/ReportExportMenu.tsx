@@ -6,6 +6,7 @@ import { Download, FileSpreadsheet, X } from "lucide-react";
 import { exportFinancialReportFile, type ReportExportFormat } from "../helpers/journal-export";
 import { exportMonthlyFinancialReport } from "../helpers/monthly-export-client";
 import type { ReportPeriod } from "../helpers/journal-core";
+import { useRole } from "@/components/providers/RoleProvider";
 
 const MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 const PERIODS: { value: ReportPeriod; label: string }[] = [
@@ -17,6 +18,12 @@ const PERIODS: { value: ReportPeriod; label: string }[] = [
 const controlClass = "mt-1.5 w-full rounded-lg border border-surface-300 bg-white px-3 py-2.5 text-sm text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-surface-100";
 
 export function ReportExportMenu(): ReactNode {
+  const { canPerform } = useRole();
+  if (!canPerform("financial-report.export", "read")) return null;
+  return <ReportExportControls />;
+}
+
+function ReportExportControls(): ReactNode {
   const id = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);

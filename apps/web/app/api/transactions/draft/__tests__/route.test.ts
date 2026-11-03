@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { POST } from "../route";
 const roundingSettingsMock = vi.hoisted(() => vi.fn());
 const specialPricingSettingsMock = vi.hoisted(() => vi.fn());
 vi.mock("@/features/product-price-rounding/server/rounding-settings", () => ({ getPriceRoundingSettings: roundingSettingsMock }));
@@ -58,6 +59,15 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/transactions/draft", () => {
+  it("requires the invoice-price grant even when master product update is granted", async () => {
+    canRolePerformActionMock.mockImplementation((_role, resource) => resource !== "transaction.custom_price");
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({
+      items: [{ productId: "p1", name: "Kertas A4", price: 50000, transactionPrice: 20000, quantity: 1 }],
+    }) }));
+    expect(response.status).toBe(403);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
   it("preserves a custom invoice price and its marker in a draft while Harga Khusus is disabled", async () => {
     specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: false });
     const { POST } = await import("../route");

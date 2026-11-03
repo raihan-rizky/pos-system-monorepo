@@ -12,7 +12,7 @@ type Row = { id: string; supplierName: string; amount: string; paid: string; deb
 
 export async function GET(request: Request) {
   try {
-    const user = await requirePermission('expense', 'read');
+    const user = await requirePermission("expense.payable", "read");
     if (!user.storeId) return apiError('Toko pengguna belum tersedia.', 403, { code: 'Forbidden' });
     const requestedPage = Number(new URL(request.url).searchParams.get('page') || '1');
     const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 100000) : 1;
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requirePermission('expense', 'create');
+    const user = await requirePermission("expense.payable", "create");
     if (!user.storeId) return apiError('Toko pengguna belum tersedia.', 403, { code: 'Forbidden' });
     const input = parsePayable(await request.json().catch(() => null));
     if (!input) return apiError('Periksa pemasok, nominal, tanggal, dan pembayaran hutang.', 422, { code: 'ValidationError' });

@@ -9,7 +9,7 @@ describe("products page inventory workflow surfaces", () => {
     expect(workspace).toContain("canUpdateProducts={canUpdateProducts}");
     expect(workspace).toContain("canCreateProducts={canCreateProducts}");
     expect(workspace).toContain("canUpdateStock={canUpdateInventory}");
-    expect(source).toMatch(/canUpdateProducts && canUpdateInventory && selectedProductIds.size >= 2/);
+    expect(source).toMatch(/canUpdateProducts && canBulkUpdateInventory && selectedProductIds.size >= 2/);
     expect(source).toContain("Buat atau gabungkan grup stok");
     expect(source).toMatch(/<BulkStockGroupDrawer[\s\S]*?products=\{selectedProducts\}/);
   });

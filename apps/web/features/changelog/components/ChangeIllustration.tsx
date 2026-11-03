@@ -17,6 +17,7 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
       shopping: { Icon: ShoppingBag, title: "Pantau pembayaran belanja.", detail: "Metode pembayaran dan jatuh tempo" },
       "history-table": { Icon: History, title: "Tabel Riwayat menyesuaikan layar.", detail: "Kolom dan aksi terlihat bersama" },
       financial: { Icon: FileText, title: "Saldo laporan otomatis.", detail: "Inventaris dan hutang tercatat" },
+      rbac: { Icon: Check, title: "Izin Riwayat lebih jelas.", detail: "Halaman · Data · Tindakan" },
     };
     const preview = previews[visual];
     return <div className="relative flex min-h-36 items-center gap-4 bg-brand-50 px-5 pb-5 pt-9 sm:min-h-44 sm:px-7"><span className="absolute left-5 top-3 text-[11px] font-medium text-brand-800">Ilustrasi fitur</span><span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-brand-100 bg-white"><preview.Icon className="h-7 w-7 text-brand-600" aria-hidden="true" /></span><div><p className="text-base font-extrabold leading-tight tracking-tight text-brand-950 sm:text-xl">{preview.title}</p><p className="mt-2 text-xs text-brand-800">{preview.detail}</p></div></div>;
@@ -29,6 +30,19 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
         <div className={`mx-auto w-full max-w-sm ${panel}`}>
           <div className="flex items-center gap-3"><FileText className={icon} aria-hidden="true" /><span className="text-sm font-bold">Laporan Keuangan Bulanan</span></div>
           <div className="mt-4 space-y-2 text-sm"><div className="flex justify-between gap-3 rounded-lg bg-brand-50 p-3"><span>Modal awal</span><span className="font-semibold">Inventaris bulan lalu</span></div><div className="flex justify-between gap-3 rounded-lg bg-surface-50 p-3"><span>Hutang</span><span className="font-semibold">Sesuai catatan</span></div><div className="flex justify-between gap-3 rounded-lg bg-brand-50 p-3"><span>Stok akhir</span><span className="font-semibold">Inventaris periode</span></div></div>
+        </div>
+      )}
+      {visual === "rbac" && (
+        <div className={`mx-auto w-full max-w-md ${panel}`}>
+          <p className="text-sm font-bold text-surface-900">Akses Riwayat</p>
+          <div className="mt-4 grid gap-2 text-sm">
+            {[["Halaman", "Buka Riwayat"], ["Data", "Lihat transaksi"], ["Tindakan", "Ubah transaksi"]].map(([label, action]) => (
+              <div key={label} className="flex items-center justify-between gap-3 rounded-lg bg-brand-50 px-3 py-2">
+                <span className="text-xs text-brand-700">{label}</span><span className="font-semibold text-brand-950">{action}</span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-surface-500">Periksa prasyarat, tinjau perubahan, lalu simpan.</p>
         </div>
       )}
       {visual === "history-table" && (

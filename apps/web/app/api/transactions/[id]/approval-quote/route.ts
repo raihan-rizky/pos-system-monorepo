@@ -58,7 +58,7 @@ export async function POST(
       transactionId: (await params).id,
       actorRole: user.role,
       canViewCostPrice,
-      canEditTransactionPrice: canRolePerformAction(user.role, "product", "update", permissions),
+      canEditTransactionPrice: canRolePerformAction(user.role, "transaction.custom_price", "update", permissions),
       items: parsed.data.items,
     });
 

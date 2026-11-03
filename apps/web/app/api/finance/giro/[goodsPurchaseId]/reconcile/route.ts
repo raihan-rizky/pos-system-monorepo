@@ -13,7 +13,7 @@ type Payment = { amount: string; paidAt: string };
 
 export async function POST(request: Request, context: { params: Promise<{ goodsPurchaseId: string }> }): Promise<Response> {
   try {
-    const user = await requirePermission('expense', 'update');
+    const user = await requirePermission("expense.giro", "update");
     if (!user.storeId) return apiError('Toko pengguna belum tersedia.', 403, { code: 'Forbidden' });
     const input = parseGiroReview(await request.json().catch(() => null));
     if (!input) return apiError('Periksa tanggal, nominal, dan konfirmasi kelengkapan riwayat.', 422, { code: 'ValidationError' });

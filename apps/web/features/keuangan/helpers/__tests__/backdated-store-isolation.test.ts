@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ requirePermission: vi.fn(), databaseRead: vi.fn() }));
-vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.requirePermission, handleAuthError: () => null }));
+vi.mock("@/lib/rbac/guard", () => ({ requireRole: mocks.requirePermission, requirePermission: mocks.requirePermission, handleAuthError: () => null }));
 vi.mock("@pos/db", () => ({
   db: {
     expense: { findFirst: mocks.databaseRead, findMany: mocks.databaseRead, count: mocks.databaseRead },

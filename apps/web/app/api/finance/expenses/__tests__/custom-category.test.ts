@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ permission: vi.fn(), authError: vi.fn(), findMany: vi.fn(), count: vi.fn(), create: vi.fn(), findFirst: vi.fn(), update: vi.fn(), category: vi.fn() }));
-vi.mock('@/lib/rbac/guard', () => ({ requirePermission: mocks.permission, handleAuthError: mocks.authError }));
+vi.mock('@/lib/rbac/guard', () => ({ requireRole: mocks.permission, requirePermission: mocks.permission, handleAuthError: mocks.authError }));
 vi.mock('@pos/db', () => ({ db: { expense: { findMany: mocks.findMany, count: mocks.count, create: mocks.create, findFirst: mocks.findFirst, update: mocks.update }, customExpenseCategory: { findFirst: mocks.category }, transaction: { findFirst: vi.fn() } } }));
 vi.mock('@/lib/logger', () => ({ getLogger: () => ({ error: vi.fn() }) }));
 import { GET, POST } from '../route';

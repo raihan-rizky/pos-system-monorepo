@@ -56,7 +56,7 @@ describe("POST /api/inventory/bulk/import/preview", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(requirePermissionMock).toHaveBeenCalledWith("inventory", "update");
+    expect(requirePermissionMock).toHaveBeenCalledWith("inventory.bulk", "update");
     expect(body.summary).toEqual({
       validRows: 1,
       skippedRows: 1,

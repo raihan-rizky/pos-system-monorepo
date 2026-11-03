@@ -1746,6 +1746,21 @@ model RolePermission {
   @@map("pos_role_permissions")
 }
 
+// Global RBAC audit, independent of store data and user deletion.
+model RolePermissionAudit {
+  id            String   @id @default(cuid())
+  actorId       String
+  actorName     String
+  actorStoreId  String?
+  versionBefore String
+  versionAfter  String
+  changes       Json
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("pos_role_permission_audits")
+}
+
 model CustomExpenseCategory {
   id             String    @id @default(cuid())
   storeId        String

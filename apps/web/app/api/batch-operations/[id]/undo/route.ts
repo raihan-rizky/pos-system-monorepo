@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
-import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, requireRole, handleAuthError } from "@/lib/rbac/guard";
 import {
   productSnapshot,
   snapshotsMatch,
@@ -98,7 +98,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await requirePermission("inventory", "update");
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES", "INVENTORY");
     const { id } = await params;
     const storeId = user.storeId || "store-main";
 
@@ -109,6 +109,13 @@ export async function POST(
         include: { items: true },
       });
 
+      if (batch?.type === "PRODUCT_IMPORT") {
+        await requirePermission("product.import", "create");
+      } else if (batch?.type === "BULK_STOCK_ADJUSTMENT" || batch?.type === "BULK_STOCK_GROUP_ADJUSTMENT") {
+        await requirePermission("inventory.bulk", "update");
+      } else {
+        await requirePermission("inventory", "update");
+      }
       if (!batch) throw new Error("BATCH_NOT_FOUND");
       if (batch.status === "UNDONE") throw new Error("ALREADY_UNDONE");
       if (batch.undoOfBatchId) throw new Error("CANNOT_UNDO_UNDO");

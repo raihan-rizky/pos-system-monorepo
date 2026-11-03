@@ -11,7 +11,7 @@ type Context = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: Context) {
   try {
-    const user = await requirePermission('income', 'update');
+    const user = await requirePermission("income.manual", "update");
     if (!user.storeId) return apiError('Toko pengguna belum tersedia.', 403, { code: 'Forbidden' });
     const { id } = await params;
     const where = { id, storeId: user.storeId, deletedAt: null };
@@ -34,7 +34,7 @@ export async function PATCH(request: Request, { params }: Context) {
 
 export async function DELETE(_request: Request, { params }: Context) {
   try {
-    const user = await requirePermission('income', 'delete');
+    const user = await requirePermission("income.manual", "delete");
     if (!user.storeId) return apiError('Toko pengguna belum tersedia.', 403, { code: 'Forbidden' });
     const { id } = await params;
     const where = { id, storeId: user.storeId, deletedAt: null };

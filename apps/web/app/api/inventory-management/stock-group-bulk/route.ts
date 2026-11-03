@@ -315,7 +315,7 @@ async function handleProductFirstRequest(
 
 export async function POST(request: Request) {
   try {
-    const user = await requirePermission("inventory", "update");
+    const user = await requirePermission("inventory.bulk", "update");
     const storeId = user.storeId || "store-main";
     const body = await request.json();
     if (Array.isArray((body as { rows?: unknown }).rows)) {

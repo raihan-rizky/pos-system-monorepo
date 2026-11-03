@@ -17,7 +17,7 @@ const bulkPreviewSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const user = await requirePermission("inventory", "update");
+    const user = await requirePermission("inventory.bulk", "update");
     const input = bulkPreviewSchema.parse(await request.json());
     const storeId = user.storeId || "store-main";
 

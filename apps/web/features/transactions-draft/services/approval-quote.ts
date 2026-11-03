@@ -8,7 +8,6 @@ import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-dis
 import { calculateTransactionTax, getTransactionTaxMethod } from "@/features/transaction-tax/helpers/tax-calculation";
 import {
   priceProductForCustomerType,
-  canEditCustomPriceForCustomer,
   resolveCustomPricedLine,
   type CategoryCustomerPricingMode,
   type CategoryPricingRule,
@@ -348,8 +347,7 @@ export async function buildApprovalQuote(
       const hasSavedCustomPrice = sourcePrice?.pricingRuleId === TRANSACTION_CUSTOM_PRICE_RULE_ID && line.priceIntent !== "AUTOMATIC";
       const changesSavedCustomPrice = hasSavedCustomPrice && line.priceIntent === "MANUAL" &&
         line.submittedPrice != null && line.submittedPrice !== Number(sourcePrice.unitPrice);
-      if (changesSavedCustomPrice && !input.canEditTransactionPrice &&
-          !(specialPricingEnabled && canEditCustomPriceForCustomer(input.actorRole, customerType))) {
+      if (changesSavedCustomPrice && !input.canEditTransactionPrice) {
         throw new Error("APPROVAL_CUSTOM_PRICE_FORBIDDEN");
       }
       if (changesSavedCustomPrice && line.submittedPrice! <= 0) throw new Error("APPROVAL_INVALID_PRICE");

@@ -61,6 +61,7 @@ import {
 import { formatDraftNumberForDisplay } from "@/features/transactions-draft/helpers/draft-number";
 import { PRINTING_SUBCATEGORIES, type PrintingSubcategory } from "@/features/printing-receipts/types";
 import { displayTransactionNote } from "./helpers/transaction-note";
+import { canSelectTransactionStatus } from "./helpers/transaction-status-option";
 import { TransactionTotal } from "./components/TransactionTotal";
 import { PaymentTermsBadge } from "@/features/customer-debt/components/PaymentTermsBadge";
 import { useCategories } from "@/hooks/useProducts";
@@ -217,6 +218,7 @@ function EditModal({
 }) {
   const updateTx = useUpdateTransaction();
   const queryClient = useQueryClient();
+  const { role } = useRole();
 
   const [form, setForm] = useState<EditForm>({
     salesName: tx.salesName ?? "",
@@ -253,7 +255,6 @@ function EditModal({
   const [salespersons, setSalespersons] = useState<{ id: string; name: string }[]>([]);
 
   const allowedTransitions = ALLOWED_STATUS_TRANSITIONS[tx.status] ?? [];
-  const allowedSet = new Set(allowedTransitions);
 
   React.useEffect(() => {
     fetch("/api/salespersons?activeOnly=true")
@@ -412,7 +413,7 @@ function EditModal({
             )}
             <div className="grid grid-cols-2 gap-2">
               {STATUSES.map((s) => {
-                const isAllowed = s.value === tx.status || allowedSet.has(s.value);
+                const isAllowed = canSelectTransactionStatus(role, tx.status, s.value, allowedTransitions);
                 return (
                   <button
                     key={s.value}
@@ -1670,7 +1671,7 @@ export default function HistoryClientPage() {
                                     Edit nota diproses
                                   </Button>
                                 )}
-                                {!isBundled && !isSalesRole && canUpdateTransactions && !tx.printingReceipt && !tx.printingSubcategory && (
+                                {!isBundled && canUpdateTransactions && !tx.printingReceipt && !tx.printingSubcategory && ["PENDING_APPROVAL", "DRAFT", "COMPLETED", "DP"].includes(tx.status) && (
                                   <Button
                                     variant="secondary"
                                     onClick={(e) => { e.stopPropagation(); setEditingTransaction(tx); }}
@@ -1679,7 +1680,10 @@ export default function HistoryClientPage() {
                                     Ubah
                                   </Button>
                                 )}
-                                {!isSalesRole && isPending && (canApproveTransactions || canRejectTransactions) && (
+                                {!isBundled && canUpdateTransactions && !tx.printingReceipt && !tx.printingSubcategory && ["VOIDED", "REFUNDED"].includes(tx.status) && (
+                                  <p className="col-span-3 text-xs text-surface-500">Transaksi yang sudah dibatalkan atau direfund tidak dapat diubah.</p>
+                                )}
+                                {isPending && (canApproveTransactions || canRejectTransactions) && (
                                   <div className="col-span-3 flex gap-1.5">
                                     {canApproveTransactions && (
                                       <Button
@@ -1699,7 +1703,7 @@ export default function HistoryClientPage() {
                                     )}
                                   </div>
                                 )}
-                                {!isSalesRole && tx.status === "DRAFT" && canApproveDrafts && (
+                                {tx.status === "DRAFT" && canApproveDrafts && !(isSalesRole && tx.requestedById) && (
                                   <Button
                                     onClick={(e) => { e.stopPropagation(); setApprovingDraft(tx); }}
                                     className="col-span-3 !py-1.5 !px-3 !text-xs h-auto bg-amber-600 hover:bg-amber-700 text-white"
@@ -1928,7 +1932,7 @@ export default function HistoryClientPage() {
                                 Edit nota diproses
                               </Button>
                             )}
-                            {!isSalesRole && canUpdateTransactions && !tx.printingReceipt && !tx.printingSubcategory && (
+                            {canUpdateTransactions && !tx.printingReceipt && !tx.printingSubcategory && ["PENDING_APPROVAL", "DRAFT", "COMPLETED", "DP"].includes(tx.status) && (
                               <Button
                                 variant="secondary"
                                 onClick={(e) => { e.stopPropagation(); setEditingTransaction(tx); }}
@@ -1937,7 +1941,10 @@ export default function HistoryClientPage() {
                                 Ubah
                               </Button>
                             )}
-                            {!isSalesRole && isPending && (canApproveTransactions || canRejectTransactions) && (
+                            {canUpdateTransactions && !tx.printingReceipt && !tx.printingSubcategory && ["VOIDED", "REFUNDED"].includes(tx.status) && (
+                              <p className="col-span-3 text-xs text-surface-500">Transaksi yang sudah dibatalkan atau direfund tidak dapat diubah.</p>
+                            )}
+                            {isPending && (canApproveTransactions || canRejectTransactions) && (
                               <div className="col-span-3 flex gap-2">
                                 {canApproveTransactions && (
                                   <Button
@@ -1957,7 +1964,7 @@ export default function HistoryClientPage() {
                                 )}
                               </div>
                             )}
-                            {!isSalesRole && tx.status === "DRAFT" && canApproveDrafts && (
+                            {tx.status === "DRAFT" && canApproveDrafts && !(isSalesRole && tx.requestedById) && (
                               <Button
                                 onClick={(e) => { e.stopPropagation(); setApprovingDraft(tx); }}
                                 className="col-span-3 !py-2 !px-3 text-xs h-auto bg-amber-600 hover:bg-amber-700 text-white"

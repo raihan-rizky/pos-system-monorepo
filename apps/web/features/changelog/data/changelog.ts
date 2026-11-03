@@ -15,6 +15,18 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "rbac-effective-access", date: "2026-11-03", revision: 1,
+    highlight: { title: "Izin nota, keuangan, dan impor", summary: "Atur harga nota, keuangan, impor produk, dan stok massal per role." },
+    title: "Atur izin fitur dengan pratinjau akses.",
+    summary: "Atur harga khusus di nota, keuangan manual, ekspor, impor produk, dan stok massal per role dalam susunan RBAC yang sama. Sales berizin dapat mengubah Riwayat; konflik simpan dilindungi dan perubahan akses tercatat.",
+    kind: "improvement", area: "Hak Akses", href: "/settings", visual: "rbac",
+    steps: [
+      { title: "Pilih role dan cari modul", detail: "Sebagai Owner, buka Pengaturan > RBAC. Pilih role, lalu cari modul melalui pemilih di komputer atau ponsel." },
+      { title: "Periksa prasyarat izin", detail: "Pilih izin fitur sesuai tugas role; harga nota terpisah dari edit master produk. Impor memerlukan izin tindakan dan Lihat progres; izin progres saja hanya memantau. Untuk Ubah Riwayat, izinkan halaman Riwayat serta Lihat dan Ubah transaksi; kontrol Khusus Owner dan aturan status nota tetap berlaku." },
+      { title: "Tinjau dan simpan", detail: "Klik Review & Simpan lalu konfirmasikan izin sensitif. Periksa Catatan perubahan hak akses; jika versi berubah di sesi lain, tinjau sebelum memuat versi terbaru dan mengganti edit lokal." },
+    ],
+  },
+  {
     id: "manual-finance-entries", date: "2026-11-03", revision: 1,
     highlight: { title: "Pemasukan dan belanja manual", summary: "Catat pemasukan ke RC dan belanja transfer langsung dari Keuangan." },
     title: "Catat pemasukan dan belanja transfer.",

@@ -17,6 +17,7 @@ const ACTIVE_STATUSES = ["PENDING", "RUNNING", "CANCEL_REQUESTED"] as const;
 export function ProductImportProgressModal({
   open,
   job,
+  canManage = false,
   isRefreshing,
   refreshError,
   onRefresh,
@@ -24,6 +25,7 @@ export function ProductImportProgressModal({
 }: {
   open: boolean;
   job: ProductImportJobResponse | null;
+  canManage?: boolean;
   isRefreshing: boolean;
   refreshError?: unknown;
   onRefresh: () => RefetchResult;
@@ -35,9 +37,9 @@ export function ProductImportProgressModal({
   const processedRows = job?.processedRows ?? 0;
   const progress = totalRows > 0 ? Math.floor((processedRows / totalRows) * 100) : 0;
   const isActive = job ? ACTIVE_STATUSES.includes(job.status as (typeof ACTIVE_STATUSES)[number]) : false;
-  const canCancel = job && isActive;
+  const canCancel = canManage && job && isActive;
   const canRetry =
-    job &&
+    canManage && job &&
     (job.status === "FAILED" ||
       job.status === "COMPLETED_WITH_ERRORS" ||
       (job.status === "PENDING" && Boolean(job.lastError)));
@@ -66,13 +68,13 @@ export function ProductImportProgressModal({
   }, [job]);
 
   async function handleCancel() {
-    if (!job) return;
+    if (!job || !canManage) return;
     await cancelJob.mutateAsync(job.id);
     await onRefresh();
   }
 
   async function handleRetry() {
-    if (!job) return;
+    if (!job || !canManage) return;
     await retryJob.mutateAsync(job.id);
     await onRefresh();
   }

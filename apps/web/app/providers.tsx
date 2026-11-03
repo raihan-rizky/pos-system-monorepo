@@ -109,6 +109,7 @@ export function Providers({
   storeId,
   authorizationFingerprint,
   permissions,
+  permissionsVerified = true,
 }: { 
   children: React.ReactNode;
   role: Role | null;
@@ -117,6 +118,7 @@ export function Providers({
   storeId: string | null;
   authorizationFingerprint: string | null;
   permissions: RolePermissions;
+  permissionsVerified?: boolean;
 }) {
   useEffect(() => installNumberInputGuards(document), []);
 
@@ -148,6 +150,7 @@ export function Providers({
         storeId={storeId}
         authorizationFingerprint={authorizationFingerprint}
         permissions={permissions}
+        permissionsVerified={permissionsVerified}
       >
         <NotificationProvider
           enabled={Boolean(role)}

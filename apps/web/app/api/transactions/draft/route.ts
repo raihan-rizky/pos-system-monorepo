@@ -27,7 +27,6 @@ import { buildDraftNumber, nextDraftSequence, normalizeDraftNumberInput } from "
 import {
   PRICING_PREFERENCES,
   priceProductForCustomerType,
-  canEditCustomPriceForCustomer,
   type CategoryPricingRule,
   type CustomerType,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
@@ -282,8 +281,7 @@ export async function POST(request: Request) {
     const roundingSettings = await getPriceRoundingSettings();
     const specialPricingEnabled = await getSpecialPricingEnabled();
     if (items.some(item => item.transactionPrice != null) &&
-      !canRolePerformAction(user.role as Role, "product", "update", permissions) &&
-      !(specialPricingEnabled && canEditCustomPriceForCustomer(user.role, checkoutCustomerType))) {
+      !canRolePerformAction(user.role as Role, "transaction.custom_price", "update", permissions)) {
       return NextResponse.json({ message: "Akun Anda belum memiliki izin mengubah harga nota." }, { status: 403 });
     }
     const serverItems = items.map((item) => {

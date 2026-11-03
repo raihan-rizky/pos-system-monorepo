@@ -16,7 +16,7 @@ export async function GET(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await requirePermission("inventory", "update");
+    const user = await requirePermission("inventory.bulk", "read");
     const params = bulkStockImportJobIdSchema.parse(await context.params);
     const job = await getBulkStockImportJobStatus(params.id, user);
     return NextResponse.json(job);

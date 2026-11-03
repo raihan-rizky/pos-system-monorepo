@@ -8,6 +8,7 @@ import {
   isOwnerLockedResource,
   isResourceAction,
   normalizePageTarget,
+  TRANSITION_RESOURCE_PERMISSIONS,
 } from "./rbac-core";
 import type { EditablePermissionEntry, PermissionEntry } from "./rbac-core";
 import type { PermissionAction } from "./rbac-core";
@@ -41,10 +42,16 @@ export function parseRolePermissionPayload(payload: unknown): EditablePermission
   }
 
   const entries: EditablePermissionEntry[] = [];
+  const keys = new Set<string>();
 
   for (const raw of payload) {
     const entry = parsePermissionEntry(raw);
-    if (entry) entries.push(entry);
+    if (entry) {
+      const key = `${entry.role}:${entry.scope}:${entry.target}:${entry.action}`;
+      if (keys.has(key)) throw new Error("Invalid duplicate permission");
+      keys.add(key);
+      entries.push(entry);
+    }
   }
 
   return entries;
@@ -69,7 +76,11 @@ export function buildRolePermissionUpserts(
   }));
 }
 
-function parsePermissionEntry(raw: RawPermissionPayload): EditablePermissionEntry | null {
+function parsePermissionEntry(value: unknown): EditablePermissionEntry | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Invalid permission entry");
+  }
+  const raw = value as RawPermissionPayload;
   if (raw.role === "OWNER") {
     throw new Error("OWNER permissions cannot be edited");
   }
@@ -119,6 +130,12 @@ function parsePermissionEntry(raw: RawPermissionPayload): EditablePermissionEntr
   }
 
   if (entry.scope === RESOURCE_SCOPE && !isResourceAction(entry.action)) {
+    throw new Error("Invalid permission action");
+  }
+
+  if (entry.scope === RESOURCE_SCOPE && isResourceAction(entry.action)
+    && entry.allowed && TRANSITION_RESOURCE_PERMISSIONS[entry.target]
+    && !TRANSITION_RESOURCE_PERMISSIONS[entry.target].actions.includes(entry.action)) {
     throw new Error("Invalid permission action");
   }
 

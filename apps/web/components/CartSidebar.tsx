@@ -31,6 +31,7 @@ interface CartSidebarProps {
   onClose?: () => void;
   onInternalStockOut?: () => void;
   canQuickEdit?: boolean;
+  canEditPrice?: boolean;
   onEditProduct?: (item: ProductCartItem) => void;
   onEditPrice?: (item: ProductCartItem) => void;
 }
@@ -48,6 +49,7 @@ export function CartSidebar({
   onClose,
   onInternalStockOut,
   canQuickEdit = false,
+  canEditPrice = false,
   onEditProduct,
   onEditPrice,
   roundingSettings,
@@ -275,7 +277,7 @@ export function CartSidebar({
                         Edit
                       </button>
                     )}
-                    {canQuickEdit && item.lineType === "PRODUCT" && onEditPrice && (
+                    {canEditPrice && item.lineType === "PRODUCT" && onEditPrice && (
                       <button
                         type="button"
                         onClick={() => onEditPrice(item)}

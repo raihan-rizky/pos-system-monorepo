@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const user = await requirePermission("product", "read");
+    const user = await requirePermission("product.import", "read");
     const job = await getActiveProductImportJob(user);
     return NextResponse.json({ job });
   } catch (error) {

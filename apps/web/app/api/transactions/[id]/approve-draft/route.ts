@@ -170,7 +170,7 @@ export async function POST(
       transactionId: id,
       actorRole: user.role,
       canViewCostPrice,
-      canEditTransactionPrice: canRolePerformAction(user.role, "product", "update", permissions),
+      canEditTransactionPrice: canRolePerformAction(user.role, "transaction.custom_price", "update", permissions),
       items: approvalItems,
     });
     if (
@@ -267,7 +267,7 @@ export async function POST(
               transactionId: id,
               actorRole: user.role,
               canViewCostPrice,
-              canEditTransactionPrice: canRolePerformAction(user.role, "product", "update", permissions),
+              canEditTransactionPrice: canRolePerformAction(user.role, "transaction.custom_price", "update", permissions),
               items: approvalItems,
             });
             if (quoteForApproval.fingerprint !== approvalQuote.fingerprint) {

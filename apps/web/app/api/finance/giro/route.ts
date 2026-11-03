@@ -21,8 +21,15 @@ type ManualRow = {
 
 export async function GET(_request: Request): Promise<Response> {
   try {
-    const user = await requirePermission('expense', 'read');
+    const user = await requirePermission("expense.giro", "read");
     if (!user.storeId) return apiError('Toko pengguna belum tersedia.', 403, { code: 'Forbidden' });
+    let canReadManualPayables = false;
+    try {
+      await requirePermission('expense.payable', 'read');
+      canReadManualPayables = true;
+    } catch (error) {
+      if (handleAuthError(error)?.status !== 403) throw error;
+    }
     const rows = await db.$queryRaw<GiroRow[]>`
       SELECT g."id" AS "goodsPurchaseId", g."number", g."supplierNameSnapshot" AS "supplierName",
         g."totalAmount"::text AS "amount", e."debtDate", g."paymentDueDate"::text AS "dueDate",
@@ -52,7 +59,7 @@ export async function GET(_request: Request): Promise<Response> {
         ))
       ORDER BY g."paymentDueDate" ASC NULLS LAST, g."number", g."id"
     `;
-    const manual = await db.$queryRaw<ManualRow[]>`
+    const manual = canReadManualPayables ? await db.$queryRaw<ManualRow[]>`
       SELECT d."id", d."supplierName", d."amount"::text AS "amount", d."debtDate"::text AS "debtDate",
         d."dueDate"::text AS "dueDate", d."note", p."payments"
       FROM "pos_supplier_payables" d
@@ -63,7 +70,7 @@ export async function GET(_request: Request): Promise<Response> {
       ) p ON true
       WHERE d."storeId" = ${user.storeId} AND d."goodsPurchaseId" IS NULL
       ORDER BY d."debtDate" DESC, d."createdAt" DESC, d."id"
-    `;
+    ` : [];
     const today = jakartaToday();
     const items = rows.map(({ amount, historyVerifiedAt, payments: rawPayments, ...row }) => {
       const payments = rawPayments.map(payment => ({ ...payment, amount: Number(payment.amount) }));

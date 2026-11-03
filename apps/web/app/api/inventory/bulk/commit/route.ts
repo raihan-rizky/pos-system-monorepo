@@ -54,7 +54,7 @@ const bulkCommitSchema = z
 
 export async function POST(request: Request) {
   try {
-    const user = await requirePermission("inventory", "update");
+    const user = await requirePermission("inventory.bulk", "update");
     const input = bulkCommitSchema.parse(await request.json());
     const storeId = user.storeId || "store-main";
     const isOwner = user.role === "OWNER";

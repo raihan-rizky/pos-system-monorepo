@@ -132,7 +132,7 @@ export async function POST(
         "read",
         permissions,
       );
-      canEditTransactionPrice = canRolePerformAction(user.role, "product", "update", permissions);
+      canEditTransactionPrice = canRolePerformAction(user.role, "transaction.custom_price", "update", permissions);
       approvalQuote = await buildApprovalQuote(db as never, {
         storeId,
         transactionId: id,

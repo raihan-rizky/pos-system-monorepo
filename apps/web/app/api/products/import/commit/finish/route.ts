@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const user = await requirePermission("product", "create");
+    const user = await requirePermission("product.import", "create");
     const input = productImportFinishSchema.parse(await request.json());
     const result = await finishProductImportCommit(input, user);
     logger.info("product.import.commit.finish.completed", {

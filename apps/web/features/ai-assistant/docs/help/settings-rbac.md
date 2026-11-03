@@ -29,6 +29,48 @@ OWNER selalu memiliki akses penuh dan permission OWNER tidak dapat diedit. Pada 
 
 Akses halaman saja tidak otomatis memberi izin menjalankan aksi backend, dan izin resource saja tidak otomatis menampilkan halaman. Keduanya harus konsisten. Permission `inventory.approve` dikunci untuk OWNER dan tidak dapat didelegasikan kepada role lain.
 
+### Mencari modul dan memeriksa izin
+
+Susunan Ringkasan Role, Matrix Modul, pemilih modul, dan editor tetap sama. Gunakan pencarian modul pada pemilih; semua modul tersedia lewat navigasi komputer maupun ponsel. Editor hanya menampilkan tindakan yang dipakai fitur. Pratinjau akses menjelaskan prasyarat yang belum terpenuhi tanpa menambahkan izin secara otomatis. Pengelolaan RBAC (`rbac`) dan approval inventory umum (`inventory.approve`) bertanda **Khusus Owner**; keduanya tidak dapat didelegasikan.
+
+### Izin fitur di modul yang sudah ada
+
+Katalog memuat 43 resource dalam 25 modul dengan susunan halaman yang sama. Cari modul lalu pilih tindakan sesuai tugas role:
+
+| Kontrol | Resource | Tindakan |
+| --- | --- | --- |
+| Harga khusus di nota | `transaction.custom_price` | `update`: Ubah harga di nota, terpisah dari edit harga master produk. |
+| Pemasukan manual | `income.manual` | `create`, `read`, `update`, `delete`: buat, lihat, ubah, dan hapus pemasukan manual. |
+| Pengeluaran dan transfer manual | `expense.manual_transfer` | `create`, `update`, `delete`: buat, ubah, dan hapus pengeluaran atau transfer kas manual. |
+| Pembayaran utang supplier | `expense.payable` | `create`: Bayar utang; `read`: Lihat utang; `update`: Ubah pembayaran. |
+| Pencairan giro | `expense.giro` | `read`: Lihat giro; `update`: Cairkan giro. |
+| Ekspor laporan keuangan | `financial-report.export` | `read`: Ekspor laporan, termasuk laporan bulanan dan jurnal. |
+| Impor produk | `product.import` | `create`: Mulai impor produk, termasuk pratinjau dan ekstraksi gambar; `read`: Lihat progres impor; `update`: Perbarui impor untuk kode supplier. |
+| Perubahan stok massal | `inventory.bulk` | `read`: Lihat progres stok massal; `update`: Mulai perubahan stok massal, termasuk perubahan manual, impor stok, dan grup stok. |
+
+Harga khusus di nota tetap mengikuti akses Kasir dan izin transaksi sesuai alur. Izin pemasukan manual, pembayaran utang, dan pencairan giro dapat diberikan terpisah dari izin ubah keuangan umum. Daftar dan ringkasan Keuangan Harian tetap memerlukan `expense.read`; melihat dashboard laporan tetap memakai `financial-report.read`. Mengunduh laporan memerlukan `financial-report.export.read` beserta akses halaman dan baca laporan yang sesuai.
+
+Izin `product.import.read` dan `inventory.bulk.read` hanya memberi pemantauan progres. Role dengan izin baca saja tidak mendapat tombol batal atau coba ulang; tindakan tersebut memerlukan izin mutasi sesuai jenis job. Untuk memulai impor latar belakang, berikan izin tindakan dan **Lihat progres** yang sesuai. Tombol menjelaskan prasyarat yang belum diberikan. Membatalkan hasil impor mengikuti jenis batch tersimpan: impor produk memakai `product.import.create`, stok massal memakai `inventory.bulk.update`; jenis stok lain tetap mengikuti `inventory.update`. Approval stok umum tetap **Khusus Owner**.
+
+Unggah bukti pengeluaran atau transfer manual mengikuti izin buat atau ubah terkait dan lingkup toko yang dipilih.
+
+Konfigurasi lama mewarisi aksi izin umum yang sesuai saat baris izin fitur belum tersimpan: `product.update` untuk harga nota, `income` untuk pemasukan manual, `expense` untuk pengeluaran/utang/giro, `financial-report.read` untuk ekspor, `product` untuk impor, dan `inventory` untuk stok massal. **Penolakan eksplisit** pada izin fitur selalu berlaku. Pada **simpan pertama**, sistem menetapkan nilai efektif sebelum perubahan diterapkan dalam satu transaksi; perubahan izin umum berikutnya tidak mengubah izin fitur yang sudah ditetapkan secara diam-diam.
+
+### Sales belum dapat mengubah Riwayat
+
+- **Buka Riwayat** memerlukan akses halaman `/history`.
+- **Lihat transaksi** juga memerlukan `transaction.read`.
+- **Ubah transaksi** juga memerlukan `transaction.update`. Izin History dan approval saja belum memberikan hak edit.
+- Setujui/Tolak transaksi memakai `transaction.approve.update` / `transaction.approve.delete` secara terpisah.
+- Ubah nota reguler tersedia pada PENDING_APPROVAL, DRAFT, COMPLETED, dan DP. VOIDED/REFUNDED tetap terkunci. Perubahan status dan tanggal invoice tetap mengikuti aturan Owner/Admin. Nota percetakan yang diproses memerlukan izin khusus; invoice gabungan mengikuti aturan dokumennya.
+- Sales dengan izin persetujuan draft tetap tidak dapat menyetujui draft yang berasal dari permintaan (`requestedById`). Cakupan transaksi toko tidak berubah.
+
+### Simpan, konflik, dan catatan perubahan
+
+Tinjau perubahan lewat **Review & Simpan** dan konfirmasi izin sensitif. Sistem menyimpan hanya perubahan dengan versi yang Anda muat. Bila Owner lain lebih dulu menyimpan, edit lokal tetap tersedia dan penyimpanan ditahan agar perubahan tidak tertimpa. Periksa **Catatan perubahan hak akses**, lalu pilih **Muat versi terbaru dan ganti edit lokal** jika siap mengganti edit yang belum tersimpan dan menyusun ulang perubahan. Catatan memuat 20 penyimpanan terbaru, nama Owner, waktu WIB, dan izin yang berubah.
+
+Izin API diperiksa dari konfigurasi terbaru. Browser memeriksa ulang saat tab aktif, koneksi pulih, setelah penyimpanan, dan setiap 30 detik saat terlihat. Perubahan izin efektif memuat ulang halaman agar data lama tidak tertinggal; perubahan pada role lain tidak mengganggu halaman Anda. Jika verifikasi gagal, halaman ditahan dengan tombol **Coba lagi** dan **Keluar**, sambil mempertahankan formulir yang sedang terbuka. Bila seluruh halaman dicabut, tersedia petunjuk untuk menghubungi Owner dan keluar.
+
 Untuk Pembelian Barang, keputusan approve dan reject memakai resource terpisah: `supplier.goods_purchase.approve:update` serta `supplier.goods_purchase.reject:update`. Default kedua izin hanya OWNER, tetapi Owner dapat mendelegasikannya per role lewat RBAC.
 
 ### Auto Approve Transaksi

@@ -40,7 +40,6 @@ import { TRANSACTION_HISTORY_PAYMENT_METHODS } from "@/features/transaction-hist
 import {
   priceProductForCustomerType,
   resolveCustomPricedLine,
-  canEditCustomPriceForCustomer,
   type AppliedCategoryPricing,
   type CategoryPricingRule,
   CUSTOMER_TYPES,
@@ -875,8 +874,7 @@ export async function POST(request: Request) {
     const roundingSettings = await getPriceRoundingSettings();
     const specialPricingEnabled = await getSpecialPricingEnabled();
     if (items.some(item => item.lineType === "PRODUCT" && item.transactionPrice != null) &&
-      !canRolePerformAction(user.role as Role, "product", "update", permissions) &&
-      !(specialPricingEnabled && canEditCustomPriceForCustomer(user.role, checkoutCustomerType))) {
+      !canRolePerformAction(user.role as Role, "transaction.custom_price", "update", permissions)) {
       return NextResponse.json({ message: "Akun Anda belum memiliki izin mengubah harga nota." }, { status: 403 });
     }
     if (priceRoundingSettings && (

@@ -64,7 +64,7 @@ describe("POST /api/products/import/preview", () => {
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body.rows[0]).toMatchObject({ price: 700, costPrice: null, autoAction: "auto_skip" });
-    expect(requirePermissionMock).toHaveBeenCalledWith("product", "create");
+    expect(requirePermissionMock).toHaveBeenCalledWith("product.import", "create");
   });
 
   it("returns an auto-skip decision for case-insensitive duplicate product names after abbreviation expansion", async () => {

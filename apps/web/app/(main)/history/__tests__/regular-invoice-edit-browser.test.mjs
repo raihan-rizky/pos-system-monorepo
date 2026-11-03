@@ -14,7 +14,7 @@ const loadConfig = require("tailwindcss/loadConfig");
 
 const fixtures = {
   "next/dynamic": "export default () => () => null;",
-  "@/components/providers/RoleProvider": "export const useRole = () => ({ role: 'OWNER', canPerform: (resource, action) => resource === 'transaction' && action === 'update' });",
+  "@/components/providers/RoleProvider": "export const useRole = () => ({ role: window.exampleRole, canPerform: (resource, action) => resource === 'transaction' && action === 'update' });",
   "@/hooks/useProducts": "export const useCategories = () => ({ data: [] });",
   "@/hooks/useTransactions": `export const useTransactionHistory = () => ({ data: { data: window.exampleTransactions, pagination: { total: 1, totalPages: 1 } }, isLoading: false });
     export const useTransaction = (id) => { window.selectedTransaction = id; return { data: null }; };
@@ -28,6 +28,7 @@ const fixtures = {
   "./components/TransactionCartEditor": "export const TransactionCartEditor = () => null;",
   "./components/ApproveModal": "export const ApproveModal = () => null;",
   "@/features/printing-receipts/components/PrintingReceiptApprovalModal": "export const PrintingReceiptApprovalModal = () => null;",
+  "@/features/printing-receipts/components/PrintingReceiptTransactionModal": "export const PrintingReceiptTransactionModal = () => null;",
   "@/features/transactions-draft/components/ApproveDraftDialog": "export const ApproveDraftDialog = () => null;",
   "./components/TransactionNoteModal": "export const TransactionNoteModal = () => null;",
   "@/features/transaction-history/components/TransactionBuktiModal": "export default () => null;",
@@ -36,12 +37,13 @@ const fixtures = {
 const bundle = await esbuild.build({
   stdin: {
     contents: `import React from 'react'; import { createRoot } from 'react-dom/client';
+      import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
       import HistoryClientPage from './app/(main)/history/HistoryClientPage';
       window.exampleTransactions = [{ id:'tx-example', invoiceNumber:'INV-CONTOH', draftNumber:null,
         subtotal:81000, discount:0, tax:0, total:81000, paymentMethod:'CASH', amountPaid:81000,
         change:0, cashierId:'cashier', customerName:'Pelanggan Contoh', salesName:null,
         salespersonId:null, note:null, status:'COMPLETED', createdAt:'2026-10-29T03:00:00Z', items:[] }];
-      createRoot(document.getElementById('root')).render(<HistoryClientPage />);`,
+      createRoot(document.getElementById('root')).render(<QueryClientProvider client={new QueryClient()}><HistoryClientPage /></QueryClientProvider>);`,
     resolveDir: web,
     loader: "tsx",
   },
@@ -63,8 +65,10 @@ const html = `<!doctype html><html lang="id"><head><meta charset="utf-8"><style>
 
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 try {
+  for (const role of ["OWNER", "CASHIER", "SALES"]) {
   for (const width of [1280, 390]) {
     const page = await browser.newPage({ viewport: { width, height: 900 } });
+    await page.addInitScript((role) => { window.exampleRole = role; }, role);
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
     await page.route("**/*", route => {
@@ -89,9 +93,11 @@ try {
     await entry.getByRole("button", { name: "Pilihan aksi" }).click();
     await edit.click();
     await page.getByRole("heading", { name: "Ubah Transaksi", exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Void", exact: true }).last().isEnabled(), role === "OWNER", `${role}: hanya Owner/Admin boleh mengubah status dari formulir edit`);
     assert.equal(await page.evaluate(() => window.selectedTransaction), null, "editing must not also open the receipt");
     assert.deepEqual(errors, []);
     await page.close();
+  }
   }
   process.stdout.write("Regular invoice edit action: desktop and mobile passed.\n");
 } finally {

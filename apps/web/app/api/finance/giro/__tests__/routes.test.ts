@@ -29,6 +29,20 @@ describe('giro endpoints', () => {
   });
   afterEach(() => vi.useRealTimers());
 
+  it('tidak membaca hutang manual ketika hanya izin baca giro yang diberikan', async () => {
+    const denied = new Error('payables-denied');
+    mocks.permission.mockImplementation(async resource => {
+      if (resource === 'expense.payable') throw denied;
+      return { id: 'user-1', storeId: 'store-1' };
+    });
+    mocks.authError.mockImplementation(error => error === denied ? new Response(null, { status: 403 }) : null);
+    mocks.query.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'private-debt', supplierName: 'Rahasia', amount: '100', payments: [] }]);
+    const response = await GET(new Request('http://localhost/api/finance/giro'));
+    expect(response.status).toBe(200);
+    expect((await response.json()).manualPayables).toEqual([]);
+    expect(mocks.query).toHaveBeenCalledTimes(1);
+  });
+
   it('includes stable payment IDs on both giro and manual debt histories', async () => {
     mocks.query.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     expect((await GET(new Request('http://localhost/api/finance/giro'))).status).toBe(200);
@@ -61,7 +75,7 @@ describe('giro endpoints', () => {
       ],
       manualPayables: [{ id: 'manual-1', amount: 100000, paid: 10000, payments: [{ amount: 10000, paidAt: '2026-10-15' }] }],
     });
-    expect(mocks.permission).toHaveBeenCalledWith('expense', 'read');
+    expect(mocks.permission).toHaveBeenCalledWith("expense.giro", "read");
     expect(mocks.query.mock.calls.every(call => call.includes('store-1'))).toBe(true);
     expect(mocks.query.mock.calls.some(call => call.includes('other'))).toBe(false);
   });
@@ -108,7 +122,7 @@ describe('giro endpoints', () => {
     expect(response.status).toBe(201);
     expect(await response.json()).toEqual({ payableId: expect.any(String) });
     expect(mocks.execute).toHaveBeenCalledTimes(2);
-    expect(mocks.permission).toHaveBeenCalledWith('expense', 'update');
+    expect(mocks.permission).toHaveBeenCalledWith("expense.giro", "update");
     expect(mocks.query.mock.calls[0].join(' ')).toContain('FOR UPDATE');
     expect(mocks.query.mock.calls[0]).toContain('store-1');
   });

@@ -1,5 +1,5 @@
 import { db } from "@pos/db";
-import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
+import { handleAuthError, requirePermission, requireRole } from "@/lib/rbac/guard";
 import {
   EXPENSE_CATEGORIES,
   buildKeuanganMonthRange,
@@ -154,12 +154,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requirePermission("expense", "create");
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES", "INVENTORY");
     if (!user.storeId) return apiError("Toko pengguna belum tersedia.", 403, { code: "Forbidden" });
     const storeId = user.storeId;
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== 'object' || Array.isArray(body)) return apiError('Isian pengeluaran tidak valid.', 422, { code: 'ValidationError' });
     const isManualTransfer = body.manualPurchasePaymentMethod != null;
+    await requirePermission(isManualTransfer ? "expense.manual_transfer" : "expense", "create");
     const result = isManualTransfer ? validateManualTransferExpense(body) : validateExpensePayload(body, { now: new Date() });
     if (!result.success) {
       const errors: Record<string, string[]> = {};

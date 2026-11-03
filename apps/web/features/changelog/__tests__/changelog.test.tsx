@@ -11,6 +11,7 @@ import { ALL_ROLES, buildDefaultRolePermissions, canRoleAccessPage } from "@/fea
 import { RBAC_PERMISSION_MODULES } from "@/features/rbac/helpers/rbac-settings-ui";
 import HelpContent from "@/features/help-documentation/components/HelpContent";
 import { FAQ_WORKFLOWS } from "@/features/ai-assistant/workflows/workflow-catalog";
+import { ChangeIllustration } from "../components/ChangeIllustration";
 
 const entry = (id: string, date: string, revision = 1): ChangeEntry => ({
   id, date, revision, title: `Pembaruan ${id}`, summary: "Lebih mudah dipakai.",
@@ -21,6 +22,14 @@ const entry = (id: string, date: string, revision = 1): ChangeEntry => ({
 const now = new Date("2026-10-18T03:00:00Z");
 
 describe("manual changelog", () => {
+  it("illustrates RBAC using page, data, and action permissions", () => {
+    const html = renderToStaticMarkup(<ChangeIllustration visual={"rbac" as ChangeEntry["visual"]} />);
+    expect(html).toContain("Ilustrasi fitur");
+    expect(html).toContain("Akses Riwayat");
+    expect(html).toContain("Halaman");
+    expect(html).toContain("Data");
+    expect(html).toContain("Tindakan");
+  });
   it("announces manual customer receivables with a concise three-step flow", () => {
     const manual = CHANGELOG.find(change => change.id === "customer-manual-receivables");
     expect(manual).toMatchObject({ date: "2026-10-20", revision: 1, href: "/customers", kind: "feature" });

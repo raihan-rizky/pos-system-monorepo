@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const user = await requirePermission("inventory", "update");
+    const user = await requirePermission("inventory.bulk", "read");
     return NextResponse.json({ job: await getActiveBulkStockImportJob(user) });
   } catch (error) {
     const authError = handleAuthError(error);

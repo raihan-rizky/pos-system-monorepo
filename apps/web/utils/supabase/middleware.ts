@@ -6,6 +6,7 @@ import {
   buildDefaultRolePermissions,
   canRoleAccessPage,
   normalizePageTarget,
+  PAGE_TARGETS,
 } from "@/features/rbac/helpers/rbac-core";
 import { getLogger } from "@/lib/logger";
 
@@ -45,6 +46,7 @@ function isProtectedPageRequest(pathname: string) {
     !pathname.startsWith("/api/") &&
     pathname !== "/" &&
     pathname !== "/login" &&
+    pathname !== "/access-denied" &&
     !pathname.startsWith("/auth")
   );
 }
@@ -223,12 +225,18 @@ export async function updateSession(request: NextRequest) {
 
           if (!canAccess) {
             log.info("page.access.denied", { role, path: request.nextUrl.pathname });
-            if (request.nextUrl.pathname === DEFAULT_PAGE[role]) {
-              // Prevent infinite redirect loop if default page is not accessible
-              return new NextResponse("Unauthorized: You do not have access to your default page.", { status: 403 });
+            let destination = "/access-denied";
+            const candidates = [...new Set([DEFAULT_PAGE[role], ...PAGE_TARGETS])];
+            for (const candidate of candidates) {
+              if (candidate === normalizePageTarget(request.nextUrl.pathname)) continue;
+              if (await canAccessPageWithConfiguredPermissions(supabase, role, candidate)) {
+                destination = candidate;
+                break;
+              }
             }
             const url = request.nextUrl.clone();
-            url.pathname = DEFAULT_PAGE[role];
+            url.pathname = destination;
+            url.search = "";
             const redirectResponse = NextResponse.redirect(url);
             setPosIdentityCookies(redirectResponse, role, posUser.id, posUser.name, posUser.storeId ?? null);
             return redirectResponse;
@@ -268,10 +276,13 @@ export async function updateSession(request: NextRequest) {
     } catch (error) {
       if (request.nextUrl.pathname.startsWith("/api/")) {
         log.error("role.resolve.failed.api", { error, path: request.nextUrl.pathname });
-        return NextResponse.json({ error: "Unable to verify access" }, { status: 503 });
+        return NextResponse.json({ error: "Hak akses belum dapat diverifikasi. Silakan coba lagi." }, { status: 503 });
       }
       log.error("role.resolve.failed", { error, path: request.nextUrl.pathname });
-      return new NextResponse("Unable to verify access", { status: 503 });
+      return new NextResponse(
+        '<!doctype html><html lang="id"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Akses belum dapat diperiksa</title><body style="font-family:system-ui;max-width:32rem;margin:12vh auto;padding:1.5rem"><h1>Hak akses belum dapat diverifikasi</h1><p>Koneksi sedang bermasalah. Hak akses Anda belum dapat diperiksa. Silakan coba lagi.</p><p><a href="">Coba lagi</a> · <a href="/access-denied">Bantuan akses dan keluar</a></p></body></html>',
+        { status: 503, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } },
+      );
     }
 
   }
@@ -290,6 +301,7 @@ async function canAccessPageWithConfiguredPermissions(
   role: Role,
   path: string,
 ) {
+  if (role === "OWNER") return true;
   try {
     const pageTarget = normalizePageTarget(path);
     // If it's an unknown target, reject immediately or fallback to default?
@@ -309,7 +321,7 @@ async function canAccessPageWithConfiguredPermissions(
 
     if (error) {
       log.warn("rbac.permissions.query.error", { error, role, path });
-      return canRoleAccessPage(role, path, buildDefaultRolePermissions());
+      throw new Error("Hak akses belum dapat diverifikasi");
     }
 
     if (data !== null) {
@@ -319,6 +331,6 @@ async function canAccessPageWithConfiguredPermissions(
     return canRoleAccessPage(role, path, buildDefaultRolePermissions());
   } catch (error) {
     log.error("rbac.permissions.load.failed", { error, role, path });
-    return canRoleAccessPage(role, path, buildDefaultRolePermissions());
+    throw error;
   }
 }

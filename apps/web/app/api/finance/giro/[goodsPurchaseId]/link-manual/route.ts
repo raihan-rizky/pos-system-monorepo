@@ -28,7 +28,7 @@ const sameAmount = (a: string | number, b: string | number) => Math.round(Number
 
 export async function POST(request: Request, context: { params: Promise<{ goodsPurchaseId: string }> }): Promise<Response> {
   try {
-    const user = await requirePermission('expense', 'update');
+    const user = await requirePermission("expense.giro", "update");
     if (!user.storeId) return apiError('Toko pengguna belum tersedia.', 403, { code: 'Forbidden' });
     const input = parseGiroLinkManual(await request.json().catch(() => null));
     if (!input || input.payableId === input.expectedGiroPayableId) {

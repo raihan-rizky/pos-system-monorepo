@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const user = await requirePermission("product", "create");
+    const user = await requirePermission("product.import", "create");
     const input = productImportChunkSchema.parse(await request.json());
 
     const result = await commitProductImportChunk(input, user);

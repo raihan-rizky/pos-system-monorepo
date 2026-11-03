@@ -21,6 +21,18 @@ const EXTENSION_BY_MIME_TYPE: Record<string, string> = {
 };
 
 const PROOF_UPLOAD_POLICIES = {
+  "manual-transfer": {
+    resource: "expense.manual_transfer",
+    action: "create" as Action,
+    prefix: "proofs/manual-transfers",
+    requiresStore: true,
+  },
+  "manual-transfer-edit": {
+    resource: "expense.manual_transfer",
+    action: "update" as Action,
+    prefix: "proofs/manual-transfers",
+    requiresStore: true,
+  },
   expense: {
     resource: "expense",
     action: "create" as Action,

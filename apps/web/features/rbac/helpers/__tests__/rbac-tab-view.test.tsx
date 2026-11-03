@@ -29,6 +29,86 @@ vi.mock("lucide-react", () => ({
 }));
 
 describe("RbacSettingsView", () => {
+  it("explains approval rejection and history page changes in review with collapsed technical ids", async () => {
+    const { RbacSettingsView } = await import("@/components/settings/RbacTab");
+    const baseline = buildDefaultRolePermissions();
+    baseline.SALES.pages["/history"] = false;
+    const permissions = structuredClone(baseline);
+    permissions.ADMIN.resources["transaction.approve"].delete = false;
+    permissions.SALES.pages["/history"] = true;
+    const html = renderToStaticMarkup(<RbacSettingsView
+      activeRole="ADMIN" selectedModuleId="dashboard" permissions={permissions} savedPermissions={baseline}
+      isSaving={false} saved={false} error={null} isReviewOpen isSensitiveConfirmOpen={false}
+      onActiveRoleChange={vi.fn()} onSelectedModuleChange={vi.fn()} onPagePermissionChange={vi.fn()}
+      onResourcePermissionChange={vi.fn()} onRequestSaveReview={vi.fn()} onCloseReview={vi.fn()}
+      onConfirmReview={vi.fn()} onCancelSensitiveConfirm={vi.fn()} onConfirmSensitiveSave={vi.fn()}
+    />);
+    const review = html.slice(html.indexOf('role="dialog"'));
+    expect(review).toContain("Persetujuan transaksi / Tolak atau batalkan transaksi");
+    expect(review).toContain("Riwayat / Buka halaman");
+    expect(review).toMatch(/<details[^>]*><summary[^>]*>Detail teknis<\/summary><code>transaction.approve.delete<\/code><\/details>/);
+    expect(review).toMatch(/<details[^>]*><summary[^>]*>Detail teknis<\/summary><code>\/history.access<\/code><\/details>/);
+  });
+
+  async function renderEditor(moduleId: string, saveBlocked = false) {
+    const { RbacSettingsView } = await import("@/components/settings/RbacTab");
+    const permissions = buildDefaultRolePermissions();
+    return renderToStaticMarkup(<RbacSettingsView
+      activeRole="ADMIN" selectedModuleId={moduleId} permissions={permissions} savedPermissions={permissions}
+      isSaving={false} saveBlocked={saveBlocked} saved={false} error={null} isReviewOpen={false} isSensitiveConfirmOpen={false}
+      onActiveRoleChange={vi.fn()} onSelectedModuleChange={vi.fn()} onPagePermissionChange={vi.fn()}
+      onResourcePermissionChange={vi.fn()} onRequestSaveReview={vi.fn()} onCloseReview={vi.fn()}
+      onConfirmReview={vi.fn()} onCancelSensitiveConfirm={vi.fn()} onConfirmSensitiveSave={vi.fn()}
+    />);
+  }
+
+  it("disables saving while the parent resolves a version conflict", async () => {
+    const { RbacSettingsView } = await import("@/components/settings/RbacTab");
+    const permissions = buildDefaultRolePermissions();
+    permissions.ADMIN.pages["/products"] = false;
+    const html = renderToStaticMarkup(<RbacSettingsView
+      activeRole="ADMIN" selectedModuleId="products" permissions={permissions} savedPermissions={buildDefaultRolePermissions()}
+      isSaving={false} saveBlocked saved={false} error={null} isReviewOpen={false} isSensitiveConfirmOpen={false}
+      onActiveRoleChange={vi.fn()} onSelectedModuleChange={vi.fn()} onPagePermissionChange={vi.fn()}
+      onResourcePermissionChange={vi.fn()} onRequestSaveReview={vi.fn()} onCloseReview={vi.fn()}
+      onConfirmReview={vi.fn()} onCancelSensitiveConfirm={vi.fn()} onConfirmSensitiveSave={vi.fn()}
+    />);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Review dan simpan perubahan permission"/);
+  });
+
+  it("renders all 25 mobile module options and an accessible search and disclosures", async () => {
+    const html = await renderEditor("dashboard");
+    expect(html.match(/<option /g)).toHaveLength(25);
+    expect(html).toContain('aria-label="Cari modul hak akses"');
+    expect(html).toContain('aria-controls="rbac-module-matrix"');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('aria-controls="rbac-group-operations"');
+  });
+
+  it.each([
+    ["processed-printing-receipts", 1, "Ubah nota diproses"],
+    ["proof-media", 1, "Hapus bukti"],
+    ["inventory-inbound-receipts", 1, "Catat penerimaan"],
+    ["settings", 3, "Khusus Owner"],
+    ["inventory-approval", 4, "Khusus Owner"],
+  ])("renders supported controls and friendly labels for %s", async (moduleId, count, label) => {
+    const html = await renderEditor(moduleId);
+    expect(html.match(/role="switch"/g)).toHaveLength(count);
+    expect(html).toContain(label);
+    expect(html).toContain("Kritis");
+    expect(html).toContain("Detail teknis");
+    expect(html).not.toMatch(/aria-label="Admin (create|read|update|delete) (rbac|inventory\.approve)"/);
+  });
+
+  it("offers a POS shortcut and an effective history preview with missing permission reasons", async () => {
+    const html = await renderEditor("transaction-approval");
+    expect(html).toContain("Pratinjau aktivitas Riwayat");
+    expect(html).toContain("Atur Lihat / Ubah transaksi di Kasir / POS");
+    expect(html).toContain("Buka Riwayat");
+    expect(html).toContain("Setujui draft");
+    expect(html).toContain("Akses halaman hanya membuka menu");
+  });
+
   it("renders Surat Jalan auto approval as a create-only permission", async () => {
     const { RbacSettingsView } = await import("@/components/settings/RbacTab");
     const permissions = buildDefaultRolePermissions();
@@ -94,8 +174,11 @@ describe("RbacSettingsView", () => {
 
     // Role summary section present
     expect(html).toContain("Ringkasan Role");
-    // Advisory notice
-    expect(html).toContain("backend tetap sumber kebenaran");
+    // Explain user choices without exposing implementation details.
+    expect(html).toContain("Atur akses Admin, Kasir, Sales, dan Inventaris");
+    expect(html).toContain("Akses halaman, data, dan tindakan diatur terpisah");
+    expect(html).not.toContain("Built-in roles only");
+    expect(html).not.toContain("enforcement route/API");
     // Pending changes indicator
     expect(html).toContain("Belum disimpan");
     // Role label present

@@ -88,13 +88,23 @@ vi.mock("@pos/db", () => ({
 describe("POST /api/transactions negative stock", () => {
   it("denies a custom invoice price without permission to edit prices", async () => {
     const { canRolePerformAction } = await import("@/features/rbac/helpers/rbac-core");
-    vi.mocked(canRolePerformAction).mockImplementation((_role, resource) => resource !== "product");
+    vi.mocked(canRolePerformAction).mockImplementation((_role, resource) => resource !== "transaction.custom_price");
     try {
       const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
         paymentMethod: "CASH", amountPaid: 1000, items: [{ productId: "p1", quantity: 1, price: 800, transactionPrice: 800 }],
       }) }));
       expect(response.status).toBe(403);
       expect(transactionCreateMock).not.toHaveBeenCalled();
+    } finally { vi.mocked(canRolePerformAction).mockReturnValue(true); }
+  });
+  it("allows custom invoice prices without master product update permission", async () => {
+    const { canRolePerformAction } = await import("@/features/rbac/helpers/rbac-core");
+    vi.mocked(canRolePerformAction).mockImplementation((_role, resource) => resource !== "product");
+    try {
+      const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+        paymentMethod: "CASH", amountPaid: 1000, items: [{ productId: "p1", quantity: 1, price: 800, transactionPrice: 800 }],
+      }) }));
+      expect(response.status).toBe(201);
     } finally { vi.mocked(canRolePerformAction).mockReturnValue(true); }
   });
   it.each([false, true])("saves a per-invoice custom price for a general customer with Harga Khusus %s", async enabled => {

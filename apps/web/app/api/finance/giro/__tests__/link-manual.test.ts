@@ -54,7 +54,7 @@ describe('linking a manual payable to an existing giro', () => {
   it('requires expense update permission and confines the purchase lookup to the user store', async () => {
     mocks.query.mockResolvedValueOnce([]);
     expect((await POST(request(), context)).status).toBe(404);
-    expect(mocks.permission).toHaveBeenCalledWith('expense', 'update');
+    expect(mocks.permission).toHaveBeenCalledWith("expense.giro", "update");
     expect(mocks.query.mock.calls[0]).toContain('store-1');
     expect(mocks.query.mock.calls[0].join(' ')).toContain('FOR UPDATE');
   });

@@ -1,5 +1,5 @@
 import { db } from "@pos/db";
-import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
+import { handleAuthError, requirePermission, requireRole } from "@/lib/rbac/guard";
 import {
   computeNetExpense,
   validateExpensePayload,
@@ -19,7 +19,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await requirePermission("expense", "update");
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES", "INVENTORY");
     if (!user.storeId) return apiError("Toko pengguna belum tersedia.", 403, { code: "Forbidden" });
     const storeId = user.storeId;
     const { id } = await params;
@@ -37,6 +37,7 @@ export async function PATCH(
         manualPurchasePaymentMethod: true,
       },
     });
+    await requirePermission(existing?.manualPurchasePaymentMethod === "TRANSFER" ? "expense.manual_transfer" : "expense", "update");
     if (!existing || existing.deletedAt) {
       return apiError("Expense not found", 404, { code: "NotFound" });
     }
@@ -147,7 +148,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await requirePermission("expense", "delete");
+    const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES", "INVENTORY");
     if (!user.storeId) return apiError("Toko pengguna belum tersedia.", 403, { code: "Forbidden" });
     const storeId = user.storeId;
     const { id } = await params;
@@ -160,8 +161,10 @@ export async function DELETE(
         goodsPurchaseId: true,
         backdatedPurchaseDueId: true,
         backdatedPurchasePaymentId: true,
+        manualPurchasePaymentMethod: true,
       },
     });
+    await requirePermission(existing?.manualPurchasePaymentMethod === "TRANSFER" ? "expense.manual_transfer" : "expense", "delete");
     if (!existing) {
       return apiError("Expense not found", 404, { code: "NotFound" });
     }

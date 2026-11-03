@@ -75,7 +75,7 @@ describe("POST /api/inventory/bulk/import/commit", () => {
     const body = await response.json();
 
     expect(response.status).toBe(201);
-    expect(requirePermissionMock).toHaveBeenCalledWith("inventory", "update");
+    expect(requirePermissionMock).toHaveBeenCalledWith("inventory.bulk", "update");
     expect(body).toEqual({
       updatedProductCount: 1,
       inventoryLogCount: 1,

@@ -9,7 +9,7 @@ const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
-  requirePermission: requirePermissionMock,
+  requireRole: requirePermissionMock, requirePermission: requirePermissionMock,
   handleAuthError: handleAuthErrorMock,
 }));
 

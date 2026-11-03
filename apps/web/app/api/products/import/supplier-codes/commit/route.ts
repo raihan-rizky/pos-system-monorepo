@@ -23,7 +23,7 @@ function isCommitRow(value: unknown): value is SupplierCodeImportCommitRow {
 
 export async function POST(request: Request) {
   try {
-    const user = await requirePermission("product", "update");
+    const user = await requirePermission("product.import", "update");
     const payload = (await request.json()) as { rows?: unknown };
     if (!Array.isArray(payload.rows) || !payload.rows.every(isCommitRow)) {
       return NextResponse.json({ message: "Data impor tidak valid." }, { status: 422 });

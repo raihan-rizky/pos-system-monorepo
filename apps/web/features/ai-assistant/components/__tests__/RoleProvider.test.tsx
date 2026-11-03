@@ -17,6 +17,17 @@ function ContextProbe() {
 }
 
 describe("RoleProvider", () => {
+  it("hides protected content and offers recovery when permissions are unverified", () => {
+    const html = renderToStaticMarkup(
+      <RoleProvider role="OWNER" userId="owner-1" userName="Pemilik" permissionsVerified={false}>
+        <main>Data toko yang dilindungi</main>
+      </RoleProvider>,
+    );
+    expect(html).toMatch(/hidden=""[^>]*><main>Data toko yang dilindungi/);
+    expect(html).toContain("Coba lagi");
+    expect(html).toContain("Keluar");
+  });
+
   it("exposes store and authorization fingerprint for assistant history isolation", () => {
     const html = renderToStaticMarkup(
       <RoleProvider
