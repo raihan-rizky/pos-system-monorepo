@@ -204,7 +204,7 @@ function PrintingReceiptSession({ canCheckout = true, onRequireShift, isCurrentS
   return <div className="printing-receipt-workspace">
     <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-surface-200 bg-white px-3 py-2" role="tablist" aria-label="Jenis nota percetakan">
       {PRINTING_SUBCATEGORIES.map(category => <button type="button" role="tab" aria-selected={subcategory === category} aria-controls="printing-receipt-panel" key={category} disabled={busy}
-        onClick={() => void selectSubcategory(category)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 ${subcategory === category ? "bg-brand-600 text-white" : "text-surface-600 hover:bg-surface-100"}`}>{category}</button>)}
+        onClick={() => void selectSubcategory(category)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 ${subcategory === category ? "bg-brand-600 text-white" : "text-surface-600 hover:bg-surface-100"}`}>{category === "PRINT" ? "PRINT/FC" : category}</button>)}
     </div>
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-surface-200 bg-white px-3 py-2">
       <div className="flex items-center gap-2">
