@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "pwa-status-dismiss", date: "2026-11-03", revision: 1,
+    highlight: { title: "Pemberitahuan lebih ringkas", summary: "Tutup pemberitahuan status atau tunggu tiga detik." },
+    title: "Pemberitahuan status lebih mudah ditutup.",
+    summary: "Pemberitahuan status dapat ditutup kapan saja dan hilang otomatis setelah tiga detik. Periksa transaksi yang memerlukan perhatian di Offline Sync.",
+    kind: "fix", area: "Offline Sync", href: "/pos/offline", visual: "changelog",
+    steps: [
+      { title: "Lihat status", detail: "Baca pemberitahuan saat muncul." },
+      { title: "Tutup pemberitahuan", detail: "Pilih tombol tutup atau tunggu tiga detik." },
+      { title: "Periksa transaksi", detail: "Buka Offline Sync untuk melihat antrean." },
+    ],
+  },
+  {
     id: "manual-finance-entries", date: "2026-11-03", revision: 1,
     highlight: { title: "Pemasukan dan belanja manual", summary: "Catat pemasukan ke RC dan belanja transfer langsung dari Keuangan." },
     title: "Catat pemasukan dan belanja transfer.",

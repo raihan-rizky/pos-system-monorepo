@@ -912,7 +912,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     steps: [
       { title: "Siapkan POS", description: "Saat online, masuk sebagai kasir asal, buka Kasir > Offline Sync, buat dan ulangi PIN offline, lalu pilih Siapkan POS offline. Siapkan ulang sedikitnya setiap tujuh hari dan setelah pembaruan aplikasi. PIN mengenkripsi halaman; katalog dan antrean belum terenkripsi." },
       { title: "Buka saat offline", description: "Buka alamat POS, pilih akun dan masukkan PIN, lalu pilih Buka POS offline. Transaksi tersimpan di perangkat sampai diperiksa server; jangan hapus data situs sebelum sinkronisasi." },
-      { title: "Periksa hasil sync", description: "Setelah terhubung, masuk sebagai kasir asal dan periksa Offline Sync. Owner dapat mengunduh transaksi yang belum tersimpan di server, termasuk transaksi lama tanpa identitas, untuk rekonsiliasi tanpa menetapkan asal secara otomatis." },
+      { title: "Periksa hasil sync", description: "Pemberitahuan status dapat ditutup dan menghilang setelah 3 detik. Setelah terhubung, masuk sebagai kasir asal dan periksa Offline Sync. Owner dapat mengunduh transaksi yang belum tersimpan di server, termasuk transaksi lama tanpa identitas, untuk rekonsiliasi tanpa menetapkan asal secara otomatis." },
     ],
   }),
   workflow({

@@ -1,12 +1,13 @@
 "use client";
 
-import { RefreshCw, WifiOff, AlertTriangle, Download } from "lucide-react";
+import { RefreshCw, WifiOff, AlertTriangle, Download, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 
 export function PwaStatusBanner() {
   const { summary, isOnline, isSyncing, error, syncNow } = useOfflineSync();
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [dismissedMessage, setDismissedMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const onUpdate = () => setUpdateAvailable(true);
@@ -15,16 +16,14 @@ export function PwaStatusBanner() {
       window.removeEventListener("pos-pwa-update-available", onUpdate);
   }, []);
 
-  if (
+  const hasStatus = !(
     isOnline &&
     !isSyncing &&
     !error &&
     !updateAvailable &&
     summary.pending === 0 &&
     summary.failed === 0
-  ) {
-    return null;
-  }
+  );
 
   const message = !isOnline
     ? `Mode offline: ${summary.pending} transaksi akan sync nanti`
@@ -35,6 +34,15 @@ export function PwaStatusBanner() {
         : updateAvailable
           ? "Versi baru tersedia"
           : `${summary.pending} transaksi menunggu sync`;
+
+  useEffect(() => {
+    setDismissedMessage(null);
+    if (!hasStatus) return;
+    const timer = window.setTimeout(() => setDismissedMessage(message), 3000);
+    return () => window.clearTimeout(timer);
+  }, [hasStatus, message]);
+
+  if (!hasStatus || dismissedMessage === message) return null;
 
   return (
     <div
@@ -80,6 +88,14 @@ export function PwaStatusBanner() {
             Muat Ulang
           </button>
         )}
+        <button
+          type="button"
+          aria-label="Tutup peringatan"
+          onClick={() => setDismissedMessage(message)}
+          className="rounded-md p-1 hover:bg-rose-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-800"
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+        </button>
       </div>
     </div>
   );
