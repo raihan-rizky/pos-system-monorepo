@@ -181,6 +181,13 @@ export function PaymentModal({
   const [manualPrices, setManualPrices] = useState<Record<string, number>>({});
   const [customerError, setCustomerError] = useState<string | null>(null);
   const createCustomer = useCreateCustomer();
+  const handleClose = () => {
+    if (isProcessing || isSavingDraft || createCustomer.isPending) return;
+    const generalSelection: CheckoutCustomerSelection = { kind: "general" };
+    setCustomerSelection(generalSelection);
+    onCustomerSelectionChange?.(generalSelection);
+    onClose();
+  };
   const pricingRulesQuery = useCustomerCategoryPricingRules({ activeOnly: true });
   const [salespersonId, setSalespersonId] = useState("");
   const { data: salespersons = [] } = useSalespersons();
@@ -415,7 +422,7 @@ export function PaymentModal({
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Pembayaran" size="lg">
+    <Modal open={open} onClose={handleClose} title="Pembayaran" size="lg">
       <div className="space-y-5 px-1 py-1">
         {!canUseRoundingPolicy && (
           <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -1182,7 +1189,7 @@ export function PaymentModal({
           <Button
             variant="secondary"
             size="lg"
-            onClick={onClose}
+            onClick={handleClose}
             className="sm:flex-1"
           >
             Batal

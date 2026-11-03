@@ -298,7 +298,7 @@ describe("POS pricing across unrelated renders", () => {
     expect(render().cart).toBeUndefined();
   });
 
-  it("refreshes customer prices from payment and retains the selection on reopen", () => {
+  it("refreshes customer prices from payment and clears the selection on reopen", () => {
     const before = render();
     before.cart.onCheckout();
     const opened = render();
@@ -315,7 +315,7 @@ describe("POS pricing across unrelated renders", () => {
     expect(closed.payment).toBeDefined();
     expect(closed.payment.open).toBe(false);
     closed.cart.onCheckout();
-    expect(render().payment.initialCustomerSelection).toEqual(selection);
+    expect(render().payment.initialCustomerSelection).toEqual({ kind: "general" });
   });
 
   it("keeps the payment modal mounted while its cart remains active", () => {

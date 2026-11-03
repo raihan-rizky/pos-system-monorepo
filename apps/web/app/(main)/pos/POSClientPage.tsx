@@ -242,6 +242,7 @@ export default function POSClientPage({
   });
   const cart = useCart();
   const [pricingCustomer, setPricingCustomer] = useState<CheckoutCustomerSelection>({ kind: "general" });
+  const resetPricingCustomer = useCallback(() => setPricingCustomer({ kind: "general" }), []);
   const customerType = pricingCustomer.kind === "existing" ? pricingCustomer.customer.type ?? "UMUM" : "UMUM";
   const { data: categoryRules = EMPTY_PRICING_RULES } = useCustomerCategoryPricingRules({ activeOnly: true });
   const catalogCartItems = useCartCatalogPrices(cart.items);
@@ -517,6 +518,7 @@ export default function POSClientPage({
       }
       if (outcome.kind === "queued") {
         cart.clearCart();
+        resetPricingCustomer();
         setShowPayment(false);
         setCheckoutNotice({
           tone: "warning",
@@ -540,6 +542,7 @@ export default function POSClientPage({
         });
       }
       cart.clearCart();
+      resetPricingCustomer();
       setShowPayment(false);
     } catch (error) {
       log.error("Transaction failed:", error);
@@ -583,6 +586,7 @@ export default function POSClientPage({
         invoiceDateReason: data.invoiceDateReason,
       });
       cart.clearCart();
+      resetPricingCustomer();
       setShowPayment(false);
       setLastTransaction(draft);
       setCheckoutNotice({
@@ -948,7 +952,10 @@ export default function POSClientPage({
       {(showPayment || (hasOpenedPayment && cart.totalItems > 0)) && (
         <PaymentModal
           open={showPayment}
-          onClose={() => setShowPayment(false)}
+          onClose={() => {
+            resetPricingCustomer();
+            setShowPayment(false);
+          }}
           items={catalogCartItems}
           subtotal={pricedCartSubtotal}
           initialCustomerSelection={pricingCustomer}
