@@ -12,8 +12,10 @@ Penyimpanan riwayat dan notifikasi dilakukan bersama perubahan transaksi dalam s
 
 ## Penerapan
 
-Terapkan migrasi `20261103130000_transaction_receipt_change_audit` pada database tujuan sebelum fitur digunakan. Lokasi `D:\main_project\pos-system-monorepo\markdown-files` yang ditentukan tidak tersedia di lingkungan kerja ini, sehingga dokumen disimpan pada folder `markdown-files` di checkout aktif.
+Migrasi `20261103130000_transaction_receipt_change_audit` diterapkan ke development pada 2026-11-04 (WIB). Production sudah memiliki migrasi ini saat diperiksa; perintah `prisma migrate deploy` selesai tanpa migrasi tertunda. Kedua database melaporkan seluruh 101 migrasi sudah diterapkan. Checksum migrasi, kolom snapshot JSONB, indeks, urutan unik, dan row-level security tabel riwayat juga sudah diverifikasi.
+
+Lokasi `D:\main_project\pos-system-monorepo\markdown-files` yang ditentukan tidak tersedia di lingkungan kerja ini, sehingga dokumen disimpan pada folder `markdown-files` di checkout aktif.
 
 ## Catatan pelaksanaan
 
-Headroom MCP tidak tersedia pada sesi penyelesaian; keluaran pemeriksaan dibaca secara terbatas. GitNexus memakai indeks lama setelah indeks ulang gagal memulai parser, sehingga hasil analisis dampaknya dilengkapi pemeriksaan diff dan pengujian langsung pada jalur yang berubah. Migrasi disertakan dalam perubahan kode dan belum diterapkan ke database.
+Headroom MCP tidak tersedia pada sesi penyelesaian implementasi; saat penerapan migrasi, alat statistik tersedia tetapi proksinya tidak dapat dihubungi. Keluaran pemeriksaan dibaca secara terbatas dan rincian koneksi disamarkan. GitNexus memakai indeks lama setelah indeks ulang gagal memulai parser, sehingga hasil analisis dampaknya dilengkapi pemeriksaan diff dan pengujian langsung pada jalur yang berubah.
