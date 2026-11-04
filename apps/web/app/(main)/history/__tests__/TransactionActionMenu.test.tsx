@@ -43,12 +43,23 @@ const mockProps = {
 };
 
 describe("TransactionActionMenu z-level and positioning", () => {
-  it("mengizinkan upload bukti Sales dengan grant tanpa membuka tanggal invoice, void, atau hapus", () => {
+  it("mengikuti grant Sales untuk upload, Void, dan Hapus tanpa membuka tanggal invoice", () => {
     const html = renderToStaticMarkup(<TransactionActionMenu {...mockProps} isSalesRole initialOpen />);
     expect(html).toContain("Upload Bukti Transaksi");
     expect(html).not.toContain("Ubah Tanggal Invoice");
-    expect(html).not.toMatch(/>\s*Void\s*</);
-    expect(html).not.toMatch(/>\s*Hapus\s*</);
+    expect(html).toMatch(/>\s*Void\s*</);
+    expect(html).toMatch(/>\s*Hapus\s*</);
+  });
+
+  it.each([
+    { update: false, delete: false, wantVoid: false, wantDelete: false },
+    { update: true, delete: false, wantVoid: true, wantDelete: false },
+    { update: false, delete: true, wantVoid: false, wantDelete: true },
+    { update: true, delete: true, wantVoid: true, wantDelete: true },
+  ])("memisahkan grant Sales pada transaksi surat jalan: %j", ({ update, delete: remove, wantVoid, wantDelete }) => {
+    const html = renderToStaticMarkup(<TransactionActionMenu {...mockProps} isSalesRole isBundled canVoid={update} canDeleteTransactions={remove} initialOpen />);
+    expect(/>\s*Void\s*</.test(html)).toBe(wantVoid);
+    expect(/>\s*Hapus\s*</.test(html)).toBe(wantDelete);
   });
 
   it("tidak menawarkan upload bukti tanpa grant update", () => {
@@ -56,9 +67,19 @@ describe("TransactionActionMenu z-level and positioning", () => {
     expect(html).not.toContain("Upload Bukti Transaksi");
   });
 
-  it("menyembunyikan aksi menu untuk transaksi gabungan", () => {
+  it("menawarkan Hapus dan Void untuk transaksi dengan surat jalan", () => {
     const html = renderToStaticMarkup(<TransactionActionMenu {...mockProps} isBundled initialOpen />);
-    expect(html).toBe("");
+    expect(html).toMatch(/>\s*Hapus\s*</);
+    expect(html).toMatch(/>\s*Void\s*</);
+    expect(html).not.toContain("Upload Bukti Transaksi");
+    expect(html).not.toContain("Ubah Tanggal Invoice");
+    expect(html).not.toContain("Cetak Surat Jalan");
+  });
+
+  it.each(["VOIDED", "REFUNDED"])("tidak menawarkan Void ulang untuk status %s", (status) => {
+    const html = renderToStaticMarkup(<TransactionActionMenu {...mockProps} tx={{ ...mockTx, status }} initialOpen />);
+    expect(html).not.toMatch(/>\s*Void\s*</);
+    expect(html).toMatch(/>\s*Hapus\s*</);
   });
 
   it("prefers the bottom placement when showUpward is false or not provided", () => {

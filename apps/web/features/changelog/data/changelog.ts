@@ -15,6 +15,19 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "transaction-delete-void-linked-deliveries", date: "2026-11-05", revision: 1,
+    highlight: { title: "Void dan hapus transaksi", summary: "Proses transaksi dan seluruh surat jalan terkait langsung dari Riwayat." },
+    title: "Void dan hapus transaksi beserta surat jalan.",
+    summary: "Void atau hapus transaksi ATK, Percetakan, dan nota penawaran dari Riwayat. Seluruh surat jalan terkait ikut diproses, dengan peringatan bila stok nota penawaran perlu diperiksa.",
+    kind: "improvement", area: "Riwayat Transaksi", href: "/history", visual: "history-table",
+    screenshot: { src: "/images/changelog/hapus-void-transaksi-surat-jalan.png", alt: "Menu aksi transaksi yang menyediakan tombol Void dan Hapus." },
+    steps: [
+      { title: "Pilih transaksi", detail: "Buka Riwayat, cari transaksi, lalu buka menu tiga titik pada baris komputer atau kartu ponsel." },
+      { title: "Tinjau dampaknya", detail: "Pilih Void atau Hapus sesuai izin. Void membatalkan surat jalan PENDING/CONFIRMED; Hapus menghapus permanen transaksi, nota Percetakan sumber, dan seluruh surat jalan terkait." },
+      { title: "Konfirmasi dan periksa", detail: "Konfirmasi tindakan, lalu baca hasil dan peringatan stok nota penawaran bila muncul. Stok hanya dikembalikan berdasarkan mutasi yang terbukti." },
+    ],
+  },
+  {
     id: "shopping-request-deletion", date: "2026-11-04", revision: 1,
     highlight: { title: "Hapus daftar belanja", summary: "Batalkan daftar dan kurangi kembali stok penerimaan yang tercatat." },
     title: "Hapus daftar belanja dengan riwayat yang tetap tersimpan.",

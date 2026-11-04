@@ -16,6 +16,7 @@ const inventoryLogFindManyMock = vi.hoisted(() => vi.fn());
 const inventoryLogUpdateManyMock = vi.hoisted(() => vi.fn());
 const transactionAuditFindFirstMock = vi.hoisted(() => vi.fn());
 const transactionDeleteManyMock = vi.hoisted(() => vi.fn());
+const printingReceiptDeleteManyMock = vi.hoisted(() => vi.fn());
 const productUpdateManyMock = vi.hoisted(() => vi.fn());
 const productFindFirstMock = vi.hoisted(() => vi.fn());
 const productStockGroupUpdateManyMock = vi.hoisted(() => vi.fn());
@@ -209,12 +210,21 @@ describe("PATCH /api/transactions/[id]", () => {
 });
 
 describe("DELETE /api/transactions/[id]", () => {
-  it("retains processed printing receipts for history and cancels through the normal status flow", async () => {
+  it("allows deleting processed printing transactions through the shared reversal flow", async () => {
     transactionFindFirstMock.mockResolvedValue({id:"tx-1",status:"COMPLETED",printingSubcategory:"PLAT"});
+    transactionFindUniqueMock.mockResolvedValue({
+      id: "tx-1", invoiceNumber: "INV-001", status: "COMPLETED", customerId: null,
+      total: 100, amountPaid: 100, items: [], payments: [], suratJalan: [],
+      printingReceipt: { id: "receipt-1", number: "PLAT-001", document: { note: "Cetak poster" } },
+    });
+    inventoryLogFindManyMock.mockResolvedValue([]);
     const response=await DELETE(new Request("http://localhost/api/transactions/tx-1",{method:"DELETE"}),{params:Promise.resolve({id:"tx-1"})});
-    expect(response.status).toBe(409);
-    expect(dbTransactionMock).not.toHaveBeenCalled();
-    expect(transactionDeleteManyMock).not.toHaveBeenCalled();
+    expect(response.status).toBe(204);
+    expect(dbTransactionMock).toHaveBeenCalled();
+    expect(transactionDeleteManyMock).toHaveBeenCalled();
+    expect(printingReceiptDeleteManyMock).toHaveBeenCalledWith({
+      where: { transactionId: "tx-1", storeId: "store-main" },
+    });
   });
   beforeEach(() => {
     vi.clearAllMocks();
@@ -302,6 +312,7 @@ describe("DELETE /api/transactions/[id]", () => {
     inventoryLogUpdateManyMock.mockResolvedValue({ count: 2 });
     transactionAuditFindFirstMock.mockResolvedValue(null);
     transactionDeleteManyMock.mockResolvedValue({ count: 1 });
+    printingReceiptDeleteManyMock.mockResolvedValue({ count: 1 });
     productUpdateManyMock.mockResolvedValue({ count: 1 });
     productFindFirstMock.mockResolvedValue({ stock: 2, stockGroupId: null });
     productStockGroupUpdateManyMock.mockResolvedValue({ count: 1 });
@@ -320,6 +331,7 @@ describe("DELETE /api/transactions/[id]", () => {
           delete: transactionDeleteMock,
         },
         transactionItem: { deleteMany: transactionItemDeleteManyMock },
+        printingReceipt: { deleteMany: printingReceiptDeleteManyMock },
         inventoryLog: {
           findMany: inventoryLogFindManyMock,
           createMany: inventoryLogCreateManyMock,

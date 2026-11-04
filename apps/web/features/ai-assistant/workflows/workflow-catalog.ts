@@ -198,7 +198,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Pilih aksi", description: "Klik Setujui atau Tolak pada baris transaksi, atau gunakan menu tiga titik." },
       { title: "Review barang dan harga", description: "Pada transaksi ATK, Anda dapat menambah/menghapus barang atau mengubah jumlah sebelum persetujuan. Periksa modal, normal, Agen, Dinas, Harga Khusus, dan harga efektif; server menghitung ulang total. Nota Percetakan disetujui sesuai isi tersimpan; periksa item dan pembayaran, lalu klik Setujui nota." },
       { title: "Isi modal persetujuan", description: "Pilih metode pembayaran atau Tempo/Tagihan. Tempo terpisah dari DP, memerlukan pelanggan, dan dapat dimulai tanpa pembayaran atau dengan cicilan awal yang dicatat menurut metode yang diterima. Catatan layanan dan satuan bahan baku tetap disimpan saat item disetujui. Tanggal invoice default memakai waktu server tersinkron Internet dalam WIB; jika sumber tidak tersedia, sinkronisasi terakhir atau jam server digunakan." },
-      { title: "Finalisasi keputusan", description: "Klik Setujui untuk memfinalisasi dan memotong stok satu kali, atau Tolak nota yang masih pending tanpa perubahan stok. Pembatalan atau penghapusan transaksi final mengembalikan stok yang tercatat; izin hapus default Owner dan dapat diatur melalui RBAC." },
+      { title: "Finalisasi keputusan", description: "Klik Setujui untuk memfinalisasi dan memotong stok satu kali, atau Tolak nota yang masih pending tanpa perubahan stok. Untuk Void atau Hapus, ikuti panduan tindakan transaksi Q51: seluruh surat jalan terkait ikut diproses dan stok hanya dikembalikan berdasarkan mutasi yang terbukti, paling banyak satu kali." },
     ],
   }),
   workflow({
@@ -215,7 +215,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Buka aksi Surat Jalan", description: "Klik menu tiga titik pada baris transaksi, lalu pilih Cetak Surat Jalan." },
       { title: "Buat dokumen", description: "Klik Buat Surat Jalan atau Buat Surat Jalan Baru jika sudah ada pengiriman sebelumnya." },
       { title: "Isi detail pengiriman", description: "Masukkan jumlah barang, kurir, pengemudi, pelat kendaraan, penerima, dan catatan bila perlu." },
-      { title: "Simpan dokumen", description: "Proses Surat Jalan agar tersimpan dan siap dicetak. Approval Surat Jalan hanya mengonfirmasi dokumen dan tidak mengurangi stok transaksi baru; status langsung atau pending mengikuti RBAC surat_jalan.auto_approve." },
+      { title: "Simpan dokumen", description: "Proses Surat Jalan agar tersimpan dan siap dicetak. Approval Surat Jalan hanya mengonfirmasi dokumen dan tidak mengurangi stok transaksi baru; status langsung atau pending mengikuti RBAC surat_jalan.auto_approve. Jika transaksi di-void, seluruh surat jalan PENDING/CONFIRMED terkait dibatalkan; jika transaksi dihapus, seluruh surat jalan terkait ikut dihapus. Ikuti panduan tindakan transaksi Q51 untuk dampak dan peringatan stok." },
     ],
   }),
   workflow({
@@ -483,7 +483,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Buka tab RBAC", description: "Masuk ke Pengaturan lalu pilih tab RBAC. Tab ini hanya tersedia untuk OWNER." },
       { title: "Periksa ringkasan", description: "Lihat Ringkasan Role dan Matrix Modul untuk memahami akses tiap role." },
       { title: "Cari dan periksa izin", description: "Pilih role lalu cari modul. Baca pratinjau akses dan prasyarat. Kontrol Khusus Owner tidak dapat didelegasikan; izin halaman, data, dan tindakan tetap terpisah." },
-      { title: "Periksa akses Riwayat", description: "Ubah transaksi membutuhkan akses /history, transaction.read, dan transaction.update. Persetujuan memakai transaction.approve.update; penolakan memakai transaction.approve.delete. Sales berizin dapat mengedit status yang didukung, tetapi Void/Refund dan draft permintaan Sales memiliki batas bisnis sendiri." },
+      { title: "Periksa akses Riwayat", description: "Ubah transaksi membutuhkan akses /history, transaction.read, dan transaction.update. Persetujuan memakai transaction.approve.update; penolakan memakai transaction.approve.delete. Sales berizin dapat mengedit status yang didukung. Void mengikuti transaction.update dan Hapus mengikuti transaction.delete bagi role yang diberi izin. Refund dan draft permintaan Sales tetap memiliki batas bisnis sendiri." },
       { title: "Pilih izin harga dan keuangan", description: "Harga khusus di nota (transaction.custom_price.update) terpisah dari edit master produk. Atur Pemasukan manual (income.manual), Pengeluaran dan transfer manual (expense.manual_transfer), Pembayaran utang supplier (expense.payable), dan Pencairan giro (expense.giro) sesuai tindakan. Daftar dan ringkasan Keuangan Harian tetap memerlukan expense.read. Ekspor laporan keuangan (financial-report.export.read) terpisah dari melihat dashboard laporan." },
       { title: "Atur impor dan pemantauan", description: "Impor produk: Mulai impor (product.import.create) mencakup produk, pratinjau, dan ekstraksi gambar; Perbarui impor (product.import.update) mengatur kode supplier. Perubahan stok massal (inventory.bulk.update) mencakup perubahan manual, impor stok, dan grup stok. product.import.read serta inventory.bulk.read hanya memantau progres. Memulai impor latar belakang memerlukan izin Lihat progres dan tindakan terkait; tombol menjelaskan prasyarat yang kurang. Batal dan coba ulang memerlukan izin tindakan yang sesuai; approval stok Khusus Owner tetap terkunci." },
       { title: "Review dan simpan", description: "Klik Review & Simpan, lalu konfirmasikan perubahan sensitif. Konfigurasi lama mewarisi izin umum yang sesuai sampai simpan pertama menetapkan nilai fitur sebelum perubahan diterapkan; penolakan eksplisit tetap berlaku. Lihat Catatan perubahan hak akses untuk Owner, waktu WIB, dan rincian perubahan." },
@@ -983,6 +983,24 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Bandingkan nota", description: "Periksa Yang berubah untuk rincian Sebelum/Sesudah, Nota asli untuk rincian awal, atau Versi lengkap untuk kedua nota. Pencatatan berlaku untuk nota yang sudah diproses, termasuk DP dan Tempo, setelah fitur tersedia. Pembayaran piutang oleh Sales juga tercatat." },
     ],
   }),
+  workflow({
+    faqNumber: 51,
+    slug: "transaction-actions",
+    title: "Bagaimana cara Void atau Hapus transaksi beserta surat jalan terkait?",
+    aliases: ["void transaksi", "batalkan transaksi", "hapus transaksi", "void nota percetakan", "hapus nota percetakan", "hapus nota penawaran", "hapus transaksi dengan surat jalan", "peringatan stok nota penawaran"],
+    route: "/history",
+    actionLabel: "Buka Riwayat",
+    iconKey: "history",
+    requiredCapabilities: [{ resource: "transaction", action: "read" }],
+    steps: [
+      { title: "Cari transaksi", description: "Buka Riwayat, cari transaksi, lalu buka menu tiga titik pada baris komputer atau kartu ponsel. Semua jenis transaksi, termasuk ATK, Percetakan, nota penawaran, dan transaksi dengan surat jalan, mengikuti izin akun serta statusnya." },
+      { title: "Pilih Void bila ingin membatalkan", description: "Void memerlukan transaction.update dan tersedia bagi role yang diberi izin pada transaksi aktif, termasuk draft dan pending. Transaksi VOIDED atau REFUNDED tidak dapat di-void ulang. Seluruh surat jalan PENDING/CONFIRMED terkait ikut menjadi CANCELLED; surat jalan yang sudah CANCELLED/REJECTED tetap pada statusnya." },
+      { title: "Pilih Hapus bila ingin menghapus", description: "Hapus memerlukan transaction.delete bagi role yang diberi izin. Transaksi, seluruh surat jalan terkait, dan item dokumennya dihapus permanen. Pada transaksi Percetakan, nota sumbernya juga dihapus; snapshot dokumen tetap tersimpan dalam audit. Jurnal stok tetap tersimpan. Baca dampak seluruh dokumen terkait pada konfirmasi sebelum melanjutkan." },
+      { title: "Periksa dampak stok", description: "Stok yang terbukti sudah keluar dikembalikan paling banyak satu kali berdasarkan mutasi yang tercatat. Hapus setelah Void tidak mengembalikan stok lagi. Nota penawaran yang sudah menjadi invoice mengikuti aturan invoice dan jurnal stoknya." },
+      { title: "Konfirmasi dan baca hasil", description: "Tinjau dampaknya, lalu konfirmasi tindakan yang dipilih. Nota penawaran yang belum menjadi invoice, termasuk yang sudah dibatalkan, tetap dapat dihapus bila riwayat stok kosong atau tidak konsisten, dengan peringatan yang juga ditampilkan setelah berhasil. Sistem tidak menebak pengembalian stok; tindak lanjuti peringatan bila perlu pemeriksaan." },
+    ],
+  }),
+
 ];
 
 export function getWorkflowPayload(workflow: AssistantWorkflowDefinition): AssistantWorkflowPayload {

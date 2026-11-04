@@ -393,12 +393,19 @@ export function useUpdateTransactionInvoiceDate() {
   });
 }
 
-async function deleteTransaction(id: string): Promise<void> {
+export interface DeleteTransactionResult {
+  warnings: Array<{ code: string; message: string }>;
+}
+
+async function deleteTransaction(id: string): Promise<DeleteTransactionResult> {
   const res = await fetch(`/api/transactions/${id}`, { method: "DELETE" });
   if (!res.ok) {
     const error = await res.json();
-    throw new Error(error.message || "Failed to delete transaction");
+    throw new Error(error.message || "Gagal menghapus transaksi");
   }
+  if (res.status === 204) return { warnings: [] };
+  const result = await res.json() as Partial<DeleteTransactionResult>;
+  return { warnings: result.warnings ?? [] };
 }
 
 export function useDeleteTransaction() {

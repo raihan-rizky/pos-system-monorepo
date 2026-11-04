@@ -46,10 +46,12 @@ describe("invalidateTransactionViews", () => {
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["job-orders"] });
   });
 
-  it("does not perform any other cache work", () => {
+  it("refreshes delivery lists and open bundles when a transaction is voided or deleted", () => {
     const { client, invalidateQueries } = createFakeQueryClient();
     invalidateTransactionViews(client as any);
-    expect(invalidateQueries).toHaveBeenCalledTimes(4);
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["surat-jalans"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["surat-jalan"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["printing-receipts"] });
   });
 
   it("updates visible history and transaction caches without a network refetch", () => {
@@ -96,6 +98,7 @@ describe("invalidateTransactionViews", () => {
     expect(invalidateQueries).not.toHaveBeenCalled();
 
     vi.advanceTimersByTime(250);
-    expect(invalidateQueries).toHaveBeenCalledTimes(4);
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["transaction-history"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["surat-jalans"] });
   });
 });
