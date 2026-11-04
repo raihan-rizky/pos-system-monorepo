@@ -122,6 +122,7 @@ describe("RBAC editor catalog", () => {
     permissions.SALES.pages["/history"] = false;
     permissions.SALES.resources.transaction.read = true;
     permissions.SALES.resources.transaction.update = true;
+    permissions.SALES.resources.transaction.delete = true;
     permissions.SALES.resources["transaction.approve"].update = true;
     permissions.SALES.resources["transaction.approve"].delete = true;
     permissions.SALES.resources["transaction.draft"].update = true;
