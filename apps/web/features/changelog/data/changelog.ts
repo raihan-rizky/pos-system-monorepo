@@ -15,6 +15,18 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "receipt-changes-audit-desk", date: "2026-11-05", revision: 1,
+    highlight: { title: "Perubahan nota lebih jelas", summary: "Telusuri revisi Sales dan periksa selisih nota dalam satu tampilan." },
+    title: "Periksa perubahan nota dengan lebih mudah.",
+    summary: "Jejak revisi, selisih total, dan perbandingan per rincian membantu Owner memeriksa perubahan Sales. Buka Nota asli atau Versi lengkap untuk menelusuri rincian transaksi.",
+    kind: "improvement", area: "Riwayat", href: "/history", visual: "receipt-audit",
+    steps: [
+      { title: "Buka perubahan nota", detail: "Klik notifikasi atau menu Riwayat perubahan nota pada transaksi di Riwayat." },
+      { title: "Pilih revisi", detail: "Gunakan Jejak perubahan, atau Jejak versi di ponsel, untuk melihat Sales, waktu, dan selisih total." },
+      { title: "Periksa rincian", detail: "Baca Yang berubah, lalu buka Nota asli atau Versi lengkap bila perlu memeriksa semua rincian." },
+    ],
+  },
+  {
     id: "price-rounding-category-exceptions", date: "2026-11-04", revision: 1,
     highlight: { title: "Pengecualian pembulatan", summary: "Pilih kategori produk yang harganya tidak dibulatkan." },
     title: "Kecualikan kategori dari pembulatan harga.",

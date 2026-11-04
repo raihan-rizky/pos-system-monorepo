@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowRight, Check, FileText, FolderInput, History, Layers, Package, ReceiptText, ShoppingBag } from "lucide-react";
+import { ArrowDown, ArrowRight, Check, FileClock, FileText, FolderInput, History, Layers, Package, ReceiptText, ShoppingBag } from "lucide-react";
 import type { ChangeVisual } from "../types";
 
 export function ChangeIllustration({ visual, compact = false }: { visual: ChangeVisual; compact?: boolean }) {
@@ -16,6 +16,7 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
       printing: { Icon: FileText, title: "Nota Percetakan langsung.", detail: "Pilih jenis · Isi nota · Bayar / DP" },
       shopping: { Icon: ShoppingBag, title: "Pantau pembayaran belanja.", detail: "Metode pembayaran dan jatuh tempo" },
       "history-table": { Icon: History, title: "Tabel Riwayat menyesuaikan layar.", detail: "Kolom dan aksi terlihat bersama" },
+      "receipt-audit": { Icon: FileClock, title: "Jejak nota mudah ditelusuri.", detail: "Pilih revisi · Bandingkan · Periksa asli" },
       financial: { Icon: FileText, title: "Saldo laporan otomatis.", detail: "Inventaris dan hutang tercatat" },
       rbac: { Icon: Check, title: "Izin Riwayat lebih jelas.", detail: "Halaman · Data · Tindakan" },
     };
@@ -55,6 +56,13 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
             <span>Tanggal</span><span>Invoice</span><span>Status</span><span>Aksi</span>
           </div>
           <p className="mt-3 text-xs text-surface-600">Kolom dan aksi menyesuaikan lebar layar komputer.</p>
+        </div>
+      )}
+      {visual === "receipt-audit" && (
+        <div className={`mx-auto w-full max-w-lg ${panel}`}>
+          <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2 text-sm font-bold"><FileClock className={icon} aria-hidden="true" /> Jejak perubahan</span><span className="rounded-lg bg-brand-50 px-2 py-1 text-xs font-semibold text-brand-700">Revisi 02</span></div>
+          <div className="mt-4 grid grid-cols-[76px_1fr] gap-3"><div className="rounded-xl bg-surface-900 p-2 text-center text-[10px] font-semibold text-white">Nota asli<br /><span className="font-normal text-surface-300">00</span></div><div className="rounded-xl border border-brand-200 bg-brand-50 p-3"><p className="text-xs font-semibold text-brand-900">Yang berubah</p><div className="mt-2 grid grid-cols-2 gap-2 text-xs"><span className="rounded bg-white p-2 text-surface-600">Sebelum<br /><b>Rp40.000</b></span><span className="rounded bg-white p-2 text-brand-800">Sesudah<br /><b>Rp60.000</b></span></div></div></div>
+          <p className="mt-3 text-xs text-surface-600">Nota asli dan Versi lengkap tetap tersedia.</p>
         </div>
       )}
       {visual === "shopping" && (

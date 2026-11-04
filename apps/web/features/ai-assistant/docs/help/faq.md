@@ -434,5 +434,5 @@ Untuk menghubungkan giro yang sudah diperiksa dengan hutang manual yang benar-be
 ### Q50: Bagaimana Owner memeriksa perubahan nota oleh Sales?
 
 1. Klik notifikasi perubahan nota, atau buka **Riwayat**, cari transaksi, lalu pilih menu tiga titik > **Riwayat perubahan nota**.
-2. Pilih perubahan untuk melihat nama Sales, waktu penyimpanan, dan rincian **Sebelum** serta **Sesudah**. Setiap perubahan yang berhasil tersimpan memiliki versi sendiri.
-3. Buka **Nota asli sebelum perubahan Sales pertama** untuk memeriksa rincian transaksi awal yang tercatat. Pencatatan dimulai setelah fitur tersedia, untuk nota yang sudah diproses termasuk DP dan Tempo serta pembayaran piutang oleh Sales. Draft dan nota menunggu persetujuan tidak termasuk. Riwayat hanya dapat dibuka Owner pada toko yang sama.
+2. Pilih revisi di **Jejak perubahan**, atau pemilih **Jejak versi** pada ponsel. Lihat nama Sales, waktu penyimpanan, total sebelum dan sesudah, serta selisihnya. **Yang berubah** menampilkan rincian **Sebelum** dan **Sesudah** per bagian atau barang.
+3. Buka **Nota asli** untuk memeriksa rincian sebelum perubahan Sales pertama, atau **Versi lengkap** untuk kedua nota pada revisi terpilih. Identitas data tersedia dalam rincian tambahan. Pencatatan dimulai setelah fitur tersedia, untuk nota yang sudah diproses termasuk DP dan Tempo serta pembayaran piutang oleh Sales. Draft dan nota menunggu persetujuan tidak termasuk. Riwayat hanya dapat dibuka Owner pada toko yang sama.

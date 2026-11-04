@@ -208,7 +208,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <History className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka perubahan nota", description: "Klik notifikasi perubahan nota, atau buka Riwayat, cari transaksi, lalu pilih menu tiga titik dan Riwayat perubahan nota.", icon: <History className="w-8 h-8" /> },
-        { title: "Bandingkan versi", description: "Pilih perubahan untuk melihat nama Sales, waktu, dan rincian sebelum serta sesudah. Buka Nota asli untuk melihat rincian sebelum perubahan Sales pertama. Riwayat mulai tercatat setelah fitur tersedia; nota pending dan draft tidak termasuk.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Bandingkan versi", description: "Pilih revisi pada Jejak perubahan (Jejak versi di ponsel). Periksa Sales, waktu, selisih total, dan rincian Sebelum/Sesudah di Yang berubah. Buka Nota asli untuk rincian awal atau Versi lengkap untuk kedua nota. Riwayat mulai tercatat setelah fitur tersedia; nota pending dan draft tidak termasuk.", icon: <FileText className="w-8 h-8" /> },
       ]
     },
     {

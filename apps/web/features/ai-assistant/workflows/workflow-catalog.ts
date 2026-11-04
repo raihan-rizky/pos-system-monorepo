@@ -979,8 +979,8 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     allowedRoles: ["OWNER"], requiredCapabilities: [],
     steps: [
       { title: "Buka perubahan", description: "Klik notifikasi perubahan nota, atau cari transaksi di Riwayat lalu pilih menu tiga titik > Riwayat perubahan nota." },
-      { title: "Pilih perubahan", description: "Pilih salah satu perubahan untuk melihat Sales dan waktu penyimpanannya." },
-      { title: "Bandingkan nota", description: "Periksa rincian sebelum dan sesudah, serta Nota asli sebelum perubahan Sales pertama. Pencatatan berlaku untuk nota yang sudah diproses, termasuk DP dan Tempo, setelah fitur tersedia. Pembayaran piutang oleh Sales juga tercatat." },
+      { title: "Pilih revisi", description: "Pilih revisi di Jejak perubahan, atau Jejak versi pada ponsel. Lihat nama Sales, waktu penyimpanan, serta total sebelum dan sesudah." },
+      { title: "Bandingkan nota", description: "Periksa Yang berubah untuk rincian Sebelum/Sesudah, Nota asli untuk rincian awal, atau Versi lengkap untuk kedua nota. Pencatatan berlaku untuk nota yang sudah diproses, termasuk DP dan Tempo, setelah fitur tersedia. Pembayaran piutang oleh Sales juga tercatat." },
     ],
   }),
 ];

@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, FileText, FolderInput, History, Layers, Package, ReceiptText, ShieldCheck, ShoppingBag } from "lucide-react";
+import { ArrowUpRight, FileClock, FileText, FolderInput, History, Layers, Package, ReceiptText, ShieldCheck, ShoppingBag } from "lucide-react";
 import type { ChangeEntry } from "../types";
 import { formatChangeDate } from "../helpers/changelog";
 import { ChangeDialog } from "./ChangeDialog";
 
-const icons = { changelog: History, tax: ReceiptText, categories: FolderInput, units: Package, quotation: FileText, "stock-groups": Layers, printing: FileText, shopping: ShoppingBag, "history-table": History, financial: FileText, rbac: ShieldCheck };
+const icons = { changelog: History, tax: ReceiptText, categories: FolderInput, units: Package, quotation: FileText, "stock-groups": Layers, printing: FileText, shopping: ShoppingBag, "history-table": History, "receipt-audit": FileClock, financial: FileText, rbac: ShieldCheck };
 const badgeDate = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" });
 
 export function WhatsNewDialog({ entries, onClose, canAccess }: {
