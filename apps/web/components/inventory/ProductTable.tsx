@@ -145,7 +145,7 @@ export default function ProductTable({
                     <p className="font-semibold text-surface-900 text-sm tabular-nums">
                       <span className={isSpecialCategoryPricing(product.appliedPricing) ? "text-emerald-800" : undefined}>{new Intl.NumberFormat("id-ID").format(product.displayPrice ?? product.price)}</span>
                     </p>
-                    {isSpecialCategoryPricing(product.appliedPricing) && <SpecialPriceBadge />}
+                    {isSpecialCategoryPricing(product.appliedPricing) && <SpecialPriceBadge appliedPricing={product.appliedPricing} />}
                     {canChangePrice && product.costPrice != null && (
                       <>
                         <p className="text-[11px] text-surface-400 mt-0.5 tabular-nums">
@@ -373,7 +373,7 @@ export default function ProductTable({
                   <p className="text-[15px] font-black text-slate-900 tabular-nums">
                     <span className={isSpecialCategoryPricing(product.appliedPricing) ? "text-emerald-800" : undefined}>{new Intl.NumberFormat("id-ID", { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(product.displayPrice ?? product.price)}</span>
                   </p>
-                  {isSpecialCategoryPricing(product.appliedPricing) && <SpecialPriceBadge />}
+                  {isSpecialCategoryPricing(product.appliedPricing) && <SpecialPriceBadge appliedPricing={product.appliedPricing} />}
                   {canChangePrice && product.costPrice != null && (
                     <>
                       <p className="text-[10px] font-bold text-slate-500 mt-1">

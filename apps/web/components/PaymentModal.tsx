@@ -492,7 +492,7 @@ export function PaymentModal({
                     className="min-h-11 rounded-lg px-2 font-semibold hover:bg-brand-50 disabled:opacity-50">Hapus diskon</button>
                 </div>
               )}
-              {item.lineType === "PRODUCT" && item.transactionPrice == null && isSpecialCategoryPricing(item.appliedPricing) && <SpecialPriceBadge />}
+              {item.lineType === "PRODUCT" && item.transactionPrice == null && isSpecialCategoryPricing(item.appliedPricing) && <SpecialPriceBadge appliedPricing={item.appliedPricing} />}
               {item.lineType === "PRODUCT" && canEditCustomPrices && (
                 <div className="mt-2 space-y-1.5">
                   {(() => {
@@ -508,9 +508,9 @@ export function PaymentModal({
                     const isNegativeManualPrice =
                       hasManualPrice && manualPrices[item.cartLineId] < 0;
                     const warningText = isNegativeManualPrice
-                      ? "Harga khusus tidak boleh negatif."
+                      ? "Harga Khusus pembayaran tidak boleh negatif."
                       : margin.isBelowCost
-                        ? "Harga khusus di bawah HPP."
+                        ? "Harga Khusus pembayaran di bawah HPP."
                         : null;
 
                     return (
@@ -519,7 +519,7 @@ export function PaymentModal({
                           htmlFor={inputId}
                           className="text-[11px] font-semibold uppercase tracking-wide text-surface-500"
                         >
-                          Harga khusus
+                          Harga Khusus pembayaran
                         </label>
                         <div className="flex gap-2">
                           <input
@@ -535,7 +535,7 @@ export function PaymentModal({
                               )
                             }
                             aria-describedby={warningText ? warningId : undefined}
-                            aria-label={`Harga khusus untuk ${item.name}`}
+                            aria-label={`Harga Khusus pembayaran untuk ${item.name}`}
                             className="min-w-0 flex-1 rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm font-semibold text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400"
                           />
                           <button
@@ -561,7 +561,7 @@ export function PaymentModal({
                         )}
                         {hasManualPrice && (
                           <div className="text-[11px] font-semibold text-brand-700">
-                            Harga manual
+                            Harga Khusus pembayaran diubah
                           </div>
                         )}
                         {margin.isChanged && (
@@ -587,7 +587,7 @@ export function PaymentModal({
                                   </div>
                                 </div>
                                 <div className="rounded-md bg-brand-50 p-2 text-brand-900">
-                                  <div className="font-semibold">Harga khusus</div>
+                                  <div className="font-semibold">Harga Khusus pembayaran</div>
                                   <div>{formatRupiah(item.price)}</div>
                                   <div>
                                     Profit {formatRupiah(margin.customProfit ?? 0)} (

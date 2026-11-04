@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import type { ProductVariant } from '@/hooks/useProducts';
 import { formatRupiah } from '@/lib/utils';
-import { isSpecialCategoryPricing } from '@/features/customer-category-pricing/helpers/pricing-rules';
+import { getPricingBadgeLabel } from '@/features/customer-category-pricing/helpers/pricing-rules';
 
 interface VariantSelectorProps {
   variants: ProductVariant[];
@@ -41,7 +41,7 @@ export const VariantSelector: React.FC<VariantSelectorProps> = ({
           const suffix = Math.floor(variant.stock ?? 0) <= 0 ? ' (Stok Habis)' : '';
           return (
             <option key={variant.id} value={variant.id}>
-              {variant.unit} • {formatRupiah(variant.displayPrice ?? variant.price)}{isSpecialCategoryPricing(variant.appliedPricing) ? ' • Harga Khusus' : ''}{variant.priceRounding?.direction === 'UP' ? ' • Dibulatkan ke atas' : variant.priceRounding?.direction === 'DOWN' ? ' • Dibulatkan ke bawah' : ''}{suffix}
+              {variant.unit} • {formatRupiah(variant.displayPrice ?? variant.price)}{getPricingBadgeLabel(variant.appliedPricing) ? ` • ${getPricingBadgeLabel(variant.appliedPricing)}` : ''}{variant.priceRounding?.direction === 'UP' ? ' • Dibulatkan ke atas' : variant.priceRounding?.direction === 'DOWN' ? ' • Dibulatkan ke bawah' : ''}{suffix}
             </option>
           );
         })}

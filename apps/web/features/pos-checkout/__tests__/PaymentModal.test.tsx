@@ -205,6 +205,21 @@ describe("PaymentModal custom invoice date", () => {
     expect(html).toContain("Hanya untuk nota ini");
   });
 
+  it("identifies the feature-specific payment input without confusing it with a product manual price", () => {
+    roleMock = "OWNER";
+    const item: ProductCartItem = {
+      cartLineId: "paper", lineType: "PRODUCT", productId: "paper", name: "Kertas A4",
+      price: 8000, catalogPrice: 8000, costPrice: 9000, quantity: 1, unit: "Rim",
+      stock: 20, categoryId: "paper", categoryName: "Kertas",
+    };
+    const html = renderToStaticMarkup(
+      <PaymentModal open onClose={vi.fn()} items={[item]} subtotal={8000} onConfirm={vi.fn()}
+        initialCustomerSelection={{ kind: "existing", customer: { id: "c1", name: "Contoh", type: "INDUSTRI" } }} />,
+    );
+    expect(html).toContain('aria-label="Harga Khusus pembayaran untuk Kertas A4"');
+    expect(html).toContain("Harga Khusus pembayaran di bawah HPP.");
+  });
+
   it("shows both sequential percentages in the applied pricing label", () => {
     pricingRulesMock.mockReturnValue([{
       id: "rule-sequential", categoryId: "cat-paper", customerType: "UMUM",

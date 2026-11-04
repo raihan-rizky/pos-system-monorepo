@@ -13,17 +13,17 @@ Proses melayani penjualan langsung dapat dilakukan dengan cepat menggunakan laya
 
 Saat POS dibuka, harga memakai tipe pelanggan Umum. Klik **Bayar**, lalu pilih pelanggan di modal **Pembayaran**. Harga di kartu produk, pilihan satuan, keranjang, dan pembayaran otomatis mengikuti tipe pelanggan serta satuan yang dipilih. Pilihan pelanggan tetap tersimpan ketika modal ditutup dan dibuka kembali dalam transaksi yang sama. Urutannya adalah **Harga Agen/Dinas di atas 0 → Harga Khusus yang aktif dan cocok → harga jual**. Harga Agen/Dinas di atas 0 tetap dipakai meskipun Harga Khusus nonaktif. Kasir tidak memilih prioritas harga saat pembayaran.
 
-Harga yang benar-benar berasal dari aturan ditandai **hijau** dan badge **Harga Khusus**, termasuk bila nominalnya sama dengan harga normal. Pada daftar pilihan satuan, keterangan Harga Khusus menandai satuan yang memakai aturan. Harga Agen/Dinas di atas 0 juga ditandai badge Harga Khusus; harga yang mengikuti harga jual tidak diberi badge.
+Harga yang benar-benar berasal dari aturan ditandai **hijau** dan badge **Harga Khusus**, termasuk bila nominalnya sama dengan harga normal. Pada daftar pilihan satuan, keterangan Harga Khusus menandai satuan yang memakai aturan. Harga Agen/Dinas di atas 0 yang diatur pada produk ditandai badge **Harga manual**; harga yang mengikuti harga jual tidak diberi badge.
 
 Aturan **Modal + rupiah** atau **Modal + persen** memakai modal satuan terkecil terbaru secara langsung. Modal **Rp700/pcs + Rp4.000** untuk satuan **Rim** menghasilkan **Rp4.700/rim**, sehingga dua rim berjumlah **Rp9.400**; tambahan **10%** menghasilkan **Rp770/rim**. Modal tidak dikalikan isi rim. Aturan hanya berlaku untuk satuan dan tipe pelanggan yang ditentukan Owner. Jika sumber modal belum tersedia atau tidak valid, sistem memakai harga member atau normal.
 
-Harga custom untuk satu nota tetap berlaku sampai dikembalikan ke harga otomatis. Badge amber **Harga custom** tampil di keranjang, pembayaran, dan detail riwayat; penanda tidak dicetak pada nota atau PDF. Harga tersimpan pada draft dan transaksi, tanpa mengubah harga produk. Nota berikutnya memakai harga otomatis. Rumus harga tidak mengubah modal akuntansi atau harga transaksi yang sudah disimpan.
+Harga custom melalui **Ubah Harga Nota** di keranjang tetap tersedia sesuai izin meskipun Harga Khusus nonaktif, dan berlaku sampai dikembalikan ke harga otomatis. Input **Harga Khusus pembayaran** bagi pelanggan Industri/Pemerintah hanya tersedia saat Harga Khusus aktif. Badge amber **Harga custom** tampil di keranjang, pembayaran, dan detail riwayat; penanda tidak dicetak pada nota atau PDF. Harga tersimpan pada draft dan transaksi, tanpa mengubah harga produk. Nota berikutnya memakai harga otomatis. Rumus harga tidak mengubah modal akuntansi atau harga transaksi yang sudah disimpan.
 
 Aturan **Modal unit + persen − persen** memakai modal satuan yang dipilih. Rumusnya `modal × (1 + tambahan/100) × (1 − potongan/100)`: modal Rp12.000/dus +10% lalu −5% menghasilkan Rp12.540/dus. Potongan dihitung setelah tambahan, dan harga memakai modal unit terbaru. Jika modal unit belum tersedia, harga member atau normal digunakan.
 
 ## Edit Cepat di keranjang
 
-- Pengguna dengan izin **edit produk** langsung melihat tombol **Edit** dan **Harga** pada kartu keranjang.
+- Tombol **Edit** pada kartu keranjang tersedia sesuai izin edit produk; tombol **Harga** tersedia sesuai izin **Ubah harga di nota**.
 - Setiap produk menampilkan referensi **Harga Normal**, **Harga Agen**, dan **Harga Dinas**.
 - Ikon produk membuka modal untuk mengubah Nama, Deskripsi produk, Kategori, dan Merek seluruh varian dalam grup. Deskripsi opsional; kosongkan lalu simpan untuk menghapusnya.
 - Klik **Harga** untuk membuka **Ubah Harga Nota**. Isi **Harga custom per satuan**, periksa acuan harga otomatis, pembulatan dan subtotal, lalu klik **Terapkan harga**. Fitur ini tersedia meskipun Harga Khusus toko nonaktif.

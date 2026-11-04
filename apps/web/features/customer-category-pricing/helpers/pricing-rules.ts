@@ -115,6 +115,13 @@ export function isSpecialCategoryPricing(appliedPricing: Pick<AppliedCategoryPri
   return Boolean(appliedPricing?.ruleId);
 }
 
+export function getPricingBadgeLabel(appliedPricing: Pick<AppliedCategoryPricing, "ruleId"> | null | undefined): "Harga manual" | "Harga Khusus" | null {
+  if (!appliedPricing?.ruleId) return null;
+  return appliedPricing.ruleId === "harga-agen" || appliedPricing.ruleId === "harga-dinas"
+    ? "Harga manual"
+    : "Harga Khusus";
+}
+
 export function findMatchingCategoryPricingRule(
   rules: CategoryPricingRule[],
   input: {

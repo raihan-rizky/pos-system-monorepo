@@ -27,6 +27,19 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "special-pricing-source-and-lock", date: "2026-11-04", revision: 1,
+    highlight: { title: "Sumber harga lebih jelas", summary: "Kenali harga manual dan aturan Harga Khusus dengan badge berbeda." },
+    title: "Kenali sumber harga dan status Harga Khusus.",
+    summary: "Badge membedakan harga Agen/Dinas manual dari aturan otomatis. Daftar aturan terkunci saat Harga Khusus nonaktif dan Owner dapat langsung membuka pengaturannya.",
+    kind: "improvement", area: "Produk & Kasir", href: "/products?tab=special-prices", visual: "units",
+    screenshot: { src: "/images/changelog/pengunci-harga-khusus.png", alt: "Daftar aturan Harga Khusus diburamkan dengan pesan fitur dinonaktifkan dan tombol Buka Pengaturan." },
+    steps: [
+      { title: "Periksa harga", detail: "Lihat badge Harga manual untuk harga Agen/Dinas yang diatur pada produk, atau Harga Khusus untuk harga dari aturan otomatis." },
+      { title: "Buka Harga Khusus", detail: "Di Produk, buka tab Harga Khusus. Saat nonaktif, Owner melihat daftar buram dan terkunci; pengguna lain melihat petunjuk untuk menghubungi Owner." },
+      { title: "Aktifkan bila diperlukan", detail: "Sebagai Owner, pilih Buka Pengaturan, aktifkan Harga Khusus, lalu klik Simpan pengaturan. Pengguna lain dapat menghubungi Owner." },
+    ],
+  },
+  {
     id: "manual-finance-entries", date: "2026-11-03", revision: 1,
     highlight: { title: "Pemasukan dan belanja manual", summary: "Catat pemasukan ke RC dan belanja transfer langsung dari Keuangan." },
     title: "Catat pemasukan dan belanja transfer.",
@@ -47,7 +60,7 @@ export const CHANGELOG: ChangeEntry[] = [
     kind: "improvement", area: "Kasir", href: "/pos", visual: "units",
     screenshot: { src: "/images/changelog/harga-custom-nota.png", alt: "Dialog Ubah Harga Nota menampilkan harga custom Rp12.000, acuan harga otomatis Rp13.500, subtotal, dan tombol Kembalikan harga otomatis." },
     steps: [
-      { title: "Buka harga di keranjang", detail: "Tambahkan produk di Kasir, lalu klik Harga pada kartu keranjang dengan akun yang memiliki izin edit produk." },
+      { title: "Buka harga di keranjang", detail: "Tambahkan produk di Kasir, lalu klik Harga pada kartu keranjang dengan akun yang memiliki izin Ubah harga di nota." },
       { title: "Terapkan harga nota", detail: "Isi Harga custom per satuan, periksa pembulatan dan subtotal, lalu klik Terapkan harga. Harga produk tetap sama meskipun Harga Khusus toko nonaktif." },
       { title: "Periksa atau kembalikan", detail: "Lihat badge Harga custom di keranjang, pembayaran, dan detail riwayat. Untuk menghapusnya dari keranjang, buka Harga lalu Kembalikan harga otomatis; nota berikutnya memakai harga otomatis." },
     ],
@@ -482,7 +495,7 @@ export const CHANGELOG: ChangeEntry[] = [
     screenshot: { src: "/images/changelog/aksi-langsung-keranjang.png", alt: "Kartu keranjang berisi produk contoh Alas Mouse Pad, referensi harga, tombol Edit dan Harga, serta pengatur jumlah di bagian bawah" },
     steps: [
       { title: "Tambahkan produk", detail: "Buka Kasir dan masukkan produk ke keranjang." },
-      { title: "Pilih Edit atau Harga", detail: "Pada bagian bawah kartu, klik Edit untuk data produk atau Harga untuk harga master dan Harga Khusus. Kedua tombol tersedia bagi akun dengan izin edit produk." },
+      { title: "Pilih Edit atau Harga", detail: "Pada bagian bawah kartu, klik Edit untuk data produk atau Harga untuk harga nota. Masing-masing tombol mengikuti izin yang sesuai." },
       { title: "Simpan perubahan", detail: "Periksa perubahan pada modal yang terbuka, lalu simpan. Kartu keranjang akan mengikuti data terbaru." },
     ],
   },

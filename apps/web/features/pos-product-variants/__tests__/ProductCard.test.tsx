@@ -19,10 +19,10 @@ describe('ProductCard', () => {
     const dinasRow = html.match(/<p\b[^>]*><span\b[^>]*>Dinas:<\/span>.*?<\/p>/)?.[0];
 
     expect(agenRow).toContain('42.000');
-    expect(agenRow).toContain('aria-label="Harga Khusus"');
+    expect(agenRow).toContain('aria-label="Harga manual"');
     expect(dinasRow).toContain('50.000');
     expect(dinasRow).not.toContain('aria-label="Harga Khusus"');
-    expect(html).toMatch(/<p class="text-base font-bold text-emerald-800">Rp\s42\.000<\/p><span role="img" aria-label="Harga Khusus"/);
+    expect(html).toMatch(/<p class="text-base font-bold text-emerald-800">Rp\s42\.000<\/p><span role="img" aria-label="Harga manual"/);
     expect(html).not.toContain('42.500');
   });
   it('shows the rounded selling price with a disclosure and respects an inactive policy', () => {
@@ -62,7 +62,7 @@ describe('ProductCard', () => {
     const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct, variants: mockProduct.variants?.map(v => ({ ...v, baseCostPrice: 700, baseCostUnit: 'pcs' })) }} onAddToCart={vi.fn()} customerType="UMUM" categoryPricingRules={[{ id: 'special', categoryId: 'cat1', customerType: 'ALL', mode: 'COST_PLUS_FLAT', value: 4000, unit: 'dus', isActive: true }]} />);
     expect(html).toContain('4.700');
     expect(html).toContain('Harga Khusus');
-    expect(html).toMatch(/<div class="flex items-center gap-2"><p class="text-base font-bold text-emerald-800">Rp\s5\.000<\/p><span role="img" aria-label="Harga Khusus"/);
+    expect(html).toMatch(/<p class="text-base font-bold text-emerald-800">Rp\s5\.000<\/p><span role="img" aria-label="Harga Khusus"/);
     expect(html).toContain('text-emerald-800');
     expect(html).not.toContain('700/pcs');
   });
@@ -70,7 +70,7 @@ describe('ProductCard', () => {
     const html = renderToStaticMarkup(<ProductCard product={{ ...mockProduct, variants: mockProduct.variants?.map(v => ({ ...v, hargaAgen: 4200 })) }} onAddToCart={vi.fn()} customerType="AGEN" categoryPricingRules={[]} />);
     expect(html).toContain('4.200');
     const row = html.match(/<p\b[^>]*><span\b[^>]*>Agen:<\/span>.*?<\/p>/)?.[0];
-    expect(row).toContain('aria-label="Harga Khusus"');
+    expect(row).toContain('aria-label="Harga manual"');
     expect(row).toContain('text-emerald-800');
     expect(html).toMatch(/text-base font-bold text-emerald-800/);
   });
@@ -398,9 +398,9 @@ describe('ProductCard', () => {
     for (const label of ['Agen', 'Dinas']) {
       const row = html.match(new RegExp(`<p\\b[^>]*><span\\b[^>]*>${label}:<\\/span>.*?<\\/p>`))?.[0];
       expect(row).toContain(label === 'Agen' ? '45.000' : '47.000');
-      expect(row).toContain('aria-label="Harga Khusus"');
+      expect(row).toContain('aria-label="Harga manual"');
     }
-    expect(html).toMatch(/<p class="text-base font-bold text-emerald-800">Rp\s45\.000<\/p><span role="img" aria-label="Harga Khusus"/);
+    expect(html).toMatch(/<p class="text-base font-bold text-emerald-800">Rp\s45\.000<\/p><span role="img" aria-label="Harga manual"/);
     expect(html).not.toContain('42.500');
   });
 

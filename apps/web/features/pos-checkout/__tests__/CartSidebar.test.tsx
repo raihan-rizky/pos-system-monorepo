@@ -42,9 +42,10 @@ const productItem: ProductCartItem = {
   appliedPricing: null,
 };
 
-function renderCart() {
+function renderCart(specialPricingEnabled = true) {
   return renderToStaticMarkup(
     <CartSidebar
+      specialPricingEnabled={specialPricingEnabled}
       items={[productItem]}
       subtotal={20000}
       totalItems={2}
@@ -64,12 +65,20 @@ describe("CartSidebar quick product references", () => {
     expect(html).toContain("Agen");
     expect(html).toContain("9.000");
     expect(html).toContain("Dinas");
-    expect(html).not.toContain("Belum diatur");
-    const dinas = html.match(/<dt[^>]*>Dinas<\/dt><dd[^>]*>(.*?)<\/dd>/)?.[1];
+    expect(html).toContain("Belum diatur");
+    const dinas = html.match(/<dt[^>]*>Dinas \(manual\)<\/dt><dd[^>]*>(.*?)<\/dd>/)?.[1];
     expect(dinas).toContain("10.000");
-    expect(dinas).toContain("Mengikuti harga jual");
-    const agen = html.match(/<dt[^>]*>Agen<\/dt><dd[^>]*>(.*?)<\/dd>/)?.[1];
-    expect(agen).toContain('aria-label="Harga Khusus"');
+    expect(dinas).toContain("Belum diatur · acuan harga jual");
+    const agen = html.match(/<dt[^>]*>Agen \(manual\)<\/dt><dd[^>]*>(.*?)<\/dd>/)?.[1];
+    expect(agen).toContain('aria-label="Harga manual"');
+  });
+
+  it("keeps manual member references visible when automatic rules are disabled", () => {
+    const html = renderCart(false);
+    expect(html).toContain("Agen");
+    expect(html).toContain('aria-label="Harga manual"');
+    expect(html).toContain("Dinas");
+    expect(html).not.toContain("transaksi memakai harga normal");
   });
 
   it("shows product and price actions immediately for users with edit permission", () => {

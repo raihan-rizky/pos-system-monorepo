@@ -4,6 +4,12 @@ import ProductTable from "@/components/inventory/ProductTable";
 import type { Product } from "@/hooks/useProducts";
 
 describe("catalog effective price display", () => {
+  it("distinguishes a manually set member price in both catalog layouts", () => {
+    const product = { id: "manual", name: "Kertas", sku: "RIM", unit: "rim", stock: 5, minStock: 1, price: 10000, displayPrice: 9000, category: { id: "paper", name: "Kertas", icon: null, color: null }, appliedPricing: { ruleId: "harga-agen", customerType: "AGEN" } } as Product;
+    const html = renderToStaticMarkup(<ProductTable products={[product]} isLoading={false} onEdit={() => {}} canUpdateProduct={false} canChangePrice />);
+    expect(html.match(/aria-label="Harga manual"/g)).toHaveLength(2);
+    expect(html).not.toContain('aria-label="Harga Khusus"');
+  });
   it("shows the special price, badge and markup computed from that displayed price", () => {
     const product = { id: "rim", name: "Kertas", sku: "RIM", unit: "rim", stock: 5, minStock: 1, price: 10000, displayPrice: 4700, costPrice: 9000, category: { id: "paper", name: "Kertas", icon: null, color: null }, appliedPricing: { ruleId: "rule", customerType: "UMUM", mode: "COST_PLUS_FLAT", value: 4000, originalUnitPrice: 10000, appliedUnitPrice: 4700, categoryId: "paper", categoryName: "Kertas" } } as Product;
     const html = renderToStaticMarkup(<ProductTable products={[product]} isLoading={false} onEdit={() => {}} canUpdateProduct={false} canChangePrice />);

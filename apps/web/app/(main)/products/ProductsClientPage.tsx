@@ -40,6 +40,7 @@ import {
   ImagePlus,
 } from "lucide-react";
 import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
+import { SpecialPricingRestrictedNotice } from "@/features/customer-category-pricing/components/SpecialPricingRestrictedNotice";
 import ProductTable from "@/components/inventory/ProductTable";
 import { ProductCatalogDetails } from "@/components/inventory/ProductCatalogDetails";
 import { CategoryIcon } from "@/lib/category-icons";
@@ -801,15 +802,11 @@ export default function ProductsClientPage() {
                   },
                 ]
               : []),
-            ...(canManageSpecialPrices
-              ? [
-                  {
-                    id: "special-prices" as PageTab,
-                    label: "Harga Khusus",
-                    icon: <BadgeDollarSign className="w-4 h-4" />,
-                  },
-                ]
-              : []),
+            {
+              id: "special-prices" as PageTab,
+              label: "Harga Khusus",
+              icon: <BadgeDollarSign className="w-4 h-4" />,
+            },
             {
               id: "group-activity" as PageTab,
               label: "Aktivitas Grup",
@@ -868,8 +865,8 @@ export default function ProductsClientPage() {
                   onSelectedProductChange={setSelectedPriceLogProductId}
                 />
               )}
-              {activeTab === "special-prices" && canManageSpecialPrices && (
-                <CustomerCategoryPricingRulesTab roundingSettings={roundingSettings} />
+              {activeTab === "special-prices" && (
+                canManageSpecialPrices ? <CustomerCategoryPricingRulesTab roundingSettings={roundingSettings} /> : <SpecialPricingRestrictedNotice />
               )}
             </Suspense>
           </div>
@@ -1610,16 +1607,16 @@ function ProductGrid({
                 <p className={`text-lg font-black tracking-tight ${isSpecialCategoryPricing(p.appliedPricing) ? "text-emerald-800" : "text-slate-900"}`}>
                   {fmt(p.displayPrice ?? p.price)}
                 </p>
-                {isSpecialCategoryPricing(p.appliedPricing) && <SpecialPriceBadge />}
+                {isSpecialCategoryPricing(p.appliedPricing) && <SpecialPriceBadge appliedPricing={p.appliedPricing} />}
                 <PriceRoundingBadge rounding={p.priceRounding} />
                 <div className="mt-1 space-y-0.5 text-xs font-semibold text-slate-600">
                   <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                     <span>Agen:</span><span className="break-all">{fmt(agenPrice.unitPrice)}</span>
-                    {isSpecialCategoryPricing(agenPrice.appliedPricing) && <SpecialPriceBadge />}
+                    {isSpecialCategoryPricing(agenPrice.appliedPricing) && <SpecialPriceBadge appliedPricing={agenPrice.appliedPricing} />}
                   </p>
                   <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                     <span>Dinas:</span><span className="break-all">{fmt(dinasPrice.unitPrice)}</span>
-                    {isSpecialCategoryPricing(dinasPrice.appliedPricing) && <SpecialPriceBadge />}
+                    {isSpecialCategoryPricing(dinasPrice.appliedPricing) && <SpecialPriceBadge appliedPricing={dinasPrice.appliedPricing} />}
                   </p>
                 </div>
                 {canChangePrice && p.costPrice != null && (

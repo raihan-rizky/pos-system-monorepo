@@ -41,8 +41,8 @@ export function MemberPriceField({ label, sellingPrice, value, onChange, disable
       <div id={`${id}-status`} className="flex flex-wrap items-center gap-1.5 text-xs" aria-live="polite">
         {isOverride ? (
           <>
-            <SpecialPriceBadge />
-            <span className="font-semibold text-emerald-800">Harga khusus · diatur manual</span>
+            <SpecialPriceBadge appliedPricing={{ ruleId: label === "Harga Agen" ? "harga-agen" : "harga-dinas" }} />
+            <span className="font-semibold text-sky-800">Diatur pada produk</span>
           </>
         ) : (
           <span className="text-surface-600">Mengikuti harga jual asal · {formatRupiah(price)}</span>

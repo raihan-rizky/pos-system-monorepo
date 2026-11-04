@@ -22,6 +22,9 @@ vi.mock("@/hooks/useBrands", () => ({
   useBrands: () => ({ data: [] }),
   useCreateBrand: () => ({ isPending: false, mutateAsync: vi.fn() }),
 }));
+vi.mock("@/features/customer-category-pricing/hooks/useSpecialPricingSettings", () => ({
+  useSpecialPricingSettings: () => ({ data: true, isPending: false, isFetchedAfterMount: true, isError: false }),
+}));
 vi.mock("@/hooks/useCustomerCategoryPricingRules", () => ({
   useCustomerCategoryPricingRules: () => ({
     data: queryState.savedRules,

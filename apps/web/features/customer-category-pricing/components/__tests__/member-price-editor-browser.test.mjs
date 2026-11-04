@@ -67,7 +67,7 @@ try {
       const save=page.getByRole("button",{name:mode==="edit"?"Simpan Produk":mode==="legacy"?"Simpan Perubahan":"Simpan Harga",exact:true});
       if (scenario === "legacy-override") {
         assert.equal(await input.inputValue(),"10000","old positive prices are kept even when equal to selling price");
-        assert.equal(await agen.getByRole("img",{name:"Harga Khusus",exact:true}).count(),1);
+        assert.equal(await agen.getByRole("img",{name:"Harga manual",exact:true}).count(),1);
         assert.equal(await dinas.getByLabel("Harga Dinas",{exact:true}).inputValue(),"11000");
         await page.evaluate(()=>window.refresh());
         assert.equal(await input.inputValue(),"10000");
@@ -75,7 +75,7 @@ try {
         await reset.focus();await page.keyboard.press("Enter");
         assert.equal(await dinas.getByLabel("Harga Dinas",{exact:true}).inputValue(),"");
         assert.equal(await dinas.getByLabel("Harga Dinas",{exact:true}).getAttribute("placeholder"),"12000");
-        assert.equal(await dinas.getByRole("img",{name:"Harga Khusus",exact:true}).count(),0);
+        assert.equal(await dinas.getByRole("img",{name:"Harga manual",exact:true}).count(),0);
         assert.equal(await input.inputValue(),"10000","resetting Dinas preserves Agen");
         await save.click();
         await page.waitForFunction(()=>window.memberCloseCount===1,{},{timeout:6000});
@@ -105,7 +105,7 @@ try {
         const reset=agen.getByRole("button",{name:"Ikuti harga jual untuk Harga Agen",exact:true});
         await reset.focus();await page.keyboard.press("Enter");
         assert.equal(await input.inputValue(),"");
-        assert.equal(await agen.getByRole("img",{name:"Harga Khusus",exact:true}).count(),0);
+        assert.equal(await agen.getByRole("img",{name:"Harga manual",exact:true}).count(),0);
         await page.getByRole("button",{name:"Batal",exact:true}).click();
         assert.equal(await page.evaluate(()=>window.memberCloseCount),1);
         assert.deepEqual(await page.evaluate(()=>window.saved),[],"cancelling does not save a reset or draft");
@@ -114,15 +114,15 @@ try {
         await page.close();continue;
       }
       await input.fill("9000");await dinas.getByLabel("Harga Dinas",{exact:true}).fill("11000");
-      assert.equal(await agen.getByRole("img",{name:"Harga Khusus",exact:true}).count(),1);
+      assert.equal(await agen.getByRole("img",{name:"Harga manual",exact:true}).count(),1);
       await page.evaluate(()=>window.refresh());
       assert.equal(await input.inputValue(),"9000","refresh preserves a manual override draft");
       await agen.getByRole("button",{name:"Ikuti harga jual untuk Harga Agen",exact:true}).click();
       assert.equal(await input.inputValue(),"");
       assert.equal(await input.getAttribute("placeholder"),"12000");
-      assert.equal(await agen.getByRole("img",{name:"Harga Khusus",exact:true}).count(),0);
+      assert.equal(await agen.getByRole("img",{name:"Harga manual",exact:true}).count(),0);
       assert.equal(await dinas.getByLabel("Harga Dinas",{exact:true}).inputValue(),"11000");
-      assert.equal(await dinas.getByRole("img",{name:"Harga Khusus",exact:true}).count(),1);
+      assert.equal(await dinas.getByRole("img",{name:"Harga manual",exact:true}).count(),1);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,"no mobile overflow");
       if(process.argv.includes("--capture")&&mode==="catalog"&&width===1280){
         const guideBox=await page.getByRole("dialog").locator("form > aside").boundingBox();

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Bell, RefreshCw, Settings, Store, MessageCircle, ShieldCheck, Database, WalletCards } from "lucide-react";
 import StoreInfoTab from "@/components/settings/StoreInfoTab";
 import WhatsAppTab from "@/components/settings/WhatsAppTab";
@@ -27,9 +28,11 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode; ownerOnly?: boolean
   { id: "reset", label: "Reset Database", icon: <Database className="w-4 h-4" />, ownerOnly: true },
 ];
 
-export default function SettingsPage() {
+function SettingsContent() {
   const { role, canPerform } = useRole();
-  const [activeTab, setActiveTab] = useState<Tab>("store");
+  const searchParams = useSearchParams();
+  const [selectedTab, setActiveTab] = useState<Tab | null>(null);
+  const activeTab = selectedTab ?? (role === "OWNER" && searchParams.get("tab") === "special-pricing" ? "special-pricing" : "store");
   const visibleTabs = TABS.filter((tab) => (!tab.ownerOnly || role === "OWNER") &&
     (!tab.resource || canPerform(tab.resource, "read") || canPerform(tab.resource, "update")));
 
@@ -88,4 +91,8 @@ export default function SettingsPage() {
       </div>
     </div>
   );
+}
+
+export default function SettingsPage() {
+  return <Suspense fallback={<p className="p-6 text-sm text-surface-500">Memuat pengaturan…</p>}><SettingsContent /></Suspense>;
 }

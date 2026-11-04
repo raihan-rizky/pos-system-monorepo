@@ -215,11 +215,11 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
 
       {/* Price + Stock */}
       <div className="w-full mt-2.5">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <p className={`text-base font-bold ${hasSpecialPrice ? "text-emerald-800" : "text-brand-600"}`}>
             {formatRupiah(selectedPrice.unitPrice)}
           </p>
-          {hasSpecialPrice && <SpecialPriceBadge />}
+          {hasSpecialPrice && <SpecialPriceBadge appliedPricing={selectedPrice.appliedPricing} />}
         </div>
         <PriceRoundingBadge rounding={selectedPrice.priceRounding} />
         <div className="mt-1 space-y-0.5 text-[11px] leading-snug">
@@ -228,7 +228,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
             <span className={`font-semibold ${hasSpecialAgenPrice ? "text-emerald-800" : "text-surface-600"}`}>
               {formatRupiah(hargaAgen)}
             </span>
-            {hasSpecialAgenPrice ? <SpecialPriceBadge /> : <span className="text-surface-500">· Mengikuti harga jual</span>}
+            {hasSpecialAgenPrice ? <SpecialPriceBadge appliedPricing={agenPrice.appliedPricing} /> : <span className="text-surface-500">· Mengikuti harga jual</span>}
           </p>
           <PriceRoundingBadge rounding={agenPrice.priceRounding} />
           <p className="flex flex-wrap items-center gap-1">
@@ -236,7 +236,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
             <span className={`font-semibold ${hasSpecialDinasPrice ? "text-emerald-800" : "text-surface-600"}`}>
               {formatRupiah(hargaDinas)}
             </span>
-            {hasSpecialDinasPrice ? <SpecialPriceBadge /> : <span className="text-surface-500">· Mengikuti harga jual</span>}
+            {hasSpecialDinasPrice ? <SpecialPriceBadge appliedPricing={dinasPrice.appliedPricing} /> : <span className="text-surface-500">· Mengikuti harga jual</span>}
           </p>
           <PriceRoundingBadge rounding={dinasPrice.priceRounding} />
         </div>
@@ -278,7 +278,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
 
       {/* 2 Variants Selection */}
       {(product.variants || []).length === 2 && (
-        <div className="w-full mt-2 flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+        <div className="w-full mt-2 flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
           {orderedVariants.map((variant) => {
             const isSelected = selectedVariantId === variant.id;
             const isVariantOutOfStock = Math.floor(variant.stock ?? 0) <= 0;
@@ -286,7 +286,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
               <button
                 key={variant.id}
                 onClick={() => setSelectedVariantId(variant.id)}
-                className={`flex-1 flex flex-col justify-center px-2 py-1.5 border rounded-xl transition-all min-w-0 ${isSelected
+                className={`flex-[1_1_7rem] flex flex-col justify-center px-2 py-1.5 border rounded-xl transition-all min-w-0 ${isSelected
                     ? "bg-brand-50 border-brand-400 shadow-sm ring-1 ring-brand-400/50"
                     : "bg-surface-50 border-surface-200 hover:border-brand-300 hover:bg-surface-100 opacity-90"
                   }`}
@@ -302,7 +302,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
                 <span className={`text-[10px] font-medium text-left truncate ${isSelected ? "text-brand-600" : "text-surface-500"}`}>
                   {formatRupiah(priceVariant(variant.id).unitPrice)}
                 </span>
-                {isSpecialCategoryPricing(priceVariant(variant.id).appliedPricing) && <SpecialPriceBadge />}
+                {isSpecialCategoryPricing(priceVariant(variant.id).appliedPricing) && <SpecialPriceBadge appliedPricing={priceVariant(variant.id).appliedPricing} />}
               </button>
             );
           })}

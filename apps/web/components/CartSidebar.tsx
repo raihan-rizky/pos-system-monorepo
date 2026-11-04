@@ -10,7 +10,7 @@ import { orderUnits } from "@/features/pos-product-variants/helpers/unit-order";
 import { CartQuantityInput } from "@/features/pos-checkout/components/CartQuantityInput";
 import { CartStockWarningDialog } from "@/features/pos-checkout/components/CartStockWarningDialog";
 import styles from "./CartSidebar.module.css";
-import { isSpecialCategoryPricing } from "@/features/customer-category-pricing/helpers/pricing-rules";
+import { getPricingBadgeLabel, isSpecialCategoryPricing } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { SpecialPriceBadge } from "@/features/customer-category-pricing/components/SpecialPriceBadge";
 import { TransactionCustomPriceBadge } from "@/features/pos-checkout/components/TransactionCustomPriceBadge";
 import { PriceRoundingBadge } from "@/features/product-price-rounding/components/PriceRoundingBadge";
@@ -202,7 +202,7 @@ export function CartSidebar({
                         >
                           {options.map((option) => (
                             <option key={option.productId} value={option.productId}>
-                              {option.unit} • {formatRupiah(option.price)}{isSpecialCategoryPricing(option.appliedPricing) ? " • Harga Khusus" : ""}
+                              {option.unit} • {formatRupiah(option.price)}{getPricingBadgeLabel(option.appliedPricing) ? ` • ${getPricingBadgeLabel(option.appliedPricing)}` : ""}
                             </option>
                           ))}
                         </select>
@@ -222,38 +222,38 @@ export function CartSidebar({
                   )}
                   {item.lineType === "PRODUCT" && <PriceRoundingBadge rounding={item.priceRounding} />}
                   {item.lineType === "PRODUCT" && (
-                    <dl className={`mt-2 grid ${specialPricingEnabled ? "grid-cols-3" : "grid-cols-1"} gap-2 text-[11px] text-surface-600`}>
+                    <dl className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-surface-600">
                       <div>
                         <dt className="font-semibold">Normal</dt>
                         <dd>{formatRupiah(roundSellingPrice(item.catalogPrice, roundingSettings).roundedPrice)}</dd>
                       </div>
-                      {specialPricingEnabled && <div>
-                        <dt className="font-semibold">Agen</dt>
+                      <div>
+                        <dt className="font-semibold">Agen (manual)</dt>
                         <dd className={item.hargaAgen != null && item.hargaAgen > 0 ? "text-emerald-800" : undefined}>
                           {item.hargaAgen != null && item.hargaAgen > 0
                             ? formatRupiah(roundSellingPrice(item.hargaAgen, roundingSettings).roundedPrice)
                             : formatRupiah(roundSellingPrice(item.catalogPrice, roundingSettings).roundedPrice)}
-                          {item.hargaAgen != null && item.hargaAgen > 0 ? <SpecialPriceBadge className="ml-1 align-middle" /> : <span className="block text-[10px] text-surface-500">Mengikuti harga jual</span>}
+                          {item.hargaAgen != null && item.hargaAgen > 0 ? <SpecialPriceBadge appliedPricing={{ ruleId: "harga-agen" }} className="ml-1 align-middle" /> : <span className="block text-[10px] text-surface-500">{specialPricingEnabled ? "Belum diatur · acuan harga jual" : "Mengikuti harga jual"}</span>}
                         </dd>
-                      </div>}
-                      {specialPricingEnabled && <div>
-                        <dt className="font-semibold">Dinas</dt>
+                      </div>
+                      <div>
+                        <dt className="font-semibold">Dinas (manual)</dt>
                         <dd className={item.hargaDinas != null && item.hargaDinas > 0 ? "text-emerald-800" : undefined}>
                           {item.hargaDinas != null && item.hargaDinas > 0
                             ? formatRupiah(roundSellingPrice(item.hargaDinas, roundingSettings).roundedPrice)
                             : formatRupiah(roundSellingPrice(item.catalogPrice, roundingSettings).roundedPrice)}
-                          {item.hargaDinas != null && item.hargaDinas > 0 ? <SpecialPriceBadge className="ml-1 align-middle" /> : <span className="block text-[10px] text-surface-500">Mengikuti harga jual</span>}
+                          {item.hargaDinas != null && item.hargaDinas > 0 ? <SpecialPriceBadge appliedPricing={{ ruleId: "harga-dinas" }} className="ml-1 align-middle" /> : <span className="block text-[10px] text-surface-500">{specialPricingEnabled ? "Belum diatur · acuan harga jual" : "Mengikuti harga jual"}</span>}
                         </dd>
-                      </div>}
+                      </div>
                     </dl>
                   )}
                   {item.lineType === "PRODUCT" && !specialPricingEnabled && item.transactionPrice == null && (
-                    <p className="mt-1 text-[10px] text-surface-500">Harga Khusus nonaktif; transaksi memakai harga normal.</p>
+                    <p className="mt-1 text-[10px] text-surface-500">Aturan Harga Khusus nonaktif; harga Agen/Dinas yang diatur tetap digunakan.</p>
                   )}
                   <p className={`text-sm font-bold mt-1 ${item.lineType === "PRODUCT" && item.transactionPrice == null && isSpecialCategoryPricing(item.appliedPricing) ? "text-emerald-800" : "text-brand-600"}`}>
                     {formatRupiah(item.price * item.quantity)}
                   </p>
-                  {item.lineType === "PRODUCT" && item.transactionPrice == null && isSpecialCategoryPricing(item.appliedPricing) && <SpecialPriceBadge />}
+                  {item.lineType === "PRODUCT" && item.transactionPrice == null && isSpecialCategoryPricing(item.appliedPricing) && <SpecialPriceBadge appliedPricing={item.appliedPricing} />}
                 </div>
                 <button
                   type="button"

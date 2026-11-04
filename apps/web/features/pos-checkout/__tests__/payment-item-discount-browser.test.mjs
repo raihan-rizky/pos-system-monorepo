@@ -19,10 +19,11 @@ const bundle = await build({
   stdin:{contents:fixture,resolveDir:web,loader:"tsx"},bundle:true,write:false,platform:"browser",format:"iife",jsx:"automatic",
   alias:{"@":web,"@pos/ui":path.join(repo,"packages/ui/src/index.ts")},define:{"process.env.NODE_ENV":'"production"'},
   plugins:[{name:"fixtures",setup(builder){
-    builder.onResolve({filter:/^@\/(hooks\/(useCustomers|useSalespersons|useCustomerCategoryPricingRules)|components\/providers\/RoleProvider|features\/invoice-date\/hooks\/useServerClock|features\/pos-checkout\/hooks\/useCartCatalogPrices)$/},args=>({path:args.path,namespace:"fixtures"}));
+    builder.onResolve({filter:/^@\/(hooks\/(useCustomers|useSalespersons|useCustomerCategoryPricingRules)|components\/providers\/RoleProvider|features\/invoice-date\/hooks\/useServerClock|features\/pos-checkout\/hooks\/useCartCatalogPrices|features\/customer-category-pricing\/hooks\/useSpecialPricingSettings|features\/product-price-rounding\/hooks\/usePriceRoundingSettings)$/},args=>({path:args.path,namespace:"fixtures"}));
     builder.onLoad({filter:/.*/,namespace:"fixtures"},()=>({contents:`
       const now=new Date('2026-10-19T03:00:00Z');
       export const useRole=()=>({role:'CASHIER'});export const useSalespersons=()=>({data:[]});export const useCustomerCategoryPricingRules=()=>({data:[]});export const useCartCatalogPrices=items=>items;
+      export const useSpecialPricingSettings=()=>({data:true,isError:false});export const usePriceRoundingSettings=()=>({data:{enabled:false,increment:500,threshold:50},isError:false,isPlaceholderData:false});
       export const useCustomers=()=>({data:[{id:'c1',name:'Pelanggan contoh',type:'UMUM'}]});export const useCreateCustomer=()=>({mutateAsync:async()=>({id:'c1',name:'Pelanggan contoh'}),isPending:false});export const useServerClock=()=>({now,source:'TIMEAPI_IO',isLoading:false,lastSyncedAt:now.getTime()});
     `,loader:"js",resolveDir:web}));
   }}],
@@ -30,14 +31,14 @@ const bundle = await build({
 const browser=await chromium.launch({channel:"chrome",headless:true});
 const {css}=await bundleReactHarness("",["components/PaymentModal.tsx","features/pos-checkout/components/CustomerCheckoutSelect.tsx","../../packages/ui/src/Modal.tsx","../../packages/ui/src/Input.tsx","../../packages/ui/src/Button.tsx"]);
 try {
-  const page=await browser.newPage({viewport:{width:1200,height:1000}});page.setDefaultTimeout(7000);page.setDefaultNavigationTimeout(7000);const errors=[];page.on("pageerror",error=>errors.push(error.message));
+  const page=await browser.newPage({viewport:{width:1200,height:1000}});page.setDefaultTimeout(7000);page.setDefaultNavigationTimeout(7000);const errors=[];page.on("pageerror",error=>{errors.push(error.message);console.error("Browser error:",error.message);});
   await page.setContent('<html lang="id"><body><div id="root"></div></body></html>');await page.addScriptTag({content:bundle.outputFiles[0].text});await page.addStyleTag({content:css});
   await page.getByLabel("Pajak (%)",{exact:true}).waitFor({timeout:5000});
   const confirm=page.getByRole("button",{name:"Konfirmasi Bayar",exact:true});
   const editStiker=page.getByRole("button",{name:"Diskon untuk Stiker contoh",exact:true});
   assert.equal(await editStiker.count(),1,"each checkout row offers an item discount button");
-  const customPrice=page.getByLabel("Harga khusus untuk Stiker contoh",{exact:true});await customPrice.fill("-1");
-  await page.getByText("Harga khusus tidak boleh negatif.",{exact:true}).waitFor();assert.equal(await confirm.isDisabled(),true,"negative custom prices remain editable without crashing");
+  const customPrice=page.getByLabel("Harga Khusus pembayaran untuk Stiker contoh",{exact:true});await customPrice.fill("-1");
+  await page.getByText("Harga Khusus pembayaran tidak boleh negatif.",{exact:true}).waitFor();assert.equal(await confirm.isDisabled(),true,"negative custom prices remain editable without crashing");
   await customPrice.fill("10000");await page.getByRole("button",{name:"Pelanggan",exact:true}).click();await page.getByRole("option",{name:/Pelanggan Umum/}).click();
   process.stdout.write("mounted discount controls\n");
   await editStiker.click();
@@ -67,7 +68,7 @@ try {
   await page.setViewportSize({width:390,height:844});await editStiker.click();await value.fill("5000");await value.scrollIntoViewIfNeeded();const bounds=await value.boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=390,"editor fits mobile");
   await fs.mkdir(path.join(repo,"output/playwright/item-discount"),{recursive:true});await page.screenshot({path:path.join(repo,"output/playwright/item-discount/mobile.png")});
   await page.getByRole("button",{name:"Batal diskon",exact:true}).click();await page.getByRole("button",{name:"Batal",exact:true}).click();await page.getByRole("button",{name:"Buka pembayaran",exact:true}).click();
-  assert.equal(await page.getByRole("button",{name:"Hapus diskon untuk Kartu contoh",exact:true}).count(),0,"closing clears item discount state");assert.equal(await page.getByLabel("Pilih Kartu contoh untuk diskon",{exact:true}).isChecked(),false);
+  assert.equal(await page.getByRole("button",{name:"Hapus diskon untuk Kartu contoh",exact:true}).count(),1,"closing preserves item discount state");assert.equal(await page.getByLabel("Pilih Kartu contoh untuk diskon",{exact:true}).isChecked(),true);
   // A bulk rupiah value is deducted once per row, and cancel leaves it intact.
   await page.getByLabel("Pilih Stiker contoh untuk diskon",{exact:true}).check();
   await page.getByLabel("Pilih Kartu contoh untuk diskon",{exact:true}).check();

@@ -1,7 +1,10 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { Modal } from "@pos/ui";
-import { Plus, RefreshCcw, Tag } from "lucide-react";
+import { LockKeyhole, Plus, RefreshCcw, Tag } from "lucide-react";
+import { useRole } from "@/components/providers/RoleProvider";
+import { useSpecialPricingSettings } from "@/features/customer-category-pricing/hooks/useSpecialPricingSettings";
 import {
   useCreateCustomerCategoryPricingRule,
   useCustomerCategoryPricingRules,
@@ -26,13 +29,24 @@ export function CustomerCategoryPricingRulesTab({ roundingSettings }: { rounding
   );
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const { role } = useRole();
+  const settings = useSpecialPricingSettings();
+  const loadingSettings = settings.isPending || !settings.isFetchedAfterMount;
+  const locked = settings.isError || loadingSettings || settings.data !== true;
   const rulesQuery = useCustomerCategoryPricingRules();
   const createRule = useCreateCustomerCategoryPricingRule();
   const updateRule = useUpdateCustomerCategoryPricingRule();
   const deleteRule = useDeleteCustomerCategoryPricingRule();
   const isSaving = createRule.isPending || updateRule.isPending;
   const rules = rulesQuery.data ?? [];
+  useEffect(() => {
+    if (locked) {
+      setEditor(null);
+      setRemoving(null);
+    }
+  }, [locked]);
   const save = async (input: CustomerCategoryPricingRuleInput) => {
+    if (locked) return;
     if (editor?.rule)
       await updateRule.mutateAsync({ id: editor.rule.id, ...input });
     else await createRule.mutateAsync(input);
@@ -40,7 +54,7 @@ export function CustomerCategoryPricingRulesTab({ roundingSettings }: { rounding
     setNotice("Aturan harga berhasil disimpan");
   };
   const remove = async () => {
-    if (!removing || deleteRule.isPending) return;
+    if (locked || !removing || deleteRule.isPending) return;
     try {
       setError(null);
       await deleteRule.mutateAsync(removing.id);
@@ -55,7 +69,33 @@ export function CustomerCategoryPricingRulesTab({ roundingSettings }: { rounding
     }
   };
   return (
-    <section className="space-y-4" aria-label="Harga Khusus">
+    <section className="relative min-h-[18rem]" aria-label="Harga Khusus">
+      {locked && (
+        <div className="absolute inset-0 z-10 bg-white/60 px-4 py-5">
+          <div className="sticky top-4 mx-auto flex max-w-md flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-lg sm:p-6" role={settings.isError ? "alert" : "status"}>
+            <LockKeyhole aria-hidden="true" className="h-8 w-8 text-slate-600" />
+            {settings.isError ? (
+              <>
+                <p className="font-semibold text-slate-900">Pengaturan Harga Khusus belum dapat dimuat.</p>
+                <button type="button" onClick={() => void settings.refetch()} className="min-h-11 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">Coba lagi</button>
+              </>
+            ) : loadingSettings ? (
+              <p className="font-semibold text-slate-900">Memuat pengaturan Harga Khusus…</p>
+            ) : (
+              <>
+                <p className="font-semibold text-slate-900">Fitur Harga Khusus dinonaktifkan.</p>
+                <p className="text-sm text-slate-600">Silakan aktifkan kembali di Pengaturan untuk menggunakannya.</p>
+                {role === "OWNER" ? (
+                  <Link href="/settings?tab=special-pricing" className="inline-flex min-h-11 items-center rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">Buka Pengaturan</Link>
+                ) : (
+                  <p className="text-sm font-medium text-slate-700">Hubungi Owner untuk mengaktifkan fitur ini.</p>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      <div inert={locked ? true : undefined} aria-hidden={locked ? true : undefined} className={`space-y-4 ${locked ? "pointer-events-none select-none blur-sm" : ""}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-2 text-base font-bold text-slate-900">
@@ -184,15 +224,16 @@ export function CustomerCategoryPricingRulesTab({ roundingSettings }: { rounding
           })}
         </ul>
       )}
+      </div>
       <Modal
-        open={Boolean(editor)}
+        open={!locked && Boolean(editor)}
         onClose={() => {
           if (!isSaving) setEditor(null);
         }}
         title={editor?.rule ? "Ubah aturan harga" : "Tambah aturan harga"}
         size="2xl"
       >
-        {editor && (
+        {!locked && editor && (
           <PricingRuleForm
             roundingSettings={roundingSettings}
             key={editor.rule?.id ?? "new"}
@@ -204,7 +245,7 @@ export function CustomerCategoryPricingRulesTab({ roundingSettings }: { rounding
         )}
       </Modal>
       <Modal
-        open={Boolean(removing)}
+        open={!locked && Boolean(removing)}
         onClose={() => {
           if (!deleteRule.isPending) setRemoving(null);
         }}

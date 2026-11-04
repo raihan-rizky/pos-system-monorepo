@@ -13,13 +13,13 @@ export default function SpecialPricingSettingsTab() {
     <form className="space-y-5" onSubmit={(event) => { event.preventDefault(); if (!unavailable) update.mutate(enabled, { onSuccess: () => setDraft(null) }); }}>
       <div>
         <h2 className="text-lg font-bold text-surface-900">Harga Khusus</h2>
-        <p className="mt-1 text-sm text-surface-500">Atur penggunaan aturan harga dan harga khusus per transaksi di seluruh toko.</p>
+        <p className="mt-1 text-sm text-surface-500">Atur penggunaan Harga Khusus di seluruh toko.</p>
       </div>
       <label className="flex min-h-11 items-center gap-3 text-sm font-semibold text-surface-900">
         <input type="checkbox" role="switch" checked={enabled} disabled={unavailable} onChange={(event) => { setDraft(event.target.checked); update.reset(); }} className="h-5 w-5 accent-brand-600" />
         Aktifkan Harga Khusus
       </label>
-      <p className="text-sm text-surface-600">Harga Khusus nonaktif secara default. Saat dinonaktifkan, aturan otomatis dan harga khusus per transaksi tidak digunakan. Harga Agen/Dinas di atas 0 tetap diprioritaskan; jika kosong atau 0, produk mengikuti harga jual.</p>
+      <p className="text-sm text-surface-600">Harga Khusus nonaktif secara default. Saat dinonaktifkan, aturan otomatis tidak digunakan dan input Harga Khusus di pembayaran untuk pelanggan Industri/Pemerintah tidak tersedia. Harga Agen/Dinas di atas 0 tetap diprioritaskan; jika kosong atau 0, produk mengikuti harga jual. Harga custom untuk satu nota tetap tersedia melalui Ubah Harga Nota di keranjang, sesuai izin pengguna.</p>
       {settings.isPending && <p role="status" className="text-sm text-surface-500">Memuat pengaturan…</p>}
       {(settings.error || update.error) && <p role="alert" className="text-sm text-red-700">{(settings.error ?? update.error)?.message}</p>}
       {update.isSuccess && <p role="status" className="text-sm text-emerald-700">Pengaturan Harga Khusus berhasil disimpan.</p>}
