@@ -7,6 +7,14 @@ const items = [
 ] as CartItem[];
 
 describe("checkout persistence payloads", () => {
+  it("carries a raw zero customer manual price to a draft", () => {
+    const [draft] = buildDraftCheckoutItems([{ ...items[0], customerManualPrice: 0 } as CartItem]);
+    expect(draft).toMatchObject({ customerManualPrice: 0 });
+  });
+  it("includes the displayed product category in a draft request", () => {
+    const [draft] = buildDraftCheckoutItems([{ ...items[0], categoryId: "paper" } as CartItem]);
+    expect(draft.categoryId).toBe("paper");
+  });
   it("keeps monetary line discounts when mapping the actual draft request", () => {
     expect(buildDraftCheckoutItems(items)).toMatchObject([
       { productId: "p1", price: 10000, quantity: 3, discount: 5000, transactionPrice: 10000, size: "A4" },

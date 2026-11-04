@@ -16,6 +16,14 @@ const price = (items: ProductCartItem[]) => priceCartItemsForCheckout({
 });
 
 describe("harga custom hanya pada nota aktif", () => {
+  it("carries the raw customer manual price and replaces the invoice override when the modal edits it", () => {
+    const result = priceCartItemsForCheckout({ items: [{ ...product, transactionPrice: 14000 }],
+      customerType: "INDUSTRI", role: "CASHIER", pricingRules: [],
+      manualPrices: { [product.cartLineId]: 4050 }, specialPricingEnabled: true,
+      roundingSettings: { enabled: true, increment: 500, threshold: 50, excludedCategoryIds: ["office"] },
+    })[0];
+    expect(result).toMatchObject({ price: 4050, customerManualPrice: 4050, transactionPrice: null });
+  });
   it("accepts zero only when restoring a trusted saved rounding result", () => {
     const input = { pricedLine: { unitPrice: 100, appliedPricing: null }, transactionPrice: 0,
       customerType: "UMUM" as const, categoryId: "office" };

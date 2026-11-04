@@ -46,6 +46,14 @@ describe("assistant tools repository", () => {
     getPriceRoundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50 });
   });
 
+  it("returns unrounded prices for excluded product categories", async () => {
+    getPriceRoundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50, excludedCategoryIds: ["paper"] });
+    productFindManyMock.mockResolvedValue([{ id: "p1", name: "Kertas", price: 4050, categoryId: "paper" }]);
+    const result = await getProductPrice({ storeId: "store-1", query: "Kertas" });
+    expect(result.match?.price).toBe(4050);
+    expect(productFindManyMock.mock.calls[0][0].select.categoryId).toBe(true);
+  });
+
   it("returns active low-stock products scoped to store with safe fields", async () => {
     productFindManyMock.mockResolvedValue([
       { id: "p1", name: "Kertas A4", sku: "A4", stock: 2, minStock: 5, unit: "rim" },

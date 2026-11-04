@@ -493,6 +493,7 @@ export default function POSClientPage({
         originStoreId: storeId || "store-main",
         shiftId: resolveCheckoutShiftId(activeShift, userId),
         items: offlinePricedItems,
+        priceRoundingSettings: data.priceRoundingSettings,
         paymentMethod: data.paymentMethod as "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER" | "TEMPO",
         amountPaid: data.amountPaid,
         payments: data.payments,
@@ -555,6 +556,7 @@ export default function POSClientPage({
   };
 
   const handleSaveDraft = async (data: {
+    priceRoundingSettings?: PriceRoundingSettings;
     draftNumber?: string | null;
     discount: number;
     note: string;
@@ -572,6 +574,7 @@ export default function POSClientPage({
     setDraftError(null);
     try {
       const draft = await createDraft.mutateAsync({
+        priceRoundingSettings: data.priceRoundingSettings,
         draftNumber: data.draftNumber,
         items: buildDraftCheckoutItems(data.items),
         discount: data.discount,

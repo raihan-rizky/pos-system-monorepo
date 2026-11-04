@@ -13,9 +13,11 @@ export type OfflineSyncState =
 
 export type OfflineCartItem = {
   productId: string;
+  categoryId?: string;
   name: string;
   price: number;
   transactionPrice?: number | null;
+  customerManualPrice?: number | null;
   discount?: number;
   quantity: number;
   size?: string | null;

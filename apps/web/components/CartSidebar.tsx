@@ -225,14 +225,14 @@ export function CartSidebar({
                     <dl className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-surface-600">
                       <div>
                         <dt className="font-semibold">Normal</dt>
-                        <dd>{formatRupiah(roundSellingPrice(item.catalogPrice, roundingSettings).roundedPrice)}</dd>
+                        <dd>{formatRupiah(roundSellingPrice(item.catalogPrice, roundingSettings, item.categoryId).roundedPrice)}</dd>
                       </div>
                       <div>
                         <dt className="font-semibold">Agen (manual)</dt>
                         <dd className={item.hargaAgen != null && item.hargaAgen > 0 ? "text-emerald-800" : undefined}>
                           {item.hargaAgen != null && item.hargaAgen > 0
-                            ? formatRupiah(roundSellingPrice(item.hargaAgen, roundingSettings).roundedPrice)
-                            : formatRupiah(roundSellingPrice(item.catalogPrice, roundingSettings).roundedPrice)}
+                            ? formatRupiah(roundSellingPrice(item.hargaAgen, roundingSettings, item.categoryId).roundedPrice)
+                            : formatRupiah(roundSellingPrice(item.catalogPrice, roundingSettings, item.categoryId).roundedPrice)}
                           {item.hargaAgen != null && item.hargaAgen > 0 ? <SpecialPriceBadge appliedPricing={{ ruleId: "harga-agen" }} className="ml-1 align-middle" /> : <span className="block text-[10px] text-surface-500">{specialPricingEnabled ? "Belum diatur · acuan harga jual" : "Mengikuti harga jual"}</span>}
                         </dd>
                       </div>
@@ -240,8 +240,8 @@ export function CartSidebar({
                         <dt className="font-semibold">Dinas (manual)</dt>
                         <dd className={item.hargaDinas != null && item.hargaDinas > 0 ? "text-emerald-800" : undefined}>
                           {item.hargaDinas != null && item.hargaDinas > 0
-                            ? formatRupiah(roundSellingPrice(item.hargaDinas, roundingSettings).roundedPrice)
-                            : formatRupiah(roundSellingPrice(item.catalogPrice, roundingSettings).roundedPrice)}
+                            ? formatRupiah(roundSellingPrice(item.hargaDinas, roundingSettings, item.categoryId).roundedPrice)
+                            : formatRupiah(roundSellingPrice(item.catalogPrice, roundingSettings, item.categoryId).roundedPrice)}
                           {item.hargaDinas != null && item.hargaDinas > 0 ? <SpecialPriceBadge appliedPricing={{ ruleId: "harga-dinas" }} className="ml-1 align-middle" /> : <span className="block text-[10px] text-surface-500">{specialPricingEnabled ? "Belum diatur · acuan harga jual" : "Mengikuti harga jual"}</span>}
                         </dd>
                       </div>

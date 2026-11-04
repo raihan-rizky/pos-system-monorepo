@@ -74,6 +74,7 @@ interface PaymentModalProps {
     payments?: { method: string; amount: number }[];
   }) => void;
   onSaveDraft?: (data: {
+    priceRoundingSettings?: PriceRoundingSettings;
     draftNumber?: string | null;
     discount: number;
     note: string;
@@ -371,6 +372,7 @@ export function PaymentModal({
       : {};
 
     onSaveDraft({
+      priceRoundingSettings: roundingSettings,
       discount,
       note,
       customerName: customer.customerName,

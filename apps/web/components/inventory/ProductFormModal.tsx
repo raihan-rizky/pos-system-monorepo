@@ -321,11 +321,12 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
             />
           )}
           <div className="text-xs text-surface-500">Harga master asal sebelum pembulatan.
-            <PriceRoundingPreview price={regularPrice} settings={roundingSettings} />
+            <PriceRoundingPreview price={regularPrice} settings={roundingSettings} categoryId={formData.categoryId} />
           </div>
           <div className="space-y-1">
             <MemberPriceField
               roundingSettings={roundingSettings}
+              categoryId={formData.categoryId}
               label="Harga Dinas"
               sellingPrice={regularPrice}
               value={formData.hargaDinas}
@@ -341,6 +342,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
           <div className="space-y-1">
             <MemberPriceField
               roundingSettings={roundingSettings}
+              categoryId={formData.categoryId}
               label="Harga Agen"
               sellingPrice={regularPrice}
               value={formData.hargaAgen}
@@ -394,6 +396,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
 
         {!productId && <ProductUnitFields
           roundingSettings={roundingSettings}
+          categoryId={formData.categoryId}
           primary={formData} rows={formData.additionalUnits} errors={unitErrors} disabled={isProcessing}
           onChange={(additionalUnits) => setFormData((current) => ({ ...current, additionalUnits }))}
         />}

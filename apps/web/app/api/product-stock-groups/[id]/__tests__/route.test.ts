@@ -86,6 +86,7 @@ describe("GET /api/product-stock-groups/[id]", () => {
     expect(body.conversionPairs).toEqual([]);
     expect(body.pricing.config.members["rim-1"].mode).toBe("MANUAL");
     expect(body.pricing.config.members["rim-1"].review.price).toEqual([]);
+    expect(body.pricingMembers[0].categoryId).toBe("cat");
     expect(productStockGroupUpdateMock).not.toHaveBeenCalled();
   });
 });

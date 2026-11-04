@@ -58,6 +58,14 @@ function renderCart(specialPricingEnabled = true) {
 }
 
 describe("CartSidebar quick product references", () => {
+  it("shows unrounded references for an excluded category", () => {
+    const html = renderToStaticMarkup(<CartSidebar items={[{ ...productItem, price: 4049, catalogPrice: 4049, hargaAgen: 4050, hargaDinas: 4549 }]}
+      roundingSettings={{ enabled: true, increment: 500, threshold: 50, excludedCategoryIds: ["cat-paper"] }}
+      subtotal={4049} totalItems={1} onUpdateQuantity={vi.fn()} onRemoveItem={vi.fn()} onClearCart={vi.fn()} onCheckout={vi.fn()} />);
+    expect(html).toContain("4.049");
+    expect(html).toContain("4.050");
+    expect(html).toContain("4.549");
+  });
   it("always shows normal, agent, and government prices for product lines", () => {
     const html = renderCart();
 

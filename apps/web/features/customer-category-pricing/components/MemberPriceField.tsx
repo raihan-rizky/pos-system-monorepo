@@ -14,9 +14,10 @@ interface MemberPriceFieldProps {
   onChange: (value: string) => void;
   disabled?: boolean;
   roundingSettings?: PriceRoundingSettings;
+  categoryId?: string | null;
 }
 
-export function MemberPriceField({ label, sellingPrice, value, onChange, disabled, roundingSettings }: MemberPriceFieldProps) {
+export function MemberPriceField({ label, sellingPrice, value, onChange, disabled, roundingSettings, categoryId }: MemberPriceFieldProps) {
   const id = useId();
   const isOverride = value.trim() !== "";
   const price = Number.isFinite(sellingPrice) ? sellingPrice : 0;
@@ -49,7 +50,7 @@ export function MemberPriceField({ label, sellingPrice, value, onChange, disable
         )}
       </div>
       {isOverride && <p className="text-xs text-surface-500">Harga asal sebelum pembulatan.</p>}
-      <PriceRoundingPreview price={isOverride ? value : price} settings={roundingSettings} />
+      <PriceRoundingPreview price={isOverride ? value : price} settings={roundingSettings} categoryId={categoryId} />
       {isOverride && (
         <button
           type="button"

@@ -59,6 +59,46 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/transactions/draft", () => {
+  it.each([4050, 0])("stores excluded customer manual price %s and its source in a draft", async manual => {
+    roundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50, excludedCategoryIds: ["cat-paper"] });
+    customerFindFirstMock.mockResolvedValue({ id: "c1", type: "INDUSTRI" });
+    const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({
+      customerId: "c1", items: [{ productId: "p1", name: "Kertas", categoryId: "cat-paper", price: manual, customerManualPrice: manual, quantity: 1 }],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({
+      unitPrice: manual, pricingRuleId: "customer-manual-price", originalUnitPrice: 50000, pricingValue: 50000 - manual,
+    });
+  });
+  it("refuses a customer manual price when special pricing is disabled", async () => {
+    specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: false });
+    customerFindFirstMock.mockResolvedValue({ id: "c1", type: "INDUSTRI" });
+    const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({
+      customerId: "c1", items: [{ productId: "p1", name: "Kertas", price: 4050, customerManualPrice: 4050, quantity: 1 }],
+    }) }));
+    expect(response.status).toBe(403);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+  it("rejects a draft when the product category changed after the displayed price", async () => {
+    const settings = { enabled: true, increment: 500, threshold: 50, excludedCategoryIds: ["cat-paper"] };
+    roundingSettingsMock.mockResolvedValue(settings);
+    const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({
+      priceRoundingSettings: settings,
+      items: [{ productId: "p1", name: "Kertas", categoryId: "old-category", price: 50500, quantity: 1 }],
+    }) }));
+    expect(response.status).toBe(409);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a draft when the rounding exception policy changed after preview", async () => {
+    roundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50, excludedCategoryIds: ["cat-paper"] });
+    const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({
+      priceRoundingSettings: { enabled: true, increment: 500, threshold: 50, excludedCategoryIds: [] },
+      items: [{ productId: "p1", name: "Kertas", categoryId: "cat-paper", price: 50500, quantity: 1 }],
+    }) }));
+    expect(response.status).toBe(409);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
   it("requires the invoice-price grant even when master product update is granted", async () => {
     canRolePerformActionMock.mockImplementation((_role, resource) => resource !== "transaction.custom_price");
     const { POST } = await import("../route");
@@ -67,6 +107,18 @@ describe("POST /api/transactions/draft", () => {
     }) }));
     expect(response.status).toBe(403);
     expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, 4050])("keeps excluded category draft price %s unchanged", async custom => {
+    roundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50, excludedCategoryIds: ["cat1"] });
+    const original = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...original, categoryId: "cat1", price: 4049 }]);
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({
+      items: [{ productId: "p1", name: "Kertas", price: 4049, transactionPrice: custom, quantity: 1 }],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0].unitPrice).toBe(custom ?? 4049);
   });
   it("preserves a custom invoice price and its marker in a draft while Harga Khusus is disabled", async () => {
     specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: false });

@@ -2,6 +2,7 @@ export type PriceRoundingSettings = {
   enabled: boolean;
   increment: number;
   threshold: number;
+  excludedCategoryIds?: string[];
 };
 
 export type PriceRoundingResult = {
@@ -26,12 +27,23 @@ export function validatePriceRoundingSettings(settings: PriceRoundingSettings): 
       !Number.isSafeInteger(settings.threshold) || settings.threshold < 0 || settings.threshold > settings.increment) {
     throw new Error("Isi kelipatan bulat positif dan ambang antara nol sampai nilai kelipatan.");
   }
-  return { enabled: settings.enabled, increment: settings.increment, threshold: settings.threshold };
+  if (settings.excludedCategoryIds !== undefined &&
+      (!Array.isArray(settings.excludedCategoryIds) ||
+       settings.excludedCategoryIds.some((id) => typeof id !== "string" || id.trim().length === 0))) {
+    throw new Error("Kategori pengecualian tidak valid.");
+  }
+  return {
+    enabled: settings.enabled,
+    increment: settings.increment,
+    threshold: settings.threshold,
+    ...(settings.excludedCategoryIds === undefined ? {} : { excludedCategoryIds: [...new Set(settings.excludedCategoryIds)] }),
+  };
 }
 
 export function roundSellingPrice(
   price: number,
   settings: PriceRoundingSettings = DEFAULT_PRICE_ROUNDING_SETTINGS,
+  categoryId?: string | null,
 ): PriceRoundingResult {
   validatePriceRoundingSettings(settings);
   if (!Number.isFinite(price) || price < 0) throw new Error("Harga jual harus berupa angka nonnegatif yang valid.");
@@ -39,7 +51,7 @@ export function roundSellingPrice(
   if (!Number.isSafeInteger(cents) || cents > MAX_MONEY_CENTS) throw new Error("Harga jual melampaui kapasitas nilai uang.");
   const originalPrice = cents / 100;
   let roundedCents = cents;
-  if (settings.enabled) {
+  if (settings.enabled && !(categoryId && settings.excludedCategoryIds?.includes(categoryId))) {
     const step = settings.increment * 100;
     const remainder = cents % step;
     const lower = cents - remainder;
@@ -54,8 +66,9 @@ export function roundSellingPrice(
 export function roundSellingPriceLine<T extends { unitPrice: number; appliedPricing: { appliedUnitPrice: number } | null }>(
   line: T,
   settings: PriceRoundingSettings = DEFAULT_PRICE_ROUNDING_SETTINGS,
+  categoryId?: string | null,
 ) {
-  const rounding = roundSellingPrice(line.unitPrice, settings);
+  const rounding = roundSellingPrice(line.unitPrice, settings, categoryId);
   return {
     ...line,
     unitPrice: rounding.roundedPrice,

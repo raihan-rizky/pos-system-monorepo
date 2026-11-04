@@ -1,14 +1,17 @@
 import type { Transaction } from "@/hooks/useTransactions";
 import type { PricingPreference } from "@/features/customer-category-pricing/helpers/pricing-rules";
+import type { PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 
 export type DraftItemInput = {
   productId: string;
+  categoryId?: string;
   name: string;
   documentName?: string | null;
   size?: string | null;
   material?: string | null;
   price: number;
   transactionPrice?: number | null;
+  customerManualPrice?: number | null;
   discount?: number;
   quantity: number;
 };
@@ -25,6 +28,7 @@ export type DraftCreateInput = {
   isJobOrder: boolean;
   estimatedDoneAt?: string | null;
   pricingPreference?: PricingPreference;
+  priceRoundingSettings?: PriceRoundingSettings;
   invoiceDate?: string;
   invoiceTime?: string | null;
   invoiceDateReason?: string | null;

@@ -74,7 +74,7 @@ export function TransactionCartEditor({
     if (existingIndex >= 0) {
       handleUpdateQuantity(existingIndex, items[existingIndex].quantity + 1);
     } else {
-      const rounding = roundSellingPrice(Number(p.price), roundingSettings);
+      const rounding = roundSellingPrice(Number(p.price), roundingSettings, p.category?.id);
       const newItem: CartEditorItem = {
         priceIntent: "AUTOMATIC",
         priceRounding: rounding,
@@ -151,10 +151,10 @@ export function TransactionCartEditor({
                       </div>
                     </div>
                     <div className="text-sm font-semibold text-brand-600">
-                      {formatRupiah(roundSellingPrice(Number(p.price), roundingSettings).roundedPrice)}
+                      {formatRupiah(roundSellingPrice(Number(p.price), roundingSettings, p.category?.id).roundedPrice)}
                     </div>
                   </button>
-                  <PriceRoundingBadge rounding={roundSellingPrice(Number(p.price), roundingSettings)} />
+                  <PriceRoundingBadge rounding={roundSellingPrice(Number(p.price), roundingSettings, p.category?.id)} />
                   </div>
                 ))
               ) : (

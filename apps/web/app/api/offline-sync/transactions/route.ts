@@ -1,5 +1,6 @@
 import { roundSellingPriceLine } from "@/features/product-price-rounding/rounding";
 import { resolveTransactionCustomPrice } from "@/features/pos-checkout/helpers/transaction-custom-price";
+import { resolveCustomerManualPrice } from "@/features/pos-checkout/helpers/customer-manual-price";
 import { getPriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
 import { getSpecialPricingEnabled } from "@/features/customer-category-pricing/server/special-pricing-settings";
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
@@ -20,7 +21,6 @@ import { buildCustomerUpdateArgs } from "@/features/pos-checkout/post-commit";
 import {
   PRICING_PREFERENCES,
   priceProductForCustomerType,
-  resolveCustomPricedLine,
   canEditCustomPriceForCustomer,
   type AppliedCategoryPricing,
   type CategoryPricingRule,
@@ -35,11 +35,13 @@ export const dynamic = "force-dynamic";
 
 const offlineItemSchema = z.object({
   productId: z.string(),
+  categoryId: z.string().optional(),
   name: z.string(),
   size: z.string().optional().nullable(),
   material: z.string().optional().nullable(),
   price: z.number().min(0),
   transactionPrice: z.number().positive().optional().nullable(),
+  customerManualPrice: z.number().finite().min(0).max(9_999_999_999.99).optional().nullable(),
   discount: z.number().finite().min(0).optional().default(0),
   quantity: z.number().min(1),
 });
@@ -64,6 +66,10 @@ const offlineTransactionSchema = z.object({
   customerName: z.string().optional().nullable(),
   customerId: z.string().optional().nullable(),
   pricingPreference: z.enum(PRICING_PREFERENCES).optional().default("SPECIAL"),
+  priceRoundingSettings: z.object({
+    enabled: z.boolean(), increment: z.number().int().min(1).max(1_000_000_000),
+    threshold: z.number().int().min(0), excludedCategoryIds: z.array(z.string().min(1)).optional(),
+  }).refine(settings => settings.threshold <= settings.increment).optional(),
   salesName: z.string().optional().nullable(),
   salespersonId: z.string().optional().nullable(),
   paymentStatus: z.enum(["COMPLETED", "DP"]).optional().default("COMPLETED"),
@@ -334,8 +340,20 @@ async function syncOne(
   const roundingSettings = await getPriceRoundingSettings();
   const specialPricingEnabled = await getSpecialPricingEnabled();
   const pricingPermissions = await getGlobalRolePermissions();
-  const canUseTransactionPrice = canRolePerformAction(user.role as Role, "product", "update", pricingPermissions) ||
-    (specialPricingEnabled && canEditCustomPriceForCustomer(user.role, checkoutCustomerType));
+  const canUseTransactionPrice = canRolePerformAction(user.role as Role, "transaction.custom_price", "update", pricingPermissions);
+  const canUseCustomerManualPrice = specialPricingEnabled && canEditCustomPriceForCustomer(user.role, checkoutCustomerType);
+  const categoryChanged = offlineTx.items.some(item => item.categoryId != null && item.categoryId !== productById.get(item.productId)?.categoryId);
+  const capturedPolicy = offlineTx.priceRoundingSettings;
+  const roundingPolicyChanged = Boolean(capturedPolicy && (
+    capturedPolicy.enabled !== roundingSettings.enabled || capturedPolicy.increment !== roundingSettings.increment ||
+    capturedPolicy.threshold !== roundingSettings.threshold ||
+    new Set(capturedPolicy.excludedCategoryIds ?? []).size !== new Set(roundingSettings.excludedCategoryIds ?? []).size ||
+    (capturedPolicy.excludedCategoryIds ?? []).some(id => !(roundingSettings.excludedCategoryIds ?? []).includes(id))
+  ));
+  const unauthorizedPrice = offlineTx.items.some(item =>
+    (item.transactionPrice != null && !canUseTransactionPrice) ||
+    (item.customerManualPrice != null && !canUseCustomerManualPrice) ||
+    (item.customerManualPrice != null && item.transactionPrice != null));
   const serverItems: ServerOfflineItem[] = offlineTx.items.map((item) => {
     const product = productById.get(item.productId);
     if (!product) {
@@ -361,26 +379,25 @@ async function syncOne(
       offlineTx.pricingPreference,
       specialPricingEnabled,
     );
-    const legacyResolved = resolveCustomPricedLine({
-      pricedLine: automaticPrice,
-      submittedPrice: item.transactionPrice,
-      role: user.role,
-      customerType: checkoutCustomerType,
-      specialPricingEnabled,
+    const conflictingPrices = item.transactionPrice != null && item.customerManualPrice != null;
+    const transactionPrice = canUseTransactionPrice && !conflictingPrices ? item.transactionPrice ?? null : null;
+    const customerManualPrice = canUseCustomerManualPrice && !conflictingPrices ? item.customerManualPrice ?? null : null;
+    const customerPrice = customerManualPrice == null ? automaticPrice : resolveCustomerManualPrice({
+      pricedLine: automaticPrice, manualPrice: customerManualPrice, customerType: checkoutCustomerType,
+      categoryId: product.categoryId, categoryName: product.category?.name,
     });
-    const transactionPrice = canUseTransactionPrice ? item.transactionPrice ?? null : null;
     const resolved = resolveTransactionCustomPrice({
-      pricedLine: transactionPrice == null ? legacyResolved : roundSellingPriceLine(automaticPrice, roundingSettings),
+      pricedLine: transactionPrice == null ? customerPrice : roundSellingPriceLine(automaticPrice, roundingSettings, product.categoryId),
       transactionPrice,
       customerType: checkoutCustomerType,
       categoryId: product.categoryId,
       categoryName: product.category?.name,
     });
-    const rounded = roundSellingPriceLine(resolved, roundingSettings);
+    const rounded = roundSellingPriceLine(resolved, roundingSettings, product.categoryId);
     const price = rounded.unitPrice;
     const appliedPricing = rounded.appliedPricing;
     // Distinct lines of the same product can use different invoice prices.
-    const snapshotKey = JSON.stringify([product.id, item.size ?? product.size ?? null, item.material ?? product.material ?? null, transactionPrice]);
+    const snapshotKey = JSON.stringify([product.id, item.size ?? product.size ?? null, item.material ?? product.material ?? null, transactionPrice, customerManualPrice]);
     appliedPricingByProductId.set(snapshotKey, appliedPricing);
     catalogPriceByProductId.set(product.id, Number(product.price));
 
@@ -391,6 +408,7 @@ async function syncOne(
       material: item.material ?? product.material ?? null,
       price,
       transactionPrice,
+      customerManualPrice,
       quantity: item.quantity,
       discount: Math.round((Math.min(item.discount, price * item.quantity) + Number.EPSILON) * 100) / 100,
     };
@@ -454,7 +472,7 @@ async function syncOne(
   );
   const finalDecision =
     decision.transactionStatus === "COMPLETED" &&
-    (!canAutoApprove || itemPricesChanged ||
+    (!canAutoApprove || itemPricesChanged || categoryChanged || roundingPolicyChanged || unauthorizedPrice ||
       (offlineTx.paymentStatus === "DP" || isTempo
         ? offlineTx.amountPaid >= decision.total
         : offlineTx.amountPaid < decision.total))
@@ -464,7 +482,7 @@ async function syncOne(
           transactionStatus: "PENDING_APPROVAL" as const,
           reason: !canAutoApprove
             ? "AUTO_APPROVAL_REQUIRED" as const
-            : itemPricesChanged
+            : itemPricesChanged || categoryChanged || roundingPolicyChanged || unauthorizedPrice
               ? "ITEM_PRICE_CHANGED" as const
             : "ADJUSTED_TOTAL_CHANGED" as const,
         }
@@ -607,7 +625,7 @@ async function createSyncedTransaction({
             items: {
               create: decision.items.map((item) => {
                 const appliedPricing =
-                  appliedPricingByProductId.get(JSON.stringify([item.productId, item.size ?? null, item.material ?? null, item.transactionPrice ?? null])) ?? null;
+                  appliedPricingByProductId.get(JSON.stringify([item.productId, item.size ?? null, item.material ?? null, item.transactionPrice ?? null, item.customerManualPrice ?? null])) ?? null;
                 return {
                   productId: item.productId,
                   productName: item.name,

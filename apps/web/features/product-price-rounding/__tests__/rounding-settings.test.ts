@@ -9,12 +9,12 @@ describe("persisted price rounding settings", () => {
 
   it("provides the active default when no store settings exist", async () => {
     storage.findUnique.mockResolvedValue(null);
-    await expect(getPriceRoundingSettings()).resolves.toEqual({ enabled: true, increment: 500, threshold: 50 });
+    await expect(getPriceRoundingSettings()).resolves.toEqual({ enabled: true, increment: 500, threshold: 50, excludedCategoryIds: [] });
   });
 
   it("loads the saved disabled policy without substituting defaults", async () => {
-    storage.findUnique.mockResolvedValue({ priceRoundingEnabled: false, priceRoundingIncrement: 1000, priceRoundingThreshold: 0 });
-    await expect(getPriceRoundingSettings()).resolves.toEqual({ enabled: false, increment: 1000, threshold: 0 });
+    storage.findUnique.mockResolvedValue({ priceRoundingEnabled: false, priceRoundingIncrement: 1000, priceRoundingThreshold: 0, priceRoundingExcludedCategories: [] });
+    await expect(getPriceRoundingSettings()).resolves.toEqual({ enabled: false, increment: 1000, threshold: 0, excludedCategoryIds: [] });
   });
 
   it("upserts the singleton policy without changing other store settings", async () => {

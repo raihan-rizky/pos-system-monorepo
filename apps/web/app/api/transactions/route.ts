@@ -1,5 +1,6 @@
 import { roundSellingPriceLine } from "@/features/product-price-rounding/rounding";
 import { resolveTransactionCustomPrice } from "@/features/pos-checkout/helpers/transaction-custom-price";
+import { resolveCustomerManualPrice } from "@/features/pos-checkout/helpers/customer-manual-price";
 import { getPriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
 import { getSpecialPricingEnabled } from "@/features/customer-category-pricing/server/special-pricing-settings";
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
@@ -40,6 +41,7 @@ import { TRANSACTION_HISTORY_PAYMENT_METHODS } from "@/features/transaction-hist
 import {
   priceProductForCustomerType,
   resolveCustomPricedLine,
+  canEditCustomPriceForCustomer,
   type AppliedCategoryPricing,
   type CategoryPricingRule,
   CUSTOMER_TYPES,
@@ -75,7 +77,9 @@ const productTransactionItemSchema = z.object({
   size: z.string().optional().nullable(),
   material: z.string().optional().nullable(),
   price: z.number().min(0).optional(),
+  categoryId: z.string().optional(),
   transactionPrice: z.number().positive().max(9_999_999_999.99).optional().nullable(),
+  customerManualPrice: z.number().finite().min(0).max(9_999_999_999.99).optional().nullable(),
   quantity: z.number().int().min(1),
   discount: z.number().min(0).multipleOf(0.01).optional().default(0),
 });
@@ -136,6 +140,7 @@ const createTransactionSchema = z.object({
     enabled: z.boolean(),
     increment: z.number().int().min(1).max(1_000_000_000),
     threshold: z.number().int().min(0),
+    excludedCategoryIds: z.array(z.string().min(1)).optional(),
   }).refine(settings => settings.threshold <= settings.increment, { path: ["threshold"] }).optional(),
   salesName: z.string().optional().nullable(),
   salespersonId: z.string().optional().nullable(),
@@ -877,12 +882,27 @@ export async function POST(request: Request) {
       !canRolePerformAction(user.role as Role, "transaction.custom_price", "update", permissions)) {
       return NextResponse.json({ message: "Akun Anda belum memiliki izin mengubah harga nota." }, { status: 403 });
     }
-    if (priceRoundingSettings && (
+    if (items.some(item => item.lineType === "PRODUCT" && item.transactionPrice != null && item.customerManualPrice != null)) {
+      return NextResponse.json({ message: "Pilih satu sumber harga khusus untuk setiap produk." }, { status: 422 });
+    }
+    const unauthorizedCustomerManualPrice = items.some(item => item.lineType === "PRODUCT" && item.customerManualPrice != null) &&
+      (!specialPricingEnabled || !canEditCustomPriceForCustomer(user.role, checkoutCustomerType));
+    if (unauthorizedCustomerManualPrice && !parsed.data.offlineReplay) {
+      return NextResponse.json({ message: "Akun atau pelanggan belum dapat menggunakan harga khusus manual." }, { status: 403 });
+    }
+    const roundingPolicyChanged = Boolean(priceRoundingSettings && (
       priceRoundingSettings.enabled !== roundingSettings.enabled ||
       priceRoundingSettings.increment !== roundingSettings.increment ||
-      priceRoundingSettings.threshold !== roundingSettings.threshold
-    )) {
-      return NextResponse.json({ message: "Pengaturan pembulatan harga sudah berubah. Muat ulang harga sebelum melanjutkan transaksi." }, { status: 409 });
+      priceRoundingSettings.threshold !== roundingSettings.threshold ||
+      new Set(priceRoundingSettings.excludedCategoryIds ?? []).size !== new Set(roundingSettings.excludedCategoryIds ?? []).size ||
+      (priceRoundingSettings.excludedCategoryIds ?? []).some(id => !(roundingSettings.excludedCategoryIds ?? []).includes(id))
+    ));
+    const categoryChanged = items.some(item => item.lineType === "PRODUCT" && item.categoryId != null &&
+      item.categoryId !== productById.get(item.productId)?.categoryId);
+    if ((roundingPolicyChanged || categoryChanged) && !parsed.data.offlineReplay) {
+      return NextResponse.json({ message: categoryChanged
+        ? "Kategori produk sudah berubah. Muat ulang harga sebelum melanjutkan transaksi."
+        : "Pengaturan pembulatan harga sudah berubah. Muat ulang harga sebelum melanjutkan transaksi." }, { status: 409 });
     }
     const serverItems: ServerTransactionItem[] = items.map((item) => {
       if (item.lineType === "PRINTING_SERVICE") {
@@ -946,21 +966,27 @@ export async function POST(request: Request) {
             pricingPreference,
             specialPricingEnabled,
           );
-          const roundedAutomatic = roundSellingPriceLine(priced, roundingSettings);
+          const roundedAutomatic = roundSellingPriceLine(priced, roundingSettings, product.categoryId);
           const legacyResolved = resolveCustomPricedLine({
             pricedLine: priced,
-            submittedPrice: item.price === roundedAutomatic.unitPrice ? undefined : item.price,
+            submittedPrice: (parsed.data.offlineReplay && (roundingPolicyChanged ||
+              (item.categoryId != null && item.categoryId !== product.categoryId))) || item.price === roundedAutomatic.unitPrice
+              ? undefined : item.price,
             role: user.role,
             customerType: checkoutCustomerType,
             specialPricingEnabled,
           });
+          const customerPrice = item.customerManualPrice == null || unauthorizedCustomerManualPrice ? legacyResolved : resolveCustomerManualPrice({
+            pricedLine: priced, manualPrice: item.customerManualPrice, customerType: checkoutCustomerType,
+            categoryId: product.categoryId, categoryName: product.category.name,
+          });
           const resolved = roundSellingPriceLine(resolveTransactionCustomPrice({
-            pricedLine: item.transactionPrice == null ? legacyResolved : roundedAutomatic,
+            pricedLine: item.transactionPrice == null ? customerPrice : roundedAutomatic,
             transactionPrice: item.transactionPrice,
             customerType: checkoutCustomerType,
             categoryId: product.categoryId,
             categoryName: product.category.name,
-          }), roundingSettings);
+          }), roundingSettings, product.categoryId);
           return {
             price: resolved.unitPrice,
             originalPrice: Number(product.price),
@@ -997,7 +1023,9 @@ export async function POST(request: Request) {
     });
     const replayPaymentChanged = Boolean(parsed.data.offlineReplay) &&
       (isDP || isTempo ? amountPaidComputed >= total : amountPaidComputed < total);
-    const requiresApproval = !autoApproveTransaction || replayPriceChanged || replayPaymentChanged;
+    const requiresApproval = !autoApproveTransaction || replayPriceChanged || replayPaymentChanged ||
+      (Boolean(parsed.data.offlineReplay) && unauthorizedCustomerManualPrice) ||
+      (Boolean(parsed.data.offlineReplay) && (roundingPolicyChanged || categoryChanged));
     if (printingReceipt && (
       !Number.isFinite(discount) || discount > MAX_PRINTING_RECEIPT_AMOUNT ||
       !Number.isFinite(amountPaidComputed) || amountPaidComputed > MAX_PRINTING_RECEIPT_AMOUNT
@@ -1098,7 +1126,7 @@ export async function POST(request: Request) {
               ...(replayCapturedAt ? { createdAt: replayCapturedAt } : {}),
               ...(parsed.data.offlineReplay ? {
                 offlineOriginalPayload: JSON.parse(JSON.stringify({ items, amountPaid, discount, taxRate, paymentMethod, payments: rawPayments })) as Prisma.InputJsonValue,
-                offlineSyncMetadata: { reason: replayPriceChanged ? "ITEM_PRICE_CHANGED" : replayPaymentChanged ? "PAYMENT_CHANGED" : "REPLAYED" },
+                offlineSyncMetadata: { reason: replayPriceChanged ? "ITEM_PRICE_CHANGED" : replayPaymentChanged ? "PAYMENT_CHANGED" : (roundingPolicyChanged || categoryChanged) ? "PRICE_POLICY_CHANGED" : "REPLAYED" },
               } : {}),
               transactionCategory: printingReceipt || serviceLineItems.length > 0 ? "PERCETAKAN" : "ATK",
               printingSubcategory: printingReceipt?.subcategory ?? null,

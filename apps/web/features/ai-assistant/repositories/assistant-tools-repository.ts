@@ -311,6 +311,7 @@ const productSelect = {
   minStock: true,
   unit: true,
   price: true,
+  categoryId: true,
   category: { select: { name: true } },
 };
 
@@ -322,7 +323,7 @@ function mapProduct(product: any, roundingSettings: PriceRoundingSettings) {
     stock: product.stock,
     minStock: product.minStock,
     unit: product.unit,
-    price: roundSellingPrice(toNumber(product.price), roundingSettings).roundedPrice,
+    price: roundSellingPrice(toNumber(product.price), roundingSettings, product.categoryId).roundedPrice,
     category: product.category?.name ?? null,
   };
 }

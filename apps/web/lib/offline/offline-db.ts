@@ -8,6 +8,7 @@ import {
   buildClientMutationId,
 } from "./offline-core";
 import type { PricingPreference } from "@/features/customer-category-pricing/helpers/pricing-rules";
+import type { PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 
 export type OfflinePaymentMethod = "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER" | "TEMPO";
 
@@ -34,6 +35,7 @@ export type OfflineTransactionPayload = {
   invoiceTime?: string | null;
   invoiceDateReason?: string | null;
   pricingPreference?: PricingPreference;
+  priceRoundingSettings?: PriceRoundingSettings;
   originalSubtotal: number;
   originalTotal: number;
 };

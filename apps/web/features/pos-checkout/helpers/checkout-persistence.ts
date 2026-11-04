@@ -5,8 +5,9 @@ import { calculateTransactionTax } from "@/features/transaction-tax/helpers/tax-
 
 export function buildDraftCheckoutItems(items: CartItem[]): DraftItemInput[] {
   return items.filter((item): item is ProductCartItem => item.lineType === "PRODUCT").map(item => ({
-    productId: item.productId, name: item.name, size: item.size ?? null, material: item.material ?? null,
-    price: item.price, transactionPrice: item.transactionPrice, quantity: item.quantity, discount: item.discount ?? 0,
+    productId: item.productId, categoryId: item.categoryId, name: item.name, size: item.size ?? null, material: item.material ?? null,
+    price: item.price, transactionPrice: item.transactionPrice, customerManualPrice: item.customerManualPrice,
+    quantity: item.quantity, discount: item.discount ?? 0,
   }));
 }
 

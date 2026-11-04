@@ -597,7 +597,7 @@ export function PricingPanel(props: StockGroupWorkspaceContentProps) {
                 }
               />
               <div className="text-xs text-surface-500">Harga asal sebelum pembulatan.
-                <PriceRoundingPreview price={draft.price} settings={props.roundingSettings} />
+                <PriceRoundingPreview price={draft.price} settings={props.roundingSettings} categoryId={v.category?.id} />
               </div>
               <Field
                 label="HPP (opsional)"
@@ -690,7 +690,7 @@ export function AdditionPanel(props: StockGroupWorkspaceContentProps) {
           disabled={disabled}
         />
         <div className="text-xs text-surface-500">Harga asal sebelum pembulatan.
-          <PriceRoundingPreview price={automatic ? estimatedPrice : draft?.price} settings={props.roundingSettings} />
+          <PriceRoundingPreview price={automatic ? estimatedPrice : draft?.price} settings={props.roundingSettings} categoryId={props.detail.variants[0]?.category?.id} />
         </div>
         <Field
           label="Jumlah satuan baru"

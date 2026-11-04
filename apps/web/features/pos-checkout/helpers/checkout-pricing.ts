@@ -4,14 +4,15 @@ import { roundSellingPriceLine, type PriceRoundingSettings } from "@/features/pr
 import {
   priceProductForCustomerType,
   resolveCustomPricedLine,
+  canEditCustomPriceForCustomer,
   type CategoryPricingRule,
   type CustomerType,
   type PricingPreference,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
 
-function roundCartPrice<T extends { unitPrice: number; appliedPricing: { appliedUnitPrice: number } | null }>(line: T, settings?: PriceRoundingSettings) {
+function roundCartPrice<T extends { unitPrice: number; appliedPricing: { appliedUnitPrice: number } | null }>(line: T, settings?: PriceRoundingSettings, categoryId?: string) {
   try {
-    return { ...roundSellingPriceLine(line, settings), priceError: null };
+    return { ...roundSellingPriceLine(line, settings, categoryId), priceError: null };
   } catch (error) {
     return { ...line, unitPrice: 0, appliedPricing: null, priceRounding: null,
       priceError: error instanceof Error ? error.message : "Periksa kembali nilai harga jual." };
@@ -74,6 +75,8 @@ export function priceCartItemsForCheckout(input: {
       input.specialPricingEnabled,
     );
     const submittedManualPrice = input.manualPrices[item.cartLineId];
+    const hasManualPrice = submittedManualPrice != null && input.specialPricingEnabled !== false &&
+      canEditCustomPriceForCustomer(input.role, input.customerType);
     const resolved =
       submittedManualPrice == null && item.transactionPrice != null
         ? {
@@ -89,12 +92,13 @@ export function priceCartItemsForCheckout(input: {
             specialPricingEnabled: input.specialPricingEnabled,
           });
 
-    const rounded = roundCartPrice(resolved, input.roundingSettings);
+    const rounded = roundCartPrice(resolved, input.roundingSettings, item.categoryId);
     return {
       ...item,
       price: rounded.unitPrice,
-      automaticPrice: roundCartPrice(priced, input.roundingSettings).unitPrice,
-      transactionPrice: item.transactionPrice,
+      automaticPrice: roundCartPrice(priced, input.roundingSettings, item.categoryId).unitPrice,
+      transactionPrice: hasManualPrice ? null : item.transactionPrice,
+      customerManualPrice: hasManualPrice ? submittedManualPrice : null,
       priceRounding: rounded.priceRounding,
       priceError: rounded.priceError,
       appliedPricing: rounded.manualOverrideApplied ? null : rounded.appliedPricing,
@@ -107,7 +111,7 @@ export function priceCartItemsForCheckout(input: {
           hargaAgen: option.hargaAgen, hargaDinas: option.hargaDinas,
           baseCostPrice: option.baseCostPrice, baseCostUnit: option.baseCostUnit,
         }, input.customerType, activePricingRules, undefined, input.specialPricingEnabled);
-        const roundedOption = roundCartPrice(optionPrice, input.roundingSettings);
+        const roundedOption = roundCartPrice(optionPrice, input.roundingSettings, option.categoryId);
         return { ...option, price: roundedOption.unitPrice, appliedPricing: roundedOption.appliedPricing, priceRounding: roundedOption.priceRounding, priceError: roundedOption.priceError };
       }),
     };

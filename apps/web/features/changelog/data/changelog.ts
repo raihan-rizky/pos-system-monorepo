@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "price-rounding-category-exceptions", date: "2026-11-04", revision: 1,
+    highlight: { title: "Pengecualian pembulatan", summary: "Pilih kategori produk yang harganya tidak dibulatkan." },
+    title: "Kecualikan kategori dari pembulatan harga.",
+    summary: "Pilih satu atau beberapa kategori agar semua harga produknya tetap tanpa pembulatan. Kategori lain tetap mengikuti aturan toko.",
+    kind: "improvement", area: "Pengaturan", href: "/settings", visual: "categories",
+    screenshot: { src: "/images/changelog/pengecualian-kategori-pembulatan.png", alt: "Contoh pengaturan pembulatan dengan kategori Kertas dan Minuman dicentang sebagai pengecualian." },
+    steps: [
+      { title: "Buka pengaturan", detail: "Masuk ke Pengaturan > Pembulatan Harga dengan izin ubah pembulatan." },
+      { title: "Pilih kategori", detail: "Cari dan centang satu atau beberapa kategori yang tidak perlu dibulatkan." },
+      { title: "Simpan pilihan", detail: "Klik Simpan pengaturan. Kosongkan pilihan jika semua kategori perlu mengikuti aturan pembulatan." },
+    ],
+  },
+  {
     id: "pwa-status-dismiss", date: "2026-11-03", revision: 1,
     highlight: { title: "Pemberitahuan lebih ringkas", summary: "Tutup pemberitahuan status atau tunggu tiga detik." },
     title: "Pemberitahuan status lebih mudah ditutup.",

@@ -221,6 +221,7 @@ export function EditProductModal({ open, onClose, product, roundingSettings }: E
           <div className="space-y-1">
             <MemberPriceField
               roundingSettings={roundingSettings}
+              categoryId={categoryId}
               label="Harga Dinas"
               sellingPrice={Number(product?.price ?? price)}
               value={hargaDinas}
@@ -236,6 +237,7 @@ export function EditProductModal({ open, onClose, product, roundingSettings }: E
           <div className="space-y-1">
             <MemberPriceField
               roundingSettings={roundingSettings}
+              categoryId={categoryId}
               label="Harga Agen"
               sellingPrice={Number(product?.price ?? price)}
               value={hargaAgen}
@@ -251,7 +253,7 @@ export function EditProductModal({ open, onClose, product, roundingSettings }: E
         </div>
 
         <p className="text-xs text-surface-500">Harga master asal sebelum pembulatan.</p>
-          <PriceRoundingPreview price={price} settings={roundingSettings} />
+          <PriceRoundingPreview price={price} settings={roundingSettings} categoryId={categoryId} />
           <MemberPricingGuidance />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

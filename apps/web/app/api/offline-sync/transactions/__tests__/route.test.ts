@@ -87,6 +87,64 @@ function request(transactions: unknown[]) {
 }
 
 describe("POST /api/offline-sync/transactions", () => {
+  it("holds an invoice price for approval when its grant was revoked", async () => {
+    canRolePerformActionMock.mockImplementation((_role, resource) => resource !== "transaction.custom_price");
+    customerFindFirstMock.mockResolvedValue({ id: "customer-1", type: "INDUSTRI" });
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(), customerId: "customer-1",
+      items: [{ productId: "product-1", name: "Kertas", price: 500, transactionPrice: 500, quantity: 1 }],
+      amountPaid: 500, originalSubtotal: 500, originalTotal: 500,
+    })]));
+    expect((await response.json()).results[0].status).toBe("PENDING_APPROVAL");
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 1000, pricingRuleId: null });
+  });
+  it("holds a customer manual price for approval when Harga Khusus is disabled", async () => {
+    specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: false });
+    customerFindFirstMock.mockResolvedValue({ id: "customer-1", type: "INDUSTRI" });
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(), customerId: "customer-1",
+      items: [{ productId: "product-1", name: "Kertas", price: 500, customerManualPrice: 500, quantity: 1 }],
+      amountPaid: 500, originalSubtotal: 500, originalTotal: 500,
+    })]));
+    expect((await response.json()).results[0].status).toBe("PENDING_APPROVAL");
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 1000, pricingRuleId: null });
+  });
+  it("holds a product-only replay when its category changed even if the amount did not", async () => {
+    const original = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...original, categoryId: "new", category: { name: "Baru" } }]);
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(),
+      items: [{ productId: "product-1", name: "Kertas", categoryId: "old", price: 1000, quantity: 1 }],
+      amountPaid: 1000, originalSubtotal: 1000, originalTotal: 1000,
+    })]));
+    expect((await response.json()).results[0].status).toBe("PENDING_APPROVAL");
+    expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
+  });
+  it("holds a product-only replay when rounding exceptions changed even if the amount did not", async () => {
+    roundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50, excludedCategoryIds: ["cat1"] });
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(),
+      priceRoundingSettings: { enabled: true, increment: 500, threshold: 50, excludedCategoryIds: [] },
+      items: [{ productId: "product-1", name: "Kertas", price: 1000, quantity: 1 }],
+      amountPaid: 1000, originalSubtotal: 1000, originalTotal: 1000,
+    })]));
+    expect((await response.json()).results[0].status).toBe("PENDING_APPROVAL");
+    expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
+  });
+  it("replays distinct customer manual prices for the same excluded product", async () => {
+    applyProductStockDeltasMock.mockResolvedValue([{ productId: "product-1", stockGroupId: null, baseDelta: -2 }]);
+    roundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50, excludedCategoryIds: ["cat1"] });
+    customerFindFirstMock.mockResolvedValue({ id: "customer-1", type: "INDUSTRI" });
+    const original = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...original, categoryId: "cat1", category: { name: "Kertas" }, price: 5000 }]);
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(), customerId: "customer-1",
+      items: [
+        { productId: "product-1", name: "Kertas", price: 4050, customerManualPrice: 4050, quantity: 1 },
+        { productId: "product-1", name: "Kertas", price: 0, customerManualPrice: 0, quantity: 1 },
+      ], amountPaid: 4050, originalSubtotal: 4050, originalTotal: 4050,
+    })]));
+    expect((await response.json()).results[0].status).toBe("SYNCED");
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create).toEqual([
+      expect.objectContaining({ unitPrice: 4050, pricingRuleId: "customer-manual-price", pricingValue: 950 }),
+      expect.objectContaining({ unitPrice: 0, pricingRuleId: "customer-manual-price", pricingValue: 5000 }),
+    ]);
+  });
   it("locks the originating shift before saving a replayed sale", async () => {
     const response = await POST(request([offlineTx({ shiftId: "shift-1", createdAt: new Date().toISOString() })]));
     expect((await response.json()).results[0].status).toBe("SYNCED");
@@ -345,7 +403,7 @@ describe("POST /api/offline-sync/transactions", () => {
   });
 
   it("honors online pricing authorization when a salesperson submits a transaction price", async () => {
-    canRolePerformActionMock.mockImplementation((_role, resource) => resource !== "product");
+    canRolePerformActionMock.mockImplementation((_role, resource) => resource !== "transaction.custom_price");
     requirePermissionMock.mockResolvedValue({ id: "cashier-1", role: "SALES", storeId: "store-main" });
     customerFindFirstMock.mockResolvedValue({ id: "customer-1", type: "INDUSTRI" });
     const response = await POST(request([offlineTx({
@@ -374,6 +432,21 @@ describe("POST /api/offline-sync/transactions", () => {
       expect.objectContaining({ unitPrice: 4000, appliedUnitPrice: 4000, subtotal: 4000 }),
       expect.objectContaining({ unitPrice: 4500, appliedUnitPrice: 4500, subtotal: 4500 }),
     ]);
+  });
+  it.each([undefined, 4050])("preserves excluded category price %s during offline synchronization", async custom => {
+    roundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50, excludedCategoryIds: ["cat1"] });
+    customerFindFirstMock.mockResolvedValue({ id: "customer-1", type: "INDUSTRI" });
+    const original = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...original, categoryId: "cat1", price: 4049 }]);
+    const expected = custom ?? 4049;
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(), customerId: "customer-1",
+      items: [{ productId: "product-1", name: "Kertas", price: expected, transactionPrice: custom, quantity: 1 }],
+      amountPaid: expected, originalSubtotal: expected, originalTotal: expected,
+    })]));
+    expect(response.status).toBe(200);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({ subtotal: expected, total: expected,
+      items: { create: [expect.objectContaining({ unitPrice: expected, appliedUnitPrice: expected })] },
+    });
   });
   it("keeps a custom marker off the other line of the same product", async () => {
     specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: false });

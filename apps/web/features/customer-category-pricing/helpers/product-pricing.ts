@@ -32,7 +32,7 @@ export function priceCatalogVariantForCustomer(
     hargaDinas: selected.hargaDinas == null ? null : Number(selected.hargaDinas),
     baseCostPrice: selected.baseCostPrice,
     baseCostUnit: selected.baseCostUnit,
-  }, customerType, rules, undefined, specialPricingEnabled), roundingSettings);
+  }, customerType, rules, undefined, specialPricingEnabled), roundingSettings, product.category.id);
 }
 
 export function priceCatalogProductForCustomer(product: Product, customerType: CustomerType, rules: CategoryPricingRule[], roundingSettings?: PriceRoundingSettings, specialPricingEnabled = true): PricedCatalogProduct {

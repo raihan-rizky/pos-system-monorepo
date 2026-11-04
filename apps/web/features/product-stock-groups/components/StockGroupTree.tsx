@@ -102,8 +102,8 @@ export function StockGroupTree({
                         </div>
                         <div className={styles.price}>
                           <span>Harga jual</span>
-                          <strong>{currency.format(roundSellingPrice(variant.price, roundingSettings).roundedPrice)}</strong>
-                          <PriceRoundingBadge rounding={roundSellingPrice(variant.price, roundingSettings)} />
+                          <strong>{currency.format(roundSellingPrice(variant.price, roundingSettings, variant.category?.id).roundedPrice)}</strong>
+                          <PriceRoundingBadge rounding={roundSellingPrice(variant.price, roundingSettings, variant.category?.id)} />
                         </div>
                       </div>
                       {(variant.conversionNeedsReview || !valid) && (

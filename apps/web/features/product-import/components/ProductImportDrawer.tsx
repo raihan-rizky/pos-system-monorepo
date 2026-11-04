@@ -2,6 +2,7 @@
 
 import { PriceRoundingPreview } from "@/features/product-price-rounding/components/PriceRoundingPreview";
 import { usePriceRoundingSettings } from "@/features/product-price-rounding/hooks/usePriceRoundingSettings";
+import { useCategories } from "@/hooks/useProducts";
 import { DEFAULT_PRICE_ROUNDING_SETTINGS, type PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 import React, { useEffect, useMemo, useState } from "react";
 import { Modal, Button } from "@pos/ui";
@@ -59,6 +60,7 @@ export function ProductImportDrawer({
   onClose: () => void;
 }) {
   const { data: roundingSettings = DEFAULT_PRICE_ROUNDING_SETTINGS } = usePriceRoundingSettings();
+  const categories = useCategories();
   const preview = useProductImportPreview();
   const imageExtract = useProductImageExtract();
   const commit = useProductImportCommit();
@@ -713,6 +715,7 @@ export function ProductImportDrawer({
 
               <ImportPreviewTable
                 roundingSettings={roundingSettings}
+                categories={categories.isError ? undefined : categories.data}
                 filteredRows={filteredRows}
                 allRows={rows}
                 decisions={decisions}
@@ -1100,8 +1103,9 @@ function CommitProgressPanel({
   );
 }
 
-function ImportPreviewTable({
+export function ImportPreviewTable({
   roundingSettings,
+  categories,
   filteredRows,
   allRows,
   decisions,
@@ -1109,6 +1113,7 @@ function ImportPreviewTable({
   setDecisions,
 }: {
   roundingSettings?: PriceRoundingSettings;
+  categories?: Array<{ id: string; name: string }>;
   filteredRows: NormalizedImportRow[];
   allRows: NormalizedImportRow[];
   decisions: Record<string, ImportRowDecision>;
@@ -1140,6 +1145,9 @@ function ImportPreviewTable({
         </thead>
         <tbody>
           {filteredRows.map((row) => {
+            const categoryId = categories?.find(category => category.name.toLowerCase() === row.category.trim().toLowerCase())?.id;
+            const canPreview = !roundingSettings?.enabled || !roundingSettings.excludedCategoryIds?.length ||
+              (categories !== undefined && (Boolean(categoryId) || row.missingCategory));
             return (
               <tr key={row.rowNumber} className="border-b border-slate-100 hover:bg-slate-50 transition-colors group">
                 <td className="px-3 py-3 font-semibold text-slate-900 sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-r border-slate-100 transition-colors">
@@ -1166,14 +1174,14 @@ function ImportPreviewTable({
                   {(row.pricingPreview ? row.pricingPreview.costPrice : row.costPrice) ?? "-"}
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums">
-                  <PriceRoundingPreview price={row.pricingPreview?.price ?? row.price} settings={roundingSettings} />
+                  {canPreview ? <PriceRoundingPreview price={row.pricingPreview?.price ?? row.price} settings={roundingSettings} categoryId={categoryId} /> : <span>Kategori belum dapat dimuat.</span>}
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums text-slate-500">
-                  <PriceRoundingPreview price={(row.hargaDinas ?? 0) > 0 ? row.hargaDinas : row.pricingPreview?.price ?? row.price} settings={roundingSettings} label={(row.hargaDinas ?? 0) > 0 ? "Harga Dinas dari file" : "Mengikuti harga jual"} />
+                  {canPreview ? <PriceRoundingPreview price={(row.hargaDinas ?? 0) > 0 ? row.hargaDinas : row.pricingPreview?.price ?? row.price} settings={roundingSettings} categoryId={categoryId} label={(row.hargaDinas ?? 0) > 0 ? "Harga Dinas dari file" : "Mengikuti harga jual"} /> : <span>Kategori belum dapat dimuat.</span>}
                   {!((row.hargaDinas ?? 0) > 0) && <p className="ml-auto mt-1 max-w-[180px] text-[11px] text-slate-500">Harga Dinas di file tidak tersedia atau bernilai 0.</p>}
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums text-slate-500">
-                  <PriceRoundingPreview price={(row.hargaAgen ?? 0) > 0 ? row.hargaAgen : row.pricingPreview?.price ?? row.price} settings={roundingSettings} label={(row.hargaAgen ?? 0) > 0 ? "Harga Agen dari file" : "Mengikuti harga jual"} />
+                  {canPreview ? <PriceRoundingPreview price={(row.hargaAgen ?? 0) > 0 ? row.hargaAgen : row.pricingPreview?.price ?? row.price} settings={roundingSettings} categoryId={categoryId} label={(row.hargaAgen ?? 0) > 0 ? "Harga Agen dari file" : "Mengikuti harga jual"} /> : <span>Kategori belum dapat dimuat.</span>}
                   {!((row.hargaAgen ?? 0) > 0) && <p className="ml-auto mt-1 max-w-[180px] text-[11px] text-slate-500">Harga Agen di file tidak tersedia atau bernilai 0.</p>}
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums">

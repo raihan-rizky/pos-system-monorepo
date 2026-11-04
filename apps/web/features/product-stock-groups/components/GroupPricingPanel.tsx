@@ -44,7 +44,7 @@ export function GroupPricingPanel({ detail: incoming, canUpdate, onApplied, onDi
     requestId.current++; setPreview(null); setMessage("");
     setDraft(current => ({ ...current, members: { ...current.members, [id]: { ...current.members[id], ...next } } }));
   };
-  const metadata = detail.pricingMembers ?? detail.variants.map(v => ({ ...v, isActive: true }));
+  const metadata = detail.pricingMembers ?? detail.variants.map(v => ({ ...v, categoryId: v.category?.id, isActive: true }));
   const label = (id: string) => { const member = metadata.find(v => v.id === id); return member ? `${member.name} · ${member.unit}` : "Satuan tidak tersedia"; };
   const sourceValid = metadata.some(v => v.id === draft.sourceProductId && v.isActive && !v.conversionNeedsReview && v.unitMultiplierToBase > 0);
   async function refresh() {
@@ -106,7 +106,7 @@ export function GroupPricingPanel({ detail: incoming, canUpdate, onApplied, onDi
           {!sourceValid && <p className={styles.review}>Pilih sumber aktif dengan konversi yang valid untuk memperbaiki harga otomatis.</p>}
           {sourceDraft && <fieldset className={styles.sourceMoney} disabled={!sourceValid}>
             <legend className={styles.srOnly}>{label(draft.sourceProductId)} · Sumber</legend>
-            <PricingMoneyFields roundingSettings={roundingSettings} unit={sourceMeta?.unit ?? "sumber"} value={sourceDraft} onChange={next => update(draft.sourceProductId, next)} />
+            <PricingMoneyFields roundingSettings={roundingSettings} categoryId={sourceMeta?.categoryId} unit={sourceMeta?.unit ?? "sumber"} value={sourceDraft} onChange={next => update(draft.sourceProductId, next)} />
           </fieldset>}
           <p className={styles.sourceHint}>HPP boleh dikosongkan jika belum diketahui.</p>
           {sourceMember && <PricingReviewNotes review={sourceMember.review} />}

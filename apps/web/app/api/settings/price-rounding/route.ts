@@ -3,6 +3,7 @@ import { z } from "zod";
 import { handleAuthError, requirePermission, requireRole } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
 import { getPriceRoundingSettings, updatePriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
+import { InvalidPriceRoundingCategoriesError } from "@/features/product-price-rounding/server/errors";
 
 const log = getLogger("api:settings:price-rounding");
 export const dynamic = "force-dynamic";
@@ -10,6 +11,7 @@ const settingsSchema = z.object({
   enabled: z.boolean(),
   increment: z.number().int().min(1).max(1_000_000_000),
   threshold: z.number().int().min(0),
+  excludedCategoryIds: z.array(z.string().trim().min(1)).optional(),
 }).refine((settings) => settings.threshold <= settings.increment, { path: ["threshold"] });
 
 export async function GET() {
@@ -33,7 +35,10 @@ export async function PATCH(request: Request) {
     const authError = handleAuthError(error);
     if (authError) return authError;
     if (error instanceof z.ZodError || error instanceof SyntaxError) {
-      return NextResponse.json({ message: "Pengaturan tidak valid. Isi kelipatan bulat 1–1.000.000.000 dan ambang bulat dari nol sampai kelipatan." }, { status: 422 });
+      return NextResponse.json({ message: "Pengaturan tidak valid. Periksa kategori, kelipatan, dan ambang pembulatan." }, { status: 422 });
+    }
+    if (error instanceof InvalidPriceRoundingCategoriesError) {
+      return NextResponse.json({ message: error.message }, { status: 422 });
     }
     log.error("Failed to update price rounding settings:", error);
     return NextResponse.json({ message: "Gagal menyimpan pengaturan pembulatan harga." }, { status: 500 });

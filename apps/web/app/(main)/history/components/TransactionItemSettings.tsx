@@ -32,6 +32,7 @@ type UnitOption = {
   size: string | null;
   material: string | null;
   unitMultiplierToBase: number;
+  category?: { id: string } | null;
 };
 
 async function loadUnitOptions(productId: string, signal: AbortSignal): Promise<{ baseUnit: string; variants: UnitOption[] } | null> {
@@ -110,7 +111,7 @@ export function TransactionItemSettings({ item, onChange, roundingSettings }: {
                   onChange={(event) => {
                     const selected = options.find((option) => option.id === event.target.value);
                     if (!selected) return;
-                    const rounding = roundSellingPrice(Number(selected.price), roundingSettings);
+                    const rounding = roundSellingPrice(Number(selected.price), roundingSettings, selected.category?.id);
                     onChange(updateEditableLine(item, {
                       productId: selected.id, productName: selected.name, unit: selected.unit,
                       imageUrl: selected.imageUrl, size: selected.size, material: selected.material,
@@ -121,7 +122,7 @@ export function TransactionItemSettings({ item, onChange, roundingSettings }: {
                   className="w-full rounded-lg border border-surface-200 bg-white px-2.5 py-2 text-sm font-normal text-surface-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
                 >
                   {!options.some((option) => option.id === item.productId) && <option value={item.productId}>{item.unit ?? "Satuan saat ini"}</option>}
-                  {options.map((option) => <option key={option.id} value={option.id}>{option.unit} • {formatRupiah(roundSellingPrice(Number(option.price), roundingSettings).roundedPrice)}</option>)}
+                  {options.map((option) => <option key={option.id} value={option.id}>{option.unit} • {formatRupiah(roundSellingPrice(Number(option.price), roundingSettings, option.category?.id).roundedPrice)}</option>)}
                 </select>
               </label>
             ) : <p className="text-xs text-surface-500">Satuan: {item.unit ?? "pcs"}</p>}

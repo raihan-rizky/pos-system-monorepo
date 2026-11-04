@@ -531,7 +531,7 @@ export function PricingRuleForm({
               const invalid = Object.keys(validatePricingForm(form)).length > 0;
               let priceRounding: PriceRoundingResult | null = null;
               if (!preview.missingBaseCost && !invalid) {
-                try { priceRounding = roundSellingPrice(preview.price, roundingSettings); } catch { /* Hide incomplete or out-of-range previews. */ }
+                try { priceRounding = roundSellingPrice(preview.price, roundingSettings, form.categoryId); } catch { /* Hide incomplete or out-of-range previews. */ }
               }
               const showResult = priceRounding !== null;
               const effectivePrice = priceRounding?.roundedPrice ?? preview.price;

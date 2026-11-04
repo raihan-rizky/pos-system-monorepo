@@ -63,7 +63,7 @@ export async function fetchStockGroups(
 
 export interface StockGroupDetail {
   pricing?: GroupPricingProjection;
-  pricingMembers?: Array<{ id: string; name: string; unit: string; isActive: boolean; unitMultiplierToBase: number; conversionNeedsReview: boolean }>;
+  pricingMembers?: Array<{ id: string; name: string; unit: string; categoryId?: string; isActive: boolean; unitMultiplierToBase: number; conversionNeedsReview: boolean }>;
   id: string;
   displayName: string;
   baseUnit: string;
@@ -87,7 +87,7 @@ export interface StockGroupDetail {
     unitMultiplierToBase: number;
     conversionNeedsReview: boolean;
     imageUrl?: string | null;
-    category?: { name: string; icon?: string | null } | null;
+    category?: { id?: string; name: string; icon?: string | null } | null;
     stock: number;
     price: number;
     costPrice?: number | null;

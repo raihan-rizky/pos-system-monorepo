@@ -119,13 +119,14 @@ export default function PriceUpdateModal({
         <ProductPricingAction groupId={product.stockGroupId ?? product.stockGroup?.id} identityChanged={false} disabled={updateProduct.isPending} />
         <p className="text-xs text-slate-600">Simpan Harga hanya menyimpan Harga Agen dan Harga Dinas pada produk ini.</p>
         <p className="text-xs text-surface-500">Harga master asal sebelum pembulatan.</p>
-          <PriceRoundingPreview price={price} settings={roundingSettings} />
+          <PriceRoundingPreview price={price} settings={roundingSettings} categoryId={product.category?.id} />
           <MemberPricingGuidance />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1">
             <MemberPriceField
               roundingSettings={roundingSettings}
+              categoryId={product.category?.id}
               label="Harga Dinas"
               sellingPrice={product.price}
               value={hargaDinas}
@@ -141,6 +142,7 @@ export default function PriceUpdateModal({
           <div className="space-y-1">
             <MemberPriceField
               roundingSettings={roundingSettings}
+              categoryId={product.category?.id}
               label="Harga Agen"
               sellingPrice={product.price}
               value={hargaAgen}
@@ -217,7 +219,7 @@ export function PosPriceQuickEditModal({
   let previewPrice: number | null = null;
   try {
     if (transactionPrice.trim() && numericPrice > 0) {
-      previewPrice = roundSellingPrice(numericPrice, roundingSettings).roundedPrice;
+      previewPrice = roundSellingPrice(numericPrice, roundingSettings, item?.categoryId).roundedPrice;
     }
   } catch {
     // Submission reports invalid or oversized amounts without breaking the preview.
@@ -291,7 +293,7 @@ export function PosPriceQuickEditModal({
             Harga otomatis <span className="font-semibold text-surface-700">{formatRupiah(automaticPrice)}</span> / {item.unit}
           </p>
           {error && <p id={`${inputId}-error`} role="alert" className="mt-2 text-xs font-medium text-danger-600">{error}</p>}
-          <PriceRoundingPreview price={transactionPrice.replace(",", ".")} settings={roundingSettings} label="Harga berlaku" />
+          <PriceRoundingPreview price={transactionPrice.replace(",", ".")} settings={roundingSettings} categoryId={item.categoryId} label="Harga berlaku" />
         </div>
 
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-amber-900">

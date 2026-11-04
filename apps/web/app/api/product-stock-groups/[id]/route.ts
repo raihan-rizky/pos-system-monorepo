@@ -70,7 +70,7 @@ export async function GET(
 
     return NextResponse.json({
       pricing,
-      pricingMembers: group.products.filter(product => product.storeId === storeId).map(product => ({ id: product.id, name: product.name, unit: product.unit, isActive: product.isActive, unitMultiplierToBase: product.unitMultiplierToBase, conversionNeedsReview: product.conversionNeedsReview })),
+      pricingMembers: group.products.filter(product => product.storeId === storeId).map(product => ({ id: product.id, name: product.name, unit: product.unit, categoryId: product.category.id, isActive: product.isActive, unitMultiplierToBase: product.unitMultiplierToBase, conversionNeedsReview: product.conversionNeedsReview })),
       id: group.id,
       storeId: group.storeId,
       groupKey: group.groupKey,

@@ -3,6 +3,17 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { GroupPricingPanel } from "../GroupPricingPanel";
 import { snowman } from "../../__tests__/pricing-ui-fixture";
 describe("group pricing panel", () => {
+  it("shows excluded category prices unchanged for source, follower and ledger", () => {
+    const detail = structuredClone(snowman);
+    detail.pricingMembers = detail.variants.map(member => ({ ...member, categoryId: "paper", isActive: true }));
+    detail.pricing!.members[0].price = "4050";
+    detail.pricing!.members[1].price = "4549";
+    const html = renderToStaticMarkup(<GroupPricingPanel detail={detail} canUpdate onApplied={() => {}}
+      roundingSettings={{ enabled: true, increment: 500, threshold: 50, excludedCategoryIds: ["paper"] }} />);
+    expect(html).toContain("4.050");
+    expect(html).toContain("4.549");
+    expect(html).not.toContain("Dibulatkan");
+  });
   it("labels the source, exact legacy factor, computed HPP, and preview action", () => {
     const html = renderToStaticMarkup(<GroupPricingPanel detail={snowman} canUpdate onApplied={() => {}} />);
     expect(html).toContain("Sumber harga");

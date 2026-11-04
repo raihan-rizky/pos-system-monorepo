@@ -25,9 +25,10 @@ interface Props {
   errors: Record<string, string>;
   disabled?: boolean;
   roundingSettings?: PriceRoundingSettings;
+  categoryId?: string | null;
 }
 
-export function ProductUnitFields({ primary, rows, onChange, errors, disabled, roundingSettings }: Props) {
+export function ProductUnitFields({ primary, rows, onChange, errors, disabled, roundingSettings, categoryId }: Props) {
   const badges = getProductUnitBadges(rows);
   let stockSummary: { unit: string; quantity: number }[] = [];
   if (rows.length) {
@@ -86,7 +87,7 @@ export function ProductUnitFields({ primary, rows, onChange, errors, disabled, r
               <Input id={`${row.id}-price`} label="Harga jual" type="number" min="0" step="any" inputMode="decimal" value={values.price} readOnly={automatic} {...accessibility} onChange={(event) => update({ price: event.target.value, priceEdited: true, ...(isSource ? { pricingMode: "MANUAL" as const } : {}) })} />
               <p className="mt-1 text-xs text-surface-600">{automatic ? "Harga otomatis = sumber × konversi × faktor penyesuaian." : "Isi harga jual satuan ini."}</p>
               <p className="text-xs text-surface-500">Harga asal sebelum pembulatan.</p>
-              <PriceRoundingPreview price={values.price} settings={roundingSettings} />
+              <PriceRoundingPreview price={values.price} settings={roundingSettings} categoryId={categoryId} />
             </div>
           </div>
         </details>

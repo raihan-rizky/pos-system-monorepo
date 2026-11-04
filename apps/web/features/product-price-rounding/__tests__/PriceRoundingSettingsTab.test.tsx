@@ -9,6 +9,23 @@ const props: PriceRoundingSettingsViewProps = {
 };
 
 describe("price rounding settings form", () => {
+  it("shows searchable categories and preserves selected exceptions", () => {
+    const html = renderToStaticMarkup(<PriceRoundingSettingsView {...props}
+      settings={{ ...props.settings, excludedCategoryIds: ["cat-a"] }}
+      categories={[{ id: "cat-a", name: "Alat Tulis" }, { id: "cat-b", name: "Kertas" }]} />);
+    expect(html).toContain("Kategori yang dikecualikan");
+    expect(html).toContain("Cari kategori");
+    expect(html).toContain("1 kategori dipilih");
+    expect(html).toContain("Alat Tulis");
+    expect(html).toContain("Kertas");
+    expect(html).toMatch(/type="checkbox"[^>]*checked=""/);
+  });
+
+  it("reports category loading failure and blocks saving", () => {
+    const html = renderToStaticMarkup(<PriceRoundingSettingsView {...props} categoriesError />);
+    expect(html).toContain("Kategori belum dapat dimuat");
+    expect(html).toMatch(/<button type="submit" disabled=""/);
+  });
   it("labels its controls and explains the 49/50 threshold preview", () => {
     const html = renderToStaticMarkup(<PriceRoundingSettingsView {...props} />);
     expect(html).toContain('for="rounding-increment"');
@@ -18,13 +35,16 @@ describe("price rounding settings form", () => {
     expect(html).toContain("4.049");
     expect(html).toContain("4.050");
     expect(html).toContain("4.500");
+    expect(html).toContain("Contoh untuk kategori yang tidak dikecualikan");
     expect(html).toContain("Simpan pengaturan");
   });
 
   it("prevents edits for a role with read access only", () => {
-    const html = renderToStaticMarkup(<PriceRoundingSettingsView {...props} canUpdate={false} />);
+    const html = renderToStaticMarkup(<PriceRoundingSettingsView {...props} canUpdate={false} categories={[{ id: "cat-a", name: "Kertas" }]} />);
     expect(html).toContain('<fieldset disabled=""');
     expect(html).toContain("izin Ubah");
+    expect(html).toMatch(/<fieldset class="[^"]+"><legend[^>]*>Kategori yang dikecualikan/);
+    expect(html).toMatch(/type="checkbox" disabled=""/);
   });
 
   it("blocks saving when the active policy could not be loaded", () => {

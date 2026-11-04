@@ -86,6 +86,135 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/transactions negative stock", () => {
+  it("holds mixed offline replay for approval if its customer manual price is no longer allowed", async () => {
+    specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: false });
+    customerFindFirstMock.mockResolvedValue({ id: "c1", type: "INDUSTRI" });
+    const product = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...product, price: 5000, categoryId: "cat1" }]);
+    printingServiceFindManyMock.mockResolvedValue([{ id: "service-1", name: "Cetak", basePrice: 1000, unit: "lembar" }]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      clientMutationId: "mixed-disabled-manual", originCashierId: "u1", originStoreId: "store-1",
+      offlineReplay: { capturedAt: "2026-01-01T00:30:00.000Z" }, customerId: "c1", paymentMethod: "CASH", amountPaid: 5050,
+      items: [
+        { lineType: "PRODUCT", productId: "p1", quantity: 1, price: 4050, customerManualPrice: 4050 },
+        { lineType: "PRINTING_SERVICE", printingServiceId: "service-1", name: "Cetak", quantity: 1, price: 1000 },
+      ],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({
+      status: "PENDING_APPROVAL", items: { create: [expect.objectContaining({ unitPrice: 5000, pricingRuleId: null }), expect.anything()] },
+      offlineOriginalPayload: { items: expect.arrayContaining([expect.objectContaining({ customerManualPrice: 4050 })]) },
+    });
+  });
+  it("preserves a raw customer manual price in mixed offline replay after the exception changes", async () => {
+    roundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50, excludedCategoryIds: ["cat1"] });
+    customerFindFirstMock.mockResolvedValue({ id: "c1", type: "INDUSTRI" });
+    const product = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...product, price: 5000, categoryId: "cat1" }]);
+    printingServiceFindManyMock.mockResolvedValue([{ id: "service-1", name: "Cetak", basePrice: 1000, unit: "lembar" }]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      clientMutationId: "mixed-manual-replay", originCashierId: "u1", originStoreId: "store-1",
+      offlineReplay: { capturedAt: "2026-01-01T00:30:00.000Z" }, customerId: "c1", paymentMethod: "CASH", amountPaid: 5500,
+      priceRoundingSettings: { enabled: true, increment: 500, threshold: 50, excludedCategoryIds: [] },
+      items: [
+        { lineType: "PRODUCT", productId: "p1", quantity: 1, price: 4500, customerManualPrice: 4050, categoryId: "cat1" },
+        { lineType: "PRINTING_SERVICE", printingServiceId: "service-1", name: "Cetak", quantity: 1, price: 1000 },
+      ],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({
+      status: "PENDING_APPROVAL", items: { create: [expect.objectContaining({ unitPrice: 4050, pricingRuleId: "customer-manual-price" }), expect.anything()] },
+    });
+  });
+  it.each(["UMUM", "INDUSTRI", "PEMERINTAH"])("rejects a stale product category at checkout for %s", async customerType => {
+    const settings = { enabled: true, increment: 500, threshold: 50, excludedCategoryIds: ["cat1"] };
+    roundingSettingsMock.mockResolvedValue(settings);
+    customerFindFirstMock.mockResolvedValue({ id: "c1", type: customerType });
+    const product = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...product, price: 4050, categoryId: "cat1" }]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      customerId: "c1", paymentMethod: "CASH", amountPaid: 10000, priceRoundingSettings: settings,
+      items: [{ productId: "p1", quantity: 1, price: 4500, categoryId: "cat2" }],
+    }) }));
+    expect(response.status).toBe(409);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("holds a mixed offline replay for approval when its rounding exceptions change", async () => {
+    roundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50, excludedCategoryIds: ["cat1"] });
+    customerFindFirstMock.mockResolvedValue({ id: "c1", type: "INDUSTRI" });
+    const product = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...product, price: 4050, categoryId: "cat1" }]);
+    printingServiceFindManyMock.mockResolvedValue([{ id: "service-1", name: "Cetak", basePrice: 1000, unit: "lembar" }]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      clientMutationId: "mixed-exception-replay", originCashierId: "u1", originStoreId: "store-1",
+      offlineReplay: { capturedAt: "2026-01-01T00:30:00.000Z" }, customerId: "c1",
+      paymentMethod: "CASH", amountPaid: 5500,
+      priceRoundingSettings: { enabled: true, increment: 500, threshold: 50, excludedCategoryIds: [] },
+      items: [
+        { lineType: "PRODUCT", productId: "p1", quantity: 1, price: 4500, categoryId: "cat1" },
+        { lineType: "PRINTING_SERVICE", printingServiceId: "service-1", name: "Cetak", quantity: 1, price: 1000 },
+      ],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({
+      status: "PENDING_APPROVAL", items: { create: [expect.objectContaining({ unitPrice: 4050 }), expect.anything()] },
+      offlineOriginalPayload: { items: expect.arrayContaining([expect.objectContaining({ productId: "p1", price: 4500 })]) },
+    });
+    expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
+  });
+
+  it("holds a mixed offline replay for approval when the product category changed", async () => {
+    const settings = { enabled: true, increment: 500, threshold: 50, excludedCategoryIds: ["cat1"] };
+    roundingSettingsMock.mockResolvedValue(settings);
+    customerFindFirstMock.mockResolvedValue({ id: "c1", type: "INDUSTRI" });
+    const product = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...product, price: 4050, categoryId: "cat1" }]);
+    printingServiceFindManyMock.mockResolvedValue([{ id: "service-1", name: "Cetak", basePrice: 1000, unit: "lembar" }]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      clientMutationId: "mixed-category-replay", originCashierId: "u1", originStoreId: "store-1",
+      offlineReplay: { capturedAt: "2026-01-01T00:30:00.000Z" }, customerId: "c1",
+      paymentMethod: "CASH", amountPaid: 5500, priceRoundingSettings: settings,
+      items: [
+        { lineType: "PRODUCT", productId: "p1", quantity: 1, price: 4500, categoryId: "cat2" },
+        { lineType: "PRINTING_SERVICE", printingServiceId: "service-1", name: "Cetak", quantity: 1, price: 1000 },
+      ],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data).toMatchObject({
+      status: "PENDING_APPROVAL", items: { create: [expect.objectContaining({ unitPrice: 4050 }), expect.anything()] },
+    });
+    expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
+  });
+  it.each([undefined, 4050])("does not round excluded category transaction price %s", async custom => {
+    const settings = { enabled: true, increment: 500, threshold: 50, excludedCategoryIds: ["cat1"] };
+    roundingSettingsMock.mockResolvedValue(settings);
+    const product = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...product, categoryId: "cat1", price: 4049 }]);
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      paymentMethod: "CASH", amountPaid: 10000, priceRoundingSettings: settings,
+      items: [{ productId: "p1", quantity: 1, transactionPrice: custom }],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0].unitPrice).toBe(custom ?? 4049);
+  });
+
+  it.each([
+    { client: ["cat1"], server: ["cat1", "cat2"], status: 409 },
+    { client: ["cat2", "cat1"], server: ["cat1", "cat2"], status: 201 },
+    { client: undefined, server: ["cat1"], status: 409 },
+  ])("compares category exceptions as policy sets: $client / $server", async ({ client, server, status }) => {
+    roundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50, excludedCategoryIds: server });
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      paymentMethod: "CASH", amountPaid: 10000,
+      priceRoundingSettings: { enabled: true, increment: 500, threshold: 50, excludedCategoryIds: client },
+      items: [{ productId: "p1", quantity: 1 }],
+    }) }));
+    expect(response.status).toBe(status);
+    if (status === 409) expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
   it("denies a custom invoice price without permission to edit prices", async () => {
     const { canRolePerformAction } = await import("@/features/rbac/helpers/rbac-core");
     vi.mocked(canRolePerformAction).mockImplementation((_role, resource) => resource !== "transaction.custom_price");

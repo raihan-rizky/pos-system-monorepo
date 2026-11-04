@@ -1,5 +1,6 @@
 import { roundSellingPriceLine } from "@/features/product-price-rounding/rounding";
 import { resolveTransactionCustomPrice } from "@/features/pos-checkout/helpers/transaction-custom-price";
+import { resolveCustomerManualPrice } from "@/features/pos-checkout/helpers/customer-manual-price";
 import { getPriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
 import { getSpecialPricingEnabled } from "@/features/customer-category-pricing/server/special-pricing-settings";
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
@@ -27,6 +28,7 @@ import { buildDraftNumber, nextDraftSequence, normalizeDraftNumberInput } from "
 import {
   PRICING_PREFERENCES,
   priceProductForCustomerType,
+  canEditCustomPriceForCustomer,
   type CategoryPricingRule,
   type CustomerType,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
@@ -42,7 +44,9 @@ const draftItemSchema = z.object({
   size: z.string().optional().nullable(),
   material: z.string().optional().nullable(),
   price: z.number().min(0),
+  categoryId: z.string().optional(),
   transactionPrice: z.number().positive().optional().nullable(),
+  customerManualPrice: z.number().finite().min(0).max(9_999_999_999.99).optional().nullable(),
   quantity: z.number().min(1),
   discount: z.number().min(0).multipleOf(0.01).optional().default(0),
 });
@@ -54,6 +58,12 @@ const createDraftSchema = z.object({
   customerName: z.string().optional().nullable(),
   customerId: z.string().optional().nullable(),
   pricingPreference: z.enum(PRICING_PREFERENCES).optional().default("SPECIAL"),
+  priceRoundingSettings: z.object({
+    enabled: z.boolean(),
+    increment: z.number().int().min(1).max(1_000_000_000),
+    threshold: z.number().int().min(0),
+    excludedCategoryIds: z.array(z.string().min(1)).optional(),
+  }).refine(settings => settings.threshold <= settings.increment, { path: ["threshold"] }).optional(),
   salesName: z.string().optional().nullable(),
   salespersonId: z.string().optional().nullable(),
   isJobOrder: z.boolean().optional().default(false),
@@ -134,6 +144,7 @@ export async function POST(request: Request) {
       customerName,
       customerId,
       pricingPreference,
+      priceRoundingSettings,
       salesName,
       salespersonId,
       isJobOrder,
@@ -280,9 +291,29 @@ export async function POST(request: Request) {
 
     const roundingSettings = await getPriceRoundingSettings();
     const specialPricingEnabled = await getSpecialPricingEnabled();
+    const categoryChanged = items.some(item => item.categoryId != null && item.categoryId !== productById.get(item.productId)?.categoryId);
+    const roundingPolicyChanged = Boolean(priceRoundingSettings && (
+      priceRoundingSettings.enabled !== roundingSettings.enabled ||
+      priceRoundingSettings.increment !== roundingSettings.increment ||
+      priceRoundingSettings.threshold !== roundingSettings.threshold ||
+      new Set(priceRoundingSettings.excludedCategoryIds ?? []).size !== new Set(roundingSettings.excludedCategoryIds ?? []).size ||
+      (priceRoundingSettings.excludedCategoryIds ?? []).some(id => !(roundingSettings.excludedCategoryIds ?? []).includes(id))
+    ));
+    if (categoryChanged || roundingPolicyChanged) {
+      return NextResponse.json({ message: categoryChanged
+        ? "Kategori produk sudah berubah. Muat ulang harga sebelum menyimpan faktur sementara."
+        : "Pengaturan pembulatan harga sudah berubah. Muat ulang harga sebelum menyimpan faktur sementara." }, { status: 409 });
+    }
     if (items.some(item => item.transactionPrice != null) &&
       !canRolePerformAction(user.role as Role, "transaction.custom_price", "update", permissions)) {
       return NextResponse.json({ message: "Akun Anda belum memiliki izin mengubah harga nota." }, { status: 403 });
+    }
+    if (items.some(item => item.customerManualPrice != null && item.transactionPrice != null)) {
+      return NextResponse.json({ message: "Pilih satu sumber harga khusus untuk setiap produk." }, { status: 422 });
+    }
+    if (items.some(item => item.customerManualPrice != null) &&
+      (!specialPricingEnabled || !canEditCustomPriceForCustomer(user.role, checkoutCustomerType))) {
+      return NextResponse.json({ message: "Akun atau pelanggan belum dapat menggunakan harga khusus manual." }, { status: 403 });
     }
     const serverItems = items.map((item) => {
       const product = productById.get(item.productId);
@@ -307,13 +338,17 @@ export async function POST(request: Request) {
         pricingPreference,
         specialPricingEnabled,
       );
+      const customerPrice = item.customerManualPrice == null ? automaticPrice : resolveCustomerManualPrice({
+        pricedLine: automaticPrice, manualPrice: item.customerManualPrice, customerType: checkoutCustomerType,
+        categoryId: product.categoryId, categoryName: product.category.name,
+      });
       const rounded = roundSellingPriceLine(resolveTransactionCustomPrice({
-        pricedLine: roundSellingPriceLine(automaticPrice, roundingSettings),
+        pricedLine: item.transactionPrice == null ? customerPrice : roundSellingPriceLine(automaticPrice, roundingSettings, product.categoryId),
         transactionPrice: item.transactionPrice,
         customerType: checkoutCustomerType,
         categoryId: product.categoryId,
         categoryName: product.category.name,
-      }), roundingSettings);
+      }), roundingSettings, product.categoryId);
       const price = rounded.unitPrice;
       const appliedPricing = rounded.appliedPricing;
 

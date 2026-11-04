@@ -120,6 +120,7 @@ model Category {
   order                        Int                           @default(0)
   salesGroup                   ProductSalesGroup             @default(OTHER)
   customerCategoryPricingRules CategoryCustomerPricingRule[]
+  priceRoundingSettings        StoreSettings[]               @relation("PriceRoundingExcludedCategories")
   products                     Product[]
 
   @@map("pos_categories")
@@ -1728,6 +1729,7 @@ model StoreSettings {
   priceRoundingEnabled Boolean @default(true)
   priceRoundingIncrement Int @default(500)
   priceRoundingThreshold Int @default(50)
+  priceRoundingExcludedCategories Category[] @relation("PriceRoundingExcludedCategories")
   updatedAt DateTime @updatedAt
 }
 

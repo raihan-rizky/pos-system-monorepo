@@ -1,5 +1,6 @@
 import { roundSellingPriceLine, type PriceRoundingResult } from "@/features/product-price-rounding/rounding";
 import { resolveTransactionCustomPrice, TRANSACTION_CUSTOM_PRICE_RULE_ID } from "@/features/pos-checkout/helpers/transaction-custom-price";
+import { CUSTOMER_MANUAL_PRICE_RULE_ID, resolveCustomerManualPrice } from "@/features/pos-checkout/helpers/customer-manual-price";
 import { getPriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
 import { getSpecialPricingEnabled } from "@/features/customer-category-pricing/server/special-pricing-settings";
 import { createHash } from "node:crypto";
@@ -9,6 +10,7 @@ import { calculateTransactionTax, getTransactionTaxMethod } from "@/features/tra
 import {
   priceProductForCustomerType,
   resolveCustomPricedLine,
+  canEditCustomPriceForCustomer,
   type CategoryCustomerPricingMode,
   type CategoryPricingRule,
   type CustomerType,
@@ -156,7 +158,7 @@ export async function buildApprovalQuote(
       tax: true,
       taxRate: true,
       taxMethod: true,
-      items: { select: { id: true, productId: true, printingServiceId: true, serviceNote: true, rawMaterialProductId: true, size: true, material: true, discount: true, pricingRuleId: true, unitPrice: true, originalUnitPrice: true } },
+      items: { select: { id: true, productId: true, printingServiceId: true, serviceNote: true, rawMaterialProductId: true, size: true, material: true, discount: true, pricingRuleId: true, pricingValue: true, unitPrice: true, originalUnitPrice: true } },
     },
   });
   if (!transaction) throw new Error("APPROVAL_TRANSACTION_NOT_FOUND");
@@ -342,7 +344,7 @@ export async function buildApprovalQuote(
         undefined,
         specialPricingEnabled,
       );
-      const roundedAutomatic = roundSellingPriceLine(automatic, roundingSettings);
+      const roundedAutomatic = roundSellingPriceLine(automatic, roundingSettings, product.categoryId);
       const sourcePrice = transaction.items.find(item => item.id === line.sourceItemId);
       const hasSavedCustomPrice = sourcePrice?.pricingRuleId === TRANSACTION_CUSTOM_PRICE_RULE_ID && line.priceIntent !== "AUTOMATIC";
       const changesSavedCustomPrice = hasSavedCustomPrice && line.priceIntent === "MANUAL" &&
@@ -351,8 +353,13 @@ export async function buildApprovalQuote(
         throw new Error("APPROVAL_CUSTOM_PRICE_FORBIDDEN");
       }
       if (changesSavedCustomPrice && line.submittedPrice! <= 0) throw new Error("APPROVAL_INVALID_PRICE");
+      const rawSavedCustomPrice = sourcePrice?.originalUnitPrice != null && sourcePrice.pricingValue != null
+        ? roundMoney(Number(sourcePrice.originalUnitPrice) - Number(sourcePrice.pricingValue))
+        : null;
       const savedCustomPrice = hasSavedCustomPrice
-        ? changesSavedCustomPrice ? line.submittedPrice : Number(sourcePrice.unitPrice)
+        ? changesSavedCustomPrice ? line.submittedPrice
+          : rawSavedCustomPrice != null && Number.isFinite(rawSavedCustomPrice) && rawSavedCustomPrice >= 0
+            ? rawSavedCustomPrice : Number(sourcePrice.unitPrice)
         : null;
       const legacyPrice = resolveCustomPricedLine({
         pricedLine: automatic,
@@ -365,8 +372,21 @@ export async function buildApprovalQuote(
         customerType,
         specialPricingEnabled,
       });
+      const hasSavedCustomerManualPrice = sourcePrice?.pricingRuleId === CUSTOMER_MANUAL_PRICE_RULE_ID &&
+        line.priceIntent !== "AUTOMATIC" && specialPricingEnabled &&
+        canEditCustomPriceForCustomer(input.actorRole, customerType);
+      const customerManualPrice = hasSavedCustomerManualPrice
+        ? line.priceIntent === "MANUAL" && line.submittedPrice != null && line.submittedPrice !== Number(sourcePrice.unitPrice)
+          ? line.submittedPrice
+          : rawSavedCustomPrice != null && Number.isFinite(rawSavedCustomPrice) && rawSavedCustomPrice >= 0
+            ? rawSavedCustomPrice : Number(sourcePrice.unitPrice)
+        : null;
+      const customerPrice = customerManualPrice == null ? legacyPrice : resolveCustomerManualPrice({
+        pricedLine: automatic, manualPrice: customerManualPrice, customerType,
+        categoryId: product.categoryId, categoryName: product.category.name,
+      });
       const applied = roundSellingPriceLine(resolveTransactionCustomPrice({
-        pricedLine: savedCustomPrice == null ? legacyPrice : {
+        pricedLine: savedCustomPrice == null ? customerPrice : {
           ...roundedAutomatic,
           unitPrice: Number(sourcePrice?.originalUnitPrice ?? roundedAutomatic.unitPrice),
         },
@@ -375,16 +395,16 @@ export async function buildApprovalQuote(
         customerType,
         categoryId: product.categoryId,
         categoryName: product.category.name,
-      }), roundingSettings);
+      }), roundingSettings, product.categoryId);
       const appliedPricing = applied.appliedPricing;
       const references = {
-        regular: roundSellingPriceLine({ unitPrice: regular, appliedPricing: null }, roundingSettings),
-        agent: Number(product.hargaAgen) > 0 ? roundSellingPriceLine({ unitPrice: Number(product.hargaAgen), appliedPricing: null }, roundingSettings) : null,
-        government: Number(product.hargaDinas) > 0 ? roundSellingPriceLine({ unitPrice: Number(product.hargaDinas), appliedPricing: null }, roundingSettings) : null,
+        regular: roundSellingPriceLine({ unitPrice: regular, appliedPricing: null }, roundingSettings, product.categoryId),
+        agent: Number(product.hargaAgen) > 0 ? roundSellingPriceLine({ unitPrice: Number(product.hargaAgen), appliedPricing: null }, roundingSettings, product.categoryId) : null,
+        government: Number(product.hargaDinas) > 0 ? roundSellingPriceLine({ unitPrice: Number(product.hargaDinas), appliedPricing: null }, roundingSettings, product.categoryId) : null,
         special: automatic.appliedPricing &&
           automatic.appliedPricing.ruleId !== "harga-agen" &&
           automatic.appliedPricing.ruleId !== "harga-dinas"
-            ? roundSellingPriceLine(automatic, roundingSettings)
+            ? roundSellingPriceLine(automatic, roundingSettings, product.categoryId)
             : null,
       };
       const appliedUnitPrice = roundMoney(applied.unitPrice);
@@ -500,7 +520,7 @@ export async function buildApprovalQuote(
         : null,
     })),
     pricingRules: rules,
-    roundingSettings,
+    roundingSettings: { ...roundingSettings, excludedCategoryIds: [...(roundingSettings.excludedCategoryIds ?? [])].sort() },
     subtotal,
     discount,
     tax,
