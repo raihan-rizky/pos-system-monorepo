@@ -1067,7 +1067,7 @@ function ModulePermissionEditor({
                     <FileText className={`h-4 w-4 shrink-0 ${isChecked ? "text-brand-500" : "text-surface-400"}`} />
                     <div>
                       <span className={`text-sm font-medium ${isChecked ? "text-surface-900" : "text-surface-600"}`}>
-                        Akses halaman {module.label}
+                        Riwayat
                       </span>
                       <span className="block text-xs text-surface-400 mt-0.5">{page}</span>
                     </div>
@@ -1075,7 +1075,7 @@ function ModulePermissionEditor({
                   <ToggleSwitch
                     checked={isChecked}
                     onChange={(newVal) => onPagePermissionChange(role, page, newVal)}
-                    label={`${ROLE_LABELS[role]} akses halaman ${module.label} (${page})`}
+                    label={`${ROLE_LABELS[role]} akses halaman Riwayat (${page})`}
                   />
                 </div>
               );
