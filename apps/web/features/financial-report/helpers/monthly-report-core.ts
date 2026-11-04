@@ -1,4 +1,5 @@
 import { netInitialPayments } from '@/features/customer-debt/helpers/net-initial-payments';
+import { normalizeExpenseCategoryName } from '@/features/keuangan/helpers/category-meta';
 import type { IncomeGroup, MonthlyExpense, MonthlyFinancialReport, MonthlyGiroPayment, MonthlySupplierDebt } from './monthly-report-types';
 
 export type MonthlyPeriod = { from: string; to: string; start: Date; end: Date };
@@ -184,7 +185,8 @@ export function buildMonthlyReport(input: {
     const obligationInScope = obligationDate <= period.to;
     const ambiguousDueInMonth = expense.ambiguousPurchaseDueDates?.some(date => calendarKey(date).slice(0, 7) === period.from.slice(0, 7));
     if (!obligationInScope && ambiguousDueInMonth && !report.warnings.some(warning => warning.includes('jadwal belanja lama'))) report.warnings.push('Sebagian jadwal belanja lama tidak dapat dipastikan karena hubungan pembelian ambigu.');
-    const row: MonthlyExpense = { id: expense.id, date: dateKey(expense.occurredAt), description: expense.description || 'Pengeluaran', categoryName: expense.customCategory?.name ?? null, amount: Math.max(0, cents(expense.amount) - cents(expense.changeAmount)) / 100, group: expense.category === 'SALARY' ? 'SALARY' : 'OTHER' };
+    const salaryWeekly = normalizeExpenseCategoryName(expense.customCategory?.name ?? '').replace(/\s*\/\s*/gu, '/') === 'gaji/mingguan';
+    const row: MonthlyExpense = { id: expense.id, date: dateKey(expense.occurredAt), description: expense.description || 'Pengeluaran', categoryName: expense.customCategory?.name ?? null, amount: Math.max(0, cents(expense.amount) - cents(expense.changeAmount)) / 100, group: salaryWeekly ? 'SALARY' : 'OTHER' };
     const manualTransfer = expense.manualPurchasePaymentMethod === 'TRANSFER';
     if (!automatic && !manualTransfer) {
       if (inPeriod(expense.occurredAt)) {
