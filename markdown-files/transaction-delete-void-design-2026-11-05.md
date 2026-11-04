@@ -27,6 +27,8 @@ Status: Desain disetujui; menunggu tinjauan spesifikasi tertulis.
 - Void tersedia bagi transaksi aktif dan yang belum disetujui, termasuk nota penawaran. Transaksi VOIDED atau REFUNDED tidak menawarkan pembatalan ulang.
 - Tampilan desktop dan ponsel menggunakan aturan yang sama.
 - Hak akses yang sudah berlaku tetap diperiksa di server. Pembatasan berdasarkan jenis transaksi atau kepemilikan surat jalan dihapus.
+- Void menggunakan `transaction.update`, sedangkan Hapus menggunakan `transaction.delete`; kedua izin diperiksa secara terpisah pada UI dan API. Grant yang dikonfigurasi berlaku untuk setiap role, termasuk Kasir dan Sales.
+- Pratinjau aktivitas RBAC menjelaskan kebutuhan akses `/history` dan `transaction.read` untuk menemukan transaksi, serta izin tindakan yang dipilih. Izin persetujuan transaksi tetap mempunyai fungsi tersendiri.
 
 ### Void dan surat jalan
 

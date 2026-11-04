@@ -100,3 +100,15 @@
 - [ ] Jalankan tes terkait layanan/API/UI/help/workflow/changelog, lint berkas yang diubah, `pnpm --filter @pos/web type-check`, dan `git diff --check` pada berkas tugas.
 - [ ] Tinjau diff terhadap salinan awal berkas agar perubahan tugas terpisah dari perubahan lokal sebelumnya; catat batasan lingkungan dan hasil pemeriksaan.
 - [ ] Panggil Headroom stats pada akhir sesi dan laporkan hasil ringkas ke pengguna.
+
+## Hasil pelaksanaan — 2026-11-05
+
+- Layanan terpusat sudah menangani Void/Hapus untuk semua jenis transaksi, seluruh surat jalan terkait, dan nota Percetakan sumber. Pengembalian stok memakai bukti mutasi serta tetap aman pada Void berulang atau Hapus setelah Void.
+- Peringatan riwayat stok nota penawaran tidak menghalangi penghapusan; hasil dan kebutuhan pemeriksaan ditampilkan setelah berhasil dan disimpan dalam audit.
+- Void memakai `transaction.update` dan Hapus memakai `transaction.delete` pada UI serta API. Grant dapat dikonfigurasi per role. Katalog RBAC juga menampilkan kedua aktivitas beserta prasyarat akses Riwayat dan Lihat transaksi.
+- Suite fokus: 221 tes pada 13 berkas lulus. Pemeriksaan browser: 32 kombinasi role/grant pada desktop dan ponsel serta 12 skenario jenis transaksi dan dialog lulus.
+- Gate suite penuh menemukan panduan progres RBAC yang ikut terhapus dan fixture semua-aktivitas yang belum memberi izin Hapus. Panduan dipulihkan dan fixture dilengkapi; pemeriksaan ulang terkait lulus.
+- Prisma client lokal digenerate ulang dari schema yang sudah ada agar model penutupan inventaris tersedia. Tes model tersebut dan `pnpm --filter @pos/web type-check` pada hasil gabungan lulus.
+- ESLint berkas tugas dan `git diff --check` lulus. Suite penuh dijalankan kembali oleh hook pre-push untuk integrasi akhir.
+- Implementasi disimpan pada worktree terisolasi agar perubahan lokal lain tetap terpisah. Dokumentasi Bantuan, FAQ/workflow, metadata RBAC, dan Catatan Perubahan ikut diperbarui.
+- Headroom stats dipanggil; proxy kompresi lokal tidak dapat dijangkau, sehingga keluaran pemeriksaan dibaca dalam potongan terbatas. Indeks GitNexus diperbarui dan pemeriksaan perubahan digunakan sebelum commit.
