@@ -657,6 +657,17 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       ]
     },
     {
+      id: "cashier-history-payment-amounts",
+      title: "Membaca Nominal Pembayaran di Riwayat",
+      description: "Setiap badge pembayaran di Riwayat menampilkan metode dan nominalnya, sehingga transaksi tunggal maupun multipayment dapat dicek tanpa membuka struk.",
+      icon: <DollarSign className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Riwayat Transaksi", description: "Masuk ke menu Operasi > Riwayat, lalu cari invoice atau pelanggan yang ingin diperiksa.", icon: <History className="w-8 h-8" /> },
+        { title: "Baca badge pembayaran", description: "Pada kolom Pembayaran atau bagian bawah kartu transaksi, baca format metode dan nominal seperti QRIS · Rp 15.000 atau CASH · Rp 1.000.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Periksa multipayment", description: "Jika transaksi memiliki beberapa metode, setiap badge menampilkan nominalnya sendiri. Badge Multi-payment menandai transaksi dengan lebih dari satu metode.", icon: <FileText className="w-8 h-8" /> },
+      ]
+    },
+    {
       id: "cashier-return",
       title: "Retur / Pengembalian Barang",
       description: "Jika pelanggan mau mengembalikan barang karena cacat atau salah beli, proses di sini agar stok gudang bertambah lagi dan uang bisa di-refund.",

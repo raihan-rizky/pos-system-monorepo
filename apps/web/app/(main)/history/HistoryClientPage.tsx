@@ -61,6 +61,7 @@ import {
 import { formatDraftNumberForDisplay } from "@/features/transactions-draft/helpers/draft-number";
 import { PRINTING_SUBCATEGORIES, type PrintingSubcategory } from "@/features/printing-receipts/types";
 import { displayTransactionNote } from "./helpers/transaction-note";
+import { formatHistoryPaymentAmount, getHistoryPaymentEntries } from "./helpers/payment-presentation";
 import { canSelectTransactionStatus } from "./helpers/transaction-status-option";
 import { TransactionTotal } from "./components/TransactionTotal";
 import { PaymentTermsBadge } from "@/features/customer-debt/components/PaymentTermsBadge";
@@ -691,7 +692,7 @@ function StatusBadge({ status, tx }: { status: string; tx: Transaction }) {
 
 // Payment Method Badge
 
-function PaymentBadge({ method }: { method: string }) {
+function PaymentBadge({ method, amount }: { method: string; amount: number }) {
   const map: Record<string, { bg: string; text: string; Icon: LucideIcon }> = {
     CASH: { bg: "bg-green-100", text: "text-green-700", Icon: Banknote },
     TRANSFER: { bg: "bg-blue-100", text: "text-blue-700", Icon: Building2 },
@@ -701,11 +702,16 @@ function PaymentBadge({ method }: { method: string }) {
   };
   const style = map[method] ?? { bg: "bg-surface-100", text: "text-surface-600", Icon: CircleDollarSign };
   const Icon = style.Icon;
+  const formattedAmount = formatHistoryPaymentAmount(amount);
 
   return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${style.bg} ${style.text} border-transparent`}>
+    <span
+      aria-label={`${method}, ${formattedAmount}`}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-bold border ${style.bg} ${style.text} border-transparent`}
+    >
       <Icon className="h-3 w-3" aria-hidden="true" />
-      {method}
+      <span>{method}</span>
+      <span className="font-black tabular-nums">{formattedAmount}</span>
     </span>
   );
 }
@@ -1635,13 +1641,13 @@ export default function HistoryClientPage() {
                                     Multi-payment
                                   </span>
                                 )}
-                                {tx.payments && tx.payments.length > 0 ? (
-                                  tx.payments.map((p, idx) => (
-                                    <PaymentBadge key={idx} method={p.method} />
-                                  ))
-                                ) : (
-                                  <PaymentBadge method={tx.paymentMethod} />
-                                )}
+                                {getHistoryPaymentEntries(tx).map((payment, idx) => (
+                                  <PaymentBadge
+                                    key={`${payment.method}-${idx}`}
+                                    method={payment.method}
+                                    amount={payment.amount}
+                                  />
+                                ))}
                                 {isPending && tx.status === "DP" && (
                                   <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-amber-200 bg-amber-100 text-[10px] font-bold text-amber-700">
                                     DP
@@ -1894,13 +1900,13 @@ export default function HistoryClientPage() {
                                   Multi-payment
                                 </span>
                               )}
-                              {tx.payments && tx.payments.length > 0 ? (
-                                tx.payments.map((p, idx) => (
-                                  <PaymentBadge key={idx} method={p.method} />
-                                ))
-                              ) : (
-                                <PaymentBadge method={tx.paymentMethod} />
-                              )}
+                              {getHistoryPaymentEntries(tx).map((payment, idx) => (
+                                <PaymentBadge
+                                  key={`${payment.method}-${idx}`}
+                                  method={payment.method}
+                                  amount={payment.amount}
+                                />
+                              ))}
                               {isPending && tx.status === "DP" && (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-amber-200 bg-amber-100 text-[10px] font-bold text-amber-700">
                                   DP
