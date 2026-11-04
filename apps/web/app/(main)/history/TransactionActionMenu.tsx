@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Transaction } from "@/hooks/useTransactions";
 import { isTransactionEligibleForSuratJalan } from "@/features/surat-jalan/components/SuratJalanBundleButton";
+import { canVoidTransaction } from "@/features/transactions-stock/helpers/transaction-lifecycle-policy";
 import { SuratJalanCreateModal } from "@/features/surat-jalan/components/SuratJalanCreateModal";
 import { useRole } from "@/components/providers/RoleProvider";
 
@@ -147,8 +148,8 @@ export function TransactionActionMenu({
   // Determine if we have any items to show in the dropdown
   const hasUpdateAction = !isBundled && canUpdateTransactions;
   const hasInvoiceDateAction = !isBundled && !isSalesRole && canChangeInvoiceDate;
-  const hasDeleteAction = !isBundled && !isSalesRole && canDeleteTransactions;
-  const hasVoidAction = !isBundled && !isSalesRole && canVoid;
+  const hasDeleteAction = canDeleteTransactions;
+  const hasVoidAction = canVoid && canVoidTransaction(tx.status);
   const hasSuratJalanAction = !isBundled && isTransactionEligibleForSuratJalan(tx);
   const hasReceiptChangesAction = !isBundled && role === "OWNER" && tx.status !== "DRAFT" && tx.status !== "PENDING_APPROVAL";
 
@@ -205,8 +206,8 @@ export function TransactionActionMenu({
           )}
           {hasVoidAction && (
             <button
-              onClick={(e) => { e.stopPropagation(); setIsOpen(false); onVoid(); }}
-              className="w-full text-left px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 flex items-center rounded-lg transition-colors cursor-pointer"
+              onClick={(e) => { e.stopPropagation(); triggerRef.current?.focus(); setIsOpen(false); onVoid(); }}
+              className="min-h-11 w-full text-left px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 flex items-center rounded-lg transition-colors cursor-pointer"
             >
               <XCircle className="mr-2 h-4 w-4 text-red-500" />
               Void
@@ -231,8 +232,8 @@ export function TransactionActionMenu({
       {hasDeleteAction && (
         <div className="p-1">
           <button
-            onClick={(e) => { e.stopPropagation(); setIsOpen(false); onDelete(); }}
-            className="w-full text-left px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 flex items-center rounded-lg transition-colors cursor-pointer"
+            onClick={(e) => { e.stopPropagation(); triggerRef.current?.focus(); setIsOpen(false); onDelete(); }}
+            className="min-h-11 w-full text-left px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 flex items-center rounded-lg transition-colors cursor-pointer"
           >
             <Trash2 className="mr-2 h-4 w-4 text-red-500" />
             Hapus
@@ -248,7 +249,7 @@ export function TransactionActionMenu({
       <button
         ref={triggerRef}
         onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
-        className="inline-flex items-center justify-center p-1.5 rounded-lg text-surface-500 hover:text-surface-700 hover:bg-surface-100 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+        className="inline-flex min-h-11 min-w-11 items-center justify-center p-1.5 rounded-lg text-surface-500 hover:text-surface-700 hover:bg-surface-100 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/50"
         aria-label="Pilihan aksi"
       >
         <MoreVertical className="h-5 w-5" />

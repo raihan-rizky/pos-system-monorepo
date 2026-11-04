@@ -26,6 +26,9 @@ export function invalidateTransactionViews(queryClient: QueryClient): void {
   queryClient.invalidateQueries({ queryKey: ["transactions"] });
   queryClient.invalidateQueries({ queryKey: ["products"] });
   queryClient.invalidateQueries({ queryKey: ["job-orders"] });
+  queryClient.invalidateQueries({ queryKey: ["surat-jalans"] });
+  queryClient.invalidateQueries({ queryKey: ["surat-jalan"] });
+  queryClient.invalidateQueries({ queryKey: ["printing-receipts"] });
 }
 
 function replaceTransaction<T extends TransactionLike>(

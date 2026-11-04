@@ -17,6 +17,7 @@ const toIsoString = (value: Date | string | null | undefined) => {
 };
 
 const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
+  DRAFT: ["VOIDED"],
   COMPLETED: ["DP", "VOIDED", "REFUNDED"],
   DP: ["COMPLETED", "VOIDED"],
   PENDING_APPROVAL: ["COMPLETED", "VOIDED"],
@@ -181,7 +182,7 @@ export async function PATCH(
     // Validate status transition
     if (status !== undefined && status !== existingTransaction.status) {
       const userRole = user.role;
-      if (userRole !== "OWNER" && userRole !== "ADMIN") {
+      if (status !== "VOIDED" && userRole !== "OWNER" && userRole !== "ADMIN") {
         return NextResponse.json(
           { message: "Hanya Owner atau Admin yang dapat mengubah status transaksi" },
           { status: 403 }
@@ -364,16 +365,14 @@ export async function DELETE(
     const user = await requirePermission("transaction", "delete");
     const storeId = user.storeId || "store-main";
     ({ id } = await params);
-    const source = await db.transaction.findFirst({ where: { id, storeId }, select: { printingSubcategory: true } });
-    if (source?.printingSubcategory) {
-      return NextResponse.json({ message: "Nota Percetakan disimpan di Riwayat. Gunakan pembatalan atau refund untuk membatalkan transaksi." }, { status: 409 });
-    }
+    const warnings: Array<{ code: string; message: string }> = [];
     const outcome = await db.$transaction(
       (tx) => reverseTransaction(tx, {
         storeId,
         transactionId: id,
         action: "DELETE",
         actor: { id: user.id, name: user.name ?? null, role: user.role },
+        onWarning: (warning) => warnings.push(warning),
       }),
       { timeout: 30_000 },
     );
@@ -381,7 +380,9 @@ export async function DELETE(
       return NextResponse.json({ message: "Transaksi tidak ditemukan" }, { status: 404 });
     }
 
-    return new NextResponse(null, { status: 204 });
+    return warnings.length > 0
+      ? NextResponse.json({ warnings })
+      : new NextResponse(null, { status: 204 });
   } catch (error: any) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

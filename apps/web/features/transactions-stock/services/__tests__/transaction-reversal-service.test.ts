@@ -193,6 +193,12 @@ function makeTx(options?: {
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     transactionItem: { deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    suratJalanItem: { deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    suratJalan: {
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
+    printingReceipt: { deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
     transactionLifecycleAudit: {
       findFirst: vi
         .fn()
@@ -561,10 +567,15 @@ describe("reverseTransaction", () => {
     expect(tx.transaction.updateMany).not.toHaveBeenCalled();
   });
 
-  it("blocks a void while a linked delivery document is still pending", async () => {
+  it("cancels pending and confirmed delivery documents while returning transaction-owned stock once", async () => {
     const transactionWithPendingDelivery = {
       ...transaction,
-      suratJalan: [{ id: "sj-1", number: "SJ-001", status: "PENDING", items: [] }],
+      suratJalan: [
+        { id: "sj-1", number: "SJ-001", status: "PENDING", items: [] },
+        { id: "sj-2", number: "SJ-002", status: "CONFIRMED", items: [] },
+        { id: "sj-3", number: "SJ-003", status: "CANCELLED", items: [] },
+        { id: "sj-4", number: "SJ-004", status: "REJECTED", items: [] },
+      ],
     };
     const tx = makeTx({ current: transactionWithPendingDelivery });
 
@@ -575,11 +586,17 @@ describe("reverseTransaction", () => {
         action: "VOID",
         actor: { id: "owner-1", name: "Owner One", role: "OWNER" },
       }),
-    ).rejects.toMatchObject({ code: "STOCK_HISTORY_REVIEW_REQUIRED" });
+    ).resolves.toBe("APPLIED");
 
-    expect(tx.product.updateMany).not.toHaveBeenCalled();
-    expect(tx.transaction.updateMany).not.toHaveBeenCalled();
-    expect(tx.transactionLifecycleAudit.create).not.toHaveBeenCalled();
+    expect(tx.suratJalan.updateMany).toHaveBeenCalledWith({
+      where: { transactionId: "tx-1", storeId: "store-1", status: { in: ["PENDING", "CONFIRMED"] } },
+      data: { status: "CANCELLED", cancelledAt: expect.any(Date) },
+    });
+    expect(tx.product.updateMany).toHaveBeenCalledTimes(1);
+    expect(tx.productStockGroup.updateMany).toHaveBeenCalledTimes(1);
+    expect(tx.transactionLifecycleAudit.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ snapshot: expect.objectContaining({ suratJalan: transactionWithPendingDelivery.suratJalan }) }),
+    });
   });
 
   it("restores only partially shipped quantity when the original stock history is proven", async () => {
@@ -828,5 +845,316 @@ describe("reverseTransaction", () => {
 
     expect(tx.product.updateMany).not.toHaveBeenCalled();
     expect(tx.transaction.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("deletes all shipment items and documents before invoice items and retains their audit snapshot", async () => {
+    const shipments = [
+      { id: "sj-1", number: "SJ-001", status: "PENDING", items: [{ id: "sj-item-1", transactionItemId: "item-1", productId: "finished-paper", quantity: 1 }] },
+      { id: "sj-2", number: "SJ-002", status: "CONFIRMED", items: [{ id: "sj-item-2", transactionItemId: "item-1", productId: "finished-paper", quantity: 1 }] },
+      { id: "sj-3", number: "SJ-003", status: "CANCELLED", items: [] },
+      { id: "sj-4", number: "SJ-004", status: "REJECTED", items: [] },
+    ];
+    const tx = makeTx({ current: { ...transaction, suratJalan: shipments } });
+
+    await expect(reverseTransaction(tx as never, {
+      storeId: "store-1", transactionId: "tx-1", action: "DELETE",
+      actor: { id: "owner-1", name: "Owner", role: "OWNER" },
+    })).resolves.toBe("APPLIED");
+
+    expect(tx.suratJalanItem.deleteMany).toHaveBeenCalledWith({ where: { suratJalanId: { in: ["sj-1", "sj-2", "sj-3", "sj-4"] } } });
+    expect(tx.suratJalan.deleteMany).toHaveBeenCalledWith({ where: { transactionId: "tx-1", storeId: "store-1" } });
+    expect(tx.suratJalanItem.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(tx.suratJalan.deleteMany.mock.invocationCallOrder[0]);
+    expect(tx.suratJalan.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(tx.transactionItem.deleteMany.mock.invocationCallOrder[0]);
+    expect(tx.transactionItem.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(tx.transaction.deleteMany.mock.invocationCallOrder[0]);
+    expect(tx.inventoryLog.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { transactionId: null, sourceTransactionRef: "tx-1" } }));
+    expect(tx.inventoryLog.updateMany).toHaveBeenCalledWith({
+      where: { suratJalanId: { in: ["sj-1", "sj-2", "sj-3", "sj-4"] } },
+      data: { suratJalanId: null },
+    });
+    expect(tx.inventoryLog.updateMany.mock.invocationCallOrder.at(-1)!).toBeLessThan(tx.suratJalan.deleteMany.mock.invocationCallOrder[0]);
+    expect(tx.transactionLifecycleAudit.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      action: "DELETE", snapshot: expect.objectContaining({
+        suratJalan: shipments,
+        stockJournal: expect.arrayContaining([expect.objectContaining({ id: "sale-finished", sourceTransactionRef: "tx-1", transactionId: "tx-1" })]),
+      }),
+    }) });
+    expect(tx.product.updateMany).toHaveBeenCalledTimes(1);
+    expect(tx.productStockGroup.updateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["VOID", "DELETE"] as const)("%s reverses each proven legacy delivery only once alongside a pending document", async (action) => {
+    const history = makeLegacyShipmentHistory();
+    const shipments = [
+      ...history.transaction.suratJalan,
+      { id: "sj-legacy-2", number: "SJ-LEGACY-002", status: "CONFIRMED", items: [{ id: "sj-item-2", productId: "finished-paper", quantity: 2 }] },
+      { id: "sj-pending", number: "SJ-PENDING", status: "PENDING", items: [{ id: "sj-pending-item", productId: "finished-paper", quantity: 4 }] },
+    ];
+    const shipmentLog = history.logs.find((row) => row.id === "legacy-shipment-sale")!;
+    const tx = makeTx({ current: { ...history.transaction, suratJalan: shipments }, inventoryLogs: [
+      ...history.logs,
+      { ...shipmentLog, id: "legacy-second-sale", quantity: 2, suratJalanId: "sj-legacy-2", note: "Surat Jalan SJ-LEGACY-002 untuk invoice tx-1" },
+    ] });
+
+    await expect(reverseTransaction(tx as never, {
+      storeId: "store-1", transactionId: "tx-1", action,
+      actor: { id: "owner-1", name: "Owner", role: "OWNER" },
+    })).resolves.toBe("APPLIED");
+
+    expect(tx.product.updateMany).toHaveBeenCalledExactlyOnceWith({
+      where: { id: "finished-paper", storeId: "store-1", stockGroupId: null },
+      data: { stock: { increment: 6 } },
+    });
+    expect(tx.inventoryLog.createMany).toHaveBeenCalledWith({ data: [expect.objectContaining({ productId: "finished-paper", stockBaseDelta: 6, sourceTransactionRef: "tx-1" })] });
+  });
+
+  it("deletes cancelled delivery documents after a legacy void without a second stock return", async () => {
+    const history = makeLegacyShipmentHistory();
+    const signedRows = history.logs.map((row) => ({ ...row, sourceTransactionRef: "tx-1", unitMultiplierSnapshot: 1, stockBaseDelta: row.type === "OUT" ? -row.quantity : row.quantity }));
+    const tx = makeTx({ current: { ...history.transaction, status: "VOIDED", suratJalan: history.transaction.suratJalan.map((shipment) => ({ ...shipment, status: "CANCELLED" })) }, inventoryLogs: [
+      ...signedRows,
+      { ...signedRows[2], id: "void-return", type: "IN", reason: "SALE_RETURN", quantity: 4, stockBaseDelta: 4, suratJalanId: null },
+    ] });
+
+    await expect(reverseTransaction(tx as never, {
+      storeId: "store-1", transactionId: "tx-1", action: "DELETE",
+      actor: { id: "owner-1", name: "Owner", role: "OWNER" },
+    })).resolves.toBe("APPLIED");
+
+    expect(tx.product.updateMany).not.toHaveBeenCalled();
+    expect(tx.inventoryLog.createMany).not.toHaveBeenCalled();
+    expect(tx.customer.updateMany).not.toHaveBeenCalled();
+    expect(tx.suratJalan.deleteMany).toHaveBeenCalledOnce();
+    expect(tx.inventoryLog.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { transactionId: null, sourceTransactionRef: "tx-1" } }));
+  });
+
+  it("does not repeat a void of a legacy VOIDED row even when its lifecycle audit predates this service", async () => {
+    const tx = makeTx({ current: { ...transaction, status: "VOIDED", suratJalan: [{ id: "sj-1", status: "CANCELLED", items: [] }] } });
+
+    await expect(reverseTransaction(tx as never, {
+      storeId: "store-1", transactionId: "tx-1", action: "VOID",
+      actor: { id: "owner-1", name: "Owner", role: "OWNER" },
+    })).resolves.toBe("ALREADY_VOIDED");
+
+    expect(tx.product.updateMany).not.toHaveBeenCalled();
+    expect(tx.productStockGroup.updateMany).not.toHaveBeenCalled();
+    expect(tx.suratJalan.updateMany).not.toHaveBeenCalled();
+    expect(tx.transactionLifecycleAudit.create).not.toHaveBeenCalled();
+  });
+
+  it.each(["DRAFT", "VOIDED"])("deletes an unconverted %s quotation with a recorded warning and no guessed stock", async (status) => {
+    const tx = makeTx({ current: { ...transaction, status, invoiceNumber: null, draftNumber: "PENAWARAN-CUSTOM-123" }, inventoryLogs: [] });
+    const onWarning = vi.fn();
+
+    await expect(reverseTransaction(tx as never, {
+      storeId: "store-1", transactionId: "tx-1", action: "DELETE",
+      actor: { id: "owner-1", name: "Owner", role: "OWNER" }, onWarning,
+    })).resolves.toBe("APPLIED");
+
+    expect(tx.transaction.deleteMany).toHaveBeenCalledOnce();
+    expect(tx.product.updateMany).not.toHaveBeenCalled();
+    expect(tx.productStockGroup.updateMany).not.toHaveBeenCalled();
+    expect(tx.inventoryLog.createMany).not.toHaveBeenCalled();
+    expect(tx.customer.updateMany).not.toHaveBeenCalled();
+    expect(onWarning).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ code: "STOCK_HISTORY_REVIEW_REQUIRED", message: expect.any(String) }));
+    expect(tx.transactionLifecycleAudit.create).toHaveBeenCalledWith({ data: expect.objectContaining({ snapshot: expect.objectContaining({
+      warnings: [expect.objectContaining({ code: "STOCK_HISTORY_REVIEW_REQUIRED" })],
+      stockHistoryReviewRequired: true,
+      stockReturns: [],
+      transaction: expect.objectContaining({ draftNumber: "PENAWARAN-CUSTOM-123" }),
+    }) }) });
+    expect(tx.transactionLifecycleAudit.create.mock.invocationCallOrder[0]).toBeLessThan(onWarning.mock.invocationCallOrder[0]);
+  });
+
+  it("downgrades inconsistent quotation evidence without applying any uncertain return", async () => {
+    const tx = makeTx({ current: { ...transaction, status: "VOIDED", invoiceNumber: null, draftNumber: "CUSTOM-QUOTATION" }, inventoryLogs: journal.map((row) => ({ ...row, stockBaseDelta: null })) });
+    const onWarning = vi.fn();
+
+    await expect(reverseTransaction(tx as never, {
+      storeId: "store-1", transactionId: "tx-1", action: "DELETE",
+      actor: { id: "owner-1", name: "Owner", role: "OWNER" }, onWarning,
+    })).resolves.toBe("APPLIED");
+
+    expect(onWarning).toHaveBeenCalledOnce();
+    expect(tx.product.updateMany).not.toHaveBeenCalled();
+    expect(tx.inventoryLog.createMany).not.toHaveBeenCalled();
+    expect(tx.inventoryLog.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { transactionId: null, sourceTransactionRef: "tx-1" } }));
+  });
+
+  it.each(["DRAFT", "VOIDED", "COMPLETED"])("returns proven journal stock when deleting an unconverted %s quotation without reversing customer totals", async (status) => {
+    const tx = makeTx({ current: { ...transaction, status, invoiceNumber: null, draftNumber: "CUSTOM-QUOTATION" } });
+    const onWarning = vi.fn();
+
+    await expect(reverseTransaction(tx as never, {
+      storeId: "store-1", transactionId: "tx-1", action: "DELETE",
+      actor: { id: "owner-1", name: "Owner", role: "OWNER" }, onWarning,
+    })).resolves.toBe("APPLIED");
+
+    expect(tx.product.updateMany).toHaveBeenCalledExactlyOnceWith({ where: { id: "finished-paper", storeId: "store-1", stockGroupId: null }, data: { stock: { increment: 1 } } });
+    expect(tx.productStockGroup.updateMany).toHaveBeenCalledExactlyOnceWith({ where: { id: "paper-group", storeId: "store-1" }, data: { baseStock: { increment: 12 } } });
+    expect(tx.customer.updateMany).not.toHaveBeenCalled();
+    expect(onWarning).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { invoiceNumber: "CUSTOM-INV-123", draftNumber: "CUSTOM-QUOTATION" },
+    { invoiceNumber: "DRAFT-123", draftNumber: "CUSTOM-QUOTATION" },
+    { invoiceNumber: null, draftNumber: null },
+  ])("keeps invalid converted or unidentified quotation proof blocking: %j", async ({ invoiceNumber, draftNumber }) => {
+    const tx = makeTx({ current: { ...transaction, status: "VOIDED", invoiceNumber, draftNumber }, inventoryLogs: [] });
+    const onWarning = vi.fn();
+
+    await expect(reverseTransaction(tx as never, {
+      storeId: "store-1", transactionId: "tx-1", action: "DELETE",
+      actor: { id: "owner-1", name: "Owner", role: "OWNER" }, onWarning,
+    })).rejects.toBeInstanceOf(TransactionReversalConflictError);
+
+    expect(tx.transaction.deleteMany).not.toHaveBeenCalled();
+    expect(onWarning).not.toHaveBeenCalled();
+  });
+
+  it.each(["DRAFT", "PENDING_APPROVAL"])("voids %s without changing customer totals when there is no stock evidence", async (status) => {
+    const tx = makeTx({ current: { ...transaction, status, invoiceNumber: null, draftNumber: status === "DRAFT" ? "CUSTOM-QUOTATION" : null }, inventoryLogs: [] });
+
+    await expect(reverseTransaction(tx as never, {
+      storeId: "store-1", transactionId: "tx-1", action: "VOID",
+      actor: { id: "owner-1", name: "Owner", role: "OWNER" },
+    })).resolves.toBe("APPLIED");
+
+    expect(tx.transaction.updateMany).toHaveBeenCalledWith({ where: { id: "tx-1", storeId: "store-1", status }, data: { status: "VOIDED" } });
+    expect(tx.customer.updateMany).not.toHaveBeenCalled();
+    expect(tx.product.updateMany).not.toHaveBeenCalled();
+  });
+
+  it.each(["REFUNDED", "UNKNOWN"])("rejects VOID for terminal or unsupported status %s", async (status) => {
+    const tx = makeTx({ current: { ...transaction, status } });
+
+    await expect(reverseTransaction(tx as never, {
+      storeId: "store-1", transactionId: "tx-1", action: "VOID",
+      actor: { id: "owner-1", name: "Owner", role: "OWNER" },
+    })).rejects.toBeInstanceOf(TransactionReversalConflictError);
+
+    expect(tx.transaction.updateMany).not.toHaveBeenCalled();
+    expect(tx.product.updateMany).not.toHaveBeenCalled();
+  });
+
+  it.each(["stockLock", "productUpdate", "productRead", "transactionDelete", "auditWrite", "historyRead"])("does not turn quotation %s failures into a successful warning", async (failure) => {
+    const tx = makeTx({ current: { ...transaction, invoiceNumber: null, draftNumber: "CUSTOM-QUOTATION" } });
+    const onWarning = vi.fn();
+    if (failure === "stockLock") tx.$queryRaw.mockResolvedValueOnce([]);
+    if (failure === "productUpdate") tx.product.updateMany.mockResolvedValueOnce({ count: 0 });
+    if (failure === "productRead") tx.product.findFirst.mockResolvedValueOnce(null as never);
+    if (failure === "transactionDelete") tx.transaction.deleteMany.mockResolvedValueOnce({ count: 0 });
+    if (failure === "auditWrite") tx.transactionLifecycleAudit.create.mockRejectedValueOnce(new Error("audit unavailable"));
+    if (failure === "historyRead") tx.inventoryLog.findMany.mockRejectedValueOnce(new Error("database unavailable"));
+
+    await expect(reverseTransaction(tx as never, {
+      storeId: "store-1", transactionId: "tx-1", action: "DELETE",
+      actor: { id: "owner-1", name: "Owner", role: "OWNER" }, onWarning,
+    })).rejects.toThrow();
+
+    expect(onWarning).not.toHaveBeenCalled();
+  });
+
+  it.each(["transactionDelete", "auditWrite"])("does not publish a quotation proof warning if the later %s fails", async (failure) => {
+    const tx = makeTx({ current: { ...transaction, status: "VOIDED", invoiceNumber: null, draftNumber: "CUSTOM-QUOTATION" }, inventoryLogs: [] });
+    if (failure === "transactionDelete") tx.transaction.deleteMany.mockResolvedValueOnce({ count: 0 });
+    if (failure === "auditWrite") tx.transactionLifecycleAudit.create.mockRejectedValueOnce(new TransactionReversalConflictError("Audit tidak tersimpan."));
+    const onWarning = vi.fn();
+
+    await expect(reverseTransaction(tx as never, {
+      storeId: "store-1", transactionId: "tx-1", action: "DELETE",
+      actor: { id: "owner-1", name: "Owner", role: "OWNER" }, onWarning,
+    })).rejects.toBeInstanceOf(TransactionReversalConflictError);
+
+    expect(tx.transaction.deleteMany).toHaveBeenCalledOnce();
+    expect(onWarning).not.toHaveBeenCalled();
+  });
+
+  it("keeps a transaction status race blocking even for an unconverted quotation", async () => {
+    const quotation = { ...transaction, status: "VOIDED", invoiceNumber: null, draftNumber: "CUSTOM-QUOTATION" };
+    const tx = makeTx({ current: quotation, inventoryLogs: [] });
+    tx.transaction.findFirst.mockResolvedValueOnce(quotation).mockResolvedValueOnce({ ...quotation, status: "DRAFT" });
+    const onWarning = vi.fn();
+
+    await expect(reverseTransaction(tx as never, {
+      storeId: "store-1", transactionId: "tx-1", action: "DELETE",
+      actor: { id: "owner-1", name: "Owner", role: "OWNER" }, onWarning,
+    })).rejects.toBeInstanceOf(TransactionReversalConflictError);
+
+    expect(tx.inventoryLog.findMany).not.toHaveBeenCalled();
+    expect(tx.transaction.deleteMany).not.toHaveBeenCalled();
+    expect(onWarning).not.toHaveBeenCalled();
+  });
+
+  it("retains NOT_FOUND without publishing warnings or mutating linked documents", async () => {
+    const tx = makeTx();
+    tx.transaction.findFirst.mockResolvedValue(null);
+    const onWarning = vi.fn();
+
+    await expect(reverseTransaction(tx as never, {
+      storeId: "store-1", transactionId: "tx-1", action: "DELETE",
+      actor: { id: "owner-1", name: "Owner", role: "OWNER" }, onWarning,
+    })).resolves.toBe("NOT_FOUND");
+
+    expect(tx.suratJalan.deleteMany).not.toHaveBeenCalled();
+    expect(tx.transaction.deleteMany).not.toHaveBeenCalled();
+    expect(onWarning).not.toHaveBeenCalled();
+  });
+
+  it("deletes the processed printing receipt before its restricted invoice and snapshots its original document", async () => {
+    const printingReceipt = {
+      id: "printing-receipt-1", storeId: "store-1", transactionId: "tx-1",
+      number: "CP-001", subcategory: "DIGITAL", revision: 3,
+      document: { items: [{ label: "Poster", quantity: 2 }] },
+      createdById: "owner-1", createdAt: new Date("2026-11-01T01:00:00Z"), updatedAt: new Date("2026-11-02T01:00:00Z"),
+    };
+    const tx = makeTx({ current: { ...transaction, printingReceipt } });
+    let receiptAttached = true;
+    tx.printingReceipt.deleteMany.mockImplementation(async ({ where }: any) => {
+      if (where.storeId !== "store-1" || where.transactionId !== "tx-1") return { count: 0 };
+      receiptAttached = false;
+      return { count: 1 };
+    });
+    tx.transaction.deleteMany.mockImplementation(async () => {
+      if (receiptAttached) throw new Error("PrintingReceipt.transactionId restricts deletion");
+      return { count: 1 };
+    });
+
+    await expect(reverseTransaction(tx as never, {
+      storeId: "store-1", transactionId: "tx-1", action: "DELETE",
+      actor: { id: "owner-1", name: "Owner", role: "OWNER" },
+    })).resolves.toBe("APPLIED");
+
+    expect(tx.transaction.findFirst).toHaveBeenCalledWith(expect.objectContaining({ include: expect.objectContaining({ printingReceipt: true }) }));
+    expect(tx.printingReceipt.deleteMany).toHaveBeenCalledExactlyOnceWith({ where: { transactionId: "tx-1", storeId: "store-1" } });
+    expect(tx.printingReceipt.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(tx.transaction.deleteMany.mock.invocationCallOrder[0]);
+    expect(tx.transactionLifecycleAudit.create).toHaveBeenCalledWith({ data: expect.objectContaining({ snapshot: expect.objectContaining({
+      printingReceipt: expect.objectContaining({ id: "printing-receipt-1", number: "CP-001", revision: 3, transactionId: "tx-1", document: { items: [{ label: "Poster", quantity: 2 }] } }),
+    }) }) });
+  });
+
+  it("keeps the processed printing receipt attached when voiding its invoice", async () => {
+    const printingReceipt = { id: "printing-receipt-1", storeId: "store-1", transactionId: "tx-1", number: "CP-001", document: { items: [] } };
+    const tx = makeTx({ current: { ...transaction, printingReceipt } });
+
+    await expect(reverseTransaction(tx as never, {
+      storeId: "store-1", transactionId: "tx-1", action: "VOID",
+      actor: { id: "owner-1", name: "Owner", role: "OWNER" },
+    })).resolves.toBe("APPLIED");
+
+    expect(tx.printingReceipt.deleteMany).not.toHaveBeenCalled();
+    expect(tx.transactionLifecycleAudit.create).toHaveBeenCalledWith({ data: expect.objectContaining({ snapshot: expect.objectContaining({ printingReceipt }) }) });
+  });
+
+  it("keeps a concurrent printing-receipt deletion blocking before deleting the invoice", async () => {
+    const tx = makeTx({ current: { ...transaction, printingReceipt: { id: "printing-receipt-1", number: "CP-001", document: {} } } });
+    tx.printingReceipt.deleteMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(reverseTransaction(tx as never, {
+      storeId: "store-1", transactionId: "tx-1", action: "DELETE",
+      actor: { id: "owner-1", name: "Owner", role: "OWNER" },
+    })).rejects.toBeInstanceOf(TransactionReversalConflictError);
+
+    expect(tx.transaction.deleteMany).not.toHaveBeenCalled();
   });
 });

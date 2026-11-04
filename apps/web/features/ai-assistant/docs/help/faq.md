@@ -436,3 +436,12 @@ Untuk menghubungkan giro yang sudah diperiksa dengan hutang manual yang benar-be
 1. Klik notifikasi perubahan nota, atau buka **Riwayat**, cari transaksi, lalu pilih menu tiga titik > **Riwayat perubahan nota**.
 2. Pilih revisi di **Jejak perubahan**, atau pemilih **Jejak versi** pada ponsel. Lihat nama Sales, waktu penyimpanan, total sebelum dan sesudah, serta selisihnya. **Yang berubah** menampilkan rincian **Sebelum** dan **Sesudah** per bagian atau barang.
 3. Buka **Nota asli** untuk memeriksa rincian sebelum perubahan Sales pertama, atau **Versi lengkap** untuk kedua nota pada revisi terpilih. Identitas data tersedia dalam rincian tambahan. Pencatatan dimulai setelah fitur tersedia, untuk nota yang sudah diproses termasuk DP dan Tempo serta pembayaran piutang oleh Sales. Draft dan nota menunggu persetujuan tidak termasuk. Riwayat hanya dapat dibuka Owner pada toko yang sama.
+
+### Q51: Bagaimana cara Void atau Hapus transaksi beserta surat jalan terkait?
+
+**A:** Buka **Riwayat** dan menu tiga titik pada baris komputer atau kartu ponsel. Semua jenis transaksi, termasuk ATK, Percetakan, nota penawaran, dan transaksi dengan surat jalan, mengikuti izin akun serta statusnya.
+
+1. Pilih **Void** untuk membatalkan transaksi aktif, termasuk draft atau pending. Aksi memerlukan `transaction.update` bagi role yang diberi izin; tinjau dampaknya lalu konfirmasi. Transaksi **VOIDED/REFUNDED** tidak dapat di-void ulang. Seluruh surat jalan terkait berstatus **PENDING/CONFIRMED** menjadi **CANCELLED**; yang sudah **CANCELLED/REJECTED** tetap pada statusnya.
+2. Pilih **Hapus** untuk menghapus permanen transaksi, seluruh surat jalan terkait, dan item dokumennya. Pada transaksi Percetakan, nota sumbernya juga dihapus; snapshot dokumen tetap tersimpan dalam audit. Aksi memerlukan `transaction.delete` bagi role yang diberi izin. Jurnal stok tetap tersimpan. **Void** mempertahankan nota Percetakan sumber pada transaksi yang dibatalkan.
+3. Periksa dampak stok sebelum mengonfirmasi. Stok yang terbukti keluar dikembalikan paling banyak sekali berdasarkan mutasi yang tercatat; **Hapus setelah Void** tidak mengembalikannya lagi. Nota penawaran yang sudah menjadi invoice mengikuti aturan invoice dan jurnal stoknya.
+4. Nota penawaran yang belum menjadi invoice, termasuk yang sudah dibatalkan, tetap dapat dihapus bila riwayat stok kosong atau tidak konsisten. Baca peringatan yang juga muncul **setelah penghapusan berhasil** dan tindak lanjuti bila perlu pemeriksaan. Sistem tidak menebak jumlah stok yang harus dikembalikan.

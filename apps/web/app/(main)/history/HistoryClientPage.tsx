@@ -69,6 +69,7 @@ import { formatDate } from "@/lib/utils";
 import { Button } from "@pos/ui";
 import { useRole } from "@/components/providers/RoleProvider";
 import { shouldShowDeleteAction, shouldShowUpdateAction } from "@/features/rbac/helpers/rbac-ui";
+import { canVoidTransaction, isUnconvertedQuotation } from "@/features/transactions-stock/helpers/transaction-lifecycle-policy";
 
 import { getLogger } from "@/lib/logger";
 
@@ -723,83 +724,109 @@ function needsCashierApproval(tx: Transaction) {
 function DeleteConfirmModal({
   tx,
   onClose,
+  onSuccess,
 }: {
   tx: Transaction;
   onClose: () => void;
+  onSuccess: (warnings: Array<{ code: string; message: string }>) => void;
 }) {
   const deleteTx = useDeleteTransaction();
   const [error, setError] = React.useState("");
+  const dialogRef = React.useRef<HTMLDialogElement>(null);
+  const unconvertedQuotation = isUnconvertedQuotation(tx);
+
+  React.useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    dialog.setAttribute("closedby", "closerequest");
+    dialog.showModal();
+  }, []);
 
   const handleDelete = async () => {
+    if (deleteTx.isPending) return;
     setError("");
     try {
-      await deleteTx.mutateAsync(tx.id);
-      onClose();
+      const result = await deleteTx.mutateAsync(tx.id);
+      dialogRef.current?.close();
+      onSuccess(result.warnings);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Gagal menghapus transaksi");
     }
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+    <dialog
+      ref={dialogRef}
+      aria-labelledby="delete-transaction-title"
+      aria-describedby="delete-transaction-description"
+      aria-busy={deleteTx.isPending}
+      onClose={onClose}
+      onCancel={(event) => { if (deleteTx.isPending) event.preventDefault(); }}
+      className="m-auto max-h-[calc(100dvh_-_2rem)] w-[calc(100%_-_2rem)] max-w-sm overflow-y-auto overscroll-contain rounded-2xl border-0 bg-white p-0 shadow-2xl backdrop:bg-black/40 backdrop:backdrop-blur-sm backdrop:overflow-hidden backdrop:overscroll-contain"
     >
-      {/* Blur overlay */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-
-      {/* Panel */}
-      <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
-        {/* Red top accent */}
         <div className="h-1.5 w-full bg-gradient-to-r from-red-500 to-rose-600" />
 
         <div className="px-6 pt-6 pb-5 text-center">
-          {/* Icon */}
           <div className="mx-auto mb-4 flex items-center justify-center w-14 h-14 rounded-full bg-red-100">
             <Trash2 className="h-[26px] w-[26px] text-red-600" aria-hidden="true" />
           </div>
 
-          <h2 className="text-lg font-bold text-surface-900 mb-1">Hapus Transaksi?</h2>
+          <h2 id="delete-transaction-title" className="text-lg font-bold text-surface-900 mb-1">Hapus Transaksi?</h2>
+          <div id="delete-transaction-description">
           <p className="text-sm text-surface-500 mb-1">
             Transaksi berikut akan dihapus permanen:
           </p>
           <span className="inline-flex items-center px-3 py-1 rounded-md text-sm font-bold bg-surface-100 text-surface-700 mb-4">
-            {tx.invoiceNumber}
+            {tx.invoiceNumber ?? tx.draftNumber ?? "Tanpa nomor"}
           </span>
-          <p className="text-xs text-red-500 font-medium">
+          <p className="text-xs text-red-700 font-medium">
             <AlertTriangle className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />
-            Stok barang akan dikembalikan ke inventory. Tindakan ini tidak dapat dibatalkan.
+            Stok hanya dikembalikan berdasarkan bukti mutasi yang belum dipulihkan. Tindakan ini tidak dapat dibatalkan.
           </p>
+          {isSuratJalanBundle(tx) && (
+            <p className="mt-3 text-sm font-medium text-surface-700">
+              Seluruh surat jalan terkait beserta itemnya juga akan dihapus.
+            </p>
+          )}
+          {unconvertedQuotation && (
+            <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs text-amber-900">
+              Jika bukti stok nota penawaran belum tersedia, penghapusan tetap bisa dilanjutkan. Stok tidak ditambah tanpa bukti mutasi.
+            </p>
+          )}
+          </div>
 
           {error && (
-            <p className="mt-3 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-left">
+            <p role="alert" className="mt-3 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-left">
               {error}
             </p>
           )}
+          {deleteTx.isPending && <p role="status" className="mt-3 text-xs text-surface-600">Penghapusan sedang diproses. Mohon tunggu.</p>}
         </div>
 
         {/* Footer */}
         <div className="px-6 pb-6 flex items-center gap-3">
           <button
-            onClick={onClose}
+            type="button"
+            autoFocus
+            onClick={() => dialogRef.current?.close()}
             disabled={deleteTx.isPending}
-            className="flex-1 py-2.5 rounded-xl border border-surface-200 text-sm font-semibold text-surface-600
-              hover:bg-surface-50 transition-colors disabled:opacity-60"
+            className="min-h-11 flex-1 py-2.5 rounded-xl border border-surface-200 text-sm font-semibold text-surface-600
+              hover:bg-surface-50 transition-colors disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
           >
             Batal
           </button>
           <button
             id="confirm-delete-btn"
+            type="button"
             onClick={handleDelete}
             disabled={deleteTx.isPending}
-            className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold
-              hover:bg-red-700 active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+            className="min-h-11 flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold
+              hover:bg-red-700 active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
           >
             {deleteTx.isPending ? "Menghapus..." : "Ya, Hapus"}
           </button>
         </div>
-      </div>
-    </div>
+    </dialog>
   );
 }
 
@@ -814,67 +841,102 @@ function VoidConfirmModal({
 }) {
   const updateTx = useUpdateTransaction();
   const [error, setError] = useState("");
+  const dialogRef = React.useRef<HTMLDialogElement>(null);
+  const unconvertedQuotation = isUnconvertedQuotation(tx);
+
+  React.useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    dialog.setAttribute("closedby", "closerequest");
+    dialog.showModal();
+  }, []);
 
   const handleVoid = async () => {
+    if (updateTx.isPending) return;
     setError("");
     try {
       await updateTx.mutateAsync({ id: tx.id, status: "VOIDED" });
+      dialogRef.current?.close();
       onSuccess();
-    } catch (err: any) {
-      setError(err.message || "Gagal membatalkan transaksi");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Gagal membatalkan transaksi");
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
+    <dialog
+      ref={dialogRef}
+      aria-labelledby="void-transaction-title"
+      aria-describedby="void-transaction-description"
+      aria-busy={updateTx.isPending}
+      onClose={onClose}
+      onCancel={(event) => { if (updateTx.isPending) event.preventDefault(); }}
+      className="m-auto max-h-[calc(100dvh_-_2rem)] w-[calc(100%_-_2rem)] max-w-sm overflow-y-auto overscroll-contain rounded-2xl border-0 bg-white p-0 shadow-2xl backdrop:bg-black/40 backdrop:backdrop-blur-sm backdrop:overflow-hidden backdrop:overscroll-contain"
+    >
         <div className="h-1.5 w-full bg-gradient-to-r from-red-500 to-rose-600" />
         <div className="px-6 pt-6 pb-5 text-center">
           <div className="mx-auto mb-4 flex items-center justify-center w-14 h-14 rounded-full bg-red-100">
             <XCircle className="h-[26px] w-[26px] text-red-600" aria-hidden="true" />
           </div>
 
-          <h2 className="text-lg font-bold text-surface-900 mb-1">Batalkan Transaksi?</h2>
+          <h2 id="void-transaction-title" className="text-lg font-bold text-surface-900 mb-1">Batalkan Transaksi?</h2>
+          <div id="void-transaction-description">
           <p className="text-sm text-surface-500 mb-1">
             Transaksi berikut akan dibatalkan (Void):
           </p>
           <span className="inline-flex items-center px-3 py-1 rounded-md text-sm font-bold bg-surface-100 text-surface-700 mb-4">
-            {tx.invoiceNumber}
+            {tx.invoiceNumber ?? tx.draftNumber ?? "Tanpa nomor"}
           </span>
-          <p className="text-xs text-red-500 font-medium">
+          <p className="text-xs text-red-700 font-medium">
             <AlertTriangle className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />
-            Status akan berubah menjadi <strong>VOID</strong>. Transaksi ini tidak akan dihitung dalam pendapatan.
+            Status akan berubah menjadi <strong>VOIDED</strong>. Transaksi ini tidak akan dihitung dalam pendapatan.
           </p>
+          <p className="mt-3 text-xs text-surface-600">
+            Stok hanya dikembalikan berdasarkan bukti mutasi yang belum dipulihkan.
+          </p>
+          {isSuratJalanBundle(tx) && (
+            <p className="mt-3 text-sm font-medium text-surface-700">
+              Seluruh surat jalan terkait berstatus PENDING atau CONFIRMED juga akan dibatalkan.
+            </p>
+          )}
+          {unconvertedQuotation && (
+            <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs text-amber-900">
+              Nota penawaran yang belum menjadi invoice tidak menambah stok tanpa bukti mutasi.
+            </p>
+          )}
+          </div>
 
           {error && (
-            <p className="mt-3 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-left">
+            <p role="alert" className="mt-3 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-left">
               {error}
             </p>
           )}
+          {updateTx.isPending && <p role="status" className="mt-3 text-xs text-surface-600">Pembatalan sedang diproses. Mohon tunggu.</p>}
         </div>
 
         <div className="px-6 pb-6 flex items-center gap-3">
           <button
-            onClick={onClose}
+            type="button"
+            autoFocus
+            onClick={() => dialogRef.current?.close()}
             disabled={updateTx.isPending}
-            className="flex-1 py-2.5 rounded-xl border border-surface-200 text-sm font-semibold text-surface-600
-              hover:bg-surface-50 transition-colors disabled:opacity-60"
+            className="min-h-11 flex-1 py-2.5 rounded-xl border border-surface-200 text-sm font-semibold text-surface-600
+              hover:bg-surface-50 transition-colors disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
           >
             Batal
           </button>
           <button
             id="confirm-void-btn"
+            type="button"
             onClick={handleVoid}
             disabled={updateTx.isPending}
-            className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold
-              hover:bg-red-700 active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+            className="min-h-11 flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold
+              hover:bg-red-700 active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
           >
             {updateTx.isPending ? "Membatalkan..." : "Ya, Batalkan"}
           </button>
         </div>
-      </div>
-    </div>
+    </dialog>
   );
 }
 
@@ -1082,6 +1144,10 @@ export default function HistoryClientPage() {
   const [editingInvoiceDateTransaction, setEditingInvoiceDateTransaction] =
     useState<Transaction | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null);
+  const [deleteResult, setDeleteResult] = useState<{
+    documentNumber: string;
+    warnings: Array<{ code: string; message: string }>;
+  } | null>(null);
   const [approvingTransaction, setApprovingTransaction] = useState<Transaction | null>(null);
   const [rejectingTransaction, setRejectingTransaction] = useState<Transaction | null>(null);
   const [approvingDraft, setApprovingDraft] = useState<Transaction | null>(null);
@@ -1441,6 +1507,36 @@ export default function HistoryClientPage() {
             )}
           </button>
 
+          {deleteResult && (
+            <section
+              role="status"
+              aria-label="Hasil penghapusan transaksi"
+              aria-atomic="true"
+              className={`sticky top-0 z-20 flex items-start gap-3 rounded-xl border px-4 py-3 ${deleteResult.warnings.length > 0
+                ? "border-amber-200 bg-amber-50 text-amber-900"
+                : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}
+            >
+              <div className="min-w-0 flex-1 text-sm">
+                <p className="font-semibold break-words">Transaksi {deleteResult.documentNumber} berhasil dihapus.</p>
+                {deleteResult.warnings.length > 0 && (
+                  <ul className="mt-1 list-disc space-y-1 pl-4">
+                    {deleteResult.warnings.map((warning, index) => (
+                      <li key={`${warning.code}-${index}`}>{warning.message}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeleteResult(null)}
+                aria-label="Tutup pemberitahuan penghapusan"
+                className="-my-1 -mr-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </section>
+          )}
+
           <div className="bg-white rounded-2xl border border-surface-200 overflow-hidden shadow-sm">
             {isLoading ? (
               <div className="p-8 flex items-center justify-center">
@@ -1494,7 +1590,7 @@ export default function HistoryClientPage() {
                         const bundleProgress = formatSuratJalanBundleProgress(tx.suratJalanSummary);
                         const invoiceDateForDisplay = getTransactionInvoiceDate(tx);
                         const previousInvoiceDate = getLatestPreviousInvoiceDate(tx);
-                        const canVoid = (tx.status === "COMPLETED" || tx.status === "DP") && canUpdateTransactions;
+                        const canVoid = canVoidTransaction(tx.status) && canUpdateTransactions;
                         const displayNote = displayTransactionNote(tx.note);
                         const rowBg = isPending
                           ? "bg-blue-50/70 hover:bg-blue-50 animate-pending-row relative"
@@ -1716,7 +1812,7 @@ export default function HistoryClientPage() {
                                     tx={tx}
                                     isSalesRole={isSalesRole}
                                     canUpdateTransactions={canUpdateTransactions && !tx.printingReceipt && !tx.printingSubcategory}
-                                    canDeleteTransactions={canDeleteTransactions && !tx.printingReceipt && !tx.printingSubcategory}
+                                    canDeleteTransactions={canDeleteTransactions}
                                     canApproveTransactions={canApproveTransactions}
                                     canRejectTransactions={canRejectTransactions}
                                     canApproveDrafts={canApproveDrafts}
@@ -1757,7 +1853,7 @@ export default function HistoryClientPage() {
                     const bundleProgress = formatSuratJalanBundleProgress(tx.suratJalanSummary);
                     const invoiceDateForDisplay = getTransactionInvoiceDate(tx);
                     const previousInvoiceDate = getLatestPreviousInvoiceDate(tx);
-                    const canVoid = (tx.status === "COMPLETED" || tx.status === "DP") && canUpdateTransactions;
+                    const canVoid = canVoidTransaction(tx.status) && canUpdateTransactions;
                     const displayNote = displayTransactionNote(tx.note);
                     const cardBg = isPending ? "bg-blue-50/30 border-blue-100"
                       : isDraft ? "bg-amber-50/20 border-amber-100"
@@ -1913,11 +2009,12 @@ export default function HistoryClientPage() {
                           </div>
                         </div>
 
-                        {!isBundled && (
-                          <div
-                            className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-2 pt-3 border-t border-surface-100"
-                            onClick={(event) => event.stopPropagation()}
-                          >
+                        <div
+                          className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-2 pt-3 border-t border-surface-100"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {!isBundled && (
+                            <>
                             {!isBundled && (
                               <Button
                                 variant="secondary"
@@ -1972,12 +2069,14 @@ export default function HistoryClientPage() {
                                 Setujui Draft
                               </Button>
                             )}
+                            </>
+                          )}
                             <div className="col-start-3 row-start-1 rounded-lg border border-surface-200 bg-white p-[3px] empty:hidden">
                               <TransactionActionMenu
                                 tx={tx}
                                 isSalesRole={isSalesRole}
                                 canUpdateTransactions={canUpdateTransactions && !tx.printingReceipt && !tx.printingSubcategory}
-                                canDeleteTransactions={canDeleteTransactions && !tx.printingReceipt && !tx.printingSubcategory}
+                                canDeleteTransactions={canDeleteTransactions}
                                 canApproveTransactions={canApproveTransactions}
                                 canRejectTransactions={canRejectTransactions}
                                 canApproveDrafts={canApproveDrafts}
@@ -1994,8 +2093,7 @@ export default function HistoryClientPage() {
                                 showUpward={idx >= transactions.length - 2 && transactions.length > 1}
                               />
                             </div>
-                          </div>
-                        )}
+                        </div>
                       </div>
                     );
                   })}
@@ -2079,10 +2177,17 @@ export default function HistoryClientPage() {
       )}
 
       {/* Delete Confirm Modal */}
-      {deletingTransaction && !deletingTransaction.printingReceipt && !deletingTransaction.printingSubcategory && canDeleteTransactions && (
+      {deletingTransaction && canDeleteTransactions && (
         <DeleteConfirmModal
           tx={deletingTransaction}
           onClose={() => setDeletingTransaction(null)}
+          onSuccess={(warnings) => {
+            setDeleteResult({
+              documentNumber: deletingTransaction.invoiceNumber ?? deletingTransaction.draftNumber ?? "Tanpa nomor",
+              warnings,
+            });
+            setDeletingTransaction(null);
+          }}
         />
       )}
 
@@ -2111,7 +2216,7 @@ export default function HistoryClientPage() {
       )}
 
       {/* Void Confirm Modal */}
-      {voidingTransaction && canUpdateTransactions && (
+      {voidingTransaction && canUpdateTransactions && canVoidTransaction(voidingTransaction.status) && (
         <VoidConfirmModal
           tx={voidingTransaction}
           onClose={() => setVoidingTransaction(null)}
