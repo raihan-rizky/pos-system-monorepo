@@ -107,6 +107,8 @@ export const HELP_VISUAL_PAGE_CONFIG: Record<HelpVisualPage, HelpVisualPageConfi
         title: "Detail & Dokumen",
         targets: [
           { key: "history-detail-panel", label: "Panel Detail" },
+          { key: "history-receipt-comparison", label: "Perbandingan Versi Nota" },
+          { key: "history-receipt-changes-action", label: "Riwayat Perubahan Nota" },
           { key: "history-print-button", label: "Cetak Invoice" },
           { key: "history-surat-jalan-action", label: "Cetak Surat Jalan" },
           { key: "history-invoice-date-action", label: "Ubah Tanggal Invoice" },

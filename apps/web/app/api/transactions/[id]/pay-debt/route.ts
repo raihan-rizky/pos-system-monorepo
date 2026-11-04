@@ -5,6 +5,7 @@ import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { isActiveDebt } from "@/features/customer-debt/helpers/payment-terms";
 
 import { getLogger } from "@/lib/logger";
+import { captureReceiptSnapshot, recordReceiptChange, shouldRecordReceiptChange } from "@/features/receipt-changes/server/receipt-change-audit";
 
 const log = getLogger("api:transactions:id:pay-debt");
 export const dynamic = "force-dynamic";
@@ -152,6 +153,10 @@ export async function POST(
           debtCustomerId, storeId,
         );
       }
+      await tx.$queryRawUnsafe(
+        'SELECT "id" FROM "pos_transactions" WHERE "id" = $1 AND "storeId" = $2 FOR UPDATE',
+        id, storeId,
+      );
       const fresh = await tx.transaction.findFirst({
         where: { id, storeId },
         select: {
@@ -177,6 +182,10 @@ export async function POST(
       ) {
         throw new DebtConflictError();
       }
+
+      const receiptBefore = shouldRecordReceiptChange(user, fresh.status)
+        ? await captureReceiptSnapshot(tx, storeId, id)
+        : null;
 
       const freshPaid = Number(fresh.amountPaid);
       const freshTotal = Number(fresh.total);
@@ -245,6 +254,10 @@ export async function POST(
           note: note || null,
         })),
       });
+
+      if (receiptBefore) {
+        await recordReceiptChange(tx, { storeId, transactionId: id, actor: user, before: receiptBefore });
+      }
 
       return {
         id,

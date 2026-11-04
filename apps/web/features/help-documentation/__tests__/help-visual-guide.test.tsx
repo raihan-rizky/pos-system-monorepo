@@ -15,6 +15,22 @@ import { HELP_VISUAL_PAGE_CONFIG } from "../components/help-visual-registry";
 import { AUDITED_HELP_STEP_TARGETS } from "../components/audited-help-step-targets";
 
 describe("visual help guides", () => {
+  it("shows receipt versions in the owner comparison guide", () => {
+    const html = renderToStaticMarkup(
+      <VisualGuideMockup
+        visual={{ page: "history", target: "history-receipt-comparison", callout: "Bandingkan perubahan nota." }}
+        stepNumber={2}
+        stepTitle="Bandingkan versi"
+      />,
+    );
+    const visibleText = html.replace(/<[^>]*>/g, "");
+
+    for (const label of ["Pilih perubahan", "Rincian yang berubah", "Sebelum", "Sesudah", "Nota asli"]) {
+      expect(visibleText).toContain(label);
+    }
+    expect(html).toContain('data-help-target-active="true"');
+  });
+
   it("shows direct Edit and Harga actions in the POS cart preview", () => {
     const html = renderToStaticMarkup(
       <VisualGuideMockup

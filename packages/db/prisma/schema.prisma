@@ -2255,3 +2255,20 @@ enum InternalStockOutRequestStatus {
   APPROVED
   REJECTED
 }
+
+model TransactionReceiptChange {
+  id            String   @id @default(cuid())
+  sequence      BigInt   @unique @default(autoincrement())
+  storeId       String
+  transactionId String
+  invoiceNumber String?
+  actorId       String?
+  actorName     String
+  before        Json
+  after         Json
+  createdAt     DateTime @default(now())
+
+  @@index([storeId, transactionId, sequence], map: "pos_receipt_changes_store_transaction_seq_idx")
+  @@index([storeId, createdAt])
+  @@map("pos_transaction_receipt_changes")
+}

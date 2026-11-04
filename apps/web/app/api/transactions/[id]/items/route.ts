@@ -9,6 +9,7 @@ import {
   StockMutationError,
 } from "@/features/product-stock-groups/stock-mutations";
 import { isStockMutationConflict, lockStockMutationRows } from "@/features/product-stock-groups/stock-group-lock";
+import { captureReceiptSnapshot, recordReceiptChange, shouldRecordReceiptChange } from "@/features/receipt-changes/server/receipt-change-audit";
 
 const patchItemsSchema = z.object({
   items: z.array(
@@ -189,6 +190,9 @@ export async function PATCH(
           })) {
         throw new Error("TRANSACTION_ITEMS_CHANGED");
       }
+      const receiptBefore = shouldRecordReceiptChange(user, current.status)
+        ? await captureReceiptSnapshot(tx, storeId, id)
+        : null;
       const currentNames = new Map(current.items.map(item => [item.id, item.documentName]));
       const payment = calculateTaxPaymentState({
         status: existingTx.status, paymentMethod: existingTx.paymentMethod,
@@ -386,6 +390,9 @@ export async function PATCH(
           });
           if (updatedCustomer.count !== 1) throw new Error("TRANSACTION_ITEMS_CHANGED");
         }
+      }
+      if (receiptBefore) {
+        await recordReceiptChange(tx, { storeId, transactionId: id, actor: user, before: receiptBefore });
       }
     });
 

@@ -429,3 +429,9 @@ Untuk menghubungkan giro yang sudah diperiksa dengan hutang manual yang benar-be
 1. Buka **Keuangan** dan klik **Tambah Belanja Transfer** pada bagian Pengeluaran.
 2. Isi tanggal transfer, penerima / supplier, keterangan, dan nominal; bukti transfer opsional. Klik **Simpan** untuk mencatat keuangan tanpa menambah stok.
 3. Gunakan menu aksi pada badge **Belanja Transfer Manual** untuk koreksi sesuai izin. **Unduh ulang** Excel untuk melihat **PENGELUARAN BELANJA → VIA TRANSFER** dan RP. Pengeluaran dihitung sekali pada total.
+
+### Q50: Bagaimana Owner memeriksa perubahan nota oleh Sales?
+
+1. Klik notifikasi perubahan nota, atau buka **Riwayat**, cari transaksi, lalu pilih menu tiga titik > **Riwayat perubahan nota**.
+2. Pilih perubahan untuk melihat nama Sales, waktu penyimpanan, dan rincian **Sebelum** serta **Sesudah**. Setiap perubahan yang berhasil tersimpan memiliki versi sendiri.
+3. Buka **Nota asli sebelum perubahan Sales pertama** untuk memeriksa rincian transaksi awal yang tercatat. Pencatatan dimulai setelah fitur tersedia, untuk nota yang sudah diproses termasuk DP dan Tempo serta pembayaran piutang oleh Sales. Draft dan nota menunggu persetujuan tidak termasuk. Riwayat hanya dapat dibuka Owner pada toko yang sama.

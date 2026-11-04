@@ -6,6 +6,7 @@ const same = (page: HelpVisualPage, target: string, count: number): AuditedHelpS
   Array.from({ length: count }, () => [page, target] as const);
 
 export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepTarget[]> = {
+  "owner-receipt-changes": [["history", "history-receipt-changes-action"], ["history", "history-receipt-comparison"]],
   "owner-offline-sync": same("pos", "pos-primary", 3),
   "admin-offline-sync": same("pos", "pos-primary", 3),
   "cashier-offline-sync": same("pos", "pos-primary", 3),

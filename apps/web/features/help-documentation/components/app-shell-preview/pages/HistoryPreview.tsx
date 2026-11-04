@@ -12,9 +12,33 @@ const actionTargets = new Set([
   "history-invoice-date-action",
   "history-upload-proof",
   "history-debt-payment",
+  "history-receipt-changes-action",
 ]);
 
 export function HistoryPreview(ctx: PreviewContext) {
+  if (ctx.activeTarget === "history-receipt-comparison") {
+    return (
+      <PreviewPageRoot ctx={ctx} className="bg-surface-50 p-8">
+        <GuideTarget ctx={ctx} target="history-receipt-comparison" className="mx-auto max-w-4xl space-y-5">
+          <PreviewHeader title="Perubahan nota" subtitle="Bandingkan perubahan yang disimpan oleh Sales dan lihat rincian nota asli." icon={WalletCards} />
+          <div className="rounded-xl border border-surface-200 bg-white p-4">
+            <p className="text-sm font-semibold">Pilih perubahan</p>
+            <p className="mt-2 rounded-lg border border-surface-300 p-3 text-sm">Perubahan 1 - Sales Contoh - 04 November 2026, 09.00.00 WIB</p>
+          </div>
+          <h2 className="text-lg font-bold">Rincian yang berubah</h2>
+          <div className="rounded-xl border border-surface-200 bg-white p-4">
+            <h3 className="font-semibold">Catatan transaksi</h3>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg bg-surface-50 p-3"><p className="text-xs font-semibold">Sebelum</p><p className="mt-1 text-sm">Diambil hari Jumat</p></div>
+              <div className="rounded-lg bg-brand-50 p-3"><p className="text-xs font-semibold">Sesudah</p><p className="mt-1 text-sm">Diambil hari Sabtu</p></div>
+            </div>
+          </div>
+          <h2 className="text-lg font-bold">Versi nota</h2>
+          <p className="rounded-xl border border-surface-200 bg-white p-4 font-semibold">Nota asli sebelum perubahan Sales pertama</p>
+        </GuideTarget>
+      </PreviewPageRoot>
+    );
+  }
   const showMenu = actionTargets.has(ctx.activeTarget);
   const showDetail = ctx.activeTarget === "history-detail-panel";
 
@@ -79,6 +103,7 @@ function ActionMenu({ ctx }: { ctx: PreviewContext }) {
     ["history-invoice-date-action", "Ubah Tanggal Invoice"],
     ["history-upload-proof", "Upload Bukti"],
     ["history-debt-payment", "Bayar Cicilan"],
+    ["history-receipt-changes-action", "Riwayat perubahan nota"],
   ] as const;
   return (
     <div data-help-step-state="history-action-menu-open" className="absolute right-0 top-9 z-30 w-56 rounded-xl border border-surface-200 bg-white p-2 shadow-xl">

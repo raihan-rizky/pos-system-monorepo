@@ -11,6 +11,10 @@ const customerUpdateManyMock = vi.hoisted(() => vi.fn());
 const debtPaymentLogCreateManyMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
 const lockCustomerMock = vi.hoisted(() => vi.fn());
+const transactionFindFirstOrThrowMock = vi.hoisted(() => vi.fn());
+const receiptChangeCreateMock = vi.hoisted(() => vi.fn());
+const ownerFindManyMock = vi.hoisted(() => vi.fn());
+const notificationCreateManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
@@ -62,6 +66,7 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
         $queryRawUnsafe: lockCustomerMock.mockResolvedValue([{ id: "customer-1" }]),
         transaction: {
           findFirst: txTransactionFindFirstMock,
+          findFirstOrThrow: transactionFindFirstOrThrowMock,
           updateMany: transactionUpdateManyMock,
         },
         customer: {
@@ -70,8 +75,26 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
         debtPaymentLog: {
           createMany: debtPaymentLogCreateManyMock,
         },
+        transactionReceiptChange: { create: receiptChangeCreateMock },
+        user: { findMany: ownerFindManyMock },
+        notification: { createMany: notificationCreateManyMock },
       }),
     );
+    const receiptRow = {
+      id: "tx-dp-1", storeId: "store-main", invoiceNumber: "INV-DP-1", invoiceDate: new Date("2026-11-04T02:00:00Z"),
+      customerId: "customer-1", customerName: "Pelanggan", salespersonId: "salesperson-1", salesName: "Sales",
+      note: null, status: "DP", paymentMethod: "CASH", subtotal: 200000, discount: 0, tax: 0, taxRate: null,
+      taxMethod: "EXCLUSIVE", total: 200000, amountPaid: 50000, change: 0,
+      payments: [{ id: "payment-1", method: "CASH", amount: 50000 }], debtPaymentLogs: [], items: [], printingReceipt: null,
+    };
+    transactionFindFirstOrThrowMock.mockResolvedValueOnce(receiptRow).mockResolvedValue({
+      ...receiptRow,
+      amountPaid: 100000,
+      debtPaymentLogs: [{ paymentMethod: "TRANSFER", amount: 50000 }],
+    });
+    receiptChangeCreateMock.mockResolvedValue({ id: "change-1" });
+    ownerFindManyMock.mockResolvedValue([{ id: "owner-1" }]);
+    notificationCreateManyMock.mockResolvedValue({ count: 1 });
   });
 
   it("keeps a DP transaction open when payment is below remaining debt", async () => {
@@ -85,7 +108,8 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
 
     expect(response.status).toBe(200);
     expect(lockCustomerMock).toHaveBeenCalledWith(expect.stringContaining("pos_customers"), "customer-1", "store-main");
-    expect(lockCustomerMock.mock.invocationCallOrder[0]).toBeLessThan(transactionUpdateManyMock.mock.invocationCallOrder[0]);
+    expect(lockCustomerMock).toHaveBeenNthCalledWith(2, expect.stringContaining('"pos_transactions"'), "tx-dp-1", "store-main");
+    expect(lockCustomerMock.mock.invocationCallOrder[1]).toBeLessThan(txTransactionFindFirstMock.mock.invocationCallOrder[0]);
     expect(transactionUpdateManyMock).toHaveBeenCalledTimes(1);
     const txArgs = transactionUpdateManyMock.mock.calls[0][0];
     expect(txArgs.where).toMatchObject({ id: "tx-dp-1", storeId: "store-main", status: "DP", total: 200000 });
@@ -193,6 +217,29 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
     });
   });
 
+  it("records a processed DP settlement made by Sales with its debt payment details", async () => {
+    requirePermissionMock.mockResolvedValue({ id: "sales-1", name: "Sales One", role: "SALES", storeId: "store-main" });
+    const response = await POST(
+      new Request("http://localhost/api/transactions/tx-dp-1/pay-debt", {
+        method: "POST",
+        body: JSON.stringify({ amount: 50000, paymentMethod: "TRANSFER" }),
+      }),
+      { params: Promise.resolve({ id: "tx-dp-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(receiptChangeCreateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        actorId: "sales-1",
+        before: expect.objectContaining({ status: "DP", amountPaid: 50000, debtPayments: [] }),
+        after: expect.objectContaining({ status: "DP", amountPaid: 100000, debtPayments: [{ method: "TRANSFER", amount: 50000 }] }),
+      }),
+    }));
+    expect(notificationCreateManyMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: [expect.objectContaining({ userId: "owner-1", tag: "change-1" })],
+    }));
+  });
+
   it("keeps a fully settled Tempo invoice in COMPLETED status", async () => {
     const tempoRow = {
       id: "tx-dp-1",
@@ -284,7 +331,8 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
     }));
     expect(transactionUpdateManyMock.mock.calls[0][0].data).not.toHaveProperty("customerId");
     expect(customerFindFirstMock).not.toHaveBeenCalled();
-    expect(lockCustomerMock).not.toHaveBeenCalled();
+    expect(lockCustomerMock).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('"pos_transactions"'), "tx-dp-1", "store-main");
+    expect(lockCustomerMock.mock.invocationCallOrder[0]).toBeLessThan(txTransactionFindFirstMock.mock.invocationCallOrder[0]);
     expect(customerUpdateManyMock).not.toHaveBeenCalled();
     expect(debtPaymentLogCreateManyMock).toHaveBeenCalledWith({ data: [{
       transactionId: "tx-dp-1", customerId: null, storeId: "store-main", amount, paymentMethod: "TRANSFER", note: null,

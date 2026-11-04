@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { 
   MoreVertical, 
   Trash2, 
@@ -9,10 +10,12 @@ import {
   Upload,
   Truck,
   CalendarDays,
+  History,
 } from "lucide-react";
 import { Transaction } from "@/hooks/useTransactions";
 import { isTransactionEligibleForSuratJalan } from "@/features/surat-jalan/components/SuratJalanBundleButton";
 import { SuratJalanCreateModal } from "@/features/surat-jalan/components/SuratJalanCreateModal";
+import { useRole } from "@/components/providers/RoleProvider";
 
 const TransactionBuktiModal = lazy(() => import("@/features/transaction-history/components/TransactionBuktiModal"));
 
@@ -59,6 +62,7 @@ export function TransactionActionMenu({
   showUpward = false,
   initialOpen = false,
 }: TransactionActionMenuProps) {
+  const { role } = useRole();
   const [isOpen, setIsOpen] = useState(initialOpen);
   const [suratJalanModalOpen, setSuratJalanModalOpen] = useState(false);
   const [buktiModalOpen, setBuktiModalOpen] = useState(false);
@@ -146,9 +150,10 @@ export function TransactionActionMenu({
   const hasDeleteAction = !isBundled && !isSalesRole && canDeleteTransactions;
   const hasVoidAction = !isBundled && !isSalesRole && canVoid;
   const hasSuratJalanAction = !isBundled && isTransactionEligibleForSuratJalan(tx);
+  const hasReceiptChangesAction = !isBundled && role === "OWNER" && tx.status !== "DRAFT" && tx.status !== "PENDING_APPROVAL";
 
   const hasAnyAction = hasUpdateAction || hasInvoiceDateAction || hasDeleteAction || hasVoidAction || 
-                       hasSuratJalanAction;
+                       hasSuratJalanAction || hasReceiptChangesAction;
 
   if (!hasAnyAction) return null;
 
@@ -166,6 +171,18 @@ export function TransactionActionMenu({
       className="w-48 rounded-xl shadow-lg bg-white ring-1 ring-black/5 divide-y divide-surface-100 z-[100] overflow-y-auto"
     >
       {/* Action groups */}
+      {hasReceiptChangesAction && (
+        <div className="p-1">
+          <Link
+            href={`/history/receipt-changes/${encodeURIComponent(tx.id)}`}
+            onClick={(event) => { event.stopPropagation(); setIsOpen(false); }}
+            className="flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium text-surface-700 hover:bg-brand-50 hover:text-brand-700"
+          >
+            <History className="mr-2 h-4 w-4 text-surface-500" aria-hidden="true" />
+            Riwayat perubahan nota
+          </Link>
+        </div>
+      )}
       {(hasUpdateAction || hasInvoiceDateAction || hasVoidAction) && (
         <div className="p-1">
           {hasInvoiceDateAction && (

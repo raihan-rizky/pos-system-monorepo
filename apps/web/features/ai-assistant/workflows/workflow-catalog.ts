@@ -970,7 +970,19 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Isi belanja", description: "Isi tanggal transfer, nama penerima / supplier, keterangan belanja, dan nominal. Bukti transfer opsional. Klik Simpan untuk mencatat pengeluaran tanpa menambah stok." },
       { title: "Periksa rincian belanja", description: "Catatan berbadge Belanja Transfer Manual dapat diubah atau dihapus sesuai izin. Unduh ulang Excel bulanan: PENGELUARAN BELANJA menampilkannya pada VIA TRANSFER dan RP menghitungnya satu kali." },
     ],
-  }),];
+  }),
+  workflow({
+    faqNumber: 50, slug: "sales-receipt-changes", title: "Bagaimana Owner memeriksa perubahan nota oleh Sales?",
+    aliases: ["nota asli sales", "perubahan transaksi sales", "bandingkan nota sales", "notifikasi nota diubah"],
+    route: "/history", actionLabel: "Buka Riwayat", iconKey: "history",
+    allowedRoles: ["OWNER"], requiredCapabilities: [],
+    steps: [
+      { title: "Buka perubahan", description: "Klik notifikasi perubahan nota, atau cari transaksi di Riwayat lalu pilih menu tiga titik > Riwayat perubahan nota." },
+      { title: "Pilih perubahan", description: "Pilih salah satu perubahan untuk melihat Sales dan waktu penyimpanannya." },
+      { title: "Bandingkan nota", description: "Periksa rincian sebelum dan sesudah, serta Nota asli sebelum perubahan Sales pertama. Pencatatan berlaku untuk nota yang sudah diproses, termasuk DP dan Tempo, setelah fitur tersedia. Pembayaran piutang oleh Sales juga tercatat." },
+    ],
+  }),
+];
 
 export function getWorkflowPayload(workflow: AssistantWorkflowDefinition): AssistantWorkflowPayload {
   return {

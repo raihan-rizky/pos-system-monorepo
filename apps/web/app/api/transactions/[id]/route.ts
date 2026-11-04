@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@pos/db";
+import { db, type Prisma } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
 
@@ -8,6 +8,7 @@ import {
   reverseTransaction,
   TransactionReversalConflictError,
 } from "@/features/transactions-stock/services/transaction-reversal-service";
+import { captureReceiptSnapshot, recordReceiptChange, shouldRecordReceiptChange } from "@/features/receipt-changes/server/receipt-change-audit";
 
 const log = getLogger("api:transactions:id");
 const toIsoString = (value: Date | string | null | undefined) => {
@@ -284,7 +285,7 @@ export async function PATCH(
       return NextResponse.json(updated);
     }
 
-    const updated = await db.transaction.update({
+    const persistUpdate = (client: Prisma.TransactionClient) => client.transaction.update({
       where: { id },
       data: updateData,
       include: {
@@ -314,6 +315,21 @@ export async function PATCH(
         cashier: { select: { name: true } },
       },
     });
+
+    const updated = user.role === "SALES"
+      ? await db.$transaction(async (tx) => {
+          await tx.$queryRaw`SELECT "id" FROM "pos_transactions" WHERE "id" = ${id} AND "storeId" = ${storeId} FOR UPDATE`;
+          const current = await tx.transaction.findFirstOrThrow({ where: { id, storeId }, select: { status: true } });
+          const receiptBefore = shouldRecordReceiptChange(user, current.status)
+            ? await captureReceiptSnapshot(tx, storeId, id)
+            : null;
+          const result = await persistUpdate(tx);
+          if (receiptBefore) {
+            await recordReceiptChange(tx, { storeId, transactionId: id, actor: user, before: receiptBefore });
+          }
+          return result;
+        })
+      : await persistUpdate(db);
 
     return NextResponse.json(updated);
   } catch (error: any) {

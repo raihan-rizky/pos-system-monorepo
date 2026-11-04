@@ -76,6 +76,7 @@ describe("POST /api/customers/[id]/pay-debt", () => {
     transactionUpdateManyMock.mockResolvedValue({ count: 1 });
     dbTransactionMock.mockImplementation(async (callback) =>
       callback({
+        $queryRawUnsafe: vi.fn().mockResolvedValue([]),
         customer: {
           update: customerUpdateMock,
           updateMany: customerUpdateManyMock,

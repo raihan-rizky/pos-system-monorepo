@@ -202,6 +202,16 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       ]
     },
     {
+      id: "owner-receipt-changes",
+      title: "Memeriksa perubahan nota Sales",
+      description: "Owner menerima pemberitahuan ketika Sales mengubah nota yang sudah diproses, termasuk DP dan Tempo, lalu dapat membandingkan setiap perubahan dengan nota asli. Pembayaran piutang oleh Sales juga tercatat.",
+      icon: <History className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka perubahan nota", description: "Klik notifikasi perubahan nota, atau buka Riwayat, cari transaksi, lalu pilih menu tiga titik dan Riwayat perubahan nota.", icon: <History className="w-8 h-8" /> },
+        { title: "Bandingkan versi", description: "Pilih perubahan untuk melihat nama Sales, waktu, dan rincian sebelum serta sesudah. Buka Nota asli untuk melihat rincian sebelum perubahan Sales pertama. Riwayat mulai tercatat setelah fitur tersedia; nota pending dan draft tidak termasuk.", icon: <FileText className="w-8 h-8" /> },
+      ]
+    },
+    {
       id: "owner-performa-sales",
       title: "Melihat Performa Sales",
       description: "Di sini kamu bisa lihat ranking sales terbaik berdasarkan total omzet dan nota penjualan yang berhasil mereka selesaikan.",

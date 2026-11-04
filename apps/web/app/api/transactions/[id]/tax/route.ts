@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getCurrentUser, requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { calculateTransactionTax, calculateTaxPaymentState, getTransactionTaxMethod } from "@/features/transaction-tax/helpers/tax-calculation";
 import { getLogger } from "@/lib/logger";
+import { captureReceiptSnapshot, recordReceiptChange, shouldRecordReceiptChange } from "@/features/receipt-changes/server/receipt-change-audit";
 
 export const dynamic = "force-dynamic";
 const log = getLogger("api:transactions:tax");
@@ -69,6 +70,9 @@ export async function PATCH(request: Request, { params }: Context) {
       const fresh = await tx.transaction.findFirst({ where: { id, storeId }, select });
       if (!fresh || fresh.printingSubcategory || fresh.customerId !== initial.customerId || fresh.status !== initial.status ||
           Object.entries(parsed.data.expected).some(([key, value]) => snapshot(fresh)[key as keyof ReturnType<typeof snapshot>] !== value)) throw new TaxConflict();
+      const receiptBefore = shouldRecordReceiptChange(user, fresh.status)
+        ? await captureReceiptSnapshot(tx, storeId, id)
+        : null;
       const taxMethod = getTransactionTaxMethod(fresh);
       const totals = calculateTransactionTax({ subtotal: Number(fresh.subtotal), discount: Number(fresh.discount), taxRate: parsed.data.taxRate, taxMethod });
       const payment = calculateTaxPaymentState({ status: fresh.status, paymentMethod: fresh.paymentMethod, amountPaid: Number(fresh.amountPaid), change: Number(fresh.change), total: totals.total, previousTotal: Number(fresh.total) });
@@ -90,6 +94,9 @@ export async function PATCH(request: Request, { params }: Context) {
           });
           if (customer.count !== 1) throw new TaxConflict();
         }
+      }
+      if (receiptBefore) {
+        await recordReceiptChange(tx, { storeId, transactionId: id, actor: user, before: receiptBefore });
       }
       return { ...fresh, ...data };
     });

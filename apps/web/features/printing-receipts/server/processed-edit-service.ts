@@ -8,6 +8,7 @@ import { getPrintingReceiptCheckoutLines, parsePrintingReceiptDocument, parsePri
 import { planProcessedPrintingReceiptEdit, type ProcessedPrintingReceiptInput, type ProcessedPrintingReceiptReview } from "../processed-edit";
 import { getPrintingReceipt, PrintingReceiptStorageError } from "./receipt-store";
 import { parsePrintingReceiptRevision } from "./route-support";
+import { captureReceiptSnapshot, recordReceiptChange, shouldRecordReceiptChange } from "@/features/receipt-changes/server/receipt-change-audit";
 
 type Tx = Prisma.TransactionClient;
 type Actor = { id: string; name?: string | null; role?: Role };
@@ -81,6 +82,9 @@ export async function saveProcessedPrintingReceipt(storeId: string, id: string, 
     await db.$transaction(async tx => {
       const { input, current, transaction, products, plan, review } = await prepare(tx, storeId, id, raw);
       if (review.reviewToken !== raw.reviewToken) throw conflict();
+      const receiptBefore = shouldRecordReceiptChange(actor, transaction.status)
+        ? await captureReceiptSnapshot(tx, storeId, transaction.id)
+        : null;
       const receiptWrite = await tx.printingReceipt.updateMany({ where: { id, storeId, revision: input.revision, transactionId: transaction.id }, data: { document: input.document as unknown as Prisma.InputJsonObject, revision: { increment: 1 } } });
       if (receiptWrite.count !== 1) throw conflict();
       const invoiceDate = resolveInvoiceDateTime({ mode: "edit", date: input.document.date, previousInvoiceDate: transaction.invoiceDate, now: new Date() });
@@ -124,6 +128,9 @@ export async function saveProcessedPrintingReceipt(storeId: string, id: string, 
           const unitCost = previous && previous.productId === productId ? previous.unitCost : products.find(row => row.id === productId)?.costPrice ?? null;
           return { transactionId: transaction.id, productName: line.name, documentName: line.name, material: line.material || null, quantity: line.quantity, unitPrice: line.price, subtotal: Math.round(line.quantity * line.price * 100) / 100, discount: 0, productId: null, printingServiceId: null, rawMaterialProductId: productId, rawMaterialQuantity: line.stockLink?.quantity ?? null, rawMaterialUnit: line.stockLink?.unit ?? null, unitCost };
         }) });
+      }
+      if (receiptBefore) {
+        await recordReceiptChange(tx, { storeId, transactionId: transaction.id, actor, before: receiptBefore });
       }
     }, { isolationLevel: "Serializable" });
     return await getPrintingReceipt(storeId, id);

@@ -3,6 +3,7 @@ import { db, Prisma } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { allocateCustomerDebtPayment } from "@/features/customer-debt/helpers/customer-debt-allocation";
+import { captureReceiptSnapshot, recordReceiptChange, shouldRecordReceiptChange } from "@/features/receipt-changes/server/receipt-change-audit";
 
 import { getLogger } from "@/lib/logger";
 
@@ -149,6 +150,15 @@ export async function POST(
         const transaction = transactionById.get(allocation.transactionId);
         if (!transaction) throw new DebtConflictError();
 
+        // The guarded customer update holds the customer lock before invoice locks.
+        await tx.$queryRawUnsafe(
+          'SELECT "id" FROM "pos_transactions" WHERE "id" = $1 AND "storeId" = $2 FOR UPDATE',
+          transaction.id, storeId,
+        );
+        const receiptBefore = shouldRecordReceiptChange(user, transaction.status)
+          ? await captureReceiptSnapshot(tx, storeId, transaction.id)
+          : null;
+
         const guardedTransaction = await tx.transaction.updateMany({
           where: {
             id: transaction.id,
@@ -180,6 +190,9 @@ export async function POST(
             note: note || null,
           },
         });
+        if (receiptBefore) {
+          await recordReceiptChange(tx, { storeId, transactionId: transaction.id, actor: user, before: receiptBefore });
+        }
       }
 
       const updatedCustomer = await tx.customer.findFirst({

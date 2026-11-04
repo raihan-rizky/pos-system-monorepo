@@ -16,6 +16,18 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "receipt-changes-by-sales", date: "2026-11-04", revision: 1,
+    highlight: { title: "Perubahan nota Sales", summary: "Owner dapat membandingkan nota asli dan setiap perubahan Sales." },
+    title: "Bandingkan perubahan nota Sales.",
+    summary: "Owner menerima notifikasi saat Sales mengubah nota yang sudah diproses, termasuk DP dan Tempo. Lihat nota asli serta rincian sebelum dan sesudah setiap perubahan.",
+    kind: "feature", area: "Riwayat", href: "/history", visual: "history-table",
+    steps: [
+      { title: "Buka perubahan", detail: "Pilih notifikasi atau menu tiga titik pada transaksi di Riwayat." },
+      { title: "Pilih versi", detail: "Buka Riwayat perubahan nota dan pilih perubahan Sales." },
+      { title: "Bandingkan rincian", detail: "Periksa nota asli serta nilai sebelum dan sesudah." },
+    ],
+  },
+  {
     id: "pwa-status-dismiss", date: "2026-11-03", revision: 1,
     highlight: { title: "Pemberitahuan lebih ringkas", summary: "Tutup pemberitahuan status atau tunggu tiga detik." },
     title: "Pemberitahuan status lebih mudah ditutup.",
