@@ -59,7 +59,7 @@ export const DATABASE_RESET_MODEL_LABELS: Record<DatabaseResetModel, string> = {
   ...Object.fromEntries(DATABASE_RESET_OPTIONS.flatMap(option => option.items.map(item => [item.model, item.label]))),
   TransactionItem: "Item Transaksi", TransactionPayment: "Pembayaran Transaksi",
   TransactionLifecycleAudit: "Audit Perubahan Transaksi",
-  ShoppingRequestItem: "Item Daftar Belanja", GoodsPurchaseItem: "Item Pembelian",
+  ShoppingRequestItem: "Item Daftar Belanja", ShoppingRequestDeletion: "Audit Pembatalan Daftar Belanja", GoodsPurchaseItem: "Item Pembelian",
   InventoryInboundReceiptLine: "Detail Penerimaan Barang",
   InventoryLogVerification: "Verifikasi Log Stok", InventoryLogCorrectionRequest: "Permintaan Koreksi Stok",
   InventoryLogCorrectionMovement: "Pergerakan Koreksi Stok", SuratJalanItem: "Item Surat Jalan",

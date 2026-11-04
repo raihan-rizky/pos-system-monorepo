@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "shopping-request-deletion", date: "2026-11-04", revision: 1,
+    highlight: { title: "Hapus daftar belanja", summary: "Batalkan daftar dan kurangi kembali stok penerimaan yang tercatat." },
+    title: "Hapus daftar belanja dengan riwayat yang tetap tersimpan.",
+    summary: "Hapus daftar dengan alasan dan periksa dampaknya pada stok sebelum konfirmasi. Pengeluaran dan pembayaran tetap tercatat, dan riwayat pembatalan dapat dilihat kembali.",
+    kind: "feature", area: "Supplier & Daftar Belanja", href: "/suppliers?tab=shopping-requests", visual: "shopping",
+    steps: [
+      { title: "Buka tindakan", detail: "Di Supplier > Daftar Belanja, pilih Tindakan lainnya > Hapus daftar pada kartu yang ingin dibatalkan." },
+      { title: "Periksa dan konfirmasi", detail: "Periksa stok yang akan dikurangi, isi alasan, lalu pilih Ya, hapus daftar." },
+      { title: "Lihat riwayat", detail: "Pilih status Dibatalkan untuk melihat alasan, pelaku, dan dokumen terkait." },
+    ],
+  },
+  {
     id: "price-rounding-category-exceptions", date: "2026-11-04", revision: 1,
     highlight: { title: "Pengecualian pembulatan", summary: "Pilih kategori produk yang harganya tidak dibulatkan." },
     title: "Kecualikan kategori dari pembulatan harga.",

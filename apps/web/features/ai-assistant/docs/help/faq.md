@@ -215,6 +215,7 @@ Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumny
 7. Jumlah nol berarti barang tidak disetujui. Jumlah di atas kebutuhan memerlukan konfirmasi; minimal satu barang harus disetujui.
 8. Klik **Setujui dan Catat Pembelian** sekali. Daftar dan Pembelian Barang langsung disetujui. Pilih pembayaran saat menerima barang; satu **Pengeluaran kategori Bahan** sebesar total pembelian penuh dicatat saat penerimaan pertama yang berisi barang disetujui. Stok berubah setelah Penerimaan Barang disetujui.
 9. Pemegang izin `supplier.goods_purchase.reject:update` dapat menolak seluruh daftar dengan alasan. Penolakan tidak membuat Pembelian Barang atau Pengeluaran.
+10. Pemegang izin `supplier.shopping_request.delete:delete` dapat memilih **Tindakan lainnya > Hapus daftar**, memeriksa stok yang akan dikurangi, mengisi alasan, lalu mengonfirmasi. Stok penerimaan yang disetujui dikurangi jika stok cukup dan riwayatnya dapat dipastikan. Pilih status **Dibatalkan** untuk melihat riwayat. Pengeluaran dan pembayaran tetap tercatat; HPP dan harga jual tidak otomatis diubah. Pengembalian uang atau perubahan giro memerlukan proses terpisah.
 
 ### Q28: Bagaimana cara melakukan Check Out bagi staf gudang?
 **A:** Tugas inventaris langsung tersedia sesuai izin akun. Di akhir hari, gunakan Check Out untuk menyimpan ringkasan pekerjaan:

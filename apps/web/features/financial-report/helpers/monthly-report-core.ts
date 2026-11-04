@@ -23,8 +23,8 @@ export type MonthlyExpenseInput = {
   manualPurchasePaymentMethod?: string | null;
   purchaseAmountMismatch?: boolean;
   ambiguousPurchaseDueDates?: Date[];
-  shoppingRequest?: { status: string; number?: string } | null;
-  goodsPurchase?: { number: string; status: string; totalAmount?: Money; paymentMethod: string | null; paymentDueDate: Date | null; supplierNameSnapshot: string;
+  shoppingRequest?: { status: string; number?: string; deletion?: { previousStatus: string } | null } | null;
+  goodsPurchase?: { number: string; status: string; statusBeforeCancellation?: string | null; totalAmount?: Money; paymentMethod: string | null; paymentDueDate: Date | null; supplierNameSnapshot: string;
     supplierPayable?: { id: string; debtDate?: Date; giroHistoryVerifiedAt: Date | null; payments: { id: string; amount: Money; paidAt: Date }[] } | null } | null;
 };
 export type MonthlyManualReceivableInput = {
@@ -172,7 +172,9 @@ export function buildMonthlyReport(input: {
   const backdatedDebts: MonthlySupplierDebt[] = [];
   for (const expense of [...new Map(input.expenses.map(row => [row.id, row])).values()]) {
     if (expense.backdatedPurchaseDueId || expense.backdatedPurchasePaymentId) continue;
-    if (expense.deletedAt || (expense.goodsPurchase && expense.goodsPurchase.status !== 'APPROVED') || (expense.shoppingRequest && expense.shoppingRequest.status !== 'APPROVED')) continue;
+    if (expense.deletedAt ||
+      (expense.goodsPurchase && expense.goodsPurchase.status !== 'APPROVED' && !(expense.goodsPurchase.status === 'CANCELLED' && expense.goodsPurchase.statusBeforeCancellation === 'APPROVED')) ||
+      (expense.shoppingRequest && expense.shoppingRequest.status !== 'APPROVED' && !(expense.shoppingRequest.status === 'CANCELLED' && expense.shoppingRequest.deletion?.previousStatus === 'APPROVED'))) continue;
     const purchase = expense.goodsPurchase;
     const automatic = Boolean(expense.goodsPurchaseId || expense.shoppingRequestId || purchase || expense.shoppingRequest);
     const receiptDate = dateKey(expense.occurredAt);

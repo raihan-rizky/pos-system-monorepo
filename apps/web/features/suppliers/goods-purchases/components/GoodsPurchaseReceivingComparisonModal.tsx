@@ -28,6 +28,9 @@ export function GoodsPurchaseReceivingComparisonContent({
         </div>
       </div>
 
+      {comparison.receipts.some(receipt => receipt.stockReversed) && (
+        <p className="text-sm text-amber-800">Jumlah diterima menunjukkan riwayat penerimaan; sebagian dampak stok sudah dibalik.</p>
+      )}
       <div className="overflow-x-auto rounded-xl border border-slate-200">
         <table className="w-full min-w-[680px] text-left text-sm">
           <thead className="bg-slate-50 text-xs font-black uppercase text-slate-500">
@@ -89,6 +92,7 @@ export function GoodsPurchaseReceivingComparisonContent({
                   {receipt.status}
                 </span>
               </div>
+              {receipt.stockReversed && <p className="mt-1 text-xs font-medium text-amber-800">Stok sudah dibalik</p>}
               <div className="mt-2 space-y-1">
                 {receipt.lines.map((line) => {
                   const item = itemById.get(line.goodsPurchaseItemId);

@@ -59,6 +59,14 @@ describe('linking a manual payable to an existing giro', () => {
     expect(mocks.query.mock.calls[0].join(' ')).toContain('FOR UPDATE');
   });
 
+  it('mengizinkan penautan giro pembelian yang sebelumnya disetujui', async () => {
+    mocks.query.mockResolvedValueOnce([]);
+    await POST(request(), context);
+    const sql = (mocks.query.mock.calls[0][0] as TemplateStringsArray).join(' ');
+    expect(sql).toContain('g."statusBeforeCancellation" = \'APPROVED\'');
+    expect(sql).toContain('other."statusBeforeCancellation" = \'APPROVED\'');
+  });
+
   it('merges only explicitly chosen duplicates after recording an audit snapshot', async () => {
     mockHistory();
     const response = await POST(request(), context);

@@ -81,6 +81,15 @@ describe('normalisasi laporan bulanan', () => {
     const expense = { id: 'e1', occurredAt: new Date('2026-09-02T03:00:00Z'), category: 'SUPPLIES', amount: 100, changeAmount: 0, description: 'Contoh', shoppingRequest: { status: 'REQUESTED' } };
     expect(report([], { expenses: [expense, { ...expense, id: 'e2', shoppingRequest: { status: 'REJECTED' } }] }).expenses).toEqual([]);
   });
+  it('mempertahankan pengeluaran daftar yang sebelumnya disetujui tanpa mengakui dokumen yang belum disetujui', () => {
+    const base = { id: 'approved', occurredAt: new Date('2026-09-02T03:00:00Z'), category: 'SUPPLIES', amount: 100, changeAmount: 0, description: 'Contoh', shoppingRequest: { status: 'CANCELLED', deletion: { previousStatus: 'APPROVED' } }, goodsPurchase: { number: 'PB-1', status: 'CANCELLED', statusBeforeCancellation: 'APPROVED', paymentMethod: 'TRANSFER', paymentDueDate: null, supplierNameSnapshot: 'Pemasok' } };
+    const result = report([], { expenses: [base,
+      { ...base, id: 'pending', goodsPurchase: { ...base.goodsPurchase, statusBeforeCancellation: 'PENDING' } },
+      { ...base, id: 'requested', shoppingRequest: { status: 'CANCELLED', deletion: { previousStatus: 'REQUESTED' } } },
+      { ...base, id: 'unknown', shoppingRequest: { status: 'CANCELLED', deletion: null } },
+    ] });
+    expect(result.purchaseExpenses).toEqual([expect.objectContaining({ id: 'approved', amount: 100 })]);
+  });
   it('memberi catatan jika snapshot biaya expense belum lengkap', () => {
     const expense = { id: 'e1', occurredAt: new Date('2026-09-02T03:00:00Z'), category: 'SUPPLIES', amount: 0, changeAmount: 0, description: 'Biaya belum lengkap', hasMissingCostSnapshot: true };
     expect(report([], { expenses: [expense] }).warnings.join(' ')).toContain('snapshot biaya');

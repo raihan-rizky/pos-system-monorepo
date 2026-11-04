@@ -32,6 +32,10 @@ const STATUS_LABELS = {
     label: "Ditolak",
     className: "border-rose-200 bg-rose-50 text-rose-700",
   },
+  CANCELLED: {
+    label: "Dibatalkan",
+    className: "border-slate-200 bg-slate-100 text-slate-500",
+  },
 } as const;
 
 export function goodsPurchaseDisplayStatus(row: GoodsPurchaseListItem) {

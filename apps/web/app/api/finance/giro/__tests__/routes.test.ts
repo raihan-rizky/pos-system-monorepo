@@ -58,6 +58,19 @@ describe('giro endpoints', () => {
     expect((mocks.query.mock.calls[1][0] as TemplateStringsArray).join(' ')).toContain('d."note"');
   });
 
+  it('membaca dan merekonsiliasi giro dari pembelian yang sebelumnya disetujui', async () => {
+    mocks.query.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    await GET(new Request('http://localhost/api/finance/giro'));
+    const listSql = (mocks.query.mock.calls[0][0] as TemplateStringsArray).join(' ');
+    expect(listSql).toContain('g."statusBeforeCancellation" = \'APPROVED\'');
+    expect(listSql).toContain('other."statusBeforeCancellation" = \'APPROVED\'');
+    mocks.query.mockReset().mockResolvedValueOnce([]);
+    await POST(review(input), context);
+    const reconcileSql = (mocks.query.mock.calls[0][0] as TemplateStringsArray).join(' ');
+    expect(reconcileSql).toContain('g."statusBeforeCancellation" = \'APPROVED\'');
+    expect(reconcileSql).toContain('other."statusBeforeCancellation" = \'APPROVED\'');
+  });
+
   it('lists legacy unknown and verified partial giros with unlinked manual debts from the current store', async () => {
     mocks.query.mockResolvedValueOnce([
       { ...purchase, goodsPurchaseId: purchase.id, payableId: null, historyVerifiedAt: null, payments: [] },

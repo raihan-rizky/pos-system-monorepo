@@ -60,7 +60,7 @@ describe("getShoppingRequestKpiSummary", () => {
       1,
       expect.objectContaining({
         where: {
-          shoppingRequest: { storeId: "store-utama" },
+          shoppingRequest: { storeId: "store-utama", status: "REQUESTED" },
           decisionStatus: "PENDING",
         },
       }),

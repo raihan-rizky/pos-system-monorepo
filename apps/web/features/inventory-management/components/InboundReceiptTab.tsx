@@ -421,6 +421,9 @@ export const InboundReceiptTab: React.FC<InboundReceiptTabProps> = ({
                             />
                             {STATUS_LABELS[receipt.status] ?? receipt.status}
                           </span>
+                          {receipt.stockReversed && (
+                            <p className="mt-1 text-xs font-medium text-amber-800">Stok sudah dibalik</p>
+                          )}
                         </td>
                         <td
                           role="cell"

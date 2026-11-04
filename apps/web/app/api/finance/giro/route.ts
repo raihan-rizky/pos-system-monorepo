@@ -42,7 +42,7 @@ export async function GET(_request: Request): Promise<Response> {
           AND (x."goodsPurchaseId" = g."id" OR (x."goodsPurchaseId" IS NULL AND x."shoppingRequestId" = g."shoppingRequestId"
             AND NOT EXISTS (SELECT 1 FROM "pos_goods_purchases" other
               WHERE other."storeId" = g."storeId" AND other."shoppingRequestId" = g."shoppingRequestId"
-                AND other."status" = 'APPROVED' AND other."id" <> g."id")))
+                AND (other."status" = 'APPROVED' OR (other."status" = 'CANCELLED' AND other."statusBeforeCancellation" = 'APPROVED')) AND other."id" <> g."id")))
         ORDER BY (x."goodsPurchaseId" = g."id") DESC NULLS LAST, x."occurredAt" ASC LIMIT 1
       ) e ON true
       LEFT JOIN "pos_supplier_payables" d ON d."goodsPurchaseId" = g."id" AND d."storeId" = g."storeId"
@@ -51,7 +51,7 @@ export async function GET(_request: Request): Promise<Response> {
           ORDER BY pay."paidAt", pay."createdAt", pay."id"), '[]'::json) AS "payments"
         FROM "pos_supplier_payable_payments" pay WHERE pay."payableId" = d."id"
       ) p ON true
-      WHERE g."storeId" = ${user.storeId} AND g."status" = 'APPROVED' AND g."paymentMethod" = 'GIRO'
+      WHERE g."storeId" = ${user.storeId} AND (g."status" = 'APPROVED' OR (g."status" = 'CANCELLED' AND g."statusBeforeCancellation" = 'APPROVED')) AND g."paymentMethod" = 'GIRO'
         AND (e."debtDate" IS NOT NULL OR EXISTS (
           SELECT 1 FROM "pos_expenses" legacy WHERE legacy."storeId" = g."storeId" AND legacy."deletedAt" IS NULL
             AND (legacy."goodsPurchaseId" = g."id" OR

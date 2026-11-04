@@ -23,6 +23,7 @@ import { ShoppingRequestApproveModal } from "./ShoppingRequestApproveModal";
 import { ShoppingRequestEditModal } from "./ShoppingRequestEditModal";
 import { ShoppingRequestApprovedQtyModal } from "./ShoppingRequestApprovedQtyModal";
 import { ShoppingRequestFinalApprovalModal } from "./ShoppingRequestFinalApprovalModal";
+import { ShoppingRequestDeletionDialog } from "./ShoppingRequestDeletionDialog";
 import { GoodsPurchaseCreateModal } from "@/features/suppliers/goods-purchases/components/GoodsPurchaseCreateModal";
 import { GoodsPurchaseApprovalModal } from "@/features/suppliers/goods-purchases/components/GoodsPurchaseApprovalModal";
 import { GoodsPurchaseDetailModal } from "@/features/suppliers/goods-purchases/components/GoodsPurchaseDetailModal";
@@ -107,6 +108,7 @@ export function ShoppingRequestList({
   const [purchaseApprovalId, setPurchaseApprovalId] = useState<string | null>(null);
   const [purchaseRejectId, setPurchaseRejectId] = useState<string | null>(null);
   const [legacyCreateOpen, setLegacyCreateOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ShoppingRequestDetail | null>(null);
   const { canPerform } = useRole();
   const canApproveStock = canPerform(
     "supplier.shopping_request.approve_stock",
@@ -124,6 +126,7 @@ export function ShoppingRequestList({
   const canRejectPurchase = canPerform("supplier.goods_purchase.reject", "update");
   const canCreatePurchase = canPerform("supplier", "create");
   const canReceive = canPerform("inventory.inbound_receipt.create", "create");
+  const canDeleteRequest = canPerform("supplier.shopping_request.delete", "delete");
 
   const list = useShoppingRequests({
     page,
@@ -319,6 +322,7 @@ export function ShoppingRequestList({
                      </p>
                      {row.purchase && <p className="mt-1 text-xs font-semibold text-cyan-700">Pembelian {row.purchase.number} · {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(row.purchase.totalAmount)}</p>}
                      {row.rejectionReason && <p className="mt-1 text-xs text-rose-700">Alasan: {row.rejectionReason}</p>}
+                     {row.deletion && <p className="mt-1 break-words text-xs text-slate-600">Dibatalkan oleh {row.deletion.actorName ?? "Pengguna"} · {new Date(row.deletion.createdAt).toLocaleString("id-ID")} · Alasan: {row.deletion.reason}{row.deletion.previousStatus && <> · Status sebelumnya: {STATUS_LABELS[row.deletion.previousStatus].label}</>}</p>}
                      {row.status === "REQUESTED" && row.approvalFlowVersion !== 2 && (
                        <div className="mt-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
                          <div className="h-1.5 w-full max-w-28 overflow-hidden rounded-full bg-slate-100">
@@ -350,13 +354,13 @@ export function ShoppingRequestList({
                     {row.status === "REQUESTED" && row.approvalFlowVersion !== 2 && canApproveStock && (
                       <Button type="button" size="sm" onClick={() => setApproveTarget({ ...row, items: [] })}>Proses Daftar Lama</Button>
                     )}
-                    {row.purchase?.status === "PENDING" && canApprovePurchase && (
+                    {row.status !== "CANCELLED" && row.purchase?.status === "PENDING" && canApprovePurchase && (
                       <Button type="button" size="sm" onClick={() => setPurchaseApprovalId(row.purchase!.id)}>Proses Pembelian Lama</Button>
                     )}
                     {row.status === "APPROVED" && (!row.purchase || row.purchase.status === "REJECTED") && row.approvalFlowVersion !== 2 && canCreatePurchase && (
                       <Button type="button" size="sm" onClick={() => setLegacyCreateOpen(true)}>Lengkapi Pembelian Lama</Button>
                     )}
-                    {row.purchase?.status === "APPROVED" && row.purchase.fulfillmentStatus !== "RECEIVED" && canReceive && (
+                    {row.status !== "CANCELLED" && row.purchase?.status === "APPROVED" && row.purchase.fulfillmentStatus !== "RECEIVED" && canReceive && (
                       <Button type="button" size="sm" icon={<PackageCheck aria-hidden="true" className="h-4 w-4" />} className="min-h-11 !bg-emerald-700 hover:!bg-emerald-800 focus-visible:ring-emerald-500" onClick={() => onReceive(row.purchase!.id)}>Catat Penerimaan</Button>
                     )}
                     <details className="group rounded-xl border border-slate-200 bg-slate-50/60 text-sm open:border-cyan-200 open:bg-white">
@@ -366,9 +370,11 @@ export function ShoppingRequestList({
                         {row.status === "REQUESTED" && row.decidedItemCount === 0 && canEditRequest && <button type="button" onClick={() => setEditTarget({ ...row, items: [] })} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 bg-amber-50 text-amber-800 hover:border-amber-200 hover:bg-amber-100"><Pencil aria-hidden="true" className="h-4 w-4 shrink-0" />Edit daftar</button>}
                         {row.status === "REQUESTED" && row.approvalFlowVersion !== 2 && row.pendingItemCount > 0 && canSetApprovedQty && <button type="button" onClick={() => setApprovedQtyTarget({ ...row, items: [] })} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 bg-emerald-50 text-emerald-800 hover:border-emerald-200 hover:bg-emerald-100"><CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0" />Isi Jumlah yang Di-ACC</button>}
                         {row.status === "REQUESTED" && row.decidedItemCount === 0 && <button type="button" onClick={() => setCancelTarget({ ...row, items: [] })} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 bg-rose-50 text-rose-800 hover:border-rose-200 hover:bg-rose-100"><XCircle aria-hidden="true" className="h-4 w-4 shrink-0" />Batalkan daftar</button>}
-                        {row.purchaseHistory?.map((purchase) => <button key={purchase.id} type="button" onClick={() => setPurchaseDetailId(purchase.id)} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 bg-slate-50 text-slate-700 hover:border-slate-200 hover:bg-slate-100"><FileText aria-hidden="true" className="h-4 w-4 shrink-0" /><span className="min-w-0 break-words">Detail {purchase.number} · {purchase.status === "REJECTED" ? "Ditolak" : purchase.status === "PENDING" ? "Menunggu" : "Disetujui"}</span></button>)}
-                        {row.purchase?.status === "PENDING" && canRejectPurchase && <button type="button" onClick={() => setPurchaseRejectId(row.purchase!.id)} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 bg-rose-50 text-rose-800 hover:border-rose-200 hover:bg-rose-100"><XCircle aria-hidden="true" className="h-4 w-4 shrink-0" />Tolak pembelian lama</button>}
-                        {row.purchase?.status === "APPROVED" && <button type="button" onClick={() => onViewReceiptHistory(row.purchase!.id)} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 bg-violet-50 text-violet-800 hover:border-violet-200 hover:bg-violet-100"><History aria-hidden="true" className="h-4 w-4 shrink-0" />Riwayat penerimaan</button>}
+                        {row.status !== "CANCELLED" && canDeleteRequest && <button type="button" onClick={() => setDeleteTarget({ ...row, items: [] })} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent bg-rose-50 px-3 py-2 text-left text-sm font-medium text-rose-800 hover:border-rose-200 hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1"><XCircle aria-hidden="true" className="h-4 w-4 shrink-0" />Hapus daftar</button>}
+                        {row.purchaseHistory?.map((purchase) => <button key={purchase.id} type="button" onClick={() => setPurchaseDetailId(purchase.id)} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 bg-slate-50 text-slate-700 hover:border-slate-200 hover:bg-slate-100"><FileText aria-hidden="true" className="h-4 w-4 shrink-0" /><span className="min-w-0 break-words">Detail {purchase.number} · {purchase.status === "REJECTED" ? "Ditolak" : purchase.status === "PENDING" ? "Menunggu" : purchase.status === "CANCELLED" ? "Dibatalkan" : "Disetujui"}{purchase.status === "CANCELLED" && purchase.statusBeforeCancellation && <> (sebelumnya {purchase.statusBeforeCancellation === "APPROVED" ? "Disetujui" : purchase.statusBeforeCancellation === "PENDING" ? "Menunggu" : purchase.statusBeforeCancellation === "REJECTED" ? "Ditolak" : "Dibatalkan"})</>}</span></button>)}
+                        {row.status !== "CANCELLED" && row.purchase?.status === "PENDING" && canRejectPurchase && <button type="button" onClick={() => setPurchaseRejectId(row.purchase!.id)} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 bg-rose-50 text-rose-800 hover:border-rose-200 hover:bg-rose-100"><XCircle aria-hidden="true" className="h-4 w-4 shrink-0" />Tolak pembelian lama</button>}
+                        {(row.purchase?.status === "APPROVED" || row.purchase?.status === "CANCELLED") && <button type="button" onClick={() => onViewReceiptHistory(row.purchase!.id)} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 bg-violet-50 text-violet-800 hover:border-violet-200 hover:bg-violet-100"><History aria-hidden="true" className="h-4 w-4 shrink-0" />Riwayat penerimaan</button>}
+                        {row.purchaseHistory?.filter((purchase) => purchase.status === "CANCELLED" && purchase.id !== row.purchase?.id).map((purchase) => <button key={`receipts-${purchase.id}`} type="button" onClick={() => onViewReceiptHistory(purchase.id)} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent bg-violet-50 px-3 py-2 text-left text-sm font-medium text-violet-800 hover:border-violet-200 hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1"><History aria-hidden="true" className="h-4 w-4 shrink-0" />Riwayat penerimaan {purchase.number}</button>)}
                         {row.purchase && row.purchase.fulfillmentStatus !== "NOT_RECEIVED" && <button type="button" onClick={() => onCompare(row.purchase!.id)} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 bg-cyan-50 text-cyan-800 hover:border-cyan-200 hover:bg-cyan-100"><GitCompareArrows aria-hidden="true" className="h-4 w-4 shrink-0" />Bandingkan penerimaan</button>}
                       </div>
                     </details>
@@ -448,6 +454,7 @@ export function ShoppingRequestList({
         detail={cancelTarget}
         onClose={() => setCancelTarget(null)}
       />
+      {deleteTarget && <ShoppingRequestDeletionDialog detail={deleteTarget} onClose={() => setDeleteTarget(null)} />}
     </div>
   );
 }

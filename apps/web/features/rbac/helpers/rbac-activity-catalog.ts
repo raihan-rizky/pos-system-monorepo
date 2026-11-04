@@ -34,6 +34,7 @@ export const RBAC_RESOURCE_METADATA: Record<string, ResourceEditorMetadata> = {
   "product.price_log": { label: "Riwayat harga dan HPP", actions: ["read"], guidance: "Buka halaman Produk dan aktifkan Lihat produk untuk menemukan riwayat harga." },
   supplier: { label: "Data supplier", actions: ["create", "read", "update"] },
   "supplier.shopping_request.edit": { label: "Edit permintaan belanja", actions: ["update"], actionLabels: { update: "Edit permintaan" } },
+  "supplier.shopping_request.delete": { label: "Hapus daftar belanja", actions: ["delete"], actionLabels: { delete: "Hapus daftar" }, guidance: "Dapat membatalkan daftar dan membalikkan stok penerimaan terkait." },
   "supplier.shopping_request.set_approved_qty": { label: "Jumlah belanja disetujui", actions: ["update"], actionLabels: { update: "Isi jumlah disetujui" } },
   "supplier.shopping_request.approve_stock": { label: "Persetujuan stok belanja", actions: ["update"], actionLabels: { update: "Setujui stok" } },
   "supplier.goods_purchase.approve": { label: "Persetujuan pembelian", actions: ["update"], actionLabels: { update: "Setujui pembelian" } },

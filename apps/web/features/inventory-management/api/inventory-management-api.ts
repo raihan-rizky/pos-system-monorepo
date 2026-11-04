@@ -458,6 +458,7 @@ export interface InboundReceiptListItem {
   paymentMethod?: "TRANSFER" | "GIRO" | null;
   paymentDueDate?: string | null;
   status: InboundReceiptStatus;
+  stockReversed?: boolean;
   createdAt: string;
   submittedBy: string | null;
   submittedAt: string | null;

@@ -11,7 +11,8 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
   const periodLastDate = new Date(`${period.to}T00:00:00.000Z`);
   const knownByNow = { lte: now };
   const paymentSelect = { id: true, method: true, amount: true, createdAt: true } as const;
-  const purchaseSelect = { id: true, storeId: true, number: true, status: true, totalAmount: true, paymentMethod: true, paymentDueDate: true, supplierNameSnapshot: true,
+  const recognizedPurchase = { OR: [{ status: 'APPROVED' }, { status: 'CANCELLED', statusBeforeCancellation: 'APPROVED' }] } satisfies Prisma.GoodsPurchaseWhereInput;
+  const purchaseSelect = { id: true, storeId: true, number: true, status: true, statusBeforeCancellation: true, totalAmount: true, paymentMethod: true, paymentDueDate: true, supplierNameSnapshot: true,
     supplierPayable: { select: { id: true, storeId: true, debtDate: true, giroHistoryVerifiedAt: true, payments: { select: { id: true, amount: true, paidAt: true }, orderBy: [{ paidAt: 'asc' }, { id: 'asc' }] } } },
   } satisfies Prisma.GoodsPurchaseSelect;
   // All inputs must see the same committed state, including giro payments and
@@ -38,12 +39,12 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
         { occurredAt: bounds },
         { occurredAt: { lt: period.end }, OR: [{ goodsPurchaseId: { not: null } }, { shoppingRequestId: { not: null } }] },
         { occurredAt: knownByNow, goodsPurchase: { is: { paymentMethod: 'GIRO', paymentDueDate: calendarBounds } } },
-        { occurredAt: knownByNow, shoppingRequest: { is: { goodsPurchases: { some: { storeId, status: 'APPROVED', paymentMethod: 'GIRO', paymentDueDate: calendarBounds } } } } },
+        { occurredAt: knownByNow, shoppingRequest: { is: { goodsPurchases: { some: { storeId, ...recognizedPurchase, paymentMethod: 'GIRO', paymentDueDate: calendarBounds } } } } },
         { occurredAt: knownByNow, goodsPurchase: { is: { supplierPayable: { is: { storeId, debtDate: { lte: periodLastDate } } } } } },
-        { occurredAt: knownByNow, shoppingRequest: { is: { goodsPurchases: { some: { storeId, status: 'APPROVED', supplierPayable: { is: { storeId, debtDate: { lte: periodLastDate } } } } } } } },
+        { occurredAt: knownByNow, shoppingRequest: { is: { goodsPurchases: { some: { storeId, ...recognizedPurchase, supplierPayable: { is: { storeId, debtDate: { lte: periodLastDate } } } } } } } },
       ] },
       select: { id: true, occurredAt: true, category: true, customCategory: { select: { name: true } }, amount: true, changeAmount: true, description: true, hasMissingCostSnapshot: true, applicantName: true, manualPurchasePaymentMethod: true, goodsPurchaseId: true, shoppingRequestId: true, backdatedPurchaseDueId: true, backdatedPurchasePaymentId: true,
-        shoppingRequest: { select: { status: true, number: true, goodsPurchases: { where: { storeId, status: 'APPROVED' }, select: purchaseSelect } } },
+        shoppingRequest: { select: { status: true, number: true, deletion: { select: { previousStatus: true } }, goodsPurchases: { where: { storeId, ...recognizedPurchase }, select: purchaseSelect } } },
         goodsPurchase: { select: purchaseSelect } },
     }),
     tx.customerReceivable.findMany({
@@ -63,7 +64,7 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
     }),
   ]), { isolationLevel: 'RepeatableRead', timeout: 30_000 });
   const scopedExpenses = expenses.map(expense => {
-    const candidates = expense.shoppingRequest?.goodsPurchases?.filter(purchase => purchase.storeId === storeId && purchase.status === 'APPROVED') ?? [];
+    const candidates = expense.shoppingRequest?.goodsPurchases?.filter(purchase => purchase.storeId === storeId && (purchase.status === 'APPROVED' || (purchase.status === 'CANCELLED' && purchase.statusBeforeCancellation === 'APPROVED'))) ?? [];
     const candidate = candidates.length === 1 ? candidates[0] : null;
     const matchesAmount = candidate && Math.round(Number(candidate.totalAmount) * 100) === Math.max(0, Math.round(Number(expense.amount) * 100) - Math.round(Number(expense.changeAmount) * 100));
     const purchase = expense.goodsPurchaseId ? expense.goodsPurchase : matchesAmount ? candidate : null;

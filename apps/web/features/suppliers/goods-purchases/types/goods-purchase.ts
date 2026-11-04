@@ -1,4 +1,4 @@
-export type GoodsPurchaseStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type GoodsPurchaseStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
 export type GoodsPurchaseFulfillmentStatus =
   | "NOT_RECEIVED"
   | "PARTIALLY_RECEIVED"

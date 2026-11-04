@@ -73,6 +73,22 @@ describe("database reset planner", () => {
     expect(plan.operations.map(item => item.model)).not.toContain("CashierShift");
   });
 
+  it.each([{ models: ["ShoppingRequest"] as const }, { domains: ["supplierProcurement"] as const }])("includes store-scoped deletion audits before shopping requests (%j)", async selection => {
+    const deleteOrder: string[] = [];
+    const db = createFakeDb({ counts: { shoppingRequest: 1, shoppingRequestDeletion: 1 }, deleteOrder });
+    const plan = await createDatabaseResetPlan({ db, storeId: "store-a", ...selection });
+
+    expect(plan.operations).toContainEqual(expect.objectContaining({
+      model: "ShoppingRequestDeletion", mode: "cascade", count: 1, where: { storeId: "store-a" },
+    }));
+    expect(plan.cascades).toContainEqual(expect.objectContaining({ model: "ShoppingRequestDeletion", count: 1 }));
+    expect(plan.operations.findIndex(item => item.model === "ShoppingRequestDeletion")).toBeLessThan(
+      plan.operations.findIndex(item => item.model === "ShoppingRequest"),
+    );
+    await executeDatabaseResetPlan(db, plan);
+    expect(deleteOrder.indexOf("shoppingRequestDeletion")).toBeLessThan(deleteOrder.indexOf("shoppingRequest"));
+  });
+
   it("includes import jobs and their rows when batch operations cascade", async () => {
     const plan = await createDatabaseResetPlan({ db: createFakeDb(), storeId: "store-a", models: ["BatchOperation"] });
     expect(plan.operations.map(item => item.model)).toEqual(expect.arrayContaining(["BatchOperation", "BatchOperationItem", "ProductImportJob", "ProductImportJobRow", "ProductImportPlannedRow"]));

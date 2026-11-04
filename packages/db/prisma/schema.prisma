@@ -1095,6 +1095,7 @@ model ShoppingRequest {
   supplier        Supplier?                 @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   expense         Expense?
   goodsPurchases  GoodsPurchase[]
+  deletion        ShoppingRequestDeletion?
 
   @@index([storeId, createdAt])
   @@unique([storeId, number])
@@ -1103,6 +1104,22 @@ model ShoppingRequest {
   @@index([status, stockAppliedAt])
   @@index([supplierId, createdAt])
   @@map("pos_shopping_requests")
+}
+
+model ShoppingRequestDeletion {
+  id                String                @id @default(cuid())
+  storeId           String
+  shoppingRequestId String                @unique
+  actorId           String
+  actorName         String?
+  reason            String
+  previousStatus    ShoppingRequestStatus
+  details           Json
+  createdAt         DateTime              @default(now())
+  shoppingRequest   ShoppingRequest       @relation(fields: [shoppingRequestId], references: [id], onDelete: Restrict)
+
+  @@index([storeId, createdAt])
+  @@map("pos_shopping_request_deletions")
 }
 
 model ShoppingRequestItem {
@@ -1144,6 +1161,7 @@ model GoodsPurchase {
   supplierId               String?
   supplierNameSnapshot     String
   status                   GoodsPurchaseStatus            @default(PENDING)
+  statusBeforeCancellation GoodsPurchaseStatus?
   fulfillmentStatus        GoodsPurchaseFulfillmentStatus @default(NOT_RECEIVED)
   totalAmount              Decimal                        @db.Decimal(12, 2)
   deferMasterHppToReceipt  Boolean                        @default(false)
@@ -2209,6 +2227,7 @@ enum GoodsPurchaseStatus {
   PENDING
   APPROVED
   REJECTED
+  CANCELLED
 }
 
 enum GoodsPurchaseFulfillmentStatus {

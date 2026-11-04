@@ -17,6 +17,11 @@ export async function listMergedPurchases(filters: MergedPurchaseFilters) {
       SELECT sr.id, 'SHOPPING_REQUEST'::text AS kind, sr."createdAt"
       FROM "pos_shopping_requests" sr
       WHERE sr."storeId" = ${filters.storeId}
+        ${filters.status === "CANCELLED" ? Prisma.empty : Prisma.sql`
+          AND NOT EXISTS (
+            SELECT 1 FROM "pos_shopping_request_deletions" deleted
+            WHERE deleted."shoppingRequestId" = sr.id AND deleted."storeId" = sr."storeId"
+          )`}
         AND (${filters.status ?? null}::text IS NULL OR sr.status::text = ${filters.status ?? null})
         AND (${filters.supplierId ?? null}::text IS NULL OR sr."supplierId" = ${filters.supplierId ?? null})
         AND (${q}::text IS NULL OR sr.name ILIKE ${q} OR sr.number ILIKE ${q}

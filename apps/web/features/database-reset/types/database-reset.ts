@@ -33,6 +33,7 @@ export type DatabaseResetModel =
   | "TransactionLifecycleAudit"
   | "Supplier"
   | "ShoppingRequest"
+  | "ShoppingRequestDeletion"
   | "ShoppingRequestItem"
   | "GoodsPurchase"
   | "GoodsPurchaseItem"

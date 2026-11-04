@@ -369,6 +369,17 @@ export async function createGoodsPurchaseRecord(
 ): Promise<GoodsPurchaseDetail> {
   try {
     return await db.$transaction(async (tx) => {
+      // Serialize creation with cancellation before reading eligibility. A
+      // foreign-key check alone does not recheck the request's status.
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "pos_shopping_requests"
+        WHERE "id" = ${input.shoppingRequestId} AND "storeId" = ${actor.storeId}
+          AND "status" = 'APPROVED'::"ShoppingRequestStatus"
+        FOR UPDATE
+      `;
+      if (locked.length !== 1) {
+        throw new GoodsPurchaseRepositoryError("REQUEST_NOT_ELIGIBLE");
+      }
       const request = await tx.shoppingRequest.findFirst({
         where: {
           id: input.shoppingRequestId,

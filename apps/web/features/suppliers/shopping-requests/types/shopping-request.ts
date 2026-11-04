@@ -28,7 +28,8 @@ export interface ShoppingRequestListItem {
   purchase?: {
     id: string;
     number: string;
-    status: "PENDING" | "APPROVED" | "REJECTED";
+    status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+    statusBeforeCancellation?: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | null;
     fulfillmentStatus: "NOT_RECEIVED" | "PARTIALLY_RECEIVED" | "RECEIVED";
     totalAmount: number;
     paymentMethod?: ShoppingRequestPaymentMethod | null;
@@ -39,6 +40,7 @@ export interface ShoppingRequestListItem {
   number: string;
   name: string;
   status: ShoppingRequestStatus;
+  deletion?: { actorName: string | null; reason: string; createdAt: string; previousStatus?: ShoppingRequestStatus } | null;
   supplierId: string | null;
   supplierName: string | null;
   requestedByName: string | null;

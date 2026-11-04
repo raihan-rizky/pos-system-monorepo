@@ -96,7 +96,8 @@ export function listShoppingRequests(
       where: buildShoppingRequestWhere(filters),
       include: {
         supplier: { select: { id: true, name: true } },
-        goodsPurchases: { orderBy: { createdAt: "desc" }, select: { id: true, number: true, status: true, fulfillmentStatus: true, totalAmount: true, paymentMethod: true, paymentDueDate: true } },
+        deletion: { select: { actorName: true, reason: true, createdAt: true, previousStatus: true } },
+        goodsPurchases: { orderBy: { createdAt: "desc" }, select: { id: true, number: true, status: true, statusBeforeCancellation: true, fulfillmentStatus: true, totalAmount: true, paymentMethod: true, paymentDueDate: true } },
         _count: { select: { items: true } },
         items: {
           select: {
@@ -127,6 +128,12 @@ export function listShoppingRequests(
         number: row.number,
         name: row.name,
         status: row.status,
+        deletion: row.deletion ? {
+          actorName: row.deletion.actorName,
+          reason: row.deletion.reason,
+          createdAt: row.deletion.createdAt.toISOString(),
+          previousStatus: row.deletion.previousStatus,
+        } : null,
         supplierId: row.supplierId,
         supplierName: row.supplier?.name ?? null,
         requestedByName: row.requestedByName,
@@ -172,7 +179,7 @@ export async function getShoppingRequestKpiSummary(
     }),
     db.shoppingRequestItem.aggregate({
       where: {
-        shoppingRequest: { storeId },
+        shoppingRequest: { storeId, status: "REQUESTED" },
         decisionStatus: "PENDING",
       },
       _sum: { requestedQty: true },

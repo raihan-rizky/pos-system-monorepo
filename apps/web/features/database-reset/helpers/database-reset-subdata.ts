@@ -6,7 +6,7 @@ export const DATABASE_RESET_CHILDREN: Partial<Record<DatabaseResetModel, Databas
   Customer: ["DebtPaymentLog"],
   Transaction: ["TransactionItem", "TransactionPayment", "DebtPaymentLog", "InvoiceDateChangeLog", "TransactionLifecycleAudit", "SuratJalan"],
   Supplier: ["ProductSupplier"],
-  ShoppingRequest: ["ShoppingRequestItem"],
+  ShoppingRequest: ["ShoppingRequestItem", "ShoppingRequestDeletion"],
   GoodsPurchase: ["GoodsPurchaseItem"],
   InventoryInboundReceipt: ["InventoryInboundReceiptLine"],
   InventoryLog: ["InventoryLogVerification", "InventoryLogCorrectionRequest", "InventoryLogCorrectionMovement"],

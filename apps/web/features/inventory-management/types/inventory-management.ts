@@ -399,6 +399,7 @@ export interface GoodsPurchaseReceivingComparison {
     id: string;
     createdAt: string;
     status: InboundReceiptStatus;
+    stockReversed?: boolean;
     approvedAt: string | null;
     approverName: string | null;
     lines: Array<{

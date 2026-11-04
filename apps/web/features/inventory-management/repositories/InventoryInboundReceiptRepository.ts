@@ -1478,6 +1478,7 @@ export class InventoryInboundReceiptRepository
       include: {
         supplier: { select: { id: true, name: true } },
         goodsPurchase: { select: { number: true } },
+        stockBundle: { select: { status: true } },
         lines: {
           orderBy: { createdAt: "asc" },
           take: 100,
@@ -1485,9 +1486,10 @@ export class InventoryInboundReceiptRepository
         },
       },
     });
-    return receipts.map(({ goodsPurchase, ...receipt }) => ({
+    return receipts.map(({ goodsPurchase, stockBundle, ...receipt }) => ({
       ...receipt,
       goodsPurchaseNumber: goodsPurchase?.number ?? null,
+      stockReversed: stockBundle?.status === "UNDONE",
       lines: receipt.lines.map(({ product, ...line }) => ({
         ...line,
         imageUrl: product?.imageUrl ?? null,
@@ -1704,6 +1706,7 @@ export class InventoryInboundReceiptRepository
             status: true,
             approvedAt: true,
             approver: { select: { name: true } },
+            stockBundle: { select: { status: true } },
             lines: {
               where: {
                 goodsPurchaseItemId: { not: null },
@@ -1776,6 +1779,7 @@ export class InventoryInboundReceiptRepository
         id: receipt.id,
         createdAt: receipt.createdAt.toISOString(),
         status: receipt.status,
+        stockReversed: receipt.stockBundle?.status === "UNDONE",
         approvedAt: receipt.approvedAt?.toISOString() ?? null,
         approverName: receipt.approver?.name ?? null,
         lines: receipt.lines.flatMap((line) =>

@@ -30,11 +30,11 @@ export async function POST(request: Request, context: { params: Promise<{ goodsP
             AND (x."goodsPurchaseId" = g."id" OR (x."goodsPurchaseId" IS NULL AND x."shoppingRequestId" = g."shoppingRequestId"
               AND NOT EXISTS (SELECT 1 FROM "pos_goods_purchases" other
                 WHERE other."storeId" = g."storeId" AND other."shoppingRequestId" = g."shoppingRequestId"
-                  AND other."status" = 'APPROVED' AND other."id" <> g."id")))
+                  AND (other."status" = 'APPROVED' OR (other."status" = 'CANCELLED' AND other."statusBeforeCancellation" = 'APPROVED')) AND other."id" <> g."id")))
           ORDER BY (x."goodsPurchaseId" = g."id") DESC NULLS LAST, x."occurredAt" ASC LIMIT 1
         ) e ON true
         WHERE g."id" = ${goodsPurchaseId} AND g."storeId" = ${user.storeId}
-          AND g."status" = 'APPROVED' AND g."paymentMethod" = 'GIRO'
+          AND (g."status" = 'APPROVED' OR (g."status" = 'CANCELLED' AND g."statusBeforeCancellation" = 'APPROVED')) AND g."paymentMethod" = 'GIRO'
         FOR UPDATE OF g
       `;
       if (!purchase) return { error: 'not-found' as const };

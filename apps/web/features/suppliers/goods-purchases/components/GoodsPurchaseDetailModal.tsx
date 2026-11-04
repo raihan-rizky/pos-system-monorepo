@@ -3,6 +3,13 @@
 import { Button, Modal } from "@pos/ui";
 import { useGoodsPurchase } from "../hooks/useGoodsPurchases";
 
+const STATUS_LABELS = {
+  PENDING: "Menunggu persetujuan",
+  APPROVED: "Disetujui",
+  REJECTED: "Ditolak",
+  CANCELLED: "Dibatalkan",
+} as const;
+
 export function GoodsPurchaseDetailModal({
   purchaseId,
   onClose,
@@ -35,7 +42,7 @@ export function GoodsPurchaseDetailModal({
               value={purchase.shoppingRequestNumber}
             />
             <Info label="Supplier" value={purchase.supplierName} />
-            <Info label="Status" value={purchase.status} />
+            <Info label="Status" value={STATUS_LABELS[purchase.status]} />
           </div>
           <section className="space-y-2">
             {purchase.items.map((item) => (

@@ -48,7 +48,7 @@ describe('pembacaan data bulanan', () => {
     expect(expenseQuery.where.OR).toContainEqual({ occurredAt: { gte: new Date('2026-08-31T17:00:00Z'), lt: new Date('2026-09-30T17:00:00Z') } });
     expect(expenseQuery.where.OR).toContainEqual({ occurredAt: { lt: new Date('2026-09-30T17:00:00Z') }, OR: [{ goodsPurchaseId: { not: null } }, { shoppingRequestId: { not: null } }] });
     expect(expenseQuery.where.OR).toContainEqual({ occurredAt: { lte: new Date('2026-10-21T00:00:00Z') }, goodsPurchase: { is: { paymentMethod: 'GIRO', paymentDueDate: { gte: new Date('2026-09-01T00:00:00Z'), lt: new Date('2026-10-01T00:00:00Z') } } } });
-    expect(expenseQuery.where.OR).toContainEqual({ occurredAt: { lte: new Date('2026-10-21T00:00:00Z') }, shoppingRequest: { is: { goodsPurchases: { some: { storeId: 'store-test', status: 'APPROVED', paymentMethod: 'GIRO', paymentDueDate: { gte: new Date('2026-09-01T00:00:00Z'), lt: new Date('2026-10-01T00:00:00Z') } } } } } });
+    expect(expenseQuery.where.OR).toContainEqual({ occurredAt: { lte: new Date('2026-10-21T00:00:00Z') }, shoppingRequest: { is: { goodsPurchases: { some: { storeId: 'store-test', OR: [{ status: 'APPROVED' }, { status: 'CANCELLED', statusBeforeCancellation: 'APPROVED' }], paymentMethod: 'GIRO', paymentDueDate: { gte: new Date('2026-09-01T00:00:00Z'), lt: new Date('2026-10-01T00:00:00Z') } } } } } });
     expect(expenseQuery.where.OR).toContainEqual({ occurredAt: { lte: new Date('2026-10-21T00:00:00Z') }, goodsPurchase: { is: { supplierPayable: { is: { storeId: 'store-test', debtDate: { lte: new Date('2026-09-30T00:00:00Z') } } } } } });
     expect(expenseQuery.select.goodsPurchase.select.supplierPayable.select.payments).not.toHaveProperty('where');
     expect(mocks.customerReceivable.mock.calls[0][0].select.payments).not.toHaveProperty('where');
@@ -90,6 +90,17 @@ describe('pembacaan data bulanan', () => {
     expect(result.purchaseExpenses).toEqual([expect.objectContaining({ amount: 100, purchase: expect.objectContaining({ reference: 'PB-1', method: 'GIRO' }) })]);
     expect(result.giroPayments).toEqual([expect.objectContaining({ amount: 30 })]);
     expect(result.cashIncomplete).toBe(false);
+  });
+  it('mempertahankan giro dan pembayaran daftar yang sebelumnya disetujui lalu dibatalkan', async () => {
+    const purchase = { id: 'p1', storeId: 'store-test', number: 'PB-1', status: 'CANCELLED', statusBeforeCancellation: 'APPROVED', totalAmount: 100, paymentMethod: 'GIRO', paymentDueDate: new Date('2026-09-30T00:00:00Z'), supplierNameSnapshot: 'Pemasok', supplierPayable: { id: 'debt-1', storeId: 'store-test', giroHistoryVerifiedAt: new Date('2026-08-01T03:00:00Z'), payments: [{ id: 'pay-1', amount: 30, paidAt: new Date('2026-09-10T00:00:00Z') }] } };
+    mocks.expense.mockResolvedValue([{ id: 'old', goodsPurchaseId: null, shoppingRequestId: 's1', occurredAt: new Date('2026-08-01T03:00:00Z'), category: 'SUPPLIES', amount: 100, changeAmount: 0, description: 'Bahan', shoppingRequest: { status: 'CANCELLED', number: 'DB-1', deletion: { previousStatus: 'APPROVED' }, goodsPurchases: [purchase] }, goodsPurchase: null }]);
+    const result = await getMonthlyFinancialReport('store-test', 2026, 9, new Date('2026-10-21T00:00:00Z'));
+    expect(result.purchaseExpenses).toEqual([expect.objectContaining({ amount: 100, purchase: expect.objectContaining({ reference: 'PB-1', method: 'GIRO' }) })]);
+    expect(result.giroPayments).toEqual([expect.objectContaining({ amount: 30 })]);
+    const query = mocks.expense.mock.calls[0][0];
+    expect(query.select.shoppingRequest.select.deletion).toEqual({ select: { previousStatus: true } });
+    expect(query.select.goodsPurchase.select.statusBeforeCancellation).toBe(true);
+    expect(JSON.stringify(query)).toContain('statusBeforeCancellation');
   });
   it('membiarkan expense lama ambigu sebagai belum diketahui', async () => {
     const purchase = { id: 'p1', storeId: 'store-test', number: 'PB-1', status: 'APPROVED', paymentMethod: 'GIRO', paymentDueDate: new Date('2026-09-30T00:00:00Z'), supplierNameSnapshot: 'Pemasok', supplierPayable: null };

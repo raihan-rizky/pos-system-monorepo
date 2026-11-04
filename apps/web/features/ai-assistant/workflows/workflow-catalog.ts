@@ -410,6 +410,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Catat belanja terdahulu", description: "Dengan izin supplier:create dan expense:create, pilih Catat Belanja Terdahulu. Isi tanggal pembelian bulan sebelumnya, metode, tanggal jatuh tempo, nomor Giro atau transaksi, nominal, serta pembayaran sebelumnya jika ada. Catatan ini tidak mengubah stok." },
       { title: "Pantau dan catat pembayaran", description: "Gunakan filter jenis catatan atau status pembayaran, lalu buka Riwayat pembayaran. Pemegang izin expense:update dapat memasukkan nominal dan tanggal pembayaran berikutnya. Pembayaran sampai jatuh tempo masuk ke Keuangan pada tanggal pembayaran; sisanya dicatat saat jatuh tempo, dan pembayaran setelah itu tidak menjadi pengeluaran kedua." },
       { title: "Tolak bila perlu", description: "Pemegang izin supplier.goods_purchase.reject:update dapat menolak seluruh daftar dengan alasan. Penolakan tidak membuat Pembelian Barang atau Pengeluaran." },
+      { title: "Hapus daftar bila diperlukan", description: "Pemegang izin supplier.shopping_request.delete:delete memilih Tindakan lainnya > Hapus daftar, memeriksa stok yang akan dikurangi, mengisi alasan, lalu mengonfirmasi. Stok penerimaan yang disetujui dikurangi jika cukup dan riwayatnya dapat dipastikan. Pilih status Dibatalkan untuk melihat riwayat. Pengeluaran dan pembayaran tetap tercatat; HPP dan harga jual tidak otomatis diubah, dan pengembalian uang atau perubahan giro memerlukan proses terpisah." },
     ],
   }),
   workflow({
