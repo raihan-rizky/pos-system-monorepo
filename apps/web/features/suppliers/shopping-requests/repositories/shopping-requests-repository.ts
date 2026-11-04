@@ -64,7 +64,9 @@ export function buildShoppingRequestWhere(
   if (filters.fulfillmentStatus || filters.paymentMethod || filters.paymentDueDate) {
     where.goodsPurchases = {
       some: {
-        status: "APPROVED",
+        ...(filters.status === "CANCELLED"
+          ? { OR: [{ status: "APPROVED" as const }, { status: "CANCELLED" as const, statusBeforeCancellation: "APPROVED" as const }] }
+          : { status: "APPROVED" as const }),
         ...(filters.fulfillmentStatus ? { fulfillmentStatus: filters.fulfillmentStatus } : {}),
         ...(filters.paymentMethod ? { paymentMethod: filters.paymentMethod } : {}),
         ...(filters.paymentDueDate ? { paymentDueDate: new Date(`${filters.paymentDueDate}T00:00:00.000Z`) } : {}),

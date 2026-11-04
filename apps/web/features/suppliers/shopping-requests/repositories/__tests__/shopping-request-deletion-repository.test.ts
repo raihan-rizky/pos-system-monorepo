@@ -197,6 +197,38 @@ describe("transaksi penghapusan daftar belanja", () => {
     expect(tx.product.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ stock: { gte: 0.3 } }), data: { stock: { decrement: 0.3 } },
     }));
+    expect(tx.inventoryLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ quantity: 0.3, stockBaseDelta: -0.3 }),
+    }));
+    expect(tx.shoppingRequestDeletion.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ details: { reversalLogs: [expect.objectContaining({ quantity: 0.3, baseQuantity: 0.3 })] } }),
+    }));
+  });
+
+  it("membebaskan nama daftar yang dibatalkan tanpa mengubah nama riwayat", async () => {
+    await repository.deleteShoppingRequestRecord("sr-1", "Salah catat", actor);
+    expect(tx.shoppingRequest.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "CANCELLED", normalizedName: null }),
+    }));
+  });
+
+  it("mencatat jumlah pembalikan grup sama dengan pengurangan saat ada selisih pembulatan", async () => {
+    const grouped = receipt();
+    grouped.lines[0].receivedQuantity = 0.1;
+    Object.assign(grouped.stockBundle.items[0].afterSnapshot.inboundReceiptImpact, { stockGroupId: "group-1", delta: 0.1, baseDelta: 0.1 });
+    grouped.lines.push({ id: "line-2", productId: "p-2", inventoryLogId: "log-2", receivedQuantity: 0.2 });
+    grouped.stockBundle.items.push({ productId: "p-2", inventoryLogId: "log-2", afterSnapshot: { unit: "pcs", inboundReceiptImpact: { kind: "CANONICAL", receiptId: "receipt-1", receiptLineId: "line-2", stockGroupId: "group-1", delta: 0.2, baseDelta: 0.2 } } });
+    tx.inventoryInboundReceipt.findMany.mockResolvedValue([grouped]);
+    tx.product.findMany.mockResolvedValue([{ ...product, stockGroupId: "group-1" }, { ...product, id: "p-2", stockGroupId: "group-1" }]);
+    tx.productStockGroup.findMany.mockResolvedValue([{ id: "group-1", baseStock: 0.3, baseUnit: "pcs" }]);
+    tx.inventoryLog.findMany.mockResolvedValue([
+      { id: "log-1", productId: "p-1", type: "IN", reason: "RESTOCK", status: "APPROVED", quantity: 0.1 },
+      { id: "log-2", productId: "p-2", type: "IN", reason: "RESTOCK", status: "APPROVED", quantity: 0.2 },
+    ]);
+    await repository.deleteShoppingRequestRecord("sr-1", "Salah catat", actor);
+    const totalLogged = tx.inventoryLog.create.mock.calls.reduce((sum, [args]) => sum - args.data.stockBaseDelta, 0);
+    expect(totalLogged).toBe(0.3);
+    expect(tx.productStockGroup.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { baseStock: { decrement: totalLogged } } }));
   });
 
   it("tetap membalik stok ketika percobaan undo sebelumnya terblokir sebelum mutasi", async () => {

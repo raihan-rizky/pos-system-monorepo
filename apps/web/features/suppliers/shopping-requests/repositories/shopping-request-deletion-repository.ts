@@ -21,7 +21,7 @@ function record(value: unknown): Record<string, unknown> | null {
 
 function sameQuantity(left: number, right: number): boolean {
   return Number.isFinite(left) && Number.isFinite(right) &&
-    Math.abs(left - right) <= 1e-7 * Math.max(1, Math.abs(left), Math.abs(right));
+    Math.abs(left - right) <= Math.min(1e-9, Number.EPSILON * 8 * Math.max(Math.abs(left), Math.abs(right)));
 }
 
 async function loadLockedDeletionContext(tx: Tx, id: string, storeId: string): Promise<LockedDeletionContext> {
@@ -227,6 +227,15 @@ export async function deleteShoppingRequestRecord(id: string, reason: string, ac
     const reversalLogs: Array<{ receiptId: string; productId: string; sourceLogId: string; reversalLogId: string; quantity: number; baseQuantity: number }> = [];
     for (const movement of context.movements) {
       const decrement = Math.min(movement.baseQuantity, movement.availableBaseStock);
+      const roundingDifference = movement.baseQuantity - decrement;
+      const adjustmentSource = roundingDifference > 0
+        ? movement.sources.reduce((largest, source) => source.baseQuantity > largest.baseQuantity ? source : largest)
+        : null;
+      // Assign any representational rounding difference to the largest source,
+      // so the audit describes the stock decrement actually applied.
+      const otherBaseQuantity = adjustmentSource
+        ? movement.sources.reduce((sum, source) => sum + (source === adjustmentSource ? 0 : source.baseQuantity), 0)
+        : 0;
       const result = movement.stockGroupId
         ? await tx.productStockGroup.updateMany({
           where: { id: movement.stockGroupId, storeId: actor.storeId, baseStock: { gte: decrement } },
@@ -240,17 +249,22 @@ export async function deleteShoppingRequestRecord(id: string, reason: string, ac
       for (const source of movement.sources) {
         const product = context.products.find((entry) => entry.id === source.productId);
         if (!product) throw new ShoppingRequestDeletionError("Produk sumber stok tidak tersedia.");
+        const baseQuantity = source === adjustmentSource ? decrement - otherBaseQuantity : source.baseQuantity;
+        if (baseQuantity <= 0) throw new ShoppingRequestDeletionError("Pembulatan dampak stok tidak dapat dipastikan.");
+        const quantity = baseQuantity === source.baseQuantity
+          ? source.quantity
+          : source.quantity * (baseQuantity / source.baseQuantity);
         const log = await tx.inventoryLog.create({
           data: {
-            productId: source.productId, type: "OUT", reason: "RESTOCK", quantity: source.quantity,
+            productId: source.productId, type: "OUT", reason: "RESTOCK", quantity,
             note: `Pembatalan daftar ${context.request.number}: ${reason}`, createdBy: actor.id, person: actor.name,
             status: "APPROVED", approvedBy: actor.id, approverName: actor.name, decidedAt: now,
             unitCost: product.costPrice, stockGroupIdSnapshot: movement.stockGroupId,
             unitMultiplierSnapshot: movement.stockGroupId ? source.baseQuantity / source.quantity : 1,
-            stockBaseDelta: -source.baseQuantity, sourceTransactionRef: `shopping-request:${id}`,
+            stockBaseDelta: -baseQuantity, sourceTransactionRef: `shopping-request:${id}`,
           }, select: { id: true },
         });
-        reversalLogs.push({ receiptId: source.receiptId, productId: source.productId, sourceLogId: source.inventoryLogId, reversalLogId: log.id, quantity: source.quantity, baseQuantity: source.baseQuantity });
+        reversalLogs.push({ receiptId: source.receiptId, productId: source.productId, sourceLogId: source.inventoryLogId, reversalLogId: log.id, quantity, baseQuantity });
       }
     }
 
@@ -289,7 +303,7 @@ export async function deleteShoppingRequestRecord(id: string, reason: string, ac
         data: { status: "CANCELLED", statusBeforeCancellation: previousStatus, activeShoppingRequestKey: null },
       });
     }
-    await tx.shoppingRequest.update({ where: { id }, data: { status: "CANCELLED", cancelledAt: now } });
+    await tx.shoppingRequest.update({ where: { id }, data: { status: "CANCELLED", cancelledAt: now, normalizedName: null } });
     await tx.shoppingRequestDeletion.create({
       data: {
         storeId: actor.storeId, shoppingRequestId: id, actorId: actor.id, actorName: actor.name,

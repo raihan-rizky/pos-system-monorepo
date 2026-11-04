@@ -45,4 +45,12 @@ describe("filter penerimaan Daftar Belanja", () => {
   it("keeps all requests when no receiving filter is selected", () => {
     expect(buildShoppingRequestWhere({ storeId: "store-utama", skip: 0, take: 10 })).toEqual({ storeId: "store-utama" });
   });
+
+  it("menyertakan pembelian yang sebelumnya disetujui saat memfilter daftar dibatalkan", () => {
+    const where = buildShoppingRequestWhere({ storeId: "store-utama", status: "CANCELLED", fulfillmentStatus: "RECEIVED", paymentMethod: "GIRO", skip: 0, take: 10 });
+    expect(where.goodsPurchases).toEqual({ some: {
+      OR: [ { status: "APPROVED" }, { status: "CANCELLED", statusBeforeCancellation: "APPROVED" } ],
+      fulfillmentStatus: "RECEIVED", paymentMethod: "GIRO",
+    } });
+  });
 });

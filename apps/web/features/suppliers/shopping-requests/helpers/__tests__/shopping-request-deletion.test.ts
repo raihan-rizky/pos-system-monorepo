@@ -46,6 +46,12 @@ describe("rencana pembalikan stok daftar belanja", () => {
     expect(() => buildPlan(data)).toThrow(/stok.*tidak cukup/i);
   });
 
+  it("menolak kekurangan stok nyata meskipun jumlahnya besar", () => {
+    const data = input([source("c", null, 10_000_000, 10_000_000)]);
+    data.products[2].stock = 9_999_999.5;
+    expect(() => buildPlan(data)).toThrow(/stok.*tidak cukup/i);
+  });
+
   it("menolak konversi, grup, atau data sumber yang tidak lagi dapat dipastikan", () => {
     expect(buildPlan).toBeTypeOf("function");
     const changed = input([source("b", "group-1", 1, 3)]);

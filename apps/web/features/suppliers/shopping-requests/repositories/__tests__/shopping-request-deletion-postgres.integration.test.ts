@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@pos/db";
 import { deleteShoppingRequestRecord, previewShoppingRequestDeletionRecord } from "../shopping-request-deletion-repository";
 import { createGoodsPurchaseRecord } from "../../../goods-purchases/repositories/goods-purchases-repository";
+import { listMergedPurchases } from "../../../backdated-purchases/repositories/backdated-purchase-list";
 
 // Opt in only against the disposable local container created for this fixture.
 const enabled = process.env.POS_SHOPPING_DELETION_INTEGRATION === "1";
@@ -71,6 +72,24 @@ describe.skipIf(!enabled)("pembatalan daftar di PostgreSQL sementara", () => {
     await expect(deleteShoppingRequestRecord(f.requestId, "Salah catat", actor)).rejects.toThrow(/stok.*tidak cukup/i);
     expect((await db.product.findUniqueOrThrow({ where: { id: f.productId } })).stock).toBe(3);
     expect(await db.shoppingRequestDeletion.count({ where: { shoppingRequestId: f.requestId } })).toBe(0);
+  }, 30000);
+
+  it("mempertahankan filter arsip dan membebaskan nama untuk daftar baru", async () => {
+    const f = await fixture();
+    const old = await db.shoppingRequest.findUniqueOrThrow({ where: { id: f.requestId } });
+    await db.goodsPurchase.update({ where: { id: f.purchaseId }, data: { paymentMethod: "GIRO", paymentDueDate: new Date("2026-11-15T00:00:00Z") } });
+    await deleteShoppingRequestRecord(f.requestId, "Salah catat", actor);
+    const archived = await listMergedPurchases({
+      storeId: actor.storeId, status: "CANCELLED", q: old.name, fulfillmentStatus: "PARTIALLY_RECEIVED",
+      paymentMethod: "GIRO", paymentDueDate: "2026-11-15", skip: 0, take: 10,
+    });
+    expect(archived.requests.map((row) => row.id)).toContain(f.requestId);
+    const replacement = await db.shoppingRequest.create({ data: {
+      storeId: actor.storeId, name: old.name, normalizedName: old.name.toLowerCase(),
+      number: `NEW-${f.suffix}`, sequence: 9999,
+    } });
+    expect(replacement.name).toBe(old.name);
+    expect((await db.shoppingRequest.findUniqueOrThrow({ where: { id: f.requestId } })).name).toBe(old.name);
   }, 30000);
 
   it("membatalkan seluruh perubahan ketika penulisan audit pembalikan gagal", async () => {

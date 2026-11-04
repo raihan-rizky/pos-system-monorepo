@@ -39,7 +39,8 @@ export interface ShoppingRequestDeletionMovement {
 }
 
 function closeEnough(left: number, right: number): boolean {
-  return Math.abs(left - right) <= 1e-7 * Math.max(1, Math.abs(left), Math.abs(right));
+  const roundingError = Number.EPSILON * 8 * Math.max(Math.abs(left), Math.abs(right));
+  return Math.abs(left - right) <= Math.min(1e-9, roundingError);
 }
 
 function objectValue(value: unknown): Record<string, unknown> | null {

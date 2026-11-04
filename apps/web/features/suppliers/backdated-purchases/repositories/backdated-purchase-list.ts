@@ -30,7 +30,8 @@ export async function listMergedPurchases(filters: MergedPurchaseFilters) {
             WHERE search_gp."shoppingRequestId" = sr.id AND search_gp.number ILIKE ${q}))
         AND ((${filters.fulfillmentStatus ?? null}::text IS NULL AND ${filters.paymentMethod ?? null}::text IS NULL AND ${due}::date IS NULL)
           OR EXISTS (SELECT 1 FROM "pos_goods_purchases" gp
-            WHERE gp."shoppingRequestId" = sr.id AND gp.status::text = 'APPROVED'
+            WHERE gp."shoppingRequestId" = sr.id AND (gp.status::text = 'APPROVED'
+              ${filters.status === "CANCELLED" ? Prisma.sql`OR (gp.status::text = 'CANCELLED' AND gp."statusBeforeCancellation"::text = 'APPROVED')` : Prisma.empty})
               AND (${filters.fulfillmentStatus ?? null}::text IS NULL OR gp."fulfillmentStatus"::text = ${filters.fulfillmentStatus ?? null})
               AND (${filters.paymentMethod ?? null}::text IS NULL OR gp."paymentMethod"::text = ${filters.paymentMethod ?? null})
               AND (${due}::date IS NULL OR gp."paymentDueDate" = ${due}::date)))`;

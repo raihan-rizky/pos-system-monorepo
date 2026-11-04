@@ -2,6 +2,9 @@ ALTER TYPE "GoodsPurchaseStatus" ADD VALUE IF NOT EXISTS 'CANCELLED';
 
 ALTER TABLE "pos_goods_purchases" ADD COLUMN "statusBeforeCancellation" "GoodsPurchaseStatus";
 
+-- Cancelled requests retain their display name while releasing the unique name key.
+ALTER TABLE "pos_shopping_requests" ALTER COLUMN "normalizedName" DROP NOT NULL;
+
 CREATE TABLE "pos_shopping_request_deletions" (
   "id" TEXT NOT NULL,
   "storeId" TEXT NOT NULL,

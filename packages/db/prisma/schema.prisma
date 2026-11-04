@@ -1071,7 +1071,7 @@ model ShoppingRequest {
   storeId         String
   number          String
   name            String
-  normalizedName  String
+  normalizedName  String?
   sequence        Int
   supplierId      String?
   status          ShoppingRequestStatus     @default(REQUESTED)
