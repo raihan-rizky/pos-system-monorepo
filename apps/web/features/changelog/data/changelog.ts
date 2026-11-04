@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "history-payment-amounts", date: "2026-11-05", revision: 1,
+    highlight: { title: "Nominal di Riwayat", summary: "Baca nominal tiap metode pembayaran langsung dari Riwayat." },
+    title: "Nominal pembayaran tampil di Riwayat.",
+    summary: "Badge pembayaran kini menampilkan metode dan nominalnya. Transaksi multipayment memperlihatkan nominal setiap metode agar cepat diperiksa tanpa membuka struk.",
+    kind: "improvement", area: "Riwayat Transaksi", href: "/history", visual: "quotation",
+    steps: [
+      { title: "Buka Riwayat", detail: "Masuk ke Operasi > Riwayat dan cari transaksi yang ingin diperiksa." },
+      { title: "Baca metode dan nominal", detail: "Lihat badge seperti QRIS · Rp 15.000 atau CASH · Rp 1.000 pada tabel desktop atau kartu ponsel." },
+      { title: "Periksa multipayment", detail: "Gunakan badge Multi-payment untuk mengenali transaksi dengan beberapa metode, lalu baca nominal tiap badge." },
+    ],
+  },
+  {
     id: "printing-receipt-automatic-rows-columns", date: "2026-10-21", revision: 1,
     highlight: { title: "Atur kolom nota, nama tetap utuh", summary: "Geser batas kolom; nama dan bahan panjang membungkus otomatis di nota dan PDF." },
     title: "Lebar kolom nota bisa diatur, baris mengikuti isi.",

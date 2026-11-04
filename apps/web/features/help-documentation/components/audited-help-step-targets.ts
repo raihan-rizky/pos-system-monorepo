@@ -68,6 +68,7 @@ export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepT
   "cashier-pos": [["pos", "pos-primary"], ["pos", "pos-products"], ["pos", "pos-cart"], ["pos", "pos-payment-modal"]],
   "cashier-pos-quick-edit": [["pos", "pos-cart"], ["pos", "pos-cart"], ["products", "products-price-action"], ["products", "products-special-price-tab"]],
   "cashier-credit": [["customers", "customers-debt-tab"], ["customers", "customers-pay-debt"], ["history", "history-print-button"]],
+  "cashier-history-payment-amounts": [["history", "history-primary"], ["history", "history-table"], ["history", "history-table"]],
   "cashier-return": [["history", "history-table"], ["history", "history-action-menu"], ["history", "history-approval-actions"]],
   "cashier-expense": [["pos", "pos-expense-button"], ["finance", "finance-expense-form"], ["finance", "finance-save"]],
   "cashier-discount": [["pos", "pos-payment-modal"], ["pos", "pos-payment-modal"], ["pos", "pos-payment-modal"]],
