@@ -1,4 +1,5 @@
 import React from "react";
+import * as preloadedPriceModal from "@/components/inventory/PriceUpdateModal";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { CartSidebar } from "@/components/CartSidebar";
@@ -199,7 +200,7 @@ describe("CartSidebar quick product references", () => {
   });
 
   it("renders the focused POS price modal with a transaction-only price", async () => {
-    const priceModalModule = await import("@/components/inventory/PriceUpdateModal");
+    const priceModalModule = preloadedPriceModal;
     const PosPriceQuickEditModal = (
       priceModalModule as typeof priceModalModule & {
         PosPriceQuickEditModal?: React.ComponentType<{
@@ -234,7 +235,7 @@ describe("CartSidebar quick product references", () => {
   });
 
   it("warns when a transaction price is below HPP", async () => {
-    const priceModalModule = await import("@/components/inventory/PriceUpdateModal");
+    const priceModalModule = preloadedPriceModal;
     const PosPriceQuickEditModal = priceModalModule.PosPriceQuickEditModal;
     const html = renderToStaticMarkup(
       <PosPriceQuickEditModal
@@ -249,7 +250,7 @@ describe("CartSidebar quick product references", () => {
   });
 
   it("initializes the editor from the saved custom price and shows the automatic reference", async () => {
-    const { PosPriceQuickEditModal } = await import("@/components/inventory/PriceUpdateModal");
+    const { PosPriceQuickEditModal } = preloadedPriceModal;
     const html = renderToStaticMarkup(
       <PosPriceQuickEditModal
         open
@@ -265,7 +266,7 @@ describe("CartSidebar quick product references", () => {
   });
 
   it("calculates the subtotal from the selected invoice price", async () => {
-    const priceModalModule = await import("@/components/inventory/PriceUpdateModal");
+    const priceModalModule = preloadedPriceModal;
     const html = renderToStaticMarkup(
       <priceModalModule.PosPriceQuickEditModal
         open

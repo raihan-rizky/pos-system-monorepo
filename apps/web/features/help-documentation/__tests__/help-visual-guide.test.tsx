@@ -215,8 +215,7 @@ describe("visual help guides", () => {
     expect(html).not.toContain("Read-only");
   });
 
-  it("keeps semantic fidelity contracts in sync for all twelve production surfaces", () => {
-    const contracts = [
+  it.each([
       {
         page: "settings" as const,
         target: "settings-primary",
@@ -326,9 +325,7 @@ describe("visual help guides", () => {
         ],
         markers: ["Pak Teladan", "Asisten", "Tanya AI, share ide, atau minta bantuan..."],
       },
-    ];
-
-    for (const contract of contracts) {
+    ])("keeps semantic fidelity contracts in sync for $page", (contract) => {
       const productionSource = contract.sources
         .map((source) => readFileSync(source, "utf8"))
         .join("\n");
@@ -351,8 +348,7 @@ describe("visual help guides", () => {
         expect(productionSource, `${contract.page}.source.${marker}`).toContain(marker);
         expect(html, `${contract.page}.preview.${marker}`).toContain(marker);
       }
-    }
-  });
+    });
 
   it("renders each guide target in an explicit page state instead of one composite screen", () => {
     for (const [page, config] of Object.entries(HELP_VISUAL_PAGE_CONFIG)) {
@@ -379,8 +375,7 @@ describe("visual help guides", () => {
     }
   }, 60000);
 
-  it("selects the real tab, subtab, and overlay state for representative workflow targets", () => {
-    const cases = [
+  it.each([
       ["settings", "settings-info-store", "settings-store", "Info Toko"],
       ["settings", "settings-whatsapp-tab", "settings-whatsapp", "Integrasi WhatsApp"],
       ["settings", "settings-rbac-tab", "settings-rbac", "Permission RBAC"],
@@ -404,9 +399,7 @@ describe("visual help guides", () => {
       ["salespersons", "salespersons-detail", "salespersons-detail-open", "Detail Sales"],
       ["assistant", "assistant-button", "assistant-closed", "Pak Teladan"],
       ["assistant", "assistant-input", "assistant-open", "Tanya AI, share ide, atau minta bantuan..."],
-    ] as const;
-
-    for (const [page, target, state, marker] of cases) {
+    ] as const)("selects the real state for %s target %s", (page, target, state, marker) => {
       const html = renderToStaticMarkup(
         <VisualGuideMockup
           visual={{ page, target, callout: marker }}
@@ -419,8 +412,7 @@ describe("visual help guides", () => {
         `data-help-preview-state="${state}"`,
       );
       expect(html, `${page}.${target}.marker`).toContain(marker);
-    }
-  }, 15000);
+    }, 15000);
 
   it("activates the financial-report icon for report targets and keeps page headers non-sticky", () => {
     const html = renderToStaticMarkup(
