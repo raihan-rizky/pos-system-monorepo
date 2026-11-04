@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "rp-month-salary-weekly-category", date: "2026-11-05", revision: 1,
+    highlight: { title: "Kategori Gaji/Mingguan di RP", summary: "Kolom Gaji/Mingguan di RP kini mengikuti kategori pengeluaran yang dipilih." },
+    title: "Kolom Gaji/Mingguan mengikuti kategori.",
+    summary: "Hanya kategori Gaji/Mingguan masuk kolom Gaji / Mingguan di RP bulan; Gaji bawaan dan kategori lain masuk Nilai. Rekap mengikuti pembagian yang sama dan total dihitung sekali.",
+    kind: "fix", area: "Laporan Keuangan", href: "/keuangan", visual: "financial",
+    steps: [
+      { title: "Pilih kategori", detail: "Buka Keuangan, tambah atau ubah pengeluaran, lalu pilih Gaji/Mingguan. Jika belum tersedia, gunakan Tambah kategori." },
+      { title: "Simpan pengeluaran", detail: "Klik Simpan. Untuk memasukkan nominal ke Nilai, pilih kategori lain, termasuk Gaji bawaan." },
+      { title: "Unduh ulang laporan", detail: "Di Laporan Keuangan > Ekspor, pilih bulan dan tahun lalu Unduh Excel; periksa kolom pada RP bulan dan rekapnya." },
+    ],
+  },
+  {
     id: "history-payment-amounts", date: "2026-11-05", revision: 1,
     highlight: { title: "Nominal di Riwayat", summary: "Baca nominal tiap metode pembayaran langsung dari Riwayat." },
     title: "Nominal pembayaran tampil di Riwayat.",

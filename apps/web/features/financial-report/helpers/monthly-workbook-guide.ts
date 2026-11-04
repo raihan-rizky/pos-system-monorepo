@@ -96,7 +96,7 @@ export function buildMonthlyGuide({ monthName, debtRow, period }: GuideContext):
   block("A54:L54", "05  Jangan sampai dihitung dua kali", brand, { solid: true, size: 13 });
   block("A56:F58", "Jadwal berbeda dari kas\nGiro tampil pada bulan jatuh tempo. Kas hanya menghitung pembayaran giro dan transfer yang benar-benar tercatat.", accent);
   block("G56:L58", "Belum ada kategori? Tetap dihitung\nAngka di bagian Perlu pemetaan sudah masuk total. Cek kategorinya di aplikasi, lalu unduh ulang kalau ada perubahan.", accent);
-  block("A60:F62", "Gaji juga sudah dihitung\nGaji/mingguan yang tercatat sudah masuk RP dan rekap. Jadi tidak perlu dihitung lagi, meski tidak ada tab gaji.", brand);
+  block("A60:F62", "Kategori Gaji/Mingguan\nHanya kategori Gaji/Mingguan masuk kolom gaji. Gaji dan kategori lain masuk Nilai. Unduh ulang setelah mengubah kategori; total dihitung sekali.", brand);
   block("G60:L62", "Sisa giro termasuk hutang\nPembayaran mengurangi hutang sesuai tanggal bayar. Riwayat lama perlu diperiksa di Keuangan.", accent);
   block("A64:L66", "Sudah siap disimpan?\nCek bulan, saldo yang tersedia, dan hasilnya. Hasil positif berarti ada sisa uang; hasil negatif berarti pengeluaran lebih besar.", success);
   return sheet;
