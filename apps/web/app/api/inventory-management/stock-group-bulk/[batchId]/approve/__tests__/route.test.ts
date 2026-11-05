@@ -164,7 +164,7 @@ describe("POST /api/inventory-management/stock-group-bulk/[batchId]/approve", ()
       }),
     );
     expect(body.data.batchId).toBe("batch-1");
-  });
+  }, 15_000); // Allow the first route import to finish on slower Windows test runs.
 
   it("locks multiple groups before products in sorted order and computes from the reload", async () => {
     const order: string[] = [];

@@ -131,3 +131,5 @@
 Verification: RED showed 6 expected evidence-blocking failures. GREEN: 60 service tests (including missing/inconsistent linked Surat Jalan evidence); focused 119 service/API/RBAC/UI/workflow tests; browser 32 role/grant combinations and 12 desktop/mobile transaction scenarios. Fresh read-only review found no actionable issues. GitNexus detected 9 expected symbols, 0 affected processes, low risk. ESLint passed. Root type-check invoked Turbo dependency build and failed before Next at missing Prisma CLI; direct TypeScript (tsc --noEmit) passed after linking the existing Prisma dependencies. Headroom tools work, but its configured proxy reports unreachable.
 
 Publication gate: the normal pre-push hook runs the full suite before updating the authorized remote branches.
+
+Gate diagnosis: the first complete run passed 5,853 tests and skipped 177; one unrelated stock-group approval test exceeded its 5-second deadline during its first route import. All three tests in that file passed in isolation. That first test now has a 15-second deadline to accommodate cold imports on slower Windows runs; the full pre-push gate is repeated.
