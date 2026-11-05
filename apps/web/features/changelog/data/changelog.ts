@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "pos-cart-decimal-member-prices", date: "2026-11-05", revision: 1,
+    highlight: { title: "Produk masuk keranjang tanpa error", summary: "Pilih produk hasil pencarian tanpa halaman error akibat format harga member." },
+    title: "Pencarian produk Kasir kembali lancar.",
+    summary: "Produk dengan harga Agen atau Dinas kini dapat ditambahkan ke keranjang tanpa memunculkan halaman error akibat format harga. Keranjang lama dengan format harga yang sama juga dapat dibuka kembali.",
+    kind: "fix", area: "Kasir", href: "/pos", visual: "stock-groups",
+    steps: [
+      { title: "Cari produk", detail: "Buka Kasir lalu ketik nama produk, SKU, atau barcode." },
+      { title: "Pilih produk", detail: "Klik produk hasil pencarian atau pilih satuan yang dibutuhkan." },
+      { title: "Periksa keranjang", detail: "Periksa jumlah dan acuan harga Normal, Agen, serta Dinas sebelum melanjutkan transaksi." },
+    ],
+  },
+  {
     id: "rp-month-salary-weekly-category", date: "2026-11-05", revision: 1,
     highlight: { title: "Kategori Gaji/Mingguan di RP", summary: "Kolom Gaji/Mingguan di RP kini mengikuti kategori pengeluaran yang dipilih." },
     title: "Kolom Gaji/Mingguan mengikuti kategori.",

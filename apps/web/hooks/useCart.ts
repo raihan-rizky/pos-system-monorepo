@@ -201,6 +201,13 @@ export function normalizeStoredCartItems(items: CartItem[]): CartItem[] {
       lineType: "PRODUCT",
       price: transactionPrice ?? product.price,
       catalogPrice: product.catalogPrice ?? product.price,
+      hargaAgen: product.hargaAgen == null ? product.hargaAgen : Number(product.hargaAgen),
+      hargaDinas: product.hargaDinas == null ? product.hargaDinas : Number(product.hargaDinas),
+      unitOptions: product.unitOptions?.map((option) => ({
+        ...option,
+        hargaAgen: option.hargaAgen == null ? option.hargaAgen : Number(option.hargaAgen),
+        hargaDinas: option.hargaDinas == null ? option.hargaDinas : Number(option.hargaDinas),
+      })),
       transactionPrice,
       categoryId: product.categoryId ?? "",
       categoryName: product.categoryName ?? "",
