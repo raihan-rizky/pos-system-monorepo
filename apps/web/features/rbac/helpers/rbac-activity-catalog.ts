@@ -54,7 +54,7 @@ export const RBAC_RESOURCE_METADATA: Record<string, ResourceEditorMetadata> = {
   "inventory.inbound_receipt.approve": { label: "Persetujuan penerimaan", actions: ["update"], actionLabels: { update: "Setujui penerimaan" } },
   "inventory.inbound_receipt.reject": { label: "Penolakan penerimaan", actions: ["update"], actionLabels: { update: "Tolak penerimaan" } },
   "inventory.inbound_receipt.edit": { label: "Revisi penerimaan", actions: ["update"], actionLabels: { update: "Revisi penerimaan" } },
-  surat_jalan: { label: "Dokumen Surat Jalan", actions: ["create", "read", "update"], guidance: "Surat Jalan dibuka dari transaksi di Riwayat; akses Riwayat dan Lihat transaksi tetap diperlukan." },
+  surat_jalan: { label: "Dokumen Surat Jalan", actions: ["create", "read", "update"], actionLabels: { update: "Ubah dokumen dan approval" }, guidance: "Buat mengizinkan pengiriman baru; Ubah mengizinkan edit penerima, nama barang, jumlah dan keterangan dokumen tersimpan serta approval. Surat Jalan dibuka dari transaksi di Riwayat; akses Riwayat dan Lihat transaksi tetap diperlukan." },
   "surat_jalan.auto_approve": { label: "Auto Approve Surat Jalan", actions: ["create"], actionLabels: { create: "Konfirmasi otomatis" }, guidance: "Aktifkan aksi Buat agar Surat Jalan role ini langsung dikonfirmasi tanpa menunggu approval." },
 };
 

@@ -769,9 +769,9 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <Truck className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Cetak Surat Jalan", description: "Di halaman Riwayat Transaksi, cari transaksi lunas/DP. Klik tombol aksi titik tiga '...' di ujung kanan, pilih 'Cetak Surat Jalan'.", icon: <History className="w-8 h-8" /> },
-        { title: "Mulai Buat Baru", description: "Pada modal Surat Jalan yang terbuka, cek invoice utama lewat tombol 'Lihat Struk' jika perlu, lalu klik tombol 'Buat Surat Jalan' (atau 'Buat Surat Jalan Baru').", icon: <Truck className="w-8 h-8" /> },
-        { title: "Isi Jumlah & Detail Kurir", description: "Masukkan jumlah barang yang dikirim saat ini untuk tiap item. Isi detail pengiriman seperti kurir, pengemudi, pelat kendaraan, dan nama penerima.", icon: <Settings className="w-8 h-8" /> },
-        { title: "Simpan & Cetak", description: "Klik tombol simpan/proses. Status Surat Jalan langsung dikonfirmasi atau menunggu approval sesuai pengaturan RBAC, tanpa mengurangi stok transaksi baru.", icon: <FileText className="w-8 h-8" /> },
+        { title: "Edit Langsung di Struk", description: "Struk langsung terbuka. Klik penerima, nama barang, jumlah, atau keterangan untuk mengedit. Jumlah awal mengikuti sisa barang setelah pengiriman yang disetujui dan menunggu approval. Isi 0 untuk tidak menyertakan barang; nama barang hanya berubah pada surat jalan ini.", icon: <Settings className="w-8 h-8" /> },
+        { title: "Pilih Pengiriman", description: "Dokumen aktif terbaru dibuka otomatis. Gunakan pilihan Dokumen untuk melihat pengiriman lain, atau Pengiriman baru untuk sisa barang. Mengubah dokumen tersimpan memerlukan izin Ubah Surat Jalan; dokumen yang dibatalkan atau ditolak hanya dapat dilihat dan dicetak.", icon: <Truck className="w-8 h-8" /> },
+        { title: "Simpan & Cetak", description: "Klik Simpan & Cetak agar perubahan tersimpan sebelum dicetak. Gunakan Cetak untuk cetak ulang tanpa membuat pengiriman baru. Approval mengikuti pengaturan RBAC; transaksi baru tidak mengurangi stok lagi. Pada transaksi lama yang stoknya dikelola Surat Jalan, perubahan jumlah dokumen yang disetujui menyesuaikan stok berdasarkan riwayat yang terbukti. Perubahan yang belum disimpan tetap tersedia bila penyimpanan gagal; pilih Lanjut edit atau Buang perubahan saat menutup atau berpindah dokumen.", icon: <FileText className="w-8 h-8" /> },
       ]
     },
     {

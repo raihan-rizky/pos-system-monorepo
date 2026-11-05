@@ -213,9 +213,9 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     steps: [
       { title: "Cari transaksi", description: "Temukan transaksi Lunas atau DP yang memiliki produk fisik di halaman Riwayat." },
       { title: "Buka aksi Surat Jalan", description: "Klik menu tiga titik pada baris transaksi, lalu pilih Cetak Surat Jalan." },
-      { title: "Buat dokumen", description: "Klik Buat Surat Jalan atau Buat Surat Jalan Baru jika sudah ada pengiriman sebelumnya." },
-      { title: "Isi detail pengiriman", description: "Masukkan jumlah barang, kurir, pengemudi, pelat kendaraan, penerima, dan catatan bila perlu." },
-      { title: "Simpan dokumen", description: "Proses Surat Jalan agar tersimpan dan siap dicetak. Approval Surat Jalan hanya mengonfirmasi dokumen dan tidak mengurangi stok transaksi baru; status langsung atau pending mengikuti RBAC surat_jalan.auto_approve. Jika transaksi di-void, seluruh surat jalan PENDING/CONFIRMED terkait dibatalkan; jika transaksi dihapus, seluruh surat jalan terkait ikut dihapus. Ikuti panduan tindakan transaksi Q51 untuk dampak dan peringatan stok." },
+      { title: "Pilih dokumen di struk", description: "Struk langsung terbuka, menampilkan dokumen aktif terbaru bila ada. Gunakan pilihan Dokumen untuk pengiriman lain atau Pengiriman baru untuk sisa barang; membuka struk tidak membuat pengiriman." },
+      { title: "Edit langsung", description: "Klik penerima, nama barang, jumlah, atau keterangan di struk. Jumlah dibatasi sisa invoice setelah pengiriman PENDING dan CONFIRMED lainnya; isi 0 untuk tidak menyertakan barang. Nama barang hanya berubah pada surat jalan ini. Mengubah dokumen tersimpan memerlukan surat_jalan.update; CANCELLED/REJECTED hanya dapat dicetak." },
+      { title: "Simpan dan cetak", description: "Klik Simpan & Cetak, atau Cetak untuk cetak ulang tanpa pengiriman baru. Jika penyimpanan gagal, isian tetap tersedia. Saat menutup atau berpindah dengan perubahan, pilih Lanjut edit atau Buang perubahan. Approval mengikuti surat_jalan.auto_approve dan tombol Setujui surat jalan memerlukan surat_jalan.update. Approval Surat Jalan hanya mengonfirmasi dokumen dan tidak mengurangi stok transaksi baru; perubahan jumlah dokumen CONFIRMED pada transaksi lama SURAT_JALAN menyesuaikan stok hanya jika riwayat terbukti. Void/Hapus transaksi mengikuti panduan Q51 beserta surat jalan terkait." },
     ],
   }),
   workflow({

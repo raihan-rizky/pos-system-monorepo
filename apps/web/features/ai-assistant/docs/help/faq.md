@@ -93,15 +93,13 @@ Untuk **Nota Percetakan**, periksa isi dan pembayaran tersimpan lalu klik **Setu
 **A:** Surat Jalan digunakan untuk mengirimkan barang pesanan kepada pelanggan secara bertahap atau sekaligus, langsung dari transaksi penjualan yang ada:
 1. Cari transaksi penjualan bersangkutan di halaman **Riwayat Transaksi** (harus berstatus **Lunas** atau **DP** serta memiliki produk fisik).
 2. Klik ikon tiga titik `...` di ujung kanan baris transaksi, lalu pilih opsi **Cetak Surat Jalan**.
-3. Pada modal yang muncul, klik tombol **Buat Surat Jalan** (atau **Buat Surat Jalan Baru** jika sebelumnya sudah pernah dibuatkan pengiriman sebagian).
-4. Isi detail pengiriman:
-   - **Jumlah Barang:** Masukkan jumlah barang yang dikirim saat ini untuk masing-masing produk (bisa dikirim sebagian jika stok belum lengkap).
-   - **Form Pengiriman:** Isi nama kurir/ekspedisi, nama pengemudi, pelat kendaraan, nama penerima, dan catatan tambahan jika ada.
-5. Klik proses untuk membuat Surat Jalan. Dokumen Surat Jalan baru akan tersimpan dan siap dicetak sebagai bukti pengiriman barang.
+3. Struk langsung terbuka tanpa langkah pembuatan terpisah. Dokumen aktif terbaru dipilih bila ada; gunakan pilihan **Dokumen** untuk pengiriman lain atau **Pengiriman baru** bila masih ada sisa barang. Membuka struk tidak membuat catatan pengiriman.
+4. Klik langsung **Penerima**, **Nama barang**, **Jumlah**, atau **Keterangan** di struk untuk mengedit. Jumlah dibatasi sisa invoice setelah pengiriman PENDING/CONFIRMED lainnya; isi 0 agar barang tidak disertakan saat disimpan. Nama barang hanya berubah pada surat jalan tersebut. Dokumen tersimpan hanya dapat diubah dengan izin `surat_jalan.update`; dokumen CANCELLED/REJECTED hanya dapat dilihat dan dicetak.
+5. Pilih **Simpan & Cetak** agar perubahan tersimpan sebelum dicetak. **Cetak** mencetak ulang dokumen yang tidak berubah tanpa pengiriman baru. Jika simpan gagal, isian tetap tersedia. Saat menutup atau berpindah dengan perubahan belum disimpan, pilih **Lanjut edit** atau **Buang perubahan**.
 6. Untuk transaksi baru, stok sudah dikurangi ketika transaksi disimpan sebagai Lunas/DP atau ketika transaksi pending disetujui. Membuat, menyetujui, mencetak, dan melakukan marking Surat Jalan tidak mengurangi stok lagi.
 7. Status Surat Jalan langsung **CONFIRMED** secara default. Jika Owner menonaktifkan `surat_jalan.auto_approve:create` untuk role pembuat melalui RBAC, dokumen tersimpan sebagai **PENDING** dan menunggu approval. Approval tersebut hanya mengonfirmasi dokumen.
 
-Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumnya agar saldo historis tidak berubah mendadak.
+Transaksi lama dengan sumber stok SURAT_JALAN tetap mengikuti alur stok historis. Perubahan jumlah dokumen CONFIRMED menyesuaikan selisih stok dan menulis jurnal hanya jika bukti mutasi, grup stok, dan konversi satuannya dapat diverifikasi; bila bukti tidak cukup, perubahan jumlah ditolak dengan pesan yang jelas.
 
 ### Q9: Bagaimana cara mencetak invoice atau struk transaksi?
 **A:** Anda dapat mencetak invoice dengan dua cara:

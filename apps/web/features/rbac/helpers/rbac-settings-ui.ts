@@ -284,7 +284,7 @@ export const RBAC_PERMISSION_MODULES: RbacPermissionModule[] = [
     id: "surat-jalan",
     groupId: "inventory",
     label: "Surat Jalan",
-    description: "Pembuatan dan approval surat jalan.",
+    description: "Pembuatan, edit langsung pada dokumen, dan approval surat jalan.",
     pageTargets: [],
     resourceTargets: ["surat_jalan"],
     sensitivity: "normal",

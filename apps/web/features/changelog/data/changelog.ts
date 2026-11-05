@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "surat-jalan-inline-receipt", date: "2026-11-05", revision: 1,
+    highlight: { title: "Edit langsung Surat Jalan", summary: "Ubah penerima, barang, jumlah, dan keterangan langsung di struk Surat Jalan." },
+    title: "Surat Jalan langsung terbuka dan bisa diedit.",
+    summary: "Cetak Surat Jalan langsung membuka struk dengan isian yang menyatu di dokumen. Simpan perubahan sebelum mencetak, atau cetak ulang tanpa membuat pengiriman baru.",
+    kind: "improvement", area: "Surat Jalan", href: "/history", visual: "history-table",
+    screenshot: { src: "/images/changelog/surat-jalan-edit-langsung.png", alt: "Contoh struk Surat Jalan dengan penerima, nama barang, jumlah dan keterangan yang dapat diedit langsung." },
+    steps: [
+      { title: "Buka struk", detail: "Di Riwayat, buka menu tiga titik pada transaksi lalu pilih Cetak Surat Jalan." },
+      { title: "Edit pengiriman", detail: "Klik isian langsung di struk. Pilih dokumen lain atau Pengiriman baru bila masih ada sisa barang; izin Ubah diperlukan untuk dokumen tersimpan." },
+      { title: "Simpan dan cetak", detail: "Pilih Simpan & Cetak untuk menyimpan perubahan, atau Cetak untuk cetak ulang dokumen yang sudah tersimpan." },
+    ],
+  },
+  {
     id: "rp-month-salary-weekly-category", date: "2026-11-05", revision: 1,
     highlight: { title: "Kategori Gaji/Mingguan di RP", summary: "Kolom Gaji/Mingguan di RP kini mengikuti kategori pengeluaran yang dipilih." },
     title: "Kolom Gaji/Mingguan mengikuti kategori.",
