@@ -1048,7 +1048,7 @@ const OFFLINE_SYNC_GUIDE: AccordionItem = {
   steps: [
     { title: "Siapkan POS", description: "Saat online, masuk sebagai kasir yang akan bertransaksi, buka Kasir > Offline Sync, buat dan ulangi PIN offline, lalu pilih Siapkan POS offline. Siapkan kembali sedikitnya setiap tujuh hari dan setelah pembaruan aplikasi. PIN mengenkripsi halaman POS; katalog dan antrean transaksi belum terenkripsi.", icon: <ShoppingCart className="w-8 h-8" /> },
     { title: "Buka saat offline", description: "Saat koneksi terputus, buka alamat POS, pilih akun, masukkan PIN, lalu pilih Buka POS offline. Transaksi tersimpan di perangkat dan masih memerlukan pemeriksaan server; jangan hapus data situs sebelum tersinkronisasi.", icon: <AlertTriangle className="w-8 h-8" /> },
-    { title: "Periksa setelah terhubung", description: "Pemberitahuan status dapat ditutup dan menghilang setelah 3 detik. Masuk sebagai kasir asal, buka Kasir > Offline Sync, dan periksa status serta alasan kegagalan. Pilih Coba lagi jika tersedia. Owner dapat mengunduh transaksi yang belum tersimpan di server, termasuk transaksi lama tanpa identitas, untuk rekonsiliasi; asalnya tidak ditetapkan otomatis.", icon: <ShieldCheck className="w-8 h-8" /> },
+    { title: "Periksa setelah terhubung", description: "Masuk sebagai kasir asal, buka Kasir > Offline Sync, dan periksa status serta alasan kegagalan. Pilih Coba lagi jika tersedia. Owner dapat mengunduh transaksi yang belum tersimpan di server, termasuk transaksi lama tanpa identitas, untuk rekonsiliasi; asalnya tidak ditetapkan otomatis.", icon: <ShieldCheck className="w-8 h-8" /> },
   ],
 };
 
