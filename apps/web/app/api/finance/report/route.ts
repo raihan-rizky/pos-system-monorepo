@@ -115,6 +115,9 @@ export async function GET(request: Request) {
         select: {
           id: true,
           invoiceNumber: true,
+          transactionCategory: true,
+          printingSubcategory: true,
+          printingReceipt: { select: { subcategory: true } },
           invoiceDate: true,
           createdAt: true,
           status: true,
@@ -132,6 +135,7 @@ export async function GET(request: Request) {
           items: {
             select: {
               productId: true,
+              printingServiceId: true,
               productName: true,
               quantity: true,
               subtotal: true,

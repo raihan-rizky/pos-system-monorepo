@@ -741,6 +741,17 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
   ],
   SALES: [
     {
+      id: "sales-daily-income",
+      title: "Melihat Pemasukan Harian",
+      description: "Sales dapat melihat uang diterima pada satu tanggal, termasuk rincian ATK, Percetakan, subkategori, dan metode pembayaran sesuai izin Owner.",
+      icon: <TrendingUp className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka Laporan Keuangan", description: "Masuk ke Laporan Keuangan. Sales melihat tampilan pemasukan harian dan tidak melihat laba, HPP, pengeluaran, produk terlaris, atau ekspor laporan.", icon: <TrendingUp className="w-8 h-8" /> },
+        { title: "Pilih tanggal WIB", description: "Gunakan pemilih tanggal untuk melihat hari ini atau tanggal sebelumnya. Nilai memakai uang yang benar-benar diterima pada tanggal tersebut, termasuk DP dan pelunasan nota lama.", icon: <History className="w-8 h-8" /> },
+        { title: "Baca rincian pemasukan", description: "Periksa total, kategori ATK dan Percetakan, subkategori, serta metode pembayaran. Akses tiap bagian diatur terpisah oleh Owner melalui izin RBAC.", icon: <DollarSign className="w-8 h-8" /> },
+      ],
+    },
+    {
       id: "sales-draft",
       title: "Membuat Draft Transaksi",
       description: "Simpan pesanan yang belum dibayar sebagai Draft agar bisa dilanjutkan kasir. Di formulir faktur sementara dan pratinjau Cetak Nota Penawaran, isi Nama pada nota untuk tiap item; Nama POS tetap terlihat sebagai acuan. Nama khusus hanya berlaku pada dokumen ini dan tidak mengubah produk, harga, atau stok POS.",

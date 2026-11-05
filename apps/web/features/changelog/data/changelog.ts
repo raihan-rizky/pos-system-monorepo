@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "daily-finance-sales-rbac", date: "2026-11-05", revision: 1,
+    highlight: { title: "Pemasukan harian Sales", summary: "Sales dapat membaca pemasukan per tanggal dan rincian yang diizinkan." },
+    title: "Pemasukan harian Sales lebih terarah.",
+    summary: "Sales dapat memilih tanggal dan melihat pemasukan ATK, Percetakan, subkategori, serta metode pembayaran sesuai izin Owner.",
+    kind: "feature", area: "Laporan Keuangan", href: "/financial-report", visual: "financial",
+    steps: [
+      { title: "Buka laporan", detail: "Masuk ke Keuangan > Laporan Keuangan." },
+      { title: "Pilih tanggal", detail: "Pilih hari ini atau tanggal sebelumnya dalam WIB." },
+      { title: "Baca rincian", detail: "Periksa pemasukan, ATK/Percetakan, subkategori, dan metode pembayaran yang diizinkan." },
+    ],
+  },
+
+  {
     id: "surat-jalan-inline-receipt", date: "2026-11-05", revision: 1,
     highlight: { title: "Edit langsung Surat Jalan", summary: "Ubah penerima, barang, jumlah, dan keterangan langsung di struk Surat Jalan." },
     title: "Surat Jalan langsung terbuka dan bisa diedit.",

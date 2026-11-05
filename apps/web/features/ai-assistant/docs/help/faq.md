@@ -443,3 +443,8 @@ Untuk menghubungkan giro yang sudah diperiksa dengan hutang manual yang benar-be
 2. Pilih **Hapus** untuk menghapus permanen transaksi, seluruh surat jalan terkait, dan item dokumennya. Pada transaksi Percetakan, nota sumbernya juga dihapus; snapshot dokumen tetap tersimpan dalam audit. Aksi memerlukan `transaction.delete` bagi role yang diberi izin. Jurnal stok tetap tersimpan. **Void** mempertahankan nota Percetakan sumber pada transaksi yang dibatalkan.
 3. Periksa dampak stok sebelum mengonfirmasi. Stok yang terbukti keluar dikembalikan paling banyak sekali berdasarkan mutasi yang tercatat; **Hapus setelah Void** tidak mengembalikannya lagi. Dampak keuangan invoice tetap diproses saat Hapus; masalah keuangan atau kegagalan sistem tetap perlu diselesaikan.
 4. Semua jenis transaksi, termasuk ATK, Percetakan, dan nota penawaran yang sudah atau belum menjadi invoice, tetap dapat dihapus bila riwayat stok kosong atau tidak konsisten. Peringatan tercatat di audit; pemeriksaan izin dan dampak keuangan tetap berlaku. Baca peringatan yang juga muncul **setelah penghapusan berhasil** dan tindak lanjuti bila perlu pemeriksaan. Sistem tidak menebak jumlah stok yang harus dikembalikan.
+
+### Q52: Bagaimana cara melihat pemasukan per tanggal?
+1. Buka Laporan Keuangan.
+2. Pilih hari ini atau tanggal sebelumnya dalam WIB.
+3. Baca total, ATK/Percetakan, subkategori, dan metode pembayaran sesuai izin.

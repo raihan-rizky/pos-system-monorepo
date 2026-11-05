@@ -373,8 +373,7 @@ describe("buildFinancialReport", () => {
       grossProfit: 80000,
     });
     expect(report.categories).toEqual([
-      { categoryName: "Printing", transactionCount: 1, quantity: 2, revenue: 100000, grossProfit: 40000 },
-      { categoryName: "Sticker", transactionCount: 1, quantity: 1, revenue: 200000, grossProfit: 80000 },
+      { categoryName: "ATK", transactionCount: 2, quantity: 3, revenue: 300000, grossProfit: 120000 },
     ]);
     expect(report.salespersons).toEqual([
       { name: "Budi", transactionCount: 1, revenue: 200000, collected: 50000, grossProfit: 80000 },

@@ -1003,6 +1003,21 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     ],
   }),
 
+  workflow({
+    faqNumber: 52,
+    slug: "daily-income",
+    title: "Bagaimana cara melihat pemasukan per tanggal?",
+    aliases: ["pemasukan per tanggal", "pendapatan harian", "rincian pemasukan ATK Percetakan", "rincian pemasukan subkategori"],
+    route: "/financial-report",
+    actionLabel: "Buka Pemasukan Harian",
+    iconKey: "trending-up",
+    requiredCapabilities: [{ resource: "financial-report.daily-income", action: "read" }],
+    steps: [
+      { title: "Buka Laporan Keuangan", description: "Masuk ke Laporan Keuangan untuk membuka tampilan Pemasukan Harian." },
+      { title: "Pilih tanggal", description: "Pilih hari ini atau tanggal sebelumnya dalam WIB. Nilai memakai uang yang diterima pada tanggal itu, termasuk DP dan pelunasan." },
+      { title: "Baca rincian", description: "Periksa kategori ATK dan Percetakan, subkategori, serta pemasukan per metode pembayaran. Owner mengatur empat izin rincian ini secara terpisah." },
+    ],
+  }),
 ];
 
 export function getWorkflowPayload(workflow: AssistantWorkflowDefinition): AssistantWorkflowPayload {

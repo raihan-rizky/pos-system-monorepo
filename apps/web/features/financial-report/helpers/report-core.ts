@@ -1,4 +1,5 @@
 import { netInitialPayments } from "@/features/customer-debt/helpers/net-initial-payments";
+import { incomeClassification } from "./income-categories";
 
 type NullableNumber = number | string | null | undefined;
 
@@ -14,6 +15,9 @@ export type FinancialReportTransaction = {
   amountPaid: NullableNumber;
   change?: NullableNumber;
   discount: NullableNumber;
+  transactionCategory?: string | null;
+  printingSubcategory?: string | null;
+  printingReceipt?: { subcategory?: string | null } | null;
   salesName?: string | null;
   salesperson?: { name?: string | null } | null;
   payments?: Array<{
@@ -33,6 +37,7 @@ export type FinancialReportTransaction = {
     quantity: NullableNumber;
     subtotal: NullableNumber;
     unitCost: NullableNumber;
+    printingServiceId?: string | null;
     product?: { category?: { name?: string | null } | null } | null;
   }>;
 };
@@ -363,6 +368,7 @@ export function buildFinancialReport({
       grossProfit: number;
     }
   >();
+  const subcategoryMap = new Map<string, { categoryName: string; subcategoryName: string; transactionIds: Set<string>; revenue: number; grossProfit: number }>();
   const salespersonMap = new Map<
     string,
     {
@@ -406,6 +412,7 @@ export function buildFinancialReport({
         : 0;
     transactionCount += 1;
 
+    const classification = incomeClassification(transaction);
     for (const item of transaction.items) {
       const quantity = toNumber(item.quantity);
       const itemRevenue = toNumber(item.subtotal);
@@ -415,7 +422,6 @@ export function buildFinancialReport({
           : toNumber(item.unitCost) * quantity;
       const itemGrossProfit = itemCost === null ? 0 : itemRevenue - itemCost;
       const productKey = item.productId || item.productName;
-      const categoryName = item.product?.category?.name || "Tanpa kategori";
 
       if (itemCost === null) missingCostLineCount += 1;
       grossProfit += itemGrossProfit;
@@ -433,18 +439,31 @@ export function buildFinancialReport({
       product.grossProfit += itemGrossProfit;
       productMap.set(productKey, product);
 
-      const category = categoryMap.get(categoryName) ?? {
-        categoryName,
-        transactionIds: new Set<string>(),
-        quantity: 0,
-        revenue: 0,
-        grossProfit: 0,
-      };
-      category.transactionIds.add(transaction.id);
-      category.quantity += quantity;
-      category.revenue += itemRevenue;
-      category.grossProfit += itemGrossProfit;
-      categoryMap.set(categoryName, category);
+      const subcategoryName = classification.category === "Percetakan"
+        ? classification.subcategory
+        : item.product?.category?.name?.trim() || "Belum ditentukan";
+      const key = JSON.stringify([classification.category, subcategoryName]);
+      const subcategory = subcategoryMap.get(key) ?? { categoryName: classification.category, subcategoryName, transactionIds: new Set<string>(), revenue: 0, grossProfit: 0 };
+      subcategory.transactionIds.add(transaction.id);
+      subcategory.revenue += itemRevenue;
+      subcategory.grossProfit += itemGrossProfit;
+      subcategoryMap.set(key, subcategory);
+    }
+
+    const { category: categoryName } = incomeClassification(transaction);
+    const category = categoryMap.get(categoryName) ?? { categoryName, transactionIds: new Set<string>(), quantity: 0, revenue: 0, grossProfit: 0 };
+    category.transactionIds.add(transaction.id);
+    category.quantity += transaction.items.reduce((sum, item) => sum + toNumber(item.quantity), 0);
+    const itemRevenueTotal = transaction.items.reduce((sum, item) => sum + toNumber(item.subtotal), 0);
+    category.revenue += itemRevenueTotal || total;
+    category.grossProfit += transactionGrossProfit;
+    categoryMap.set(categoryName, category);
+    if (transaction.items.length === 0) {
+      const key = JSON.stringify([classification.category, classification.subcategory]);
+      const subcategory = subcategoryMap.get(key) ?? { categoryName: classification.category, subcategoryName: classification.subcategory, transactionIds: new Set<string>(), revenue: 0, grossProfit: 0 };
+      subcategory.transactionIds.add(transaction.id);
+      subcategory.revenue += total;
+      subcategoryMap.set(key, subcategory);
     }
 
     const salesperson = salespersonMap.get(salespersonName) ?? {
@@ -665,6 +684,9 @@ export function buildFinancialReport({
         transactionCount: transactionIds.size,
       }))
       .sort((a, b) => a.categoryName.localeCompare(b.categoryName)),
+    subcategories: [...subcategoryMap.values()]
+      .map(({ transactionIds, ...row }) => ({ ...row, transactionCount: transactionIds.size }))
+      .sort((a, b) => a.categoryName.localeCompare(b.categoryName) || a.subcategoryName.localeCompare(b.subcategoryName)),
     salespersons: [...salespersonMap.values()].sort(
       (a, b) => b.revenue - a.revenue,
     ),
