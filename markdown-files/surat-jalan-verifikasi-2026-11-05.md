@@ -8,6 +8,7 @@ Perubahan Surat Jalan dipisahkan dari checkout sumber yang berisi pekerjaan lain
 
 ## Hasil pemeriksaan
 
+- Suite lengkap melalui hook pre-push pada commit integrasi 8bc6361e: **741 file lolos dan 24 dilewati; 5.892 tes lolos dan 177 dilewati** (765 file, 6.069 tes). Durasi 1.584,08 detik. Seluruh kode Surat Jalan sudah tercakup pada pemeriksaan ini.
 - Vitest terarah: **18 file dan 196 tes lolos**. Cakupan meliputi helper dan komponen Surat Jalan, endpoint pembuatan/edit/approval, RBAC, Catatan Perubahan, Bantuan, serta katalog workflow AI.
 - TypeScript seluruh paket web: **lolos**, menggunakan pnpm --filter @pos/web type-check secara langsung agar tidak memanggil build melalui Turbo.
 - Browser Chromium: **lolos** untuk edit langsung, payload nama/jumlah/keterangan, satu penyimpanan saat klik ganda, respons kanonik sebelum cetak, cetak ulang, konflik, close/switch saat dirty, Escape, refresh ketika dirty maupun clean, unmount safety, izin baca saja, ponsel 390 px, dan isolasi media print.
@@ -22,7 +23,13 @@ Tes API memverifikasi izin bawaan dan penolakan role, lintas toko, konflik versi
 
 Sebelum isolasi publikasi, 168 tes fitur dan pengujian browser telah lolos pada checkout sumber. Suite seluruh checkout sumber mencatat 38 file gagal, 636 lolos, dan 6 dilewati; hasil tes 220 gagal, 5021 lolos, dan 42 dilewati. Empat error TypeScript saat itu berada pada tes inventaris/supplier dari pekerjaan lain. Hasil tersebut berasal dari checkout sumber yang memuat banyak perubahan lain; pemeriksaan paket web di checkout publikasi lolos tanpa error.
 
-Suite seluruh proyek tidak dijalankan ulang di checkout publikasi. Pemeriksaan integrasi menggunakan 196 tes terarah, TypeScript seluruh paket web, ESLint, dan browser nyata. Detail log dan artefak lokal tersedia pada output/surat-jalan-publish-20261105 di checkout sumber dan output/surat-jalan-inline-20261105 di checkout publikasi.
+Suite seluruh proyek dijalankan pada checkout publikasi oleh hook pre-push dan lolos. Detail log dan artefak lokal tersedia pada output/surat-jalan-publish-20261105 di checkout sumber dan output/surat-jalan-inline-20261105 di checkout publikasi.
+
+## Sinkronisasi main saat publikasi
+
+Percobaan push atomik pertama ditolak karena main menerima commit b8d4ee59 saat suite lengkap berjalan. Pembaruan tersebut memperbaiki format harga member pada keranjang Kasir; kode Surat Jalan tidak berubah. Pembaruan main digabungkan, kedua entri Catatan Perubahan dipertahankan, lalu tes integrasi terarah, tes perbaikan Kasir, TypeScript, ESLint, dan pemeriksaan scope dijalankan kembali sebelum publikasi. Push berikutnya memakai bukti suite lengkap yang sudah lolos untuk kode Surat Jalan yang sama, ditambah verifikasi delta integrasi tersebut.
+
+Verifikasi delta integrasi terakhir: **19 file dan 202 tes lolos**, mencakup enam kasus perbaikan format harga member Kasir. ESLint fitur tetap 0 error dan 0 warning; tidak ada perubahan kode Surat Jalan sejak suite lengkap yang lolos.
 
 ## Batas lingkungan
 
