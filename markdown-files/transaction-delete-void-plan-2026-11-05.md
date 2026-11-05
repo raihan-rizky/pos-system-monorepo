@@ -112,3 +112,24 @@
 - ESLint berkas tugas dan `git diff --check` lulus. Suite penuh dijalankan kembali oleh hook pre-push untuk integrasi akhir.
 - Implementasi disimpan pada worktree terisolasi agar perubahan lokal lain tetap terpisah. Dokumentasi Bantuan, FAQ/workflow, metadata RBAC, dan Catatan Perubahan ikut diperbarui.
 - Headroom stats dipanggil; proxy kompresi lokal tidak dapat dijangkau, sehingga keluaran pemeriksaan dibaca dalam potongan terbatas. Indeks GitNexus diperbarui dan pemeriksaan perubahan digunakan sebelum commit.
+# Amendment: stock-history warnings for every DELETE
+
+**Goal:** Extend the approved nonblocking stock-history warning to ATK, printing, converted invoices, and all other transaction types.
+
+**Architecture:** Keep the centralized reversal service and its typed evidence error. DELETE records a warning and skips uncertain stock returns; financial reversal, RBAC (`transaction.delete` / `transaction.update`), operational errors, and VOID rules retain their safeguards.
+
+**Tech Stack:** TypeScript, Next.js, Prisma, Vitest.
+
+**Constraints:** Indonesian UI; no production build or server lifecycle changes; preserve unrelated work; no guessed stock returns.
+
+## Execution ledger (amendment)
+
+- [x] Add failing service tests for missing/inconsistent evidence across invoice types and financial reversal; update DELETE expectations while preserving VOID proof checks.
+- [x] Broaden only typed DELETE evidence warnings; make delete confirmation generic; update Help, workflow/FAQ, changelog, and design.
+- [x] Run focused service/API/RBAC/UI tests, lint/type-check and browser checks; fresh branch review; GitNexus detect-changes before commit.
+
+Verification: RED showed 6 expected evidence-blocking failures. GREEN: 60 service tests (including missing/inconsistent linked Surat Jalan evidence); focused 119 service/API/RBAC/UI/workflow tests; browser 32 role/grant combinations and 12 desktop/mobile transaction scenarios. Fresh read-only review found no actionable issues. GitNexus detected 9 expected symbols, 0 affected processes, low risk. ESLint passed. Root type-check invoked Turbo dependency build and failed before Next at missing Prisma CLI; direct TypeScript (tsc --noEmit) passed after linking the existing Prisma dependencies. Headroom tools work, but its configured proxy reports unreachable.
+
+Publication gate: the normal pre-push hook runs the full suite before updating the authorized remote branches.
+
+Gate diagnosis: the first complete run passed 5,853 tests and skipped 177; one unrelated stock-group approval test exceeded its 5-second deadline during its first route import. All three tests in that file passed in isolation. That first test now has a 15-second deadline to accommodate cold imports on slower Windows runs; the full pre-push gate is repeated.

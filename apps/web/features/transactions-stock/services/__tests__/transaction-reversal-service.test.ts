@@ -456,26 +456,32 @@ describe("reverseTransaction", () => {
     expect(deleteTx.transaction.deleteMany).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects legacy invoice logs when their quantities do not match the transaction", async () => {
+  it.each(["VOID", "DELETE"] as const)("handles %s with legacy invoice quantities that do not match the transaction", async (action) => {
     const legacyLogs = makeLegacyInvoiceLogs();
     legacyLogs[0].quantity = 1;
     const tx = makeTx({ inventoryLogs: legacyLogs });
 
-    await expect(
-      reverseTransaction(tx as never, {
-        storeId: "store-1",
-        transactionId: "tx-1",
-        action: "DELETE",
-        actor: { id: "owner-1", name: "Owner One", role: "OWNER" },
-      }),
-    ).rejects.toMatchObject({ code: "STOCK_HISTORY_REVIEW_REQUIRED" });
+    const onWarning = vi.fn();
+    const result = reverseTransaction(tx as never, {
+      storeId: "store-1",
+      transactionId: "tx-1",
+      action, onWarning,
+      actor: { id: "owner-1", name: "Owner One", role: "OWNER" },
+    });
+    if (action === "VOID") {
+      await expect(result).rejects.toMatchObject({ code: "STOCK_HISTORY_REVIEW_REQUIRED" });
+      expect(onWarning).not.toHaveBeenCalled();
+    } else {
+      await expect(result).resolves.toBe("APPLIED");
+      expect(onWarning).toHaveBeenCalledOnce();
+    }
 
     expect(tx.product.updateMany).not.toHaveBeenCalled();
-    expect(tx.inventoryLog.updateMany).not.toHaveBeenCalled();
-    expect(tx.transaction.deleteMany).not.toHaveBeenCalled();
+    expect(tx.inventoryLog.createMany).not.toHaveBeenCalled();
+    expect(tx.transaction.deleteMany).toHaveBeenCalledTimes(action === "DELETE" ? 1 : 0);
   });
 
-  it("rejects legacy invoice logs when either product now uses a shared stock group", async () => {
+  it.each(["VOID", "DELETE"] as const)("handles %s with legacy invoice evidence after a product joins a shared stock group", async (action) => {
     const tx = makeTx({ inventoryLogs: makeLegacyInvoiceLogs() });
     tx.product.findMany.mockImplementation(({ where }: any) =>
       Promise.resolve(
@@ -488,19 +494,25 @@ describe("reverseTransaction", () => {
       ),
     );
 
-    await expect(
-      reverseTransaction(tx as never, {
-        storeId: "store-1",
-        transactionId: "tx-1",
-        action: "DELETE",
-        actor: { id: "owner-1", name: "Owner One", role: "OWNER" },
-      }),
-    ).rejects.toMatchObject({ code: "STOCK_HISTORY_REVIEW_REQUIRED" });
+    const onWarning = vi.fn();
+    const result = reverseTransaction(tx as never, {
+      storeId: "store-1",
+      transactionId: "tx-1",
+      action, onWarning,
+      actor: { id: "owner-1", name: "Owner One", role: "OWNER" },
+    });
+    if (action === "VOID") {
+      await expect(result).rejects.toMatchObject({ code: "STOCK_HISTORY_REVIEW_REQUIRED" });
+      expect(onWarning).not.toHaveBeenCalled();
+    } else {
+      await expect(result).resolves.toBe("APPLIED");
+      expect(onWarning).toHaveBeenCalledOnce();
+    }
 
     expect(tx.product.updateMany).not.toHaveBeenCalled();
     expect(tx.productStockGroup.updateMany).not.toHaveBeenCalled();
-    expect(tx.inventoryLog.updateMany).not.toHaveBeenCalled();
-    expect(tx.transaction.deleteMany).not.toHaveBeenCalled();
+    expect(tx.inventoryLog.createMany).not.toHaveBeenCalled();
+    expect(tx.transaction.deleteMany).toHaveBeenCalledTimes(action === "DELETE" ? 1 : 0);
   });
 
   it("does not restore stock a second time when deleting an already-voided transaction", async () => {
@@ -996,11 +1008,79 @@ describe("reverseTransaction", () => {
   });
 
   it.each([
+    { label: "ATK", invoiceNumber: "INV-ATK-123", printingReceiptId: null },
+    { label: "Percetakan", invoiceNumber: "INV-PRINT-123", printingReceiptId: "print-1" },
+    { label: "converted quotation", invoiceNumber: "INV-CONVERTED-123", draftNumber: "CUSTOM-QUOTATION" },
+  ])("deletes $label with a warning for missing or inconsistent evidence while reversing customer totals", async (invoice) => {
+    for (const inventoryLogs of [[], journal.map((row) => ({ ...row, stockBaseDelta: null }))]) {
+      const tx = makeTx({ current: { ...transaction, ...invoice }, inventoryLogs });
+      const onWarning = vi.fn();
+
+      await expect(reverseTransaction(tx as never, {
+        storeId: "store-1", transactionId: "tx-1", action: "DELETE",
+        actor: { id: "owner-1", name: "Owner", role: "OWNER" }, onWarning,
+      })).resolves.toBe("APPLIED");
+
+      expect(tx.transaction.deleteMany).toHaveBeenCalledOnce();
+      expect(tx.customer.updateMany).toHaveBeenCalledExactlyOnceWith({
+        where: expect.objectContaining({ id: "customer-1", storeId: "store-1" }),
+        data: { totalOrders: { decrement: 1 }, totalSpent: { decrement: 75 }, totalDebt: { decrement: 25 } },
+      });
+      expect(tx.product.updateMany).not.toHaveBeenCalled();
+      expect(tx.productStockGroup.updateMany).not.toHaveBeenCalled();
+      expect(tx.inventoryLog.createMany).not.toHaveBeenCalled();
+      expect(onWarning).toHaveBeenCalledExactlyOnceWith({
+        code: "STOCK_HISTORY_REVIEW_REQUIRED",
+        message: "Transaksi dihapus, tetapi riwayat stok perlu diperiksa. Stok yang tidak dapat dipastikan tidak dikembalikan.",
+      });
+      expect(tx.transactionLifecycleAudit.create).toHaveBeenCalledWith({ data: expect.objectContaining({ snapshot: expect.objectContaining({
+        stockHistoryReviewRequired: true, stockReturns: [], warnings: [expect.objectContaining({ code: "STOCK_HISTORY_REVIEW_REQUIRED" })],
+      }) }) });
+    }
+  });
+
+  it.each([
     { invoiceNumber: "CUSTOM-INV-123", draftNumber: "CUSTOM-QUOTATION" },
     { invoiceNumber: "DRAFT-123", draftNumber: "CUSTOM-QUOTATION" },
     { invoiceNumber: null, draftNumber: null },
-  ])("keeps invalid converted or unidentified quotation proof blocking: %j", async ({ invoiceNumber, draftNumber }) => {
+  ])("deletes converted or unidentified quotations with a stock review warning: %j", async ({ invoiceNumber, draftNumber }) => {
     const tx = makeTx({ current: { ...transaction, status: "VOIDED", invoiceNumber, draftNumber }, inventoryLogs: [] });
+    const onWarning = vi.fn();
+
+    await expect(reverseTransaction(tx as never, {
+      storeId: "store-1", transactionId: "tx-1", action: "DELETE",
+      actor: { id: "owner-1", name: "Owner", role: "OWNER" }, onWarning,
+    })).resolves.toBe("APPLIED");
+
+    expect(tx.transaction.deleteMany).toHaveBeenCalledOnce();
+    expect(onWarning).toHaveBeenCalledOnce();
+  });
+
+  it.each(["missing", "inconsistent"])("deletes linked delivery documents with %s stock evidence and an audit warning", async (evidence) => {
+    const legacy = makeLegacyShipmentHistory(3);
+    const tx = makeTx({ current: legacy.transaction, inventoryLogs: evidence === "missing" ? [] : legacy.logs });
+    const onWarning = vi.fn();
+
+    await expect(reverseTransaction(tx as never, {
+      storeId: "store-1", transactionId: "tx-1", action: "DELETE",
+      actor: { id: "owner-1", name: "Owner", role: "OWNER" }, onWarning,
+    })).resolves.toBe("APPLIED");
+
+    expect(tx.suratJalanItem.deleteMany).toHaveBeenCalledOnce();
+    expect(tx.suratJalan.deleteMany).toHaveBeenCalledOnce();
+    expect(tx.transaction.deleteMany).toHaveBeenCalledOnce();
+    expect(tx.product.updateMany).not.toHaveBeenCalled();
+    expect(tx.inventoryLog.createMany).not.toHaveBeenCalled();
+    expect(onWarning).toHaveBeenCalledOnce();
+    expect(tx.transactionLifecycleAudit.create).toHaveBeenCalledWith({ data: expect.objectContaining({ snapshot: expect.objectContaining({
+      stockHistoryReviewRequired: true, stockReturns: [],
+      suratJalan: [expect.objectContaining({ id: "sj-legacy-1" })],
+    }) }) });
+  });
+
+  it("keeps customer balance failures blocking even when stock evidence only requires review", async () => {
+    const tx = makeTx({ inventoryLogs: [] });
+    tx.customer.updateMany.mockResolvedValueOnce({ count: 0 });
     const onWarning = vi.fn();
 
     await expect(reverseTransaction(tx as never, {

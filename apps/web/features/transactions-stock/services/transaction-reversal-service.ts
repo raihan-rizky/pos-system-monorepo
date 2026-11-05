@@ -620,7 +620,7 @@ export async function reverseTransaction(
 
   const shipments = transaction.suratJalan ?? [];
   const unconvertedQuotation = isUnconvertedQuotation(transaction);
-  const allowStockReviewWarning = input.action === "DELETE" && unconvertedQuotation;
+  const allowStockReviewWarning = input.action === "DELETE";
   const warnings: TransactionReversalWarning[] = [];
   const shipmentIds = shipments.map((shipment: any) => shipment.id);
   const logFilters: Array<Record<string, unknown>> = [
@@ -774,7 +774,7 @@ export async function reverseTransaction(
     legacyEvidence = [];
     warnings.push({
       code: "STOCK_HISTORY_REVIEW_REQUIRED",
-      message: "Nota penawaran dihapus, tetapi riwayat stok perlu diperiksa. Stok yang tidak dapat dipastikan tidak dikembalikan.",
+      message: "Transaksi dihapus, tetapi riwayat stok perlu diperiksa. Stok yang tidak dapat dipastikan tidak dikembalikan.",
     });
   }
 

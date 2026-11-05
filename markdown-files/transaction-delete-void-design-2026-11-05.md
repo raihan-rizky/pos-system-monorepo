@@ -1,13 +1,13 @@
 # Hapus dan Void untuk Semua Jenis Transaksi
 
 Tanggal: 2026-11-05 (Asia/Jakarta)
-Status: Desain disetujui; menunggu tinjauan spesifikasi tertulis.
+Status: Diimplementasikan; perluasan peringatan Hapus untuk seluruh jenis transaksi diminta pengguna pada 2026-11-05.
 
 ## Keputusan yang sudah disetujui
 
 - Gunakan proses pembatalan dan penghapusan transaksi yang terpusat.
 - Aksi pada transaksi berlaku untuk seluruh surat jalan yang terkait dengannya.
-- Masalah riwayat stok nota penawaran menjadi peringatan yang tidak menghalangi penghapusan.
+- Masalah riwayat stok pada semua jenis transaksi, termasuk ATK, Percetakan, dan nota penawaran (sudah atau belum menjadi invoice), menjadi peringatan yang tidak menghalangi penghapusan.
 - Dokumentasi disimpan di `C:\Projects\pos-system-monorepo\markdown-files`, sesuai persetujuan pengguna karena drive D: tidak tersedia.
 
 ## Temuan
@@ -47,14 +47,14 @@ Status: Desain disetujui; menunggu tinjauan spesifikasi tertulis.
 - Hapus setelah Void tidak boleh mengembalikan stok lagi.
 - Konfirmasi menyebutkan bahwa seluruh surat jalan terkait ikut dihapus atau dibatalkan.
 
-### Peringatan stok nota penawaran
+### Peringatan stok seluruh jenis transaksi
 
 - Nota penawaran yang belum menjadi invoice dikenali dari data transaksi, bukan awalan nomor yang dapat diubah pengguna. Nota penawaran yang sudah dibatalkan juga tercakup.
-- Penghapusan nota penawaran tidak gagal hanya karena bukti stoknya kosong atau membutuhkan pemeriksaan.
+- Penghapusan semua jenis transaksi tidak gagal hanya karena bukti stoknya kosong atau membutuhkan pemeriksaan.
 - Jika stok tidak dapat dipastikan, tampilkan peringatan berbahasa Indonesia dan izinkan pengguna melanjutkan penghapusan. Tidak ada tambahan stok berdasarkan perkiraan jumlah item.
 - Peringatan dan kebutuhan pemeriksaan disimpan dalam audit. Respons API meneruskan peringatan agar pengguna tetap mengetahuinya setelah tindakan berhasil.
 - Jika bukti mutasi valid tersedia, pembalikan stok tetap mengikuti bukti tersebut.
-- Nota penawaran yang sudah dikonversi menjadi invoice mengikuti aturan invoice dan jurnal stoknya.
+- Nota penawaran yang sudah dikonversi menjadi invoice juga mendapat peringatan stok saat Hapus; pembalikan dampak keuangan invoice tetap berlaku.
 - Konflik izin, perubahan bersamaan, dan kegagalan database tetap ditangani sebagai kesalahan yang sesuai.
 
 ## Rancangan teknis
@@ -88,3 +88,7 @@ Status: Desain disetujui; menunggu tinjauan spesifikasi tertulis.
 - Headroom MCP dipanggil; proksi kompresinya tidak terhubung. Gunakan keluaran perintah yang dibatasi dan jangan mengirim kredensial.
 - Serena sempat terdaftar tetapi alat initial_instructions tidak tersedia saat hendak dipanggil.
 - Indeks GitNexus terdeteksi stale, pencarian FTS terdegradasi, dan percobaan pembaruan pertama berhenti dengan exit code 1. Pemeriksaan impact wajib dilakukan sebelum mengubah simbol; keterbatasan indeks harus dilaporkan.
+
+## Perluasan peringatan Hapus - 2026-11-05
+
+Semua DELETE menggunakan peringatan STOCK_HISTORY_REVIEW_REQUIRED untuk bukti stok kosong atau tidak konsisten. Stok yang tidak dapat dipastikan tidak dikembalikan; peringatan dicatat dalam audit dan ditampilkan setelah berhasil. Pemulihan keuangan invoice dan kegagalan operasional tetap dapat menghentikan proses. VOID dan izin RBAC tetap mengikuti aturan sebelumnya.

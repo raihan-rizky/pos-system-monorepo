@@ -88,7 +88,7 @@ const cases = [
   { name: "nota penawaran", fields: { invoiceNumber: null, draftNumber: "DRF-CONTOH", status: "DRAFT" } },
   { name: "menunggu persetujuan", fields: { status: "PENDING_APPROVAL" } },
 ];
-const warning = { code: "QUOTATION_STOCK_REVIEW_REQUIRED", message: "Bukti stok nota penawaran tidak lengkap. Periksa riwayat stok secara manual." };
+const warning = { code: "STOCK_HISTORY_REVIEW_REQUIRED", message: "Transaksi dihapus, tetapi riwayat stok perlu diperiksa. Stok yang tidak dapat dipastikan tidak dikembalikan." };
 
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 try {
@@ -140,7 +140,7 @@ try {
       await page.addInitScript(({ tx, warnings, fillers }) => {
         window.exampleTransaction = tx; window.exampleWarnings = warnings; window.exampleFillers = fillers;
         window.exampleRole = "OWNER"; window.exampleGrants = { update: true, delete: true };
-      }, { tx, warnings: tx.draftNumber ? [warning] : [], fillers });
+      }, { tx, warnings: [warning], fillers });
       await page.route("**/*", route => {
         const url = new URL(route.request().url());
         if (url.pathname === "/") return route.fulfill({ contentType: "text/html", body: html });
@@ -192,7 +192,7 @@ try {
       await expect(dialog.getByRole("button", { name: "Batal", exact: true })).toBeFocused();
       await expect(dialog).toContainText(documentNumber);
       if (tx.suratJalanSummary) await expect(dialog).toContainText(/seluruh surat jalan.*dihapus/i);
-      if (tx.draftNumber) await expect(dialog).toContainText(/tanpa bukti mutasi/i);
+      await expect(dialog).toContainText(/riwayat stok kosong atau tidak konsisten/i);
 
       if (example.name === "ATK") {
         await page.evaluate(() => { window.deleteError = "Penghapusan gagal. Silakan coba lagi."; });
@@ -213,7 +213,7 @@ try {
       const status = page.getByRole("status").filter({ hasText: /berhasil dihapus/i });
       await expect(status).toBeVisible();
       await expect(status).toBeInViewport();
-      if (tx.draftNumber) await expect(status).toContainText(warning.message);
+      await expect(status).toContainText(warning.message);
       assert.deepEqual(await page.evaluate(() => window.deletedIds), ["tx-example"]);
       assert.deepEqual(errors, []);
       if (width === 390 && tx.draftNumber) await page.screenshot({ path: path.join(root, "output/transaction-actions-baseline/quote-delete-warning-mobile.png") });

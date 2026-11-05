@@ -739,7 +739,6 @@ function DeleteConfirmModal({
   const deleteTx = useDeleteTransaction();
   const [error, setError] = React.useState("");
   const dialogRef = React.useRef<HTMLDialogElement>(null);
-  const unconvertedQuotation = isUnconvertedQuotation(tx);
 
   React.useEffect(() => {
     const dialog = dialogRef.current;
@@ -794,11 +793,9 @@ function DeleteConfirmModal({
               Seluruh surat jalan terkait beserta itemnya juga akan dihapus.
             </p>
           )}
-          {unconvertedQuotation && (
-            <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs text-amber-900">
-              Jika bukti stok nota penawaran belum tersedia, penghapusan tetap bisa dilanjutkan. Stok tidak ditambah tanpa bukti mutasi.
-            </p>
-          )}
+          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs text-amber-900">
+            Jika riwayat stok kosong atau tidak konsisten, penghapusan tetap bisa dilanjutkan dengan peringatan. Stok tidak ditambah tanpa bukti mutasi.
+          </p>
           </div>
 
           {error && (
