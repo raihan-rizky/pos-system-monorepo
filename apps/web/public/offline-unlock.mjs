@@ -8,12 +8,6 @@ const error = document.getElementById("offline-error");
 const button = form.querySelector("button");
 let pages = [];
 
-function createHandoff(page) {
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  const nonce = Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
-  return { cashierId: page.cashierId, storeId: page.storeId, preparedAt: page.preparedAt, nonce };
-}
-
 async function initialize() {
   try {
     pages = await listOfflinePages();
@@ -41,13 +35,11 @@ form.addEventListener("submit", async (event) => {
     const html = await openOfflinePage(page, pin.value);
     pin.value = "";
     if (!navigator.serviceWorker?.controller) throw new Error("POS offline belum siap. Hubungkan kembali dan siapkan perangkat.");
-    window.__posOfflineHandoff = createHandoff(page);
     history.replaceState(null, "", "/pos");
     document.open();
     document.write(html);
     document.close();
   } catch (reason) {
-    delete window.__posOfflineHandoff;
     pin.value = "";
     error.textContent = reason instanceof Error ? reason.message : "POS offline belum dapat dibuka.";
     error.hidden = false;

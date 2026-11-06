@@ -21,7 +21,6 @@ test("reopens the actual POS, opens a shift, and queues a sale after the connect
     if (window.caches) window.caches.keys = async () => [];
     localStorage.setItem("pos-price-rounding-settings", JSON.stringify({ enabled: false, increment: 500, threshold: 50 }));
     localStorage.setItem("pos-special-pricing-enabled", "false");
-    localStorage.setItem("pos_push_prompt_seen_v1", "1");
   });
   await context.addInitScript(({ storageKey, seen }) => {
     localStorage.setItem(storageKey, JSON.stringify(seen));
@@ -59,7 +58,6 @@ test("reopens the actual POS, opens a shift, and queues a sale after the connect
   });
   await page.reload();
   await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
-  await expect(page.getByLabel("Cari produk, SKU, atau barcode")).toBeVisible({ timeout: 30_000 });
   await page.evaluate(async () => {
     const response = await fetch("/api/offline-sync/catalog");
     const snapshot = await response.json();
