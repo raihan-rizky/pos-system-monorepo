@@ -3,11 +3,24 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "changelog-update-categories", date: "2026-11-06", revision: 1,
+    highlight: { title: "Jenis pembaruan lebih jelas", summary: "Kenali pembaruan besar, kecil, dan perbaikan bug dengan cepat." },
+    title: "Kenali jenis dan dampak pembaruan.",
+    summary: "Label ukuran dan jenis membantu Anda mengenali pembaruan penting, peningkatan kecil, serta perbaikan bug di popup dan Catatan Perubahan.",
+    kind: "improvement", impact: "minor", area: "Aplikasi", href: "/changelog", visual: "changelog",
+    screenshot: { src: "/images/changelog/kategori-pembaruan-2026-11-06.png", alt: "Popup Apa yang baru dengan label pembaruan besar, pembaruan kecil, dan perbaikan bug." },
+    steps: [
+      { title: "Buka sorotan", detail: "Lihat popup Apa yang baru atau pilih Sorotan 7 hari di Catatan Perubahan." },
+      { title: "Baca label", detail: "Kenali ukuran pembaruan dan jenisnya pada setiap catatan." },
+      { title: "Lihat rincian", detail: "Pilih Lihat semua catatan untuk melihat gambar dan langkah lengkap." },
+    ],
+  },
+  {
     id: "daily-finance-sales-rbac", date: "2026-11-05", revision: 1,
     highlight: { title: "Pemasukan harian Sales", summary: "Sales dapat membaca pemasukan per tanggal dan rincian yang diizinkan." },
     title: "Pemasukan harian Sales lebih terarah.",
     summary: "Sales dapat memilih tanggal dan melihat pemasukan ATK, Percetakan, subkategori, serta metode pembayaran sesuai izin Owner.",
-    kind: "feature", area: "Laporan Keuangan", href: "/financial-report", visual: "financial",
+    kind: "feature", impact: "major", area: "Laporan Keuangan", href: "/financial-report", visual: "financial",
     steps: [
       { title: "Buka laporan", detail: "Masuk ke Keuangan > Laporan Keuangan." },
       { title: "Pilih tanggal", detail: "Pilih hari ini atau tanggal sebelumnya dalam WIB." },
@@ -20,7 +33,7 @@ export const CHANGELOG: ChangeEntry[] = [
     highlight: { title: "Edit langsung Surat Jalan", summary: "Ubah penerima, barang, jumlah, dan keterangan langsung di struk Surat Jalan." },
     title: "Surat Jalan langsung terbuka dan bisa diedit.",
     summary: "Cetak Surat Jalan langsung membuka struk dengan isian yang menyatu di dokumen. Simpan perubahan sebelum mencetak, atau cetak ulang tanpa membuat pengiriman baru.",
-    kind: "improvement", area: "Surat Jalan", href: "/history", visual: "history-table",
+    kind: "improvement", impact: "major", area: "Surat Jalan", href: "/history", visual: "history-table",
     screenshot: { src: "/images/changelog/surat-jalan-edit-langsung.png", alt: "Contoh struk Surat Jalan dengan penerima, nama barang, jumlah dan keterangan yang dapat diedit langsung." },
     steps: [
       { title: "Buka struk", detail: "Di Riwayat, buka menu tiga titik pada transaksi lalu pilih Cetak Surat Jalan." },
@@ -69,7 +82,7 @@ export const CHANGELOG: ChangeEntry[] = [
     highlight: { title: "Void dan hapus transaksi", summary: "Proses transaksi dan seluruh surat jalan terkait langsung dari Riwayat." },
     title: "Void dan hapus transaksi beserta surat jalan.",
     summary: "Void atau hapus transaksi ATK, Percetakan, dan nota penawaran dari Riwayat. Seluruh surat jalan terkait ikut diproses, dengan peringatan saat Hapus bila riwayat stok perlu diperiksa pada jenis transaksi apa pun.",
-    kind: "improvement", area: "Riwayat Transaksi", href: "/history", visual: "history-table",
+    kind: "improvement", impact: "major", area: "Riwayat Transaksi", href: "/history", visual: "history-table",
     screenshot: { src: "/images/changelog/hapus-void-transaksi-surat-jalan.png", alt: "Menu aksi transaksi yang menyediakan tombol Void dan Hapus." },
     steps: [
       { title: "Pilih transaksi", detail: "Buka Riwayat, cari transaksi, lalu buka menu tiga titik pada baris komputer atau kartu ponsel." },
@@ -82,7 +95,7 @@ export const CHANGELOG: ChangeEntry[] = [
     highlight: { title: "Hapus daftar belanja", summary: "Batalkan daftar dan kurangi kembali stok penerimaan yang tercatat." },
     title: "Hapus daftar belanja dengan riwayat yang tetap tersimpan.",
     summary: "Hapus daftar dengan alasan dan periksa dampaknya pada stok sebelum konfirmasi. Pengeluaran dan pembayaran tetap tercatat, dan riwayat pembatalan dapat dilihat kembali.",
-    kind: "feature", area: "Supplier & Daftar Belanja", href: "/suppliers?tab=shopping-requests", visual: "shopping",
+    kind: "feature", impact: "major", area: "Supplier & Daftar Belanja", href: "/suppliers?tab=shopping-requests", visual: "shopping",
     steps: [
       { title: "Buka tindakan", detail: "Di Supplier > Daftar Belanja, pilih Tindakan lainnya > Hapus daftar pada kartu yang ingin dibatalkan." },
       { title: "Periksa dan konfirmasi", detail: "Periksa stok yang akan dikurangi, isi alasan, lalu pilih Ya, hapus daftar." },
@@ -119,7 +132,7 @@ export const CHANGELOG: ChangeEntry[] = [
     highlight: { title: "Perubahan nota Sales", summary: "Owner dapat membandingkan nota asli dan setiap perubahan Sales." },
     title: "Bandingkan perubahan nota Sales.",
     summary: "Owner menerima notifikasi saat Sales mengubah nota yang sudah diproses, termasuk DP dan Tempo. Lihat nota asli serta rincian sebelum dan sesudah setiap perubahan.",
-    kind: "feature", area: "Riwayat", href: "/history", visual: "history-table",
+    kind: "feature", impact: "major", area: "Riwayat", href: "/history", visual: "history-table",
     steps: [
       { title: "Buka perubahan", detail: "Pilih notifikasi atau menu tiga titik pada transaksi di Riwayat." },
       { title: "Pilih versi", detail: "Buka Riwayat perubahan nota dan pilih perubahan Sales." },
@@ -143,7 +156,7 @@ export const CHANGELOG: ChangeEntry[] = [
     highlight: { title: "Izin nota, keuangan, dan impor", summary: "Atur harga nota, keuangan, impor produk, dan stok massal per role." },
     title: "Atur izin fitur dengan pratinjau akses.",
     summary: "Atur harga khusus di nota, keuangan manual, ekspor, impor produk, dan stok massal per role dalam susunan RBAC yang sama. Sales berizin dapat mengubah Riwayat; konflik simpan dilindungi dan perubahan akses tercatat.",
-    kind: "improvement", area: "Hak Akses", href: "/settings", visual: "rbac",
+    kind: "improvement", impact: "major", area: "Hak Akses", href: "/settings", visual: "rbac",
     steps: [
       { title: "Pilih role dan cari modul", detail: "Sebagai Owner, buka Pengaturan > RBAC. Pilih role, lalu cari modul melalui pemilih di komputer atau ponsel." },
       { title: "Periksa prasyarat izin", detail: "Pilih izin fitur sesuai tugas role; harga nota terpisah dari edit master produk. Impor memerlukan izin tindakan dan Lihat progres; izin progres saja hanya memantau. Untuk Ubah Riwayat, izinkan halaman Riwayat serta Lihat dan Ubah transaksi; kontrol Khusus Owner dan aturan status nota tetap berlaku." },
@@ -168,7 +181,7 @@ export const CHANGELOG: ChangeEntry[] = [
     highlight: { title: "Pemasukan dan belanja manual", summary: "Catat pemasukan ke RC dan belanja transfer langsung dari Keuangan." },
     title: "Catat pemasukan dan belanja transfer.",
     summary: "Tambahkan pemasukan tanpa transaksi ke kategori RC pilihan. Catat belanja transfer tanpa menambah stok; Excel bulanan memasukkannya ke Pengeluaran Belanja.",
-    kind: "feature", area: "Keuangan", href: "/keuangan", visual: "financial",
+    kind: "feature", impact: "major", area: "Keuangan", href: "/keuangan", visual: "financial",
     screenshot: { src: "/images/changelog/pemasukan-manual-keuangan.png", alt: "Form Tambah Pemasukan di Keuangan dengan tanggal, keterangan contoh, nominal, dan pilihan kategori RC ATK." },
     steps: [
       { title: "Catat pemasukan", detail: "Klik Tambah Pemasukan di Keuangan. Isi tanggal, keterangan / sumber, nominal, dan kategori RC: ATK, Cetak, Spanduk, Print, atau Stempel." },
@@ -219,7 +232,7 @@ export const CHANGELOG: ChangeEntry[] = [
     highlight: { title: "Nilai inventaris dari HPP", summary: "HPP tiap satuan dihitung otomatis dengan stok bersama dihitung sekali." },
     title: "Nilai inventaris otomatis dari HPP satuan.",
     summary: "Stok bersama dihitung sekali dari satuan terbesar ke terkecil memakai HPP masing-masing. HPP yang kosong dihitung lewat konversi, dan produk yang seluruh HPP-nya kosong ditandai agar nilai sebagian terlihat jelas.",
-    kind: "improvement", area: "Produk & Stok", href: "/products", visual: "units",
+    kind: "improvement", impact: "major", area: "Produk & Stok", href: "/products", visual: "units",
     steps: [
       { title: "Buka Produk", detail: "Lihat kartu Nilai Inventaris pada halaman Produk." },
       { title: "Baca nilai otomatis", detail: "Stok bersama diurai dari satuan terbesar ke terkecil dan tiap bagian memakai HPP satuannya; HPP kosong dihitung melalui konversi." },
@@ -243,7 +256,7 @@ export const CHANGELOG: ChangeEntry[] = [
     highlight: { title: "Pantau progres impor stok", summary: "Tutup panel impor dan pantau job; stok yang sama otomatis dilewati." },
     title: "Pantau impor stok setelah panel ditutup.",
     summary: "Buka kembali progres impor stok dari halaman Produk meskipun panel impor sudah ditutup. Stok sebelum dan sesudah yang sama dilewati tanpa membuat riwayat atau persetujuan baru.",
-    kind: "improvement", area: "Produk & Stok", href: "/products", visual: "stock-groups",
+    kind: "improvement", impact: "major", area: "Produk & Stok", href: "/products", visual: "stock-groups",
     screenshot: { src: "/images/changelog/progres-impor-stok.png", alt: "Panel Progres Impor Stok menampilkan impor berjalan pada 50 persen, dengan satu dari dua baris diproses." },
     steps: [
       { title: "Periksa pratinjau", detail: "Buka Produk > Impor > Impor Stok Massal, unggah file, lalu periksa stok sebelum dan sesudah. Stok yang sama otomatis dilewati." },
@@ -317,7 +330,7 @@ export const CHANGELOG: ChangeEntry[] = [
     highlight: { title: "Belanja terdahulu", summary: "Catat belanja bulan sebelumnya dan pantau pembayaran bertahap." },
     title: "Pantau pembayaran belanja terdahulu.",
     summary: "Catat Giro atau Transfer dari bulan sebelumnya dan pembayaran yang belum lunas. Sisa pada jatuh tempo masuk ke Keuangan secara otomatis.",
-    kind: "feature", area: "Supplier & Daftar Belanja", href: "/suppliers?tab=shopping-requests", visual: "shopping",
+    kind: "feature", impact: "major", area: "Supplier & Daftar Belanja", href: "/suppliers?tab=shopping-requests", visual: "shopping",
     steps: [
       { title: "Buka formulir", detail: "Di Supplier > Daftar Belanja, pilih Catat Belanja Terdahulu." },
       { title: "Isi pembelian", detail: "Isi tanggal, metode, jatuh tempo, nomor dan nominal, serta pembayaran sebelumnya jika ada." },
@@ -365,7 +378,7 @@ export const CHANGELOG: ChangeEntry[] = [
     highlight: { title: "Saldo laporan otomatis", summary: "Gunakan inventaris dan hutang tercatat dalam laporan bulanan." },
     title: "Isi saldo laporan bulanan secara otomatis.",
     summary: "Laporan memakai nilai inventaris dan sisa hutang yang tercatat. Catat pembayaran sebagian di Keuangan dan unduh kembali laporan saat data berubah.",
-    kind: "feature", area: "Keuangan", href: "/keuangan", visual: "financial",
+    kind: "feature", impact: "major", area: "Keuangan", href: "/keuangan", visual: "financial",
     steps: [
       { title: "Catat hutang", detail: "Buka Keuangan dan pilih Tambahkan Hutang untuk mencatat pemasok, nominal, dan tanggal." },
       { title: "Catat pembayaran", detail: "Isi pembayaran awal bila ada, atau pilih Catat pembayaran untuk pembayaran berikutnya." },
@@ -437,7 +450,7 @@ export const CHANGELOG: ChangeEntry[] = [
     highlight: { title: "Harga satuan penerimaan", summary: "Atur HPP dan harga jual sesuai satuan saat menerima barang." },
     title: "Atur harga satuan saat menerima barang.",
     summary: "Catat HPP dan harga jual untuk satuan yang dipilih. Harga produk diperbarui setelah penerimaan disetujui.",
-    kind: "improvement", area: "Supplier & Inventaris", href: "/inventory?tab=transactions&subtab=inbound", visual: "units",
+    kind: "improvement", impact: "major", area: "Supplier & Inventaris", href: "/inventory?tab=transactions&subtab=inbound", visual: "units",
     steps: [
       { title: "Buka penerimaan", detail: "Buka Inventaris > Transaksi > Penerimaan Barang dan pilih Pembelian Barang yang disetujui." },
       { title: "Isi harga satuan", detail: "Pilih kesesuaian dan satuan, lalu isi HPP Unit serta harga jual untuk barang yang sesuai." },
@@ -461,7 +474,7 @@ export const CHANGELOG: ChangeEntry[] = [
     highlight: { title: "Pembulatan harga jual", summary: "Atur pembulatan harga dan lihat badge naik atau turun pada setiap produk." },
     title: "Harga jual dibulatkan dengan jelas.",
     summary: "Atur kelipatan dan ambang pembulatan harga jual melalui Pengaturan. Badge menjelaskan arah pembulatan, harga asal, dan selisih pada harga produk.",
-    kind: "feature", area: "Produk & Kasir", href: "/settings", visual: "units",
+    kind: "feature", impact: "major", area: "Produk & Kasir", href: "/settings", visual: "units",
     screenshot: { src: "/images/changelog/pembulatan-harga-jual.png", alt: "Pengaturan pembulatan dengan data contoh: kelipatan Rp500 dan ambang Rp50, serta kartu produk Rp4.050 menjadi Rp4.500 dengan badge Dibulatkan ke atas dan rincian selisih Rp450." },
     steps: [
       { title: "Buka pengaturan pembulatan", detail: "Masuk ke Pengaturan > Pembulatan Harga. Izin pengelolaan default hanya Owner dan dapat diberikan ke role lain melalui RBAC." },
@@ -499,7 +512,7 @@ export const CHANGELOG: ChangeEntry[] = [
     highlight: { title: "Harga otomatis antar satuan", summary: "Atur harga sumber, lalu tinjau harga jual dan HPP seluruh satuan dalam grup." },
     title: "Harga jual dan HPP satuan mengikuti sumber grup.",
     summary: "Pilih satu sumber untuk menghitung harga jual dan HPP satuan lain sesuai konversi. Atur diskon, markup, atau Manual, lalu periksa pratinjau sebelum menerapkan satu grup.",
-    kind: "feature", area: "Produk", href: "/products", visual: "stock-groups",
+    kind: "feature", impact: "major", area: "Produk", href: "/products", visual: "stock-groups",
     screenshot: { src: "/images/changelog/harga-otomatis-snowman-2026-10-24.png", alt: "Pratinjau data contoh Snowman per pcs, pak, dan dus dengan harga jual, HPP, dan margin sebelum serta sesudah perubahan sumber harga" },
     steps: [
       { title: "Pilih sumber harga", detail: "Buka grup produk > Harga, atau Ubah Harga > Atur harga grup / Manual dari Produk/POS. Pilih Sumber harga aktif lalu isi harga jual dan HPP sumber." },
@@ -512,7 +525,7 @@ export const CHANGELOG: ChangeEntry[] = [
     highlight: { title: "Pohon persediaan grup produk", summary: "Lihat hubungan stok bersama, konversi, dan harga satuan dalam satu pohon." },
     title: "Hubungan satuan lebih jelas lewat Pohon persediaan.",
     summary: "Ringkasan grup menampilkan stok bersama sebagai akar dengan garis ke setiap satuan. Baca konversi, stok setara, SKU, dan harga jual, lalu buka pengaturan melalui pintasan sesuai izin.",
-    kind: "improvement", area: "Produk", href: "/products", visual: "stock-groups",
+    kind: "improvement", impact: "major", area: "Produk", href: "/products", visual: "stock-groups",
     screenshot: { src: "/images/changelog/pohon-persediaan-produk.png", alt: "Pohon persediaan dengan data contoh Kertas A4: akar stok bersama 2.500 lembar terhubung ke satuan lembar, rim, dan dus beserta konversi serta harga jual" },
     steps: [
       { title: "Buka grup produk", detail: "Di halaman Produk atau Aktivitas Grup, buka detail grup lalu pilih Ringkasan." },
@@ -564,7 +577,7 @@ export const CHANGELOG: ChangeEntry[] = [
     highlight: { title: "Excel keuangan 7 sheet", summary: "Tujuh sheet berwarna dengan ringkasan kas dan kolom yang bebas digeser." },
     title: "Laporan bulanan dalam satu Excel.",
     summary: "Isi ketujuh sheet Excel memakai warna tema web untuk kategori, pendapatan, pengeluaran, dan total. Layout tetap konsisten, kolom bebas digeser, dan modal awal diisi langsung di Excel.",
-    kind: "feature", area: "Keuangan", href: "/financial-report", visual: "quotation",
+    kind: "feature", impact: "major", area: "Keuangan", href: "/financial-report", visual: "quotation",
     screenshot: { src: "/images/changelog/ekspor-keuangan-bulanan.png", alt: "Dialog ekspor laporan bulanan dengan pilihan bulan dan tahun, daftar tujuh sheet, serta catatan modal awal tanpa data transaksi atau pelanggan" },
     steps: [
       { title: "Buka ekspor", detail: "Masuk ke Laporan Keuangan, klik Ekspor, dan gunakan Laporan bulanan · Excel 7 sheet." },
@@ -577,7 +590,7 @@ export const CHANGELOG: ChangeEntry[] = [
     highlight: { title: "Koreksi nota yang sudah diproses", summary: "Tinjau dampak koreksi nota pada transaksi, bahan, dan piutang sebelum menyimpan." },
     title: "Nota Percetakan yang diproses bisa dikoreksi.",
     summary: "Owner dan role yang diberi izin dapat mengoreksi nota dengan peringatan serta tinjauan sebelum menyimpan. Transaksi, stok bahan, dan piutang diperbarui bersama; nota lunas dapat kembali memiliki piutang jika total naik.",
-    kind: "feature", area: "Kasir & Percetakan", href: "/pos", visual: "printing",
+    kind: "feature", impact: "major", area: "Kasir & Percetakan", href: "/pos", visual: "printing",
     screenshot: { src: "/images/changelog/edit-nota-diproses.png", alt: "Peringatan Edit nota diproses untuk nota Percetakan dengan data contoh, sebelum memilih Tetap edit nota." },
     steps: [
       { title: "Buka koreksi nota", detail: "Di Kasir > Percetakan, pilih nota lalu klik Edit nota diproses. Baca peringatan, centang 'Saya memahami dampaknya terhadap transaksi, stok, dan piutang.', lalu pilih Tetap edit nota." },
@@ -628,7 +641,7 @@ export const CHANGELOG: ChangeEntry[] = [
     highlight: { title: "Catat piutang manual pelanggan", summary: "Simpan utang lama pelanggan dan catat cicilan atau pelunasannya di Pelanggan." },
     title: "Catat dan lunasi piutang manual pelanggan.",
     summary: "Simpan utang lama atau tagihan di luar kasir tanpa menambah penjualan, order, atau mengubah stok. Pantau sisa piutang dan riwayat cicilan hingga lunas di Pelanggan.",
-    kind: "feature", area: "Pelanggan", href: "/customers", visual: "changelog",
+    kind: "feature", impact: "major", area: "Pelanggan", href: "/customers", visual: "changelog",
     screenshot: { src: "/images/changelog/piutang-manual-pelanggan.png", alt: "Piutang manual dengan pelanggan contoh, sisa tagihan, jatuh tempo, riwayat pembayaran, dan tombol Bayar Piutang Manual" },
     steps: [
       { title: "Buka pelanggan", detail: "Di Pelanggan, buka detail pelanggan lalu klik Tambah Piutang pada bagian Piutang Manual." },
@@ -667,7 +680,7 @@ export const CHANGELOG: ChangeEntry[] = [
     highlight: { title: "Nota langsung di Percetakan", summary: "Isi nota tersimpan per jenis, proses pembayaran atau DP, lalu cari di Riwayat." },
     title: "Isi nota langsung di tab Percetakan.",
     summary: "Buat dan isi nota SPANDUK, PERCETAKAN, PLAT, STEMPEL, atau PRINT langsung di lembar nota. Nota tersimpan per jenis, mendukung pembayaran atau DP, serta mudah dicari di Riwayat.",
-    kind: "feature", area: "Kasir & Percetakan", href: "/pos", visual: "printing",
+    kind: "feature", impact: "major", area: "Kasir & Percetakan", href: "/pos", visual: "printing",
     screenshot: { src: "/images/changelog/nota-percetakan.png", alt: "Editor nota SPANDUK dengan data contoh, daftar nota tersimpan, lima subtab Percetakan, serta tombol Cetak PDF dan Bayar DP" },
     steps: [
       { title: "Pilih dan buat nota", detail: "Buka Kasir > Percetakan, pilih jenis nota, lalu klik Buat Nota Kosong." },
@@ -693,7 +706,7 @@ export const CHANGELOG: ChangeEntry[] = [
     highlight: { title: "Diskon per item saat pembayaran", summary: "Atur diskon Rp atau persen untuk satu atau beberapa item sebelum membayar." },
     title: "Diskon item langsung di Pembayaran.",
     summary: "Beri diskon Rp atau persen per item, atau terapkan nilai yang sama ke beberapa item sekaligus. Potongan tersimpan di draft dan transaksi serta tampil pada nota dan PDF.",
-    kind: "feature", area: "Kasir & Pembayaran", href: "/pos", visual: "quotation",
+    kind: "feature", impact: "major", area: "Kasir & Pembayaran", href: "/pos", visual: "quotation",
     screenshot: { src: "/images/changelog/diskon-per-item.png", alt: "Daftar item di modal Pembayaran dengan data contoh, tombol Diskon di kanan baris, pilihan dua item, dan editor diskon persen" },
     steps: [
       { title: "Buka diskon item", detail: "Klik Bayar di Kasir, lalu pilih Diskon di sebelah item pada modal Pembayaran." },
@@ -819,7 +832,7 @@ export const CHANGELOG: ChangeEntry[] = [
     highlight: { title: "Pengelolaan grup stok", summary: "Cek pratinjau sebelum disimpan." },
     title: "Stok bersama, alur lebih terarah.",
     summary: "Buat atau gabungkan grup stok dengan panduan dan pratinjau. Draft pekerjaan tetap terpisah agar mudah dilanjutkan.",
-    kind: "improvement", area: "Grup Stok", href: "/products", visual: "stock-groups",
+    kind: "improvement", impact: "major", area: "Grup Stok", href: "/products", visual: "stock-groups",
     steps: [
       { title: "Pilih grup", detail: "Buat baru atau gabungkan" },
       { title: "Cek pratinjau", detail: "Tinjau stok dan konversi" },

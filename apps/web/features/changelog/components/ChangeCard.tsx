@@ -7,8 +7,7 @@ import type { ChangeEntry } from "../types";
 import { formatChangeDate } from "../helpers/changelog";
 import { ChangeIllustration } from "./ChangeIllustration";
 import { ChangeDialog } from "./ChangeDialog";
-
-const KIND_LABELS = { feature: "Fitur baru", improvement: "Peningkatan", fix: "Perbaikan" };
+import { ChangeBadges } from "./ChangeBadges";
 
 export function ChangeCard({ entry, canOpenFeature = false, compact = false }: { entry: ChangeEntry; canOpenFeature?: boolean; compact?: boolean }) {
   const [enlarged, setEnlarged] = useState(false);
@@ -16,7 +15,7 @@ export function ChangeCard({ entry, canOpenFeature = false, compact = false }: {
   const screenshot = entry.screenshot;
 
   return (
-    <article id={entry.id} className="scroll-mt-8 overflow-hidden rounded-3xl border border-surface-200 bg-white">
+    <article id={entry.id} className={`scroll-mt-8 overflow-hidden rounded-3xl border bg-white ${entry.impact === "major" ? "border-brand-200 ring-1 ring-brand-100" : "border-surface-200"}`}>
       <div className={compact ? "" : "grid lg:grid-cols-[1.05fr_1fr]"}>
         <div className="relative min-w-0 bg-brand-50">
           {screenshot && !imageFailed ? (
@@ -27,7 +26,7 @@ export function ChangeCard({ entry, canOpenFeature = false, compact = false }: {
           ) : <ChangeIllustration visual={entry.visual} compact={compact} />}
         </div>
         <div className={`flex min-w-0 flex-col justify-center ${compact ? "p-4 sm:p-5" : "p-5 sm:p-7 lg:p-8"}`}>
-          <div className={`${compact ? "mb-3" : "mb-4"} flex flex-wrap items-center gap-x-3 gap-y-2 text-xs font-semibold`}><span className="rounded-md bg-brand-50 px-2 py-1 text-brand-800">{KIND_LABELS[entry.kind]}</span><span className="text-surface-500">{entry.area}</span></div>
+          <div className={`${compact ? "mb-3" : "mb-4"} flex flex-wrap items-center gap-2 text-xs font-semibold`}><ChangeBadges entry={entry} /><span className="text-surface-500">{entry.area}</span></div>
           <h2 className={`${compact ? "text-xl" : "text-2xl sm:text-3xl"} font-extrabold leading-tight tracking-tight text-surface-900`}>{entry.title}</h2>
           <p className={`${compact ? "mt-2 text-xs" : "mt-3 text-sm"} max-w-lg leading-relaxed text-surface-600`}>{entry.summary}</p>
           <div className={`${compact ? "mt-3" : "mt-6"} flex flex-wrap items-center justify-between gap-3`}>

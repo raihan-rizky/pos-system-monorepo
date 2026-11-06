@@ -27,7 +27,7 @@ export function ChangelogPage() {
         <header className="mb-9 border-b border-surface-200 pb-7 sm:mb-12 sm:pb-9">
           <div className="mb-4 flex items-center gap-2 text-xs font-semibold text-brand-700"><History className="h-4 w-4" aria-hidden="true" />Perkembangan aplikasi</div>
           <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
-            <div><h1 className="text-3xl font-extrabold leading-tight tracking-tight text-surface-900 sm:text-4xl">Catatan Perubahan</h1><p className="mt-3 max-w-md text-sm leading-relaxed text-surface-500">Lihat yang baru. Kenali tampilannya. Langsung coba.</p></div>
+            <div><h1 className="text-3xl font-extrabold leading-tight tracking-tight text-surface-900 sm:text-4xl">Catatan Perubahan</h1><p className="mt-3 max-w-md text-sm leading-relaxed text-surface-500">Kenali pembaruan besar, penyempurnaan kecil, dan perbaikan bug di aplikasi.</p></div>
             <button type="button" onClick={() => setShowHighlights(true)} className="inline-flex min-h-11 w-fit items-center gap-3 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">Sorotan 7 hari<ArrowUpRight className="h-4 w-4" aria-hidden="true" /></button>
           </div>
         </header>
@@ -38,7 +38,7 @@ export function ChangelogPage() {
           <p aria-live="polite" className="text-xs text-surface-500">{entries.length} pembaruan<span className="mx-2 text-surface-300">/</span>Waktu Indonesia Barat</p>
         </div>
         <ChangelogFeed entries={entries} recent={filter === "recent"} canAccess={canAccess} />
-        <p className="mt-10 text-center text-xs text-surface-500">Setiap perubahan besar, satu catatan yang mudah diikuti.</p>
+        <p className="mt-10 text-center text-xs text-surface-500">Setiap pembaruan disertai langkah yang mudah diikuti.</p>
       </div>
       {showHighlights && <WhatsNewDialog entries={recent} canAccess={canAccess} onClose={() => setShowHighlights(false)} />}
     </main>
