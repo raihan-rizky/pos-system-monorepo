@@ -206,11 +206,33 @@ test("export keeps journal selections after an API error and allows retry", asyn
   await expect(dialog).not.toBeVisible();
 });
 
-test("sales role cannot access financial report and is redirected", async ({
+test("sales role sees daily income without full financial reports", async ({
   page,
 }) => {
   await authenticate(page, "SALES");
   await mockApis(page);
+  let fullReportRequests = 0;
+  page.on("request", request => {
+    if (new URL(request.url()).pathname === "/api/finance/report") fullReportRequests++;
+  });
+  await page.route("**/api/finance/report/daily?*", route => {
+    const date = new URL(route.request().url()).searchParams.get("date");
+    return route.fulfill({ json: {
+      date,
+      total: 100_000,
+      categories: [{ category: "ATK", amount: 100_000 }],
+      subcategories: [{ category: "ATK", subcategory: "Alat Tulis", amount: 100_000 }],
+      paymentMethods: [{ method: "CASH", amount: 100_000 }],
+    } });
+  });
+
   await page.goto("/financial-report");
-  await expect(page).toHaveURL(/\/pos/);
+  await expect(page.getByRole("heading", { name: "Pemasukan Harian" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Total Pemasukan" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pemasukan per Kategori" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pemasukan per Subkategori" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pemasukan per Metode Pembayaran" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Laporan Keuangan", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Ekspor", exact: true })).toHaveCount(0);
+  expect(fullReportRequests).toBe(0);
 });

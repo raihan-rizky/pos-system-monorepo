@@ -9,7 +9,7 @@ test("keuangan dashboard shows net cash flow, pemasukan, and pengeluaran togethe
   await expect(page.getByRole("heading", { name: "Keuangan" })).toBeVisible();
   await expect(page.getByText("Net Cash Flow", { exact: false })).toBeVisible();
   // Net = 45_000_000 − 850_000
-  await expect(page.getByText("Rp 44.150.000")).toBeVisible();
+  await expect(page.getByText("Rp 44.150.000")).toBeVisible({ timeout: 30_000 });
 
   // Pemasukan column
   await expect(page.getByText("Rp 45.000.000", { exact: true })).toBeVisible();

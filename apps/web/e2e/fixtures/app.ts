@@ -34,9 +34,10 @@ export async function authenticate(page: Page, role: Role = "OWNER", userId = "e
     { name: "x-pos-user-id", value: userId, domain: "localhost", path: "/" },
     { name: "x-pos-user-name", value: "E2E%20Owner", domain: "localhost", path: "/" },
   ]);
-  // Shared workflow scenarios use a returning user who has already read release notes.
+  // Shared workflow scenarios use a returning user who has seen release notes and the notification prompt.
   await page.addInitScript(({ storageKey, seen }) => {
     localStorage.setItem(storageKey, JSON.stringify(seen));
+    localStorage.setItem("pos_push_prompt_seen_v1", "1");
   }, { storageKey: seenStorageKey(userId), seen: CHANGELOG.map(changeKey) });
 }
 
@@ -58,6 +59,8 @@ export async function mockApis(page: Page) {
     const method = request.method();
     const path = url.pathname;
 
+    if (path === "/api/auth/permissions" && method === "GET") return route.fallback();
+    if (path === "/api/notifications" && method === "GET") return json(route, { data: { notifications: [], unreadCount: 0 } });
     if (path === "/api/categories") return json(route, categories);
     if (path === "/api/products" && method === "GET") return json(route, { data: products, pagination: { total: products.length, page: 1, limit: 100, totalPages: 1 } });
     if (path === "/api/products" && method === "POST") return json(route, { ...products[0], id: "prod-new" }, 201);

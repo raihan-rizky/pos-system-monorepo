@@ -72,6 +72,11 @@ If you add or update dependencies remember to:
 ## Catatan Perubahan (Manual Release Notes)
 
 - Every major feature, substantial improvement, or major bug fix MUST update `apps/web/features/changelog/data/changelog.ts` in the same change, before the work is considered complete.
+- Classify every new release note with both `kind` and an explicit `impact`:
+  - Use `kind: "feature"` for a new user capability, `kind: "improvement"` for an enhancement to an existing capability, and `kind: "fix"` for a bug fix.
+  - Use `impact: "major"` for a change with broad or significant effects on users or their workflows, such as a major capability or a fix that restores a critical workflow. Use `impact: "minor"` for a focused enhancement or localized fix.
+  - Assess impact from the user's experience, not the size of the code change. `kind` and `impact` are independent: a bug fix can be major or minor, and a new feature is not automatically major.
+  - Older entries without `impact` display as minor. Preserve their dates and revisions when correcting classification; increment `revision` only if the announcement must be shown again.
 - Record the actual release date as `YYYY-MM-DD` in **Asia/Jakarta (WIB)**, a stable unique `id`, and a `revision`. Never move an old date forward to keep an announcement visible. Increment `revision` only when an announcement needs to be shown again.
 - The **Apa yang baru** popup shows today and the preceding six WIB calendar days. **Lainnya → Catatan Perubahan** retains all published history; do not delete old entries when they leave the seven-day window. Future-dated entries remain hidden until their date.
 - Prioritize visuals: use a real, cropped screenshot of the changed feature where available, stored in `apps/web/public/images/changelog/` with descriptive Indonesian alt text. Exclude customer data, credentials, financial summaries, and other sensitive details. Otherwise select an accurate, clearly labelled illustration through `visual`.
