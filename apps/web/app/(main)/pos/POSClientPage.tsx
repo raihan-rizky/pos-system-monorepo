@@ -211,6 +211,7 @@ export default function POSClientPage({
   const shiftRequired = shiftSettings?.enabled !== false;
   const canQuickEdit = canPerform("product", "update");
   const canEditPrice = canPerform("transaction.custom_price", "update");
+  const canCreateTransaction = canPerform(role === "SALES" ? "transaction.request" : "transaction", "create");
 
   const productsQuery = useProductsPage(deferredSearch, selectedCategory, {
     page,
@@ -424,6 +425,13 @@ export default function POSClientPage({
   }, [checkoutMode, hasItems]);
 
   const handleOpenPayment = () => {
+    if (!navigator.onLine && !canCreateTransaction) {
+      setCheckoutNotice({
+        tone: "danger",
+        message: "Hak akses transaksi offline belum tersedia. Hubungkan perangkat dan verifikasi ulang.",
+      });
+      return;
+    }
     if (shiftRequired && !activeShift) {
       setCheckoutNotice({
         tone: "warning",
@@ -477,6 +485,13 @@ export default function POSClientPage({
     invoiceDateReason?: string | null;
     items: typeof cart.items;
   }) => {
+    if (!navigator.onLine && !canCreateTransaction) {
+      setCheckoutNotice({
+        tone: "danger",
+        message: "Hak akses transaksi offline belum tersedia. Hubungkan perangkat dan verifikasi ulang.",
+      });
+      return;
+    }
     const clientMutationId = checkoutMutationId.current ?? buildClientMutationId();
     checkoutMutationId.current = clientMutationId;
     try {

@@ -38,17 +38,20 @@ test("shift disabled allows checkout without an active shift", async ({ appPage:
   await expect(page.getByText(/Pembayaran|Payment|Konfirmasi/i).first()).toBeVisible();
 });
 
-test("offline status is visible when the browser is offline", async ({ appPage: page, context }) => {
-  await page.goto("/pos");
-  await expect(page.getByText("Kertas HVS A4").first()).toBeVisible();
+test("offline sync shows the current connection status", async ({ appPage: page }) => {
+  await page.goto("/pos/offline");
+  await expect(page.getByText("Status: Online", { exact: true })).toBeVisible({ timeout: 30_000 });
+  await page.waitForLoadState("networkidle", { timeout: 30_000 });
 
-  await context.setOffline(true);
   await page.evaluate(() => {
-    Object.defineProperty(navigator, 'onLine', { get: () => false, configurable: true });
+    Object.defineProperty(navigator, "onLine", { get: () => false, configurable: true });
     window.dispatchEvent(new Event("offline"));
   });
+  await expect(page.getByText("Status: Offline", { exact: true })).toBeVisible();
 
-  await expect(page.getByRole("status").filter({ hasText: /Mode offline/i })).toBeVisible();
-
-  await context.setOffline(false);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "onLine", { get: () => true, configurable: true });
+    window.dispatchEvent(new Event("online"));
+  });
+  await expect(page.getByText("Status: Online", { exact: true })).toBeVisible();
 });
