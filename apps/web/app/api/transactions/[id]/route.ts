@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db, type Prisma } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
+import { mergeTransactionUserNote } from "@/app/(main)/history/helpers/transaction-note";
 
 import { getLogger } from "@/lib/logger";
 import {
@@ -25,12 +26,29 @@ const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
   REFUNDED: [],
 };
 
+const NOTE_EDITABLE_STATUSES = new Set(["PENDING_APPROVAL", "DRAFT", "COMPLETED", "DP"]);
+
+function canEditTransactionNote(transaction: {
+  status: string;
+  printingSubcategory: string | null;
+  printingReceipt: { id: string } | null;
+  suratJalan: { id: string }[];
+}) {
+  return NOTE_EDITABLE_STATUSES.has(transaction.status) && !transaction.printingSubcategory &&
+    !transaction.printingReceipt && transaction.suratJalan.length === 0;
+}
+
 const updateTransactionSchema = z.object({
   salesName: z.string().optional().nullable(),
   salespersonId: z.string().optional().nullable(),
   customerName: z.string().optional().nullable(),
   paymentMethod: z.enum(["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER"]).optional(),
   status: z.enum(["COMPLETED", "DP", "VOIDED", "REFUNDED", "PENDING_APPROVAL"]).optional(),
+  note: z.string().optional(),
+  expectedNote: z.string().nullable().optional(),
+}).refine((value) => value.note === undefined || value.expectedNote !== undefined, {
+  path: ["expectedNote"],
+  message: "Catatan awal diperlukan untuk menyimpan perubahan.",
 });
 
 // GET /api/transactions/[id]
@@ -133,6 +151,12 @@ export async function GET(
   }
 }
 
+class TransactionNoteConflictError extends Error {
+  constructor() {
+    super("Catatan transaksi sudah berubah. Tutup dan buka kembali transaksi sebelum mencoba lagi.");
+  }
+}
+
 // PATCH /api/transactions/[id]
 export async function PATCH(
   request: Request,
@@ -153,7 +177,7 @@ export async function PATCH(
       );
     }
 
-    const { salesName, salespersonId, customerName, paymentMethod, status } = parsed.data;
+    const { salesName, salespersonId, customerName, paymentMethod, status, note, expectedNote } = parsed.data;
 
     const existingTransaction = await db.transaction.findFirst({
       where: { id, storeId },
@@ -161,6 +185,8 @@ export async function PATCH(
         id: true,
         status: true,
         printingSubcategory: true,
+        printingReceipt: { select: { id: true } },
+        suratJalan: { select: { id: true }, take: 1 },
         payments: {
           select: { id: true },
           take: 2,
@@ -177,6 +203,10 @@ export async function PATCH(
 
     if (existingTransaction.printingSubcategory && customerName !== undefined) {
       return NextResponse.json({ message: "Pelanggan pada nota Percetakan yang sudah diproses mengikuti dokumen asli." }, { status: 409 });
+    }
+
+    if (note !== undefined && !canEditTransactionNote(existingTransaction)) {
+      return NextResponse.json({ message: "Catatan transaksi ini tidak dapat diubah melalui formulir Riwayat." }, { status: 409 });
     }
 
     // Validate status transition
@@ -228,7 +258,7 @@ export async function PATCH(
     }
     if (status !== undefined && status !== existingTransaction.status) updateData.status = status;
 
-    if (Object.keys(updateData).length === 0) {
+    if (Object.keys(updateData).length === 0 && note === undefined) {
       return NextResponse.json(
         { message: "Tidak ada field yang diubah" },
         { status: 422 }
@@ -245,6 +275,16 @@ export async function PATCH(
           action: "VOID",
           actor: { id: user.id, name: user.name ?? null, role: user.role },
         });
+        if (result === "APPLIED" && note !== undefined) {
+          const current = await tx.transaction.findFirstOrThrow({
+            where: { id, storeId },
+            select: { note: true, printingSubcategory: true, printingReceipt: { select: { id: true } }, suratJalan: { select: { id: true }, take: 1 } },
+          });
+          if (current.note !== expectedNote || !canEditTransactionNote({ ...current, status: existingTransaction.status })) {
+            throw new TransactionNoteConflictError();
+          }
+          transactionUpdates.note = mergeTransactionUserNote(current.note, note);
+        }
         if (result === "APPLIED" && Object.keys(transactionUpdates).length > 0) {
           await tx.transaction.update({ where: { id }, data: transactionUpdates });
         }
@@ -317,10 +357,17 @@ export async function PATCH(
       },
     });
 
-    const updated = user.role === "SALES"
+    const updated = user.role === "SALES" || note !== undefined
       ? await db.$transaction(async (tx) => {
           await tx.$queryRaw`SELECT "id" FROM "pos_transactions" WHERE "id" = ${id} AND "storeId" = ${storeId} FOR UPDATE`;
-          const current = await tx.transaction.findFirstOrThrow({ where: { id, storeId }, select: { status: true } });
+          const current = await tx.transaction.findFirstOrThrow({
+            where: { id, storeId },
+            select: { status: true, note: true, printingSubcategory: true, printingReceipt: { select: { id: true } }, suratJalan: { select: { id: true }, take: 1 } },
+          });
+          if (note !== undefined) {
+            if (current.note !== expectedNote || !canEditTransactionNote(current)) throw new TransactionNoteConflictError();
+            updateData.note = mergeTransactionUserNote(current.note, note);
+          }
           const receiptBefore = shouldRecordReceiptChange(user, current.status)
             ? await captureReceiptSnapshot(tx, storeId, id)
             : null;
@@ -337,7 +384,7 @@ export async function PATCH(
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
 
-    if (error instanceof TransactionReversalConflictError) {
+    if (error instanceof TransactionReversalConflictError || error instanceof TransactionNoteConflictError) {
       return NextResponse.json({ message: error.message }, { status: 409 });
     }
 
