@@ -38,17 +38,15 @@ test("shift disabled allows checkout without an active shift", async ({ appPage:
   await expect(page.getByText(/Pembayaran|Payment|Konfirmasi/i).first()).toBeVisible();
 });
 
-test("offline status is visible when the browser is offline", async ({ appPage: page, context }) => {
+test("a POS session without a PIN handoff is blocked offline and recovers after reconnecting", async ({ appPage: page, context }) => {
   await page.goto("/pos");
   await expect(page.getByText("Kertas HVS A4").first()).toBeVisible();
 
   await context.setOffline(true);
-  await page.evaluate(() => {
-    Object.defineProperty(navigator, 'onLine', { get: () => false, configurable: true });
-    window.dispatchEvent(new Event("offline"));
-  });
-
-  await expect(page.getByRole("status").filter({ hasText: /Mode offline/i })).toBeVisible();
-
+  await expect(page.getByRole("heading", { name: "Hak akses belum dapat diperiksa" })).toBeVisible();
+  await expect(page.getByText("Kertas HVS A4").first()).toBeHidden();
   await context.setOffline(false);
+  await expect(page.getByText("Kertas HVS A4").first()).toBeVisible();
+  await page.goto("/pos/offline");
+  await expect(page.getByText("Status: Online")).toBeVisible();
 });

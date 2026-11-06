@@ -21,6 +21,8 @@ const harness = vi.hoisted(() => ({
   offlineRows: new Map<string, any>(),
   userId: "cashier-1" as string | null,
   storeId: "store-main" as string | null,
+  transactionAllowed: true,
+  offlineSession: false,
 }));
 
 vi.mock("react", async (importOriginal) => {
@@ -87,7 +89,7 @@ vi.mock("@/lib/offline/offline-db", () => ({
   },
 }));
 vi.mock("@/features/transactions-draft", () => ({ useCreateDraft: () => ({}) }));
-vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({ role: "CASHIER", userId: harness.userId, storeId: harness.storeId, canPerform: () => false }) }));
+vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({ role: "CASHIER", userId: harness.userId, storeId: harness.storeId, isOfflineSession: harness.offlineSession, canPerform: (resource: string, action: string) => resource === "transaction" && action === "create" && harness.transactionAllowed }) }));
 vi.mock("@/features/invoice-date/hooks/useServerClock", () => ({ useServerClock: () => ({ now: null }) }));
 
 import POSClientPage from "../POSClientPage";
@@ -126,6 +128,8 @@ describe("POS pricing across unrelated renders", () => {
     harness.offlineRows.clear();
     harness.userId = "cashier-1";
     harness.storeId = "store-main";
+    harness.transactionAllowed = true;
+    harness.offlineSession = false;
     harness.states.length = 0;
     harness.memos.length = 0;
     harness.rules = undefined;
@@ -156,6 +160,44 @@ describe("POS pricing across unrelated renders", () => {
     expect(harness.cart.updateTransactionPrice).toHaveBeenLastCalledWith("line-paper", null);
   });
 
+  it("does not open or queue checkout without transaction creation permission", async () => {
+    vi.stubGlobal("navigator", { onLine: false });
+    harness.transactionAllowed = false;
+    render().cart.onCheckout();
+    expect(render().payment).toBeUndefined();
+    expect(harness.offlineRows.size).toBe(0);
+  });
+
+  it("does not queue a payment if permission is revoked after opening the modal", async () => {
+    vi.stubGlobal("navigator", { onLine: false });
+    render().cart.onCheckout();
+    harness.transactionAllowed = false;
+    const payment = render().payment;
+    await payment.onConfirm({
+      items: harness.cart.items, paymentMethod: "CASH", amountPaid: 2000,
+      discount: 0, taxRate: 0, note: "", customerName: "", customerId: null,
+      salesName: "", salespersonId: "", paymentStatus: "COMPLETED", isJobOrder: false, estimatedDoneAt: null,
+    });
+    expect(harness.offlineRows.size).toBe(0);
+    expect(harness.mutateTransaction).not.toHaveBeenCalled();
+  });
+
+  it("does not offer draft saving during a PIN-unlocked offline session", () => {
+    harness.offlineSession = true;
+    render().cart.onCheckout();
+    expect(render().payment.onSaveDraft).toBeUndefined();
+  });
+
+  it("requires removing unsupported saved cart lines and custom prices before offline checkout", () => {
+    harness.offlineSession = true;
+    harness.cart.items[0] = { ...harness.cart.items[0], transactionPrice: 1000 };
+    render().cart.onCheckout();
+    expect(render().payment).toBeUndefined();
+    harness.cart.items[0] = { ...harness.cart.items[0], transactionPrice: null, lineType: "PRINTING_SERVICE" };
+    render().cart.onCheckout();
+    expect(render().payment).toBeUndefined();
+  });
+
   it("uses the same checkout ID when an online response is lost and the sale is queued", async () => {
     render().cart.onCheckout();
     const payment = render().payment;
@@ -180,6 +222,23 @@ describe("POS pricing across unrelated renders", () => {
       originCashierId: "cashier-1", originStoreId: "store-main",
       payments: [{ method: "CASH", amount: 500 }, { method: "TRANSFER", amount: 1500 }],
     });
+  });
+
+  it("queues a sale during a verified offline session even when the browser reports online", async () => {
+    harness.offlineSession = true;
+    render().cart.onCheckout();
+    const payment = render().payment;
+    vi.stubGlobal("window", { dispatchEvent: vi.fn() });
+    vi.stubGlobal("CustomEvent", class {});
+    vi.stubGlobal("navigator", { onLine: true });
+    harness.mutateTransaction.mockResolvedValue({ id: "online-sale", status: "COMPLETED" });
+    await payment.onConfirm({
+      items: harness.cart.items, paymentMethod: "CASH", amountPaid: 2000,
+      discount: 0, taxRate: 0, note: "", customerName: "", customerId: null,
+      salesName: "", salespersonId: "", paymentStatus: "COMPLETED", isJobOrder: false, estimatedDoneAt: null,
+    });
+    expect([...harness.offlineRows.values()][0]).toMatchObject({ status: "PENDING_SYNC" });
+    expect(harness.mutateTransaction).not.toHaveBeenCalled();
   });
 
   it("keeps a product invoice date in the offline reconciliation payload", async () => {

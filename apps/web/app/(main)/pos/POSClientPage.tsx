@@ -11,12 +11,13 @@ import { PosTopPanel } from "@/features/pos-search/components/PosTopPanel";
 import { Pagination } from "@/components/Pagination";
 import { Button, Input, Modal } from "@pos/ui";
 import { CategoryIcon } from "@/lib/category-icons";
+import { loadCloseShiftModal, loadOpenShiftModal, loadPaymentModal, warmOfflineCheckoutModules } from "@/lib/offline/offline-module-preparation";
 
 import { getLogger } from "@/lib/logger";
 
 const log = getLogger("page:main:pos");
 const PaymentModal = dynamic(
-  () => import("@/components/PaymentModal").then((mod) => mod.PaymentModal),
+  () => loadPaymentModal().then((mod) => mod.PaymentModal),
   { ssr: false },
 );
 const ReceiptModal = dynamic(
@@ -24,12 +25,11 @@ const ReceiptModal = dynamic(
   { ssr: false },
 );
 const OpenShiftModal = dynamic(
-  () => import("@/components/OpenShiftModal").then((mod) => mod.OpenShiftModal),
+  () => loadOpenShiftModal().then((mod) => mod.OpenShiftModal),
   { ssr: false },
 );
 const CloseShiftModal = dynamic(
-  () =>
-    import("@/components/CloseShiftModal").then((mod) => mod.CloseShiftModal),
+  () => loadCloseShiftModal().then((mod) => mod.CloseShiftModal),
   { ssr: false },
 );
 const PrintingReceiptWorkspace = dynamic(
@@ -62,7 +62,6 @@ import { useCartCatalogPrices } from "@/features/pos-checkout/hooks/useCartCatal
 import type { CheckoutCustomerSelection } from "@/features/pos-checkout/customer-selection";
 import { useCreateTransaction, type Transaction } from "@/hooks/useTransactions";
 import { buildClientMutationId } from "@/lib/offline/offline-core";
-import { warmOfflineCheckoutModules } from "@/lib/offline/offline-module-preparation";
 import { OfflinePreparationBeacon } from "@/lib/offline/OfflinePreparationBeacon";
 import { useCreateDraft } from "@/features/transactions-draft";
 import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
@@ -202,7 +201,7 @@ export default function POSClientPage({
     initialData.activeShift ?? undefined,
   );
   const { data: shiftSettings } = useShiftSettings(initialData.shiftEnabled);
-  const { role, userId, storeId, canPerform } = useRole();
+  const { role, userId, storeId, canPerform, isOfflineSession } = useRole();
   const offlineIdentity = useMemo(
     () => userId ? { cashierId: userId, storeId: storeId || "store-main" } : undefined,
     [userId, storeId],
@@ -211,6 +210,7 @@ export default function POSClientPage({
   const shiftRequired = shiftSettings?.enabled !== false;
   const canQuickEdit = canPerform("product", "update");
   const canEditPrice = canPerform("transaction.custom_price", "update");
+  const canCreateTransaction = canPerform(role === "SALES" ? "transaction.request" : "transaction", "create");
 
   const productsQuery = useProductsPage(deferredSearch, selectedCategory, {
     page,
@@ -415,7 +415,7 @@ export default function POSClientPage({
   );
   useEffect(() => {
     if (hasItems) {
-      import("@/components/PaymentModal");
+      void loadPaymentModal();
       import("@/components/ReceiptModal");
       if (checkoutMode === "quotation") {
         import("@/features/nota-penawaran/components/NotaPenawaranModal");
@@ -424,6 +424,14 @@ export default function POSClientPage({
   }, [checkoutMode, hasItems]);
 
   const handleOpenPayment = () => {
+    if (!canCreateTransaction) {
+      setCheckoutNotice({ tone: "danger", message: "Anda belum memiliki izin untuk membuat transaksi." });
+      return;
+    }
+    if (isOfflineSession && cart.items.some(item => item.lineType !== "PRODUCT" || item.transactionPrice != null || item.customerManualPrice != null)) {
+      setCheckoutNotice({ tone: "warning", message: "Hapus layanan dan harga khusus dari keranjang sebelum bertransaksi offline." });
+      return;
+    }
     if (shiftRequired && !activeShift) {
       setCheckoutNotice({
         tone: "warning",
@@ -445,6 +453,10 @@ export default function POSClientPage({
   };
 
   const handleOpenNotaPenawaran = () => {
+    if (isOfflineSession) {
+      setCheckoutNotice({ tone: "warning", message: "Nota penawaran tersedia setelah perangkat kembali online." });
+      return;
+    }
     if (hasServiceItems) {
       setCheckoutNotice({
         tone: "danger",
@@ -477,6 +489,14 @@ export default function POSClientPage({
     invoiceDateReason?: string | null;
     items: typeof cart.items;
   }) => {
+    if (!canCreateTransaction) {
+      setCheckoutNotice({ tone: "danger", message: "Anda belum memiliki izin untuk membuat transaksi." });
+      return;
+    }
+    if (isOfflineSession && data.items.some(item => item.lineType !== "PRODUCT" || item.transactionPrice != null || item.customerManualPrice != null)) {
+      setCheckoutNotice({ tone: "warning", message: "Hapus layanan dan harga khusus dari keranjang sebelum bertransaksi offline." });
+      return;
+    }
     const clientMutationId = checkoutMutationId.current ?? buildClientMutationId();
     checkoutMutationId.current = clientMutationId;
     try {
@@ -510,7 +530,7 @@ export default function POSClientPage({
         ...buildOfflineCheckoutTotals(offlinePricedItems, data.discount, data.taxRate),
         timeSource: isTrustedServerClockSource(offlineClock.source) ? "SERVER_ESTIMATE" : "DEVICE_UNVERIFIED",
       }, request, () => {
-        if (!navigator.onLine || activeShift?.isLocalOnly) throw new TypeError("Transaksi menunggu koneksi dan sinkronisasi shift.");
+        if (isOfflineSession || !navigator.onLine || activeShift?.isLocalOnly) throw new TypeError("Transaksi menunggu koneksi dan sinkronisasi shift.");
         return createTransaction.mutateAsync(request);
       }, offlineClock.now ?? new Date(), !hasServiceItems);
       checkoutMutationId.current = null;
@@ -673,7 +693,7 @@ export default function POSClientPage({
               >
                 ATK
               </button>
-              <button
+              {!isOfflineSession && <button
                 type="button"
                 onClick={() => setActiveTab("services")}
                 className={`px-3 py-2 text-sm font-semibold rounded-lg transition-colors ${activeTab === "services"
@@ -682,7 +702,7 @@ export default function POSClientPage({
                   }`}
               >
                 Percetakan
-              </button>
+              </button>}
             </div>
             <div className="flex-1 min-w-0">
               {activeTab === "products" ? (
@@ -719,9 +739,9 @@ export default function POSClientPage({
               )}
             </div>
             <div className="flex items-center gap-2 md:gap-3">
-              <a href="/pos/offline" className="inline-flex min-h-10 items-center rounded-lg px-2 text-sm font-semibold text-brand-700 hover:bg-brand-50">
+              {!isOfflineSession && <a href="/pos/offline" className="inline-flex min-h-10 items-center rounded-lg px-2 text-sm font-semibold text-brand-700 hover:bg-brand-50">
                 Offline Sync
-              </a>
+              </a>}
               {todayLabel && (
                 <div className="hidden lg:block text-right">
                   <p className="text-xs text-surface-400">{todayLabel}</p>
@@ -852,12 +872,12 @@ export default function POSClientPage({
             </div>
           )}
 
-          <div className={activeTab === "services" ? "flex flex-1 min-h-0 min-w-0 overflow-hidden" : "hidden"}>
+          {!isOfflineSession && <div className={activeTab === "services" ? "flex flex-1 min-h-0 min-w-0 overflow-hidden" : "hidden"}>
             <PrintingReceiptWorkspace
               canCheckout={!shiftRequired || Boolean(activeShift)}
               onRequireShift={() => setShiftModalDismissed(false)}
             />
-          </div>
+          </div>}
 
           {activeTab === "products" && pagination && pagination.total > 0 && (
             <Pagination
@@ -967,7 +987,7 @@ export default function POSClientPage({
           initialCustomerSelection={pricingCustomer}
           onCustomerSelectionChange={setPricingCustomer}
           onConfirm={handleCheckout}
-          onSaveDraft={hasServiceItems ? undefined : handleSaveDraft}
+          onSaveDraft={hasServiceItems || isOfflineSession ? undefined : handleSaveDraft}
           isProcessing={createTransaction.isPending}
           isSavingDraft={createDraft.isPending}
           draftError={draftError}

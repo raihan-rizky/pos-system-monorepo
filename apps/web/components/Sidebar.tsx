@@ -143,7 +143,7 @@ function NavItem({
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { canAccess, role } = useRole();
+  const { canAccess, role, isOfflineSession } = useRole();
   const isOwner = role === "OWNER";
   const roleLabel = role
     ? role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()
@@ -193,6 +193,8 @@ export function Sidebar() {
     .filter((group) => group.items.length > 0);
 
   const activeGroupObj = filteredNavGroups.find((g) => g.id === openGroup);
+
+  if (isOfflineSession) return null;
 
   return (
     <>
@@ -315,8 +317,8 @@ export function Sidebar() {
             onClick={async () => {
               const supabase = createClient();
               await supabase.auth.signOut();
-              await fetch("/api/auth/clear-session", { method: "POST" }).catch(() => undefined);
               clearClientAuthState();
+              await fetch("/api/auth/clear-session", { method: "POST" }).catch(() => undefined);
               router.push("/login");
               router.refresh();
             }}
@@ -443,8 +445,8 @@ export function Sidebar() {
                 closeAll();
                 const supabase = createClient();
                 await supabase.auth.signOut();
-                await fetch("/api/auth/clear-session", { method: "POST" }).catch(() => undefined);
                 clearClientAuthState();
+                await fetch("/api/auth/clear-session", { method: "POST" }).catch(() => undefined);
                 router.push("/login");
                 router.refresh();
               }}

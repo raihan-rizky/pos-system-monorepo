@@ -1,6 +1,6 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   INITIAL_PROOF_UPLOAD_STATE,
   ProofImageUploader,
@@ -9,7 +9,12 @@ import {
   rotateProof,
   proofUploadReducer,
 } from "../ProofImageUploader";
-import { RoleProvider } from "@/components/providers/RoleProvider";
+const access = vi.hoisted(() => ({ canDelete: false }));
+vi.mock("@/components/providers/RoleProvider", () => ({
+  useRole: () => ({ canPerform: (resource: string, action: string) => resource === "proof_upload" && action === "delete" && access.canDelete }),
+}));
+
+afterEach(() => { access.canDelete = false; });
 
 describe("ProofImageUploader", () => {
   it("cycles preview rotation in 90-degree steps", () => {
@@ -120,19 +125,26 @@ describe("ProofImageUploader", () => {
     expect(failed.fallbackVisible).toBe(true);
   });
 
-  it("shows deletion to OWNER when a proof is present", () => {
+  it("shows deletion when the current user has permission", () => {
+    access.canDelete = true;
     const html = renderToStaticMarkup(
-      <RoleProvider role="OWNER" userId="owner-1" userName="Owner">
-        <ProofImageUploader
-          context="expense"
-          label="Bukti pengeluaran"
-          value="https://pub-example.r2.dev/proofs/expenses/a.webp"
-          onChange={vi.fn()}
-        />
-      </RoleProvider>,
+      <ProofImageUploader
+        context="expense"
+        label="Bukti pengeluaran"
+        value="https://pub-example.r2.dev/proofs/expenses/a.webp"
+        onChange={vi.fn()}
+      />,
     );
 
     expect(html).toContain("Hapus foto");
+  });
+
+  it("hides deletion when the current user lacks permission", () => {
+    const html = renderToStaticMarkup(
+      <ProofImageUploader context="expense" label="Bukti pengeluaran"
+        value="https://pub-example.r2.dev/proofs/expenses/a.webp" onChange={vi.fn()} />,
+    );
+    expect(html).not.toContain("Hapus foto");
   });
 
   it("clears prnt.sc locally but calls the protected endpoint for R2", async () => {

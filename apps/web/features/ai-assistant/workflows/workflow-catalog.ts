@@ -917,8 +917,8 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     iconKey: "shopping-cart",
     requiredCapabilities: [{ resource: "product", action: "read" }],
     steps: [
-      { title: "Siapkan POS", description: "Saat online, masuk sebagai kasir asal, buka Kasir > Offline Sync, buat dan ulangi PIN offline, lalu pilih Siapkan POS offline. Siapkan ulang sedikitnya setiap tujuh hari dan setelah pembaruan aplikasi. PIN mengenkripsi halaman; katalog dan antrean belum terenkripsi." },
-      { title: "Buka saat offline", description: "Buka alamat POS, pilih akun dan masukkan PIN, lalu pilih Buka POS offline. Transaksi tersimpan di perangkat sampai diperiksa server; jangan hapus data situs sebelum sinkronisasi." },
+      { title: "Siapkan POS", description: "Saat online, masuk sebagai kasir asal, buka Kasir > Offline Sync, buat dan ulangi PIN offline, lalu pilih Siapkan POS offline. Setelah pembaruan ini, siapkan kembali PIN di setiap perangkat; ulangi sedikitnya setiap tujuh hari dan setelah pembaruan aplikasi. PIN mengenkripsi halaman; katalog dan antrean belum terenkripsi." },
+      { title: "Buka saat offline", description: "Buka alamat POS, pilih akun dan masukkan PIN, lalu pilih Buka POS offline. Kasir dapat memproses produk sesuai izin terakhir; layanan dan harga khusus tersedia kembali saat online. Transaksi tersimpan di perangkat sampai diperiksa server; jangan hapus data situs sebelum sinkronisasi." },
       { title: "Periksa hasil sync", description: "Setelah terhubung, masuk sebagai kasir asal dan periksa Offline Sync. Owner dapat mengunduh transaksi yang belum tersimpan di server, termasuk transaksi lama tanpa identitas, untuk rekonsiliasi tanpa menetapkan asal secara otomatis." },
     ],
   }),

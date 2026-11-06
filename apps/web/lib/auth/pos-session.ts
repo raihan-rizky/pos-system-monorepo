@@ -1,3 +1,5 @@
+import { invalidateOfflineAccess } from "@/public/offline-vault.mjs";
+
 export const POS_IDENTITY_COOKIE_NAMES = [
   "x-pos-role",
   "x-pos-user-id",
@@ -55,6 +57,19 @@ export function clearClientSupabaseAuthArtifacts() {
 }
 
 export function clearClientAuthState() {
+  if (typeof document !== "undefined") {
+    try {
+      const cookies = new Map(document.cookie.split(";").map(part => {
+        const separator = part.indexOf("=");
+        return [part.slice(0, separator).trim(), part.slice(separator + 1)];
+      }));
+      const cashierId = cookies.get("x-pos-user-id");
+      const storeId = cookies.get("x-pos-store-id") || "store-main";
+      if (cashierId) {
+        void invalidateOfflineAccess(cashierId, storeId).catch(() => undefined);
+      }
+    } catch { /* Logout should still clear the session when local storage is unavailable. */ }
+  }
   clearClientPosIdentityCookies();
   clearClientSupabaseAuthArtifacts();
 }

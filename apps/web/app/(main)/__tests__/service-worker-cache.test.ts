@@ -64,7 +64,7 @@ describe("service worker runtime cache policy", () => {
     let operation: Promise<unknown> | undefined;
     worker.listeners.get("message")?.({ data: { type: "OFFLINE_CAPABILITY_VERSION" }, ports: [{ postMessage: ack }], waitUntil: (promise: Promise<unknown>) => { operation = promise; } });
     await operation;
-    expect(ack).toHaveBeenCalledWith({ version: 1, ready: false });
+    expect(ack).toHaveBeenCalledWith({ version: 2, ready: false });
   });
 
   it("does not use old cached static assets while preparing a new POS page", async () => {
@@ -174,7 +174,7 @@ describe("service worker runtime cache policy", () => {
   });
 
   it("deletes old POS caches without deleting another app cache", async () => {
-    const worker = loadWorker(["pos-v5", "pos-v6", "pos-v7", "pos-v8", "pos-v9", "pos-v10", "pos-offline-static-v1", "other-app"]);
+    const worker = loadWorker(["pos-v5", "pos-v6", "pos-v7", "pos-v8", "pos-v9", "pos-v10", "pos-v11", "pos-offline-static-v1", "other-app"]);
     let activation: Promise<unknown> | undefined;
 
     worker.listeners.get("activate")?.({
@@ -184,7 +184,7 @@ describe("service worker runtime cache policy", () => {
     });
     await activation;
 
-    expect(worker.caches.delete.mock.calls).toEqual([["pos-v5"], ["pos-v6"], ["pos-v7"], ["pos-v8"], ["pos-v9"]]);
+    expect(worker.caches.delete.mock.calls).toEqual([["pos-v5"], ["pos-v6"], ["pos-v7"], ["pos-v8"], ["pos-v9"], ["pos-v10"]]);
   });
 
   it("still caches application icons in the active POS cache", async () => {
@@ -198,7 +198,7 @@ describe("service worker runtime cache policy", () => {
 
     expect(respondWith).toHaveBeenCalledOnce();
     await respondWith.mock.calls[0][0];
-    expect(worker.caches.open).toHaveBeenCalledWith("pos-v10");
+    expect(worker.caches.open).toHaveBeenCalledWith("pos-v11");
     expect(worker.activeCache.match).toHaveBeenCalledOnce();
   });
 });

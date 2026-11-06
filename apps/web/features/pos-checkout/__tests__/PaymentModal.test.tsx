@@ -5,6 +5,7 @@ import { PaymentModal } from "@/components/PaymentModal";
 import type { ProductCartItem } from "@/hooks/useCart";
 
 let roleMock = "OWNER";
+let offlineSessionMock = false;
 const useServerClockMock = vi.hoisted(() => vi.fn());
 const pricingRulesMock = vi.hoisted(() => vi.fn<() => unknown[]>(() => []));
 const roundingQueryMock = vi.hoisted(() => vi.fn(() => ({
@@ -54,7 +55,7 @@ vi.mock("@/hooks/useCustomers", () => ({
 }));
 
 vi.mock("@/components/providers/RoleProvider", () => ({
-  useRole: () => ({ role: roleMock }),
+  useRole: () => ({ role: roleMock, isOfflineSession: offlineSessionMock }),
 }));
 
 vi.mock("@/hooks/useSalespersons", () => ({
@@ -94,6 +95,7 @@ describe("PaymentModal custom invoice date", () => {
     expect(html).not.toContain("Gunakan otomatis");
   });
   beforeEach(() => {
+    offlineSessionMock = false;
     pricingRulesMock.mockReturnValue([]);
     roundingQueryMock.mockReturnValue({ data: { enabled: true, increment: 500, threshold: 50 }, isError: false, isPlaceholderData: false });
     useServerClockMock.mockReturnValue({
@@ -102,6 +104,20 @@ describe("PaymentModal custom invoice date", () => {
       lastSyncedAt: Date.parse("2026-10-05T20:24:30.000Z"),
       isLoading: false,
     });
+  });
+
+  it("hides custom prices and invoice date changes in an offline session", () => {
+    roleMock = "OWNER";
+    const item: ProductCartItem = { cartLineId: "offline", lineType: "PRODUCT", productId: "paper", name: "Kertas", price: 4000, catalogPrice: 4000, quantity: 1, unit: "pcs", stock: 10, categoryId: "paper", categoryName: "Kertas" };
+    const selection = { kind: "existing" as const, customer: { id: "industry", name: "Contoh", type: "INDUSTRI" as const } };
+    const props = { open: true, onClose: vi.fn(), items: [item], subtotal: 4000, onConfirm: vi.fn(), initialCustomerSelection: selection };
+    const online = renderToStaticMarkup(<PaymentModal {...props} />);
+    expect(online).toContain('type="date"');
+    expect(online).toContain("Harga Khusus pembayaran");
+    offlineSessionMock = true;
+    const offline = renderToStaticMarkup(<PaymentModal {...props} />);
+    expect(offline).not.toContain('type="date"');
+    expect(offline).not.toContain("Harga Khusus pembayaran");
   });
 
   it("uses the saved disabled rounding setting in payment totals", () => {

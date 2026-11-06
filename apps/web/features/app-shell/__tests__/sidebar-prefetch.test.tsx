@@ -9,9 +9,10 @@ type LinkProps = {
   children: ReactNode;
 };
 
-const { links, prefetch } = vi.hoisted(() => ({
+const { links, prefetch, mode } = vi.hoisted(() => ({
   links: [] as LinkProps[],
   prefetch: vi.fn(),
+  mode: { offline: false },
 }));
 
 vi.mock("next/link", () => ({
@@ -25,7 +26,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ prefetch, push: vi.fn(), refresh: vi.fn() }),
 }));
 vi.mock("@/components/providers/RoleProvider", () => ({
-  useRole: () => ({ canAccess: () => true, role: "OWNER" }),
+  useRole: () => ({ canAccess: () => true, role: "OWNER", isOfflineSession: mode.offline }),
 }));
 vi.mock("@/hooks/useTransactions", () => ({
   usePendingTransactionCount: () => ({ data: 0 }),
@@ -42,6 +43,7 @@ describe("Sidebar prefetch", () => {
   beforeEach(() => {
     links.length = 0;
     prefetch.mockClear();
+    mode.offline = false;
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -65,5 +67,11 @@ describe("Sidebar prefetch", () => {
     expect(products?.prefetch).toBe(true);
     products?.onMouseEnter?.();
     expect(prefetch).toHaveBeenCalledWith("/products");
+  });
+
+  it("hides navigation and account actions during a PIN-unlocked offline session", () => {
+    mode.offline = true;
+    expect(renderToStaticMarkup(<Sidebar />)).toBe("");
+    expect(links).toHaveLength(0);
   });
 });

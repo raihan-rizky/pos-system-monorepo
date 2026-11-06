@@ -50,16 +50,16 @@ export interface CloseShiftSummary {
 }
 
 export function useActiveShift(initialData?: CashierShift | null) {
-  const { userId, storeId } = useRole();
+  const { userId, storeId, isOfflineSession } = useRole();
   return useQuery({
-    queryKey: ["active-shift", storeId, userId],
+    queryKey: ["active-shift", storeId, userId, isOfflineSession],
     networkMode: "always",
     queryFn: async (): Promise<CashierShift | null> => {
       const { getOfflineActiveShift, rememberActiveShift, offlineDb } = await import("@/lib/offline/offline-db");
       const getLocalShift = () => userId
         ? getOfflineActiveShift({ cashierId: userId, storeId: storeId || "store-main" })
         : Promise.resolve(undefined);
-      if (typeof window !== "undefined" && !navigator.onLine) {
+      if (isOfflineSession || (typeof window !== "undefined" && !navigator.onLine)) {
         return (await getLocalShift()) || null;
       }
 
@@ -84,7 +84,7 @@ export function useActiveShift(initialData?: CashierShift | null) {
         throw error;
       }
     },
-    initialData,
+    initialData: isOfflineSession ? undefined : initialData,
     refetchOnWindowFocus: false,
   });
 }
@@ -114,18 +114,19 @@ export function useShiftHistory(
 
 export function useOpenShift() {
   const queryClient = useQueryClient();
-  const { userId, userName, storeId } = useRole();
+  const { userId, userName, storeId, canPerform, isOfflineSession } = useRole();
   return useMutation({
     networkMode: "always",
     mutationFn: async (vars: { openingBalance: number; note?: string }) => {
       const { createOfflineShift } = await import("@/lib/offline/offline-db");
       const clientShiftId = `shift-${buildClientMutationId()}`;
       const openLocalShift = () => {
+        if (!canPerform("shift", "create")) throw new Error("Anda belum memiliki izin untuk membuka shift.");
         if (!userId) throw new Error("Identitas kasir belum tersedia. Masuk kembali untuk membuka shift offline.");
         return createOfflineShift({ ...vars, clientShiftId, cashierId: userId, cashierName: userName || "Kasir", storeId: storeId || "store-main" });
       };
 
-      if (typeof window !== "undefined" && !navigator.onLine) {
+      if (isOfflineSession || (typeof window !== "undefined" && !navigator.onLine)) {
         return openLocalShift();
       }
 
@@ -152,7 +153,7 @@ export function useOpenShift() {
         const { rememberActiveShift } = await import("@/lib/offline/offline-db");
         await rememberActiveShift({ ...shift, openingBalance: Number(shift.openingBalance) }).catch(() => undefined);
       }
-      queryClient.setQueryData(["active-shift", storeId, userId], shift);
+      queryClient.setQueryData(["active-shift", storeId, userId, isOfflineSession], shift);
       queryClient.invalidateQueries({ queryKey: ["active-shift"] });
       queryClient.invalidateQueries({ queryKey: ["shift-history"] });
       queryClient.invalidateQueries({ queryKey: ["shift-summary"] });
@@ -185,18 +186,19 @@ export function useCloseShiftSummary(
 
 export function useCloseShift() {
   const queryClient = useQueryClient();
-  const { userId, storeId } = useRole();
+  const { userId, storeId, canPerform, isOfflineSession } = useRole();
   return useMutation({
     networkMode: "always",
     mutationFn: async (vars: { shiftId: string; closingBalance: number; note?: string }) => {
       const { offlineDb, closeOfflineShift } = await import("@/lib/offline/offline-db");
       const local = await offlineDb.offlineShifts.get(vars.shiftId);
       if (local && userId && local.cashierId === userId && local.storeId === (storeId || "store-main")) {
+        if (!canPerform("shift", "update")) throw new Error("Anda belum memiliki izin untuk menutup shift.");
         await closeOfflineShift(vars.shiftId, { cashierId: userId, storeId: storeId || "store-main" }, vars.closingBalance, vars.note);
         window.dispatchEvent(new CustomEvent("pos-offline-sync-requested"));
         return { ...local, status: "CLOSED", closingBalance: vars.closingBalance };
       }
-      if (typeof window !== "undefined" && !navigator.onLine) {
+      if (isOfflineSession || (typeof window !== "undefined" && !navigator.onLine)) {
         throw new Error("Data shift belum tersedia di perangkat ini. Hubungkan perangkat untuk menutup shift.");
       }
       const res = await fetch("/api/shifts/close", {

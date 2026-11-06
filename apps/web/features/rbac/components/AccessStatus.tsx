@@ -13,8 +13,8 @@ export function AccessStatus({ unavailable = false, onRetry }: { unavailable?: b
     try {
       const { error: signOutError } = await createClient().auth.signOut();
       if (signOutError) throw signOutError;
-      await fetch("/api/auth/clear-session", { method: "POST" });
       clearClientAuthState();
+      await fetch("/api/auth/clear-session", { method: "POST" });
       window.location.assign("/login");
     } catch {
       setError("Belum dapat keluar. Periksa koneksi lalu coba lagi.");

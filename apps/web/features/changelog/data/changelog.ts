@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "offline-pos-authorized-checkout", date: "2026-11-07", revision: 1,
+    highlight: { title: "POS offline kembali siap", summary: "Buka POS dengan PIN dan simpan transaksi sesuai izin kasir." },
+    title: "Pembayaran POS offline kembali tersedia.",
+    summary: "Kasir dapat membuka POS dengan PIN dan menyimpan transaksi produk saat koneksi terputus, sesuai izin yang terakhir diperiksa. Siapkan ulang PIN offline di setiap perangkat setelah pembaruan ini.",
+    kind: "fix", impact: "major", area: "Kasir", href: "/pos/offline", visual: "changelog",
+    screenshot: { src: "/images/changelog/persiapan-pos-offline-2026-11-07.png", alt: "Formulir persiapan POS offline dengan kolom PIN dan konfirmasi PIN." },
+    steps: [
+      { title: "Siapkan ulang POS", detail: "Saat online, buka Kasir > Offline Sync, isi dan ulangi PIN, lalu pilih Siapkan POS offline." },
+      { title: "Buka saat offline", detail: "Buka alamat POS, pilih akun, masukkan PIN, lalu proses transaksi produk sesuai izin kasir." },
+      { title: "Periksa sinkronisasi", detail: "Setelah terhubung, masuk kembali dan periksa hasil transaksi di Offline Sync." },
+    ],
+  },
+  {
     id: "history-edit-transaction-note", date: "2026-11-06", revision: 1,
     highlight: { title: "Ubah catatan transaksi", summary: "Perbarui catatan transaksi langsung dari Riwayat." },
     title: "Catatan transaksi dapat diubah.",
