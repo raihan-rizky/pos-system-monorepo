@@ -31,6 +31,7 @@ export interface ReverseTransactionInput {
   action: TransactionReversalAction;
   actor: { id: string; name: string | null; role: string };
   onWarning?: (warning: TransactionReversalWarning) => void;
+  beforeApply?: (lockedStatus: string) => Promise<void>;
 }
 
 type JournalRow = {
@@ -617,6 +618,9 @@ export async function reverseTransaction(
       throw new TransactionReversalConflictError("Status transaksi ini tidak dapat dibatalkan.");
     }
   }
+
+  // The caller may capture related state while the transaction row remains locked.
+  await input.beforeApply?.(transaction.status);
 
   const shipments = transaction.suratJalan ?? [];
   const unconvertedQuotation = isUnconvertedQuotation(transaction);

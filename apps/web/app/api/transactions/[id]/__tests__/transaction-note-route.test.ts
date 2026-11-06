@@ -4,6 +4,7 @@ const state = vi.hoisted(() => ({
   user: { id: "user-1", name: "Rani", role: "OWNER", storeId: "store-main" },
   denied: false,
   statusOnLock: null as string | null,
+  reverseResult: "APPLIED" as "APPLIED" | "ALREADY_VOIDED",
   row: {} as Record<string, any>,
   changes: [] as Record<string, any>[],
   notifications: [] as Record<string, any>[],
@@ -21,7 +22,7 @@ vi.mock("@/lib/rbac/guard", () => ({
 
 vi.mock("@/features/transactions-stock/services/transaction-reversal-service", () => ({
   TransactionReversalConflictError: class extends Error {},
-  reverseTransaction: async () => { state.row.status = "VOIDED"; return "APPLIED"; },
+  reverseTransaction: async () => { state.row.status = "VOIDED"; return state.reverseResult; },
 }));
 
 vi.mock("@pos/db", () => {
@@ -69,6 +70,7 @@ describe("mengubah catatan transaksi", () => {
     state.user.role = "OWNER";
     state.denied = false;
     state.statusOnLock = null;
+    state.reverseResult = "APPLIED";
     state.changes = [];
     state.notifications = [];
     state.row = {
@@ -116,6 +118,16 @@ describe("mengubah catatan transaksi", () => {
     expect((await save({ status: "VOIDED", note: "Perubahan saya", expectedNote: "Catatan lama" })).status).toBe(409);
     expect(state.row.status).toBe("COMPLETED");
     expect(state.row.note).toBe("Catatan terbaru");
+  });
+
+  it("melaporkan konflik jika transaksi sudah di-void sebelum catatan disimpan", async () => {
+    state.row.note = "Catatan lama";
+    state.reverseResult = "ALREADY_VOIDED";
+
+    const response = await save({ status: "VOIDED", note: "Catatan baru", expectedNote: "Catatan lama" });
+
+    expect(response.status).toBe(409);
+    expect(state.row.note).toBe("Catatan lama");
   });
 
   it("menolak pengguna tanpa izin mengubah transaksi", async () => {

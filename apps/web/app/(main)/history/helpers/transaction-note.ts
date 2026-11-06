@@ -55,3 +55,8 @@ export function mergeTransactionUserNote(
     .join(" | ");
   return [visibleAndSettlements, ...divisions].filter(Boolean).join(" ") || null;
 }
+
+/** User-entered text must not create annotations owned by the system. */
+export function containsTransactionNoteAnnotations(note: string): boolean {
+  return /\[DIVISI:[^\]]*\]/.test(note) || (note.match(PELUNASAN_ANNOTATION_RE)?.length ?? 0) > 0;
+}

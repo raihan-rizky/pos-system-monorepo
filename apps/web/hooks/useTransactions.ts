@@ -327,6 +327,8 @@ export interface UpdateTransactionInput {
   customerName?: string;
   paymentMethod?: string;
   status?: string;
+  note?: string;
+  expectedNote?: string | null;
 }
 
 async function updateTransaction(input: UpdateTransactionInput): Promise<Transaction> {
@@ -348,8 +350,21 @@ export function useUpdateTransaction() {
 
   return useMutation({
     mutationFn: updateTransaction,
-    onSuccess: () => {
+    onSuccess: (updated, input) => {
+      if (input.note !== undefined) {
+        updateTransactionInHistoryCaches(queryClient, { id: input.id, note: updated.note });
+        queryClient.setQueryData<Transaction>(["transaction", input.id], (previous) =>
+          previous ? { ...previous, note: updated.note } : previous,
+        );
+      }
+      queryClient.invalidateQueries({ queryKey: ["transaction", input.id] });
       invalidateTransactionViews(queryClient);
+    },
+    onError: (_error, input) => {
+      if (input.note !== undefined) {
+        queryClient.invalidateQueries({ queryKey: ["transaction", input.id] });
+        queryClient.invalidateQueries({ queryKey: ["transaction-history"] });
+      }
     },
   });
 }

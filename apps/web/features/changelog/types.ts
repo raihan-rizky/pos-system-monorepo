@@ -1,4 +1,5 @@
 export type ChangeKind = "feature" | "improvement" | "fix";
+export type ChangeImpact = "major" | "minor";
 export type ChangeVisual = "tax" | "categories" | "units" | "quotation" | "stock-groups" | "changelog" | "printing" | "shopping" | "history-table" | "receipt-audit" | "financial" | "rbac";
 
 export interface ChangeEntry {
@@ -12,6 +13,8 @@ export interface ChangeEntry {
   /** Direct copy for the weekly popup: title up to 40 characters, summary up to 85. */
   highlight: { title: string; summary: string };
   kind: ChangeKind;
+  /** Editorial impact, independent of kind. Existing entries default to minor. */
+  impact?: ChangeImpact;
   area: string;
   href: string;
   visual: ChangeVisual;

@@ -59,6 +59,7 @@ export function ReceiptModal({
   const isPrintingReceipt = Boolean(initialTransaction.printingReceipt || initialTransaction.printingSubcategory);
   const tax = useReceiptTax(initialTransaction, open && !isPrintingReceipt && initialTransaction.status !== "DRAFT");
   const transaction = tax.transaction;
+  const transactionTaxRate = getTransactionTaxRate(transaction);
   const { data: storeSettings } = useStoreSettings();
   const [showPrintModal, setShowPrintModal] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -256,7 +257,7 @@ export function ReceiptModal({
                   <div className="flex">
                     <span className="w-24">Pajak</span>
                     <span className="mr-4">:</span>
-                    <span>{formatTaxRate(getTransactionTaxRate(transaction))}</span>
+                    <span>{transactionTaxRate === 0 ? "-" : formatTaxRate(transactionTaxRate)}</span>
                   </div>
                   <div className="flex">
                     <span className="w-24">Pembayaran</span>
@@ -359,7 +360,7 @@ export function ReceiptModal({
                 {!isCancelled && displayNote && displayNote.length > 0 && (
                   <div className="text-[12px]">
                     <span className="font-bold">Catatan: </span>
-                    <span>{displayNote}</span>
+                    <span className="whitespace-pre-wrap break-words">{displayNote}</span>
                   </div>
                 )}
               </div>

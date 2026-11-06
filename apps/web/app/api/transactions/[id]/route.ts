@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db, type Prisma } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { z } from "zod";
-import { mergeTransactionUserNote } from "@/app/(main)/history/helpers/transaction-note";
+import { containsTransactionNoteAnnotations, mergeTransactionUserNote } from "@/app/(main)/history/helpers/transaction-note";
 
 import { getLogger } from "@/lib/logger";
 import {
@@ -179,6 +179,10 @@ export async function PATCH(
 
     const { salesName, salespersonId, customerName, paymentMethod, status, note, expectedNote } = parsed.data;
 
+    if (note !== undefined && containsTransactionNoteAnnotations(note)) {
+      return NextResponse.json({ message: "Hapus penanda [DIVISI:...] atau teks pelunasan otomatis dari catatan, lalu coba lagi." }, { status: 422 });
+    }
+
     const existingTransaction = await db.transaction.findFirst({
       where: { id, storeId },
       select: {
@@ -269,24 +273,40 @@ export async function PATCH(
       const transactionUpdates = { ...updateData };
       delete transactionUpdates.status;
       const outcome = await db.$transaction(async (tx) => {
+        let statusBeforeReversal: string = existingTransaction.status;
+        let receiptBefore: Awaited<ReturnType<typeof captureReceiptSnapshot>> | null = null;
         const result = await reverseTransaction(tx, {
           storeId,
           transactionId: id,
           action: "VOID",
           actor: { id: user.id, name: user.name ?? null, role: user.role },
+          ...(note !== undefined ? {
+            beforeApply: async (lockedStatus: string) => {
+              statusBeforeReversal = lockedStatus;
+              if (shouldRecordReceiptChange(user, lockedStatus)) {
+                receiptBefore = await captureReceiptSnapshot(tx, storeId, id);
+              }
+            },
+          } : {}),
         });
+        if (result === "ALREADY_VOIDED" && note !== undefined) {
+          throw new TransactionNoteConflictError();
+        }
         if (result === "APPLIED" && note !== undefined) {
           const current = await tx.transaction.findFirstOrThrow({
             where: { id, storeId },
             select: { note: true, printingSubcategory: true, printingReceipt: { select: { id: true } }, suratJalan: { select: { id: true }, take: 1 } },
           });
-          if (current.note !== expectedNote || !canEditTransactionNote({ ...current, status: existingTransaction.status })) {
+          if (current.note !== expectedNote || !canEditTransactionNote({ ...current, status: statusBeforeReversal })) {
             throw new TransactionNoteConflictError();
           }
           transactionUpdates.note = mergeTransactionUserNote(current.note, note);
         }
         if (result === "APPLIED" && Object.keys(transactionUpdates).length > 0) {
           await tx.transaction.update({ where: { id }, data: transactionUpdates });
+        }
+        if (result === "APPLIED" && receiptBefore) {
+          await recordReceiptChange(tx, { storeId, transactionId: id, actor: user, before: receiptBefore });
         }
         return result;
       }, { timeout: 30_000 });

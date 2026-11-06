@@ -5,11 +5,14 @@ import { createServer, type Server } from "node:http";
 import path from "node:path";
 import { authenticate } from "../../../e2e/fixtures/app";
 import { CHANGELOG } from "../data/changelog";
-import { changeKey } from "../helpers/changelog";
+import { changeKey, getPublishedChanges, getRecentChanges } from "../helpers/changelog";
 
 const appRoot = process.cwd();
 let server: Server;
 let baseURL: string;
+const previewTime = new Date("2026-10-18T03:00:00Z");
+const previewPublishedCount = getPublishedChanges(CHANGELOG, previewTime).length;
+const previewRecentCount = getRecentChanges(CHANGELOG, previewTime).length;
 
 test.beforeAll(async () => {
   const localRequire = createRequire(path.join(appRoot, "package.json"));
@@ -55,8 +58,8 @@ test.beforeAll(async () => {
     const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
     if (pathname === "/entry.js") { response.setHeader("Content-Type", "text/javascript"); response.end(bundle.outputFiles[0].text); }
     else if (pathname === "/style.css") { response.setHeader("Content-Type", "text/css"); response.end(styles.css); }
-    else if (/^\/images\/changelog\/[a-z0-9-]+\.webp$/.test(pathname)) {
-      try { response.setHeader("Content-Type", "image/webp"); response.end(await readFile(path.join(appRoot, "public", pathname))); }
+    else if (/^\/images\/changelog\/[a-z0-9-]+\.(webp|png)$/.test(pathname)) {
+      try { response.setHeader("Content-Type", pathname.endsWith(".png") ? "image/png" : "image/webp"); response.end(await readFile(path.join(appRoot, "public", pathname))); }
       catch { response.writeHead(404); response.end(); }
     } else {
       response.setHeader("Content-Type", "text/html");
@@ -74,23 +77,29 @@ test.afterAll(async () => {
 });
 
 test.beforeEach(async ({ page }) => {
-  await page.clock.setFixedTime(new Date("2026-10-18T03:00:00Z"));
+  await page.clock.setFixedTime(previewTime);
 });
 
 test("archive, compact weekly list, image zoom, keyboard focus, and mobile layout", async ({ page }) => {
   await page.goto(baseURL);
   await expect(page.getByRole("heading", { name: "Catatan Perubahan", exact: true })).toBeVisible();
-  await expect(page.locator("article")).toHaveCount(6);
+  await expect(page.locator("article")).toHaveCount(previewPublishedCount);
   await page.getByRole("button", { name: "7 hari terakhir", exact: true }).click();
   await expect(page.getByRole("button", { name: "7 hari terakhir", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Sorotan 7 hari" }).click();
   const dialog = page.getByRole("dialog", { name: "Apa yang baru" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Tutup", exact: true })).toBeFocused();
-  await expect(dialog.getByRole("list", { name: "Pembaruan 7 hari terakhir" }).getByRole("listitem")).toHaveCount(6);
+  await expect(dialog.getByRole("list", { name: "Pembaruan 7 hari terakhir" }).getByRole("listitem")).toHaveCount(previewRecentCount);
   await expect(dialog.getByText("Pajak nota tersimpan", { exact: true })).toBeVisible();
   await expect(dialog.getByText("Pengelolaan grup stok", { exact: true })).toBeVisible();
-  await expect(dialog.locator("time")).toHaveCount(6);
+  const major = dialog.getByRole("link", { name: /Pengelolaan grup stok/ });
+  await expect(major.getByText("Pembaruan besar", { exact: true })).toBeVisible();
+  await expect(major.getByText("Peningkatan", { exact: true })).toBeVisible();
+  const minor = dialog.getByRole("link", { name: /Pajak nota tersimpan/ });
+  await expect(minor.getByText("Pembaruan kecil", { exact: true })).toBeVisible();
+  await expect(minor.getByText("Fitur baru", { exact: true })).toBeVisible();
+  await expect(dialog.locator("time")).toHaveCount(previewRecentCount);
   await expect(dialog.locator('time[datetime="2026-10-18"]').first()).toHaveText("18 Okt");
   await expect(dialog.locator('time[datetime="2026-10-14"]')).toHaveAttribute("title", "14 Oktober 2026");
   await expect(dialog.getByRole("button", { name: "Pembaruan berikutnya" })).toHaveCount(0);
@@ -100,6 +109,7 @@ test("archive, compact weekly list, image zoom, keyboard focus, and mobile layou
   if (screenshotDir) {
     await mkdir(screenshotDir, { recursive: true });
     await page.mouse.move(0, 0);
+    await dialog.screenshot({ path: path.join(screenshotDir, "kategori-pembaruan-dialog.png") });
     await page.screenshot({ path: path.join(screenshotDir, "changelog-desktop-popup.png") });
   }
   expect(await page.evaluate(() => document.body.style.overflow)).toBe("hidden");
@@ -123,6 +133,7 @@ test("archive, compact weekly list, image zoom, keyboard focus, and mobile layou
   await expect(dialog).toBeVisible();
   expect(await dialog.evaluate(el => el.getBoundingClientRect().right <= innerWidth && el.getBoundingClientRect().left >= 0)).toBe(true);
   await expect(dialog.getByRole("button", { name: "Sudah lihat" })).toBeInViewport();
+  await dialog.getByText("Pengelolaan grup stok", { exact: true }).scrollIntoViewIfNeeded();
   await expect(dialog.getByText("Pengelolaan grup stok", { exact: true })).toBeInViewport();
   if (screenshotDir) {
     await page.mouse.move(0, 0);
@@ -143,13 +154,38 @@ test("archive, compact weekly list, image zoom, keyboard focus, and mobile layou
   await expect(dialog).not.toBeVisible();
 });
 
+test("shows bug fixes and their impact in the popup and archive", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-11-06T10:00:00+07:00"));
+  await page.goto(baseURL);
+  const card = page.locator("article#pwa-status-dismiss");
+  await expect(card.getByText("Pembaruan kecil", { exact: true })).toBeVisible();
+  await expect(card.getByText("Perbaikan bug", { exact: true })).toBeVisible();
+  const screenshot = page.locator("article#surat-jalan-inline-receipt img");
+  await expect(screenshot).toHaveJSProperty("complete", true);
+  await expect(screenshot).not.toHaveJSProperty("naturalWidth", 0);
+  const changelogScreenshot = page.locator("article#changelog-update-categories img");
+  await expect(changelogScreenshot).toHaveJSProperty("complete", true);
+  await expect(changelogScreenshot).not.toHaveJSProperty("naturalWidth", 0);
+  await page.getByRole("button", { name: "Sorotan 7 hari" }).click();
+  const dialog = page.getByRole("dialog", { name: "Apa yang baru" });
+  const fix = dialog.getByRole("link", { name: /Pemberitahuan lebih ringkas/ });
+  await expect(fix.getByText("Pembaruan kecil", { exact: true })).toBeVisible();
+  await expect(fix.getByText("Perbaikan bug", { exact: true })).toBeVisible();
+  const screenshotDir = process.env.CHANGELOG_SCREENSHOT_DIR;
+  if (screenshotDir) {
+    await mkdir(screenshotDir, { recursive: true });
+    await fix.scrollIntoViewIfNeeded();
+    await dialog.screenshot({ path: path.join(screenshotDir, "kategori-pembaruan-dialog.png") });
+  }
+});
+
 test("automatically opens once, persists dismissal per user, and supports a second user", async ({ page }) => {
   await page.goto(`${baseURL}?popup=1`);
   const dialog = page.getByRole("dialog", { name: "Apa yang baru" });
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Sudah lihat" }).click();
   await expect(dialog).not.toBeVisible();
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("pos:changelog:seen:owner-1") ?? "[]").length)).toBe(6);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("pos:changelog:seen:owner-1") ?? "[]").length)).toBe(previewRecentCount);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Catatan Perubahan", exact: true })).toBeVisible();
   await expect(dialog).not.toBeVisible({ timeout: 2500 });
@@ -172,9 +208,11 @@ test("the shared E2E account starts with release notes seen so other workflows r
 });
 
 test("keeps expired entries in archive and shows the weekly empty state after WIB rollover", async ({ page }) => {
-  await page.clock.setFixedTime(new Date("2026-10-25T00:00:00+07:00"));
+  const latestDate = CHANGELOG.map(change => change.date).sort().at(-1)!;
+  const afterWindow = new Date(new Date(`${latestDate}T00:00:00+07:00`).getTime() + 7 * 86_400_000);
+  await page.clock.setFixedTime(afterWindow);
   await page.goto(baseURL);
-  await expect(page.locator("article")).toHaveCount(6);
+  await expect(page.locator("article")).toHaveCount(getPublishedChanges(CHANGELOG, afterWindow).length);
   await page.getByRole("button", { name: "7 hari terakhir", exact: true }).click();
   await expect(page.getByText("Belum ada pembaruan dalam 7 hari terakhir", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Sorotan 7 hari" }).click();

@@ -162,6 +162,7 @@ type EditForm = {
   customerName: string;
   paymentMethod: string;
   status: string;
+  note: string;
 };
 
 const PAYMENT_METHODS = ["CASH", "TRANSFER", "QRIS", "DEBIT", "CREDIT"];
@@ -221,6 +222,7 @@ function EditModal({
   const updateTx = useUpdateTransaction();
   const queryClient = useQueryClient();
   const { role } = useRole();
+  const initialNote = React.useRef(tx.note ?? null);
 
   const [form, setForm] = useState<EditForm>({
     salesName: tx.salesName ?? "",
@@ -228,6 +230,7 @@ function EditModal({
     customerName: tx.customerName ?? "",
     paymentMethod: tx.paymentMethod ?? "CASH",
     status: tx.status ?? "COMPLETED",
+    note: displayTransactionNote(initialNote.current) ?? "",
   });
 
   const [cartItems, setCartItems] = useState<CartEditorItem[]>(
@@ -251,6 +254,19 @@ function EditModal({
       material: i.material,
     }))
   );
+  // Compare the fields accepted by the items endpoint, excluding editor-only state.
+  const cartSnapshot = (items: CartEditorItem[]) => JSON.stringify(items.map((item) => ({
+    sourceItemId: item.sourceItemId,
+    productId: item.productId,
+    productName: item.productName,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    appliedUnitPrice: item.appliedUnitPrice,
+    originalUnitPrice: item.originalUnitPrice,
+    subtotal: item.subtotal,
+    discount: item.discount,
+  })));
+  const initialCartSnapshot = React.useRef(cartSnapshot(cartItems));
   const [isUpdatingItems, setIsUpdatingItems] = useState(false);
   const [itemsSavedWithoutDetails, setItemsSavedWithoutDetails] = useState(false);
 
@@ -276,16 +292,18 @@ function EditModal({
     setIsUpdatingItems(true);
     let itemsSaved = false;
     try {
-      const itemsRes = await fetch(`/api/transactions/${tx.id}/items`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: cartItems }),
-      });
-      if (!itemsRes.ok) {
-        const errData = await itemsRes.json();
-        throw new Error(errData.message || "Gagal menyimpan produk");
+      if (cartSnapshot(cartItems) !== initialCartSnapshot.current) {
+        const itemsRes = await fetch(`/api/transactions/${tx.id}/items`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: cartItems }),
+        });
+        if (!itemsRes.ok) {
+          const errData = await itemsRes.json();
+          throw new Error(errData.message || "Gagal menyimpan produk");
+        }
+        itemsSaved = true;
       }
-      itemsSaved = true;
 
       const payload: Parameters<typeof updateTx.mutateAsync>[0] = {
         id: tx.id,
@@ -293,6 +311,10 @@ function EditModal({
         salespersonId: form.salespersonId,
         customerName: form.customerName,
       };
+      if (form.note !== (displayTransactionNote(initialNote.current) ?? "")) {
+        payload.note = form.note;
+        payload.expectedNote = initialNote.current;
+      }
       if (form.paymentMethod !== tx.paymentMethod) {
         payload.paymentMethod = form.paymentMethod;
       }
@@ -446,6 +468,22 @@ function EditModal({
               onChange={setCartItems}
               editableDetails
             />
+          </div>
+
+          <div>
+            <label htmlFor="transaction-edit-note" className="block text-xs font-semibold text-surface-600 mb-1.5">
+              Catatan Transaksi
+            </label>
+            <textarea
+              id="transaction-edit-note"
+              value={form.note}
+              onChange={(event) => handleChange("note", event.target.value)}
+              rows={3}
+              placeholder="Tambahkan catatan transaksi"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-surface-200 bg-surface-50 text-sm
+                focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
+            />
+            <p className="mt-1 text-xs text-surface-500">Catatan ini tampil pada struk dan invoice.</p>
           </div>
 
           {error && (
