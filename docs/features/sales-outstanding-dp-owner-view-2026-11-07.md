@@ -7,3 +7,7 @@ Total Pemasukan tetap memakai uang diterima pada tanggal pilihan WIB. Outstandin
 Owner membuka Laporan Keuangan, memilih Lihat sebagai Sales, lalu memeriksa tampilan sesuai izin Sales yang tersimpan. Jika Sales diberi laporan penuh, pratinjau juga menampilkan laporan penuh. Pilih Laporan Lengkap untuk kembali. Pratinjau hanya membaca data; hak akses tidak berubah.
 
 Endpoint memeriksa izin halaman dan resource di server serta membatasi parameter pratinjau untuk Owner. Cache dipisah per akun, toko, versi izin, tanggal, dan mode.
+
+## Pemeriksaan publikasi
+
+Gunakan Node 22 sesuai workflow GitHub untuk menjalankan test lokal. Test E2E laporan penuh memeriksa omzet, uang terkumpul, Outstanding DP, dan loss stok; kartu laba serta margin yang sudah dihapus tidak diharapkan muncul. E2E Sales memeriksa sisa DP, sedangkan E2E Owner memeriksa pratinjau harian, parameter `view=sales`, fokus keyboard, dan kembali ke laporan lengkap pada lebar ponsel.
