@@ -9,7 +9,6 @@ import {
   Wallet,
   CheckCircle2,
   TrendingUp,
-  Percent,
   Hourglass,
   AlertTriangle,
   CalendarRange,
@@ -62,10 +61,6 @@ const PRESETS: Array<{ value: FinancialReportPreset; label: string }> = [
   { value: "30d", label: "30 hari" },
   { value: "month", label: "Bulan ini" },
 ];
-
-function percent(value: number) {
-  return `${(value * 100).toFixed(1)}%`;
-}
 
 function formatRange(dateFrom: string, dateTo: string): string {
   if (!dateFrom || !dateTo) return "";
@@ -129,13 +124,7 @@ function FullFinancialReport() {
   const lossStokNet = summary?.lossStokNet ?? 0;
   const lossStokUnclassifiedCount = summary?.lossStokUnclassifiedCount ?? 0;
   const incompleteExpenseCount = summary?.incompleteExpenseCount ?? 0;
-  const estimatedNetProfit = summary?.estimatedNetProfit ?? 0;
   const lossTone = lossStokNet > 0 ? "warning" : lossStokNet < 0 ? "success" : "neutral";
-  const grossMargin = summary?.grossMargin ?? 0;
-  const marginTone =
-    grossMargin >= 0.3 ? "success" : grossMargin >= 0.15 ? "brand" : "warning";
-  const estimatedNetProfitTone =
-    estimatedNetProfit >= 0 ? "success" : "danger";
 
   const collectionRate =
     summary && summary.revenue > 0
@@ -397,33 +386,6 @@ function FullFinancialReport() {
               description:
                 "Total pengeluaran manual dan Pembelian Barang pada periode ini.",
               formula: "jumlah - kembalian",
-            }}
-          />
-          <KpiCard
-            label="Laba Bersih (Estimasi)"
-            value={formatRupiah(summary?.estimatedNetProfit ?? 0)}
-            hint="Bukan laba akrual formal"
-            tone={estimatedNetProfitTone}
-            loading={isLoading}
-            icon={<TrendingUp className="h-4 w-4" aria-hidden="true" />}
-            infoText={{
-              title: "Laba Bersih (Estimasi)",
-              description:
-                "Estimasi operasional. Pembelian Barang yang disetujui tercatat sebagai pengeluaran, tetapi tidak mengubah stok.",
-              formula: "Laba Kotor - seluruh Pengeluaran",
-            }}
-          />
-          <KpiCard
-            label="Margin"
-            value={percent(grossMargin)}
-            hint="Laba Kotor / Omzet"
-            tone={marginTone}
-            loading={isLoading}
-            icon={<Percent className="h-4 w-4" aria-hidden="true" />}
-            infoText={{
-              title: "Margin Kotor",
-              description: "Persentase Laba Kotor terhadap Omzet.",
-              formula: "Laba Kotor ÷ Omzet × 100%",
             }}
           />
           <KpiCard
