@@ -13,6 +13,7 @@ type GiroRow = {
   goodsPurchaseId: string; number: string; supplierName: string; amount: string;
   debtDate: string | null; dueDate: string | null; payableId: string | null; payableDebtDate: string | null;
   historyVerifiedAt: Date | null; payableNote: string | null; payments: Payment[];
+  schedule?: { id: string; amount: string; dueDate: string; note: string | null }[];
 };
 type ManualRow = {
   id: string; supplierName: string; amount: string; debtDate: string;
@@ -32,9 +33,16 @@ export async function GET(_request: Request): Promise<Response> {
     }
     const rows = await db.$queryRaw<GiroRow[]>`
       SELECT g."id" AS "goodsPurchaseId", g."number", g."supplierNameSnapshot" AS "supplierName",
-        g."totalAmount"::text AS "amount", e."debtDate", g."paymentDueDate"::text AS "dueDate",
-        d."id" AS "payableId", d."debtDate"::text AS "payableDebtDate", d."note" AS "payableNote", d."giroHistoryVerifiedAt" AS "historyVerifiedAt", p."payments"
+        (CASE WHEN s."count" > 0 THEN s."giroAmount" ELSE g."totalAmount" END)::text AS "amount", e."debtDate", (CASE WHEN s."count" > 0 THEN s."dueDate" ELSE g."paymentDueDate" END)::text AS "dueDate",
+        d."id" AS "payableId", d."debtDate"::text AS "payableDebtDate", d."note" AS "payableNote", d."giroHistoryVerifiedAt" AS "historyVerifiedAt", p."payments", s."schedule"
       FROM "pos_goods_purchases" g
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*) AS "count", SUM(pay."amount") FILTER (WHERE pay."method"::text = 'GIRO') AS "giroAmount",
+          MIN(pay."dueDate") FILTER (WHERE pay."method"::text = 'GIRO') AS "dueDate",
+          COALESCE(json_agg(json_build_object('id', pay."id", 'amount', pay."amount"::text, 'dueDate', pay."dueDate"::text, 'note', pay."note")
+            ORDER BY pay."dueDate", pay."id") FILTER (WHERE pay."method"::text = 'GIRO'), '[]'::json) AS "schedule"
+        FROM "pos_goods_purchase_payments" pay WHERE pay."goodsPurchaseId" = g."id"
+      ) s ON true
       LEFT JOIN LATERAL (
         SELECT (((x."occurredAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta')::date)::text AS "debtDate"
         FROM "pos_expenses" x
@@ -51,13 +59,13 @@ export async function GET(_request: Request): Promise<Response> {
           ORDER BY pay."paidAt", pay."createdAt", pay."id"), '[]'::json) AS "payments"
         FROM "pos_supplier_payable_payments" pay WHERE pay."payableId" = d."id"
       ) p ON true
-      WHERE g."storeId" = ${user.storeId} AND (g."status" = 'APPROVED' OR (g."status" = 'CANCELLED' AND g."statusBeforeCancellation" = 'APPROVED')) AND g."paymentMethod" = 'GIRO'
+      WHERE g."storeId" = ${user.storeId} AND (g."status" = 'APPROVED' OR (g."status" = 'CANCELLED' AND g."statusBeforeCancellation" = 'APPROVED')) AND ((s."count" > 0 AND s."giroAmount" > 0) OR (s."count" = 0 AND g."paymentMethod" = 'GIRO'))
         AND (e."debtDate" IS NOT NULL OR EXISTS (
           SELECT 1 FROM "pos_expenses" legacy WHERE legacy."storeId" = g."storeId" AND legacy."deletedAt" IS NULL
             AND (legacy."goodsPurchaseId" = g."id" OR
               (legacy."goodsPurchaseId" IS NULL AND legacy."shoppingRequestId" = g."shoppingRequestId"))
         ))
-      ORDER BY g."paymentDueDate" ASC NULLS LAST, g."number", g."id"
+      ORDER BY "dueDate" ASC NULLS LAST, g."number", g."id"
     `;
     const manual = canReadManualPayables ? await db.$queryRaw<ManualRow[]>`
       SELECT d."id", d."supplierName", d."amount"::text AS "amount", d."debtDate"::text AS "debtDate",
@@ -72,15 +80,16 @@ export async function GET(_request: Request): Promise<Response> {
       ORDER BY d."debtDate" DESC, d."createdAt" DESC, d."id"
     ` : [];
     const today = jakartaToday();
-    const items = rows.map(({ amount, historyVerifiedAt, payments: rawPayments, ...row }) => {
+    const items = rows.map(({ amount, historyVerifiedAt, payments: rawPayments, schedule: rawSchedule, ...row }) => {
+      const schedule = (rawSchedule ?? []).map(payment => ({ ...payment, amount: Number(payment.amount) }));
       const payments = rawPayments.map(payment => ({ ...payment, amount: Number(payment.amount) }));
-      if (!row.debtDate) return { ...row, amount: Number(amount), payments, status: 'UNKNOWN', paid: null, remaining: null, historyIssue: true };
+      if (!row.debtDate) return { ...row, schedule, amount: Number(amount), payments, status: 'UNKNOWN', paid: null, remaining: null, historyIssue: true };
       try {
         const balance = summarizeGiro(Number(amount), payments, Boolean(historyVerifiedAt), today);
-        return { ...row, amount: Number(amount), payments, ...balance, historyIssue: false };
+        return { ...row, schedule, amount: Number(amount), payments, ...balance, historyIssue: false };
       } catch (error) {
         log.error('Riwayat pembayaran giro tidak konsisten', error);
-        return { ...row, amount: Number(amount), payments, status: 'UNKNOWN', paid: null, remaining: null, historyIssue: true };
+        return { ...row, schedule, amount: Number(amount), payments, status: 'UNKNOWN', paid: null, remaining: null, historyIssue: true };
       }
     });
     const manualPayables = manual.map(({ amount, payments: rawPayments, ...row }) => {

@@ -9,7 +9,6 @@ import {
   Wallet,
   CheckCircle2,
   TrendingUp,
-  Percent,
   Hourglass,
   AlertTriangle,
   CalendarRange,
@@ -63,10 +62,6 @@ const PRESETS: Array<{ value: FinancialReportPreset; label: string }> = [
   { value: "month", label: "Bulan ini" },
 ];
 
-function percent(value: number) {
-  return `${(value * 100).toFixed(1)}%`;
-}
-
 function formatRange(dateFrom: string, dateTo: string): string {
   if (!dateFrom || !dateTo) return "";
   const fmt = (iso: string) =>
@@ -81,9 +76,23 @@ function formatRange(dateFrom: string, dateTo: string): string {
 }
 
 export default function FinancialReportPage() {
-  const { canAccess, canPerform } = useRole();
+  const { role, canAccess, canPerform } = useRole();
+  const [viewMode, setViewMode] = React.useState<"full" | "sales">("full");
   if (!canAccess("/financial-report")) return <p className="p-6 text-sm text-surface-600">Akses Laporan Keuangan belum diizinkan.</p>;
-  return canPerform("financial-report", "read") ? <FullFinancialReport /> : <DailyIncomeReport />;
+  const canReadFullReport = canPerform("financial-report", "read");
+  if (!canReadFullReport) return <DailyIncomeReport />;
+  if (role !== "OWNER") return <FullFinancialReport />;
+  return <div className="flex min-h-0 flex-1 flex-col">
+    <div className="border-b border-surface-200 bg-white px-4 py-3 md:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div role="group" aria-label="Tampilan laporan" className="inline-flex flex-wrap gap-1 rounded-xl bg-surface-100 p-1">
+          {([ ["full", "Laporan Lengkap"], ["sales", "Lihat sebagai Sales"] ] as const).map(([mode, label]) => <button key={mode} type="button" aria-pressed={viewMode === mode} onClick={() => setViewMode(mode)} className={`min-h-10 rounded-lg px-3 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${viewMode === mode ? "bg-white text-brand-800 shadow-sm" : "text-surface-600 hover:bg-white hover:text-surface-900"}`}>{label}</button>)}
+        </div>
+        {viewMode === "sales" && <p className="text-xs text-surface-600">Tampilan Sales mengikuti izin Sales yang diatur di Hak Akses.</p>}
+      </div>
+    </div>
+    {viewMode === "sales" ? <DailyIncomeReport previewSales fullReportPreview={<FullFinancialReport />} /> : <FullFinancialReport />}
+  </div>;
 }
 
 function FullFinancialReport() {
@@ -129,13 +138,7 @@ function FullFinancialReport() {
   const lossStokNet = summary?.lossStokNet ?? 0;
   const lossStokUnclassifiedCount = summary?.lossStokUnclassifiedCount ?? 0;
   const incompleteExpenseCount = summary?.incompleteExpenseCount ?? 0;
-  const estimatedNetProfit = summary?.estimatedNetProfit ?? 0;
   const lossTone = lossStokNet > 0 ? "warning" : lossStokNet < 0 ? "success" : "neutral";
-  const grossMargin = summary?.grossMargin ?? 0;
-  const marginTone =
-    grossMargin >= 0.3 ? "success" : grossMargin >= 0.15 ? "brand" : "warning";
-  const estimatedNetProfitTone =
-    estimatedNetProfit >= 0 ? "success" : "danger";
 
   const collectionRate =
     summary && summary.revenue > 0
@@ -397,33 +400,6 @@ function FullFinancialReport() {
               description:
                 "Total pengeluaran manual dan Pembelian Barang pada periode ini.",
               formula: "jumlah - kembalian",
-            }}
-          />
-          <KpiCard
-            label="Laba Bersih (Estimasi)"
-            value={formatRupiah(summary?.estimatedNetProfit ?? 0)}
-            hint="Bukan laba akrual formal"
-            tone={estimatedNetProfitTone}
-            loading={isLoading}
-            icon={<TrendingUp className="h-4 w-4" aria-hidden="true" />}
-            infoText={{
-              title: "Laba Bersih (Estimasi)",
-              description:
-                "Estimasi operasional. Pembelian Barang yang disetujui tercatat sebagai pengeluaran, tetapi tidak mengubah stok.",
-              formula: "Laba Kotor - seluruh Pengeluaran",
-            }}
-          />
-          <KpiCard
-            label="Margin"
-            value={percent(grossMargin)}
-            hint="Laba Kotor / Omzet"
-            tone={marginTone}
-            loading={isLoading}
-            icon={<Percent className="h-4 w-4" aria-hidden="true" />}
-            infoText={{
-              title: "Margin Kotor",
-              description: "Persentase Laba Kotor terhadap Omzet.",
-              formula: "Laba Kotor ÷ Omzet × 100%",
             }}
           />
           <KpiCard

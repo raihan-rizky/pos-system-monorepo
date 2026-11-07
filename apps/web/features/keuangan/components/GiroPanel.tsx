@@ -28,6 +28,7 @@ type Giro = {
   paid: number | null;
   remaining: number | null;
   payments: GiroPayment[];
+  schedule?: { id: string; amount: number; dueDate: string; note: string | null }[];
 };
 type ManualPayable = { id: string; supplierName: string; amount: number; debtDate: string; dueDate: string | null; note?: string | null; paid: number; payments: GiroPayment[] };
 type GiroData = { items: Giro[]; manualPayables: ManualPayable[] };
@@ -291,6 +292,12 @@ function GiroPanelState({ canUpdate }: { canUpdate: boolean }) {
               <div className="min-w-0">
                 <p className="break-words font-semibold text-surface-900">{item.number} · {item.supplierName}</p>
                 <p className="mt-1 text-xs text-surface-600">Nominal {formatRupiah(item.amount)} · Jatuh tempo {item.dueDate ?? "Belum tersedia"}</p>
+                {Boolean(item.schedule?.length) && <div className="mt-2 text-xs text-surface-600">
+                  <p className="font-semibold">Jadwal giro</p>
+                  <ul className="mt-1 space-y-1">{item.schedule?.map((giro, index) => <li key={giro.id}>
+                    Giro {index + 1}: {formatRupiah(giro.amount)} · {giro.dueDate}{giro.note ? ` · ${giro.note}` : ""}
+                  </li>)}</ul>
+                </div>}
                 {!item.debtDate && <p className="mt-1 text-xs text-red-700">Tanggal kewajiban belum tersedia.</p>}
                 <p className="mt-1 text-xs text-surface-600">{statusLabel[item.status]}{item.remaining !== null ? ` · Sisa ${formatRupiah(item.remaining)}` : " · Sisa belum diketahui"}</p>
                 {item.historyIssue && <p className="mt-1 text-xs text-red-700">Riwayat pembayaran tidak sesuai. Hubungi pengelola untuk memeriksa data giro ini.</p>}

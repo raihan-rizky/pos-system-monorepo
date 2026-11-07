@@ -29,7 +29,7 @@ describe.skipIf(!connection)('giro endpoints on isolated PostgreSQL', () => {
 
   beforeAll(async () => {
     const url = new URL(connection!);
-    if (url.hostname !== '127.0.0.1' || url.port !== '55443' || url.pathname !== '/postgres') {
+    if (url.hostname !== '127.0.0.1' || !['55443', '15443'].includes(url.port) || url.pathname !== '/postgres') {
       throw new Error('Giro endpoint tests require the dedicated isolated PostgreSQL instance.');
     }
     admin = new PrismaClient({ datasourceUrl: connection });
@@ -40,7 +40,11 @@ describe.skipIf(!connection)('giro endpoints on isolated PostgreSQL', () => {
     await client.$executeRawUnsafe(`CREATE TABLE "pos_goods_purchases" (
       "id" text PRIMARY KEY, "storeId" text NOT NULL, "number" text NOT NULL, "supplierNameSnapshot" text NOT NULL,
       "totalAmount" numeric(12,2) NOT NULL, "shoppingRequestId" text NOT NULL, "paymentDueDate" date,
-      "status" text NOT NULL, "paymentMethod" text
+      "status" text NOT NULL, "paymentMethod" text, "statusBeforeCancellation" text
+    )`);
+    await client.$executeRawUnsafe(`CREATE TABLE "pos_goods_purchase_payments" (
+      "id" text PRIMARY KEY, "goodsPurchaseId" text NOT NULL REFERENCES "pos_goods_purchases"("id"),
+      "method" text NOT NULL, "amount" numeric(12,2) NOT NULL, "dueDate" date, "note" text
     )`);
     await client.$executeRawUnsafe(`CREATE TABLE "pos_expenses" (
       "id" text PRIMARY KEY, "storeId" text NOT NULL, "amount" numeric(12,2) NOT NULL,
@@ -224,6 +228,44 @@ describe.skipIf(!connection)('giro endpoints on isolated PostgreSQL', () => {
     } finally { mocks.storeId = 'store-1'; }
     const rows = await client.$queryRaw<{ requestScope: string }[]>`SELECT "requestScope" FROM "pos_supplier_payable_payments" WHERE "requestScope" IN (${JSON.stringify(['store-1', key])}, ${JSON.stringify(['store-2', key])})`;
     expect(rows).toHaveLength(2);
+  });
+
+  it('lists every scheduled giro, excludes transfer-only purchases, and caps mixed debt at its giro subtotal', async () => {
+    try {
+      await client.$executeRawUnsafe(`INSERT INTO "pos_goods_purchases" VALUES
+        ('multi-giro','store-1','PB-MG','Contoh',100000,'shopping-mg','2026-11-14','APPROVED','GIRO'),
+        ('multi-mixed','store-1','PB-MX','Contoh',100000,'shopping-mx',null,'APPROVED',null),
+        ('multi-transfer','store-1','PB-MT','Contoh',100000,'shopping-mt',null,'APPROVED','TRANSFER')`);
+      await client.$executeRawUnsafe(`INSERT INTO "pos_expenses" VALUES
+        ('expense-mg','store-1',100000,'2026-10-09 18:00:00',null,'multi-giro','shopping-mg'),
+        ('expense-mx','store-1',100000,'2026-10-09 18:00:00',null,'multi-mixed','shopping-mx'),
+        ('expense-mt','store-1',100000,'2026-10-09 18:00:00',null,'multi-transfer','shopping-mt')`);
+      await client.$executeRawUnsafe(`INSERT INTO "pos_goods_purchase_payments" VALUES
+        ('mg-1','multi-giro','GIRO',30000,'2026-11-14',null), ('mg-2','multi-giro','GIRO',70000,'2026-12-07',null),
+        ('mx-1','multi-mixed','TRANSFER',40000,null,null), ('mx-2','multi-mixed','GIRO',20000,'2026-11-14',null),
+        ('mx-3','multi-mixed','GIRO',40000,'2026-12-07',null), ('mt-1','multi-transfer','TRANSFER',100000,null,null)`);
+      const response = await GET(new Request('http://localhost/api/finance/giro'));
+      expect(response.status).toBe(200);
+      const { items } = await response.json();
+      expect(items.find((item: { goodsPurchaseId: string }) => item.goodsPurchaseId === 'multi-transfer')).toBeUndefined();
+      expect(items.find((item: { goodsPurchaseId: string }) => item.goodsPurchaseId === 'multi-giro')).toMatchObject({
+        amount: 100000, schedule: [{ amount: 30000, dueDate: '2026-11-14' }, { amount: 70000, dueDate: '2026-12-07' }],
+      });
+      expect(items.find((item: { goodsPurchaseId: string }) => item.goodsPurchaseId === 'multi-mixed')).toMatchObject({
+        amount: 60000, dueDate: '2026-11-14', schedule: [{ amount: 20000 }, { amount: 40000 }],
+      });
+      const context = { params: Promise.resolve({ goodsPurchaseId: 'multi-mixed' }) };
+      expect((await reconcile(request({ historyComplete: true, payments: [{ amount: 61000, paidAt: '2026-10-20' }] }), context)).status).toBe(422);
+      expect((await reconcile(request({ historyComplete: true, payments: [{ amount: 10000, paidAt: '2026-10-20' }] }), context)).status).toBe(201);
+      const [payable] = await client.$queryRaw<{ amount: string; dueDate: string }[]>`SELECT "amount"::text, "dueDate"::text FROM "pos_supplier_payables" WHERE "goodsPurchaseId"='multi-mixed'`;
+      expect(payable).toEqual({ amount: '60000.00', dueDate: '2026-11-14' });
+    } finally {
+      await client.$executeRawUnsafe(`DELETE FROM "pos_supplier_payable_payments" WHERE "payableId" IN (SELECT id FROM "pos_supplier_payables" WHERE "goodsPurchaseId" LIKE 'multi-%')`);
+      await client.$executeRawUnsafe(`DELETE FROM "pos_supplier_payables" WHERE "goodsPurchaseId" LIKE 'multi-%'`);
+      await client.$executeRawUnsafe(`DELETE FROM "pos_expenses" WHERE "goodsPurchaseId" LIKE 'multi-%'`);
+      await client.$executeRawUnsafe(`DELETE FROM "pos_goods_purchase_payments" WHERE "goodsPurchaseId" LIKE 'multi-%'`);
+      await client.$executeRawUnsafe(`DELETE FROM "pos_goods_purchases" WHERE id LIKE 'multi-%'`);
+    }
   });
 
   it('replays a legacy request without inventing its missing expected balance', async () => {

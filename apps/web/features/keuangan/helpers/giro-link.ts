@@ -3,7 +3,7 @@ import { jakartaToday, parseAmount, validDate } from "./supplier-payable-input";
 export type LinkPayment = { id?: string; amount: number; paidAt: string };
 export type LinkGiro = { amount: number; debtDate: string | null; payableDebtDate?: string | null; payments: LinkPayment[] };
 export type LinkManual = { amount: number; debtDate: string; payments: LinkPayment[] };
-export type LinkGiroRecord = LinkGiro & { goodsPurchaseId: string; number: string; supplierName: string; dueDate: string | null; payableId: string | null; payableNote?: string | null; status: "UNKNOWN" | "UNPAID" | "PARTIAL" | "PAID"; historyIssue?: boolean };
+export type LinkGiroRecord = LinkGiro & { goodsPurchaseId: string; number: string; supplierName: string; dueDate: string | null; payableId: string | null; payableNote?: string | null; schedule?: { id: string; amount: number; dueDate: string; note: string | null }[]; status: "UNKNOWN" | "UNPAID" | "PARTIAL" | "PAID"; historyIssue?: boolean };
 export type LinkManualRecord = LinkManual & { id: string; supplierName: string; dueDate: string | null; note?: string | null };
 export type DuplicatePayment = { giroPaymentId: string; manualPaymentId: string };
 

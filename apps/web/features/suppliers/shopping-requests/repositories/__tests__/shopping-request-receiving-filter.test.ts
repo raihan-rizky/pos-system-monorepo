@@ -46,11 +46,23 @@ describe("filter penerimaan Daftar Belanja", () => {
     expect(buildShoppingRequestWhere({ storeId: "store-utama", skip: 0, take: 10 })).toEqual({ storeId: "store-utama" });
   });
 
+  it("matches any giro due date on the same payment row, with a legacy fallback", () => {
+    const dueDate = new Date("2026-12-07T00:00:00Z");
+    expect(buildShoppingRequestWhere({ storeId: "store-utama", skip: 0, take: 10, paymentMethod: "GIRO", paymentDueDate: "2026-12-07" }))
+      .toMatchObject({ goodsPurchases: { some: { status: "APPROVED", AND: [{ OR: [
+        { payments: { some: { method: "GIRO", dueDate } } },
+        { payments: { none: {} }, paymentMethod: "GIRO", paymentDueDate: dueDate },
+      ] }] } } });
+  });
+
   it("menyertakan pembelian yang sebelumnya disetujui saat memfilter daftar dibatalkan", () => {
     const where = buildShoppingRequestWhere({ storeId: "store-utama", status: "CANCELLED", fulfillmentStatus: "RECEIVED", paymentMethod: "GIRO", skip: 0, take: 10 });
     expect(where.goodsPurchases).toEqual({ some: {
       OR: [ { status: "APPROVED" }, { status: "CANCELLED", statusBeforeCancellation: "APPROVED" } ],
-      fulfillmentStatus: "RECEIVED", paymentMethod: "GIRO",
+      fulfillmentStatus: "RECEIVED", AND: [{ OR: [
+        { payments: { some: { method: "GIRO" } } },
+        { payments: { none: {} }, paymentMethod: "GIRO" },
+      ] }],
     } });
   });
 });

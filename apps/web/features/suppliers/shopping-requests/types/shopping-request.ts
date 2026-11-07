@@ -34,6 +34,7 @@ export interface ShoppingRequestListItem {
     totalAmount: number;
     paymentMethod?: ShoppingRequestPaymentMethod | null;
     paymentDueDate?: string | null;
+    payments?: Array<{ method: ShoppingRequestPaymentMethod; amount: number; dueDate: string | null; note: string | null }>;
   } | null;
   purchaseHistory?: NonNullable<ShoppingRequestListItem["purchase"]>[];
   approvalFlowVersion?: number;

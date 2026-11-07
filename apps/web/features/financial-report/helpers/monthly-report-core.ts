@@ -26,6 +26,7 @@ export type MonthlyExpenseInput = {
   ambiguousPurchaseDueDates?: Date[];
   shoppingRequest?: { status: string; number?: string; deletion?: { previousStatus: string } | null } | null;
   goodsPurchase?: { number: string; status: string; statusBeforeCancellation?: string | null; totalAmount?: Money; paymentMethod: string | null; paymentDueDate: Date | null; supplierNameSnapshot: string;
+    payments?: { id: string; method: string; amount: Money; dueDate: Date | null }[];
     supplierPayable?: { id: string; debtDate?: Date; giroHistoryVerifiedAt: Date | null; payments: { id: string; amount: Money; paidAt: Date }[] } | null } | null;
 };
 export type MonthlyManualReceivableInput = {
@@ -209,15 +210,27 @@ export function buildMonthlyReport(input: {
       }
       if (!report.warnings.some(warning => warning.includes('nominal belanja'))) report.warnings.push('Sebagian nominal belanja tidak cocok dengan pembelian; periksa jadwal belanja.');
     }
-    const method = row.purchase.method;
     const monthPrefix = period.from.slice(0, 7);
-    if (method === 'GIRO') {
-      if (row.purchase.dueDate?.startsWith(monthPrefix)) purchases.push({ ...row, date: row.purchase.dueDate, amount: purchase?.totalAmount == null ? row.amount : cents(purchase.totalAmount) / 100 });
-      if (!row.purchase.dueDate && inPeriod(expense.occurredAt)) {
-        purchases.push({ ...row, amount: purchase?.totalAmount == null ? row.amount : cents(purchase.totalAmount) / 100 });
+    const children = uniquePayments(purchase?.payments ?? []);
+    const schedule = children.length ? children : [{ id: 'legacy', method: row.purchase.method, amount: purchase?.totalAmount ?? row.amount, dueDate: purchase?.paymentDueDate ?? null }];
+    for (const payment of schedule.filter(payment => payment.method === 'GIRO')) {
+      const dueDate = payment.dueDate ? calendarKey(payment.dueDate) : null;
+      const scheduledRow = { ...row, id: children.length ? `${row.id}:${payment.id}` : row.id, amount: cents(payment.amount) / 100,
+        purchase: { ...row.purchase, method: 'GIRO', dueDate } };
+      if (dueDate?.startsWith(monthPrefix)) purchases.push({ ...scheduledRow, date: dueDate });
+      if (!dueDate && inPeriod(expense.occurredAt)) {
+        purchases.push(scheduledRow);
         report.warnings.push(`Jatuh tempo giro ${row.purchase.reference} belum tersedia.`);
       }
-      if (!obligationInScope) continue;
+    }
+    const transfers = schedule.filter(payment => payment.method === 'TRANSFER');
+    if (transfers.length && inPeriod(expense.occurredAt)) {
+      purchases.push({ ...row, id: children.length ? `${row.id}:transfer` : row.id,
+        amount: children.length ? transfers.reduce((sum, payment) => sum + cents(payment.amount), 0) / 100 : row.amount,
+        purchase: { ...row.purchase, method: 'TRANSFER', dueDate: null } });
+    }
+    // The payable ledger records aggregate repayments, independently of planned giro rows.
+    if (schedule.some(payment => payment.method === 'GIRO') && obligationInScope) {
       if (!payable?.giroHistoryVerifiedAt || expense.purchaseAmountMismatch) {
         report.cashIncomplete = true;
         report.supplierDebtIncomplete = true;
@@ -228,9 +241,8 @@ export function buildMonthlyReport(input: {
           if (date >= obligationDate && date >= period.from && date <= period.to) giroPayments.push({ id: payment.id, date, amount: cents(payment.amount) / 100, reference: row.purchase.reference, supplier: row.purchase.supplier, group: row.group });
         }
       }
-    } else if (method === 'TRANSFER') {
-      if (inPeriod(expense.occurredAt)) purchases.push(row);
-    } else {
+    }
+    if (schedule.some(payment => payment.method !== 'GIRO' && payment.method !== 'TRANSFER')) {
       if (inPeriod(expense.occurredAt)) purchases.push(row);
       if (obligationInScope) {
         report.cashIncomplete = true;

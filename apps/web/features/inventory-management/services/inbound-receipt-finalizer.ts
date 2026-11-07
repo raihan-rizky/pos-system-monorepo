@@ -230,6 +230,7 @@ async function executeFinalization(
         goodsPurchaseId: lockedReceipt.goodsPurchaseId,
         paymentMethod: receipt.paymentMethod ?? null,
         paymentDueDate: receipt.paymentDueDate ?? null,
+        ...(receipt.payments ? { payments: receipt.payments } : {}),
         actor: input.user,
         now: input.now,
       });

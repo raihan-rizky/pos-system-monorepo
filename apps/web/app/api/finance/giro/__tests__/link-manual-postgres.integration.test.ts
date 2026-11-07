@@ -24,8 +24,8 @@ describe.skipIf(!connection)('manual giro linking on isolated local PostgreSQL',
 
   beforeAll(async () => {
     const parsed = new URL(connection!);
-    if (parsed.hostname !== '127.0.0.1' || parsed.port !== '55443' || parsed.pathname !== '/postgres' || parsed.searchParams.has('schema')) {
-      throw new Error('GIRO_TEST_DATABASE_URL must target only 127.0.0.1:55443/postgres without a schema');
+    if (parsed.hostname !== '127.0.0.1' || !['55443', '15443'].includes(parsed.port) || parsed.pathname !== '/postgres' || parsed.searchParams.has('schema')) {
+      throw new Error('GIRO_TEST_DATABASE_URL must target only the isolated local PostgreSQL ports without a schema');
     }
     admin = new PrismaClient({ datasourceUrl: connection });
     await admin.$executeRawUnsafe(`CREATE SCHEMA "${schema}"`);
@@ -35,6 +35,11 @@ describe.skipIf(!connection)('manual giro linking on isolated local PostgreSQL',
     await client.$executeRawUnsafe(`CREATE TABLE "pos_goods_purchases" (
       "id" text PRIMARY KEY, "storeId" text NOT NULL, "number" text NOT NULL, "supplierNameSnapshot" text NOT NULL,
       "totalAmount" numeric(12,2) NOT NULL, "shoppingRequestId" text NOT NULL, "paymentDueDate" date, "status" text NOT NULL, "paymentMethod" text)`);
+    await client.$executeRawUnsafe('ALTER TABLE "pos_goods_purchases" ADD COLUMN "statusBeforeCancellation" text');
+    await client.$executeRawUnsafe(`CREATE TABLE "pos_goods_purchase_payments" (
+      "id" text PRIMARY KEY, "goodsPurchaseId" text NOT NULL REFERENCES "pos_goods_purchases"("id"),
+      "method" text NOT NULL, "amount" numeric(12,2) NOT NULL, "dueDate" date, "note" text
+    )`);
     await client.$executeRawUnsafe(`CREATE TABLE "pos_expenses" (
       "id" text PRIMARY KEY, "storeId" text NOT NULL, "amount" numeric(12,2) NOT NULL, "occurredAt" timestamp NOT NULL,
       "deletedAt" timestamp, "goodsPurchaseId" text, "shoppingRequestId" text)`);
@@ -357,6 +362,22 @@ describe.skipIf(!connection)('manual giro linking on isolated local PostgreSQL',
       await client.$executeRawUnsafe('DROP FUNCTION stall_link_audit()');
     }
   }, 15_000);
+
+  it.each([60000, 100000])('matches manual debt against the mixed-schedule giro subtotal (%s)', async manualAmount => {
+    const f = await fixture(`mixed-${manualAmount}`);
+    await client.$executeRaw`UPDATE "pos_goods_purchases" SET "paymentMethod"=null, "paymentDueDate"=null WHERE id=${f.purchase}`;
+    await client.$executeRaw`INSERT INTO "pos_goods_purchase_payments" VALUES
+      (${`transfer-${manualAmount}`},${f.purchase},'TRANSFER',40000,null,null),
+      (${`giro-${manualAmount}`},${f.purchase},'GIRO',60000,'2026-11-20'::date,null)`;
+    await client.$executeRaw`UPDATE "pos_supplier_payables" SET amount=60000 WHERE id=${f.giro}`;
+    await client.$executeRaw`UPDATE "pos_supplier_payables" SET amount=${manualAmount} WHERE id=${f.manual}`;
+    f.body.expectedGiro.amount = 60000;
+    f.body.expectedManual.amount = manualAmount;
+    const response = await link(request(f.body), f.context);
+    expect(response.status).toBe(manualAmount === 60000 ? 201 : 409);
+    const [audit] = await client.$queryRaw<{ count: bigint }[]>`SELECT COUNT(*) AS count FROM "pos_supplier_payable_manual_links" WHERE "manualPayableId"=${f.manual}`;
+    expect(Number(audit.count)).toBe(manualAmount === 60000 ? 1 : 0);
+  });
 
   it('enables row security and denies API roles direct access to audit snapshots', async () => {
     const [table] = await client.$queryRaw<{ enabled: boolean; publicAccess: boolean }[]>`

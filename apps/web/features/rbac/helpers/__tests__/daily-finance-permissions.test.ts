@@ -7,6 +7,18 @@ import { RBAC_RESOURCE_METADATA, RBAC_PERMISSION_MODULES } from "../rbac-setting
 const targets = ["financial-report.daily-income", "financial-report.daily-category", "financial-report.daily-subcategory", "financial-report.daily-payment-method"];
 
 describe("daily finance permissions", () => {
+  it("catalogs and seeds the independent outstanding DP read permission", () => {
+    const target = "financial-report.daily-outstanding-dp";
+    const defaults = buildDefaultRolePermissions();
+    for (const role of ["ADMIN", "SALES", "CASHIER", "INVENTORY"] as const) {
+      expect(canRolePerformAction(role, target, "read", defaults)).toBe(role === "ADMIN" || role === "SALES");
+      expect(canRolePerformAction(role, target, "update", defaults)).toBe(false);
+    }
+    expect(RBAC_PERMISSION_MODULES.find(item => item.id === "finance-report")?.resourceTargets).toContain(target);
+    expect(RBAC_RESOURCE_METADATA[target]?.actions).toEqual(["read"]);
+    const revoked = normalizeRolePermissions([{ role: "SALES", scope: "resource", target, action: "read", allowed: false }]);
+    expect(canRolePerformAction("SALES", target, "read", revoked)).toBe(false);
+  });
   it("lets SALES open daily reports without full financial access", () => {
     const defaults = buildDefaultRolePermissions();
     expect(canRoleAccessPage("SALES", "/financial-report", defaults)).toBe(true);
@@ -29,9 +41,9 @@ describe("daily finance permissions", () => {
   });
 
   it("exposes all four read-only controls in the finance editor", () => {
-    const financeModule = RBAC_PERMISSION_MODULES.find(item => item.id === "finance-report");
+    const permissionModule = RBAC_PERMISSION_MODULES.find(item => item.id === "finance-report");
     for (const target of targets) {
-      expect(financeModule?.resourceTargets).toContain(target);
+      expect(permissionModule?.resourceTargets).toContain(target);
       expect(RBAC_RESOURCE_METADATA[target]?.actions).toEqual(["read"]);
     }
   });

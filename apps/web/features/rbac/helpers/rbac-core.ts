@@ -60,6 +60,7 @@ export const RESOURCE_TARGETS = [
   "transaction",
   "financial-report",
   "financial-report.daily-income",
+  "financial-report.daily-outstanding-dp",
   "financial-report.daily-category",
   "financial-report.daily-subcategory",
   "financial-report.daily-payment-method",
@@ -240,6 +241,7 @@ const RESOURCE_GRANULAR_ACCESS: Partial<
   Record<string, Record<ResourceAction, Role[]>>
 > = {
   "financial-report.daily-income": { read: ["ADMIN", "SALES"], create: [], update: [], delete: [] },
+  "financial-report.daily-outstanding-dp": { read: ["ADMIN", "SALES"], create: [], update: [], delete: [] },
   "financial-report.daily-category": { read: ["ADMIN", "SALES"], create: [], update: [], delete: [] },
   "financial-report.daily-subcategory": { read: ["ADMIN", "SALES"], create: [], update: [], delete: [] },
   "financial-report.daily-payment-method": { read: ["ADMIN", "SALES"], create: [], update: [], delete: [] },

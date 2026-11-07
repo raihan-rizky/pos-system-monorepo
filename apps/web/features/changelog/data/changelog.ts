@@ -3,6 +3,45 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "inbound-receipt-edit-products-multi-giro", date: "2026-11-07", revision: 1,
+    highlight: { title: "Ubah penerimaan dan pakai multi-giro", summary: "Perbaiki barang dan jumlah, lalu bagi pembayaran ke beberapa giro." },
+    title: "Koreksi barang dan bagi pembayaran giro.",
+    summary: "Perbaiki produk dan jumlah pada penerimaan yang masih menunggu persetujuan. Satu pembelian dapat memakai beberapa giro dengan nominal dan jatuh tempo masing-masing.",
+    kind: "improvement", impact: "major", area: "Penerimaan Barang", href: "/inventory", visual: "shopping",
+    screenshot: { src: "/images/changelog/penerimaan-multi-giro-2026-11-07.png", alt: "Dua giro dengan data contoh: Rp700.000 jatuh tempo 14 November 2026 dan Rp1.300.000 jatuh tempo 7 Desember 2026 pada form Penerimaan Barang." },
+    steps: [
+      { title: "Isi penerimaan", detail: "Buka Inventaris > Transaksi > Penerimaan Barang, pilih Catat Penerimaan, lalu isi barang dari Pembelian Barang yang disetujui." },
+      { title: "Bagi giro", detail: "Pada Pembayaran Pembelian, klik Tambah Giro. Isi nominal dan tanggal setiap giro, misalnya 7 hari dan 30 hari, hingga total alokasinya sesuai pembelian." },
+      { title: "Ajukan dan periksa", detail: "Ajukan ke Owner. Jika perlu koreksi, buka Proses atau Ubah Penerimaan > Edit, pilih produk pembelian yang belum ada di baris lain, ubah jumlah, lalu simpan untuk persetujuan ulang." },
+    ],
+  },
+  {
+    id: "daily-finance-saved-invoice-date", date: "2026-11-07", revision: 1,
+    highlight: { title: "Pemasukan mengikuti tanggal nota", summary: "Pembayaran awal ikut tanggal nota; pelunasan tetap ikut hari pembayaran." },
+    title: "Tanggal nota dipakai pada pemasukan harian.",
+    summary: "Pembayaran awal dan DP berpindah mengikuti tanggal nota yang disimpan. Pelunasan nota lama tetap tercatat pada hari pembayaran.",
+    kind: "fix", impact: "major", area: "Laporan Keuangan", href: "/financial-report", visual: "financial",
+    steps: [
+      { title: "Simpan tanggal nota", detail: "Saat mengubah tanggal transaksi, simpan tanggal nota yang sesuai." },
+      { title: "Pilih tanggal laporan", detail: "Buka Pemasukan Harian dan pilih tanggal WIB; pembayaran awal mengikuti tanggal nota tersimpan." },
+      { title: "Periksa pelunasan", detail: "Pelunasan nota lama tetap masuk pada hari pembayaran; sisa DP mengikuti pembayaran terbaru." },
+    ],
+  },
+  {
+    id: "daily-finance-sales-outstanding-owner-view", date: "2026-11-07", revision: 1,
+    highlight: { title: "Outstanding DP di Sales", summary: "Sales melihat sisa DP; Owner dapat meninjau tampilan Sales." },
+    title: "Rincian Outstanding DP tersedia untuk Sales.",
+    summary: "Sales dapat melihat sisa DP pada pemasukan harian, sementara Owner dapat meninjau tampilan Sales dari Laporan Keuangan.",
+    kind: "improvement", impact: "major", area: "Laporan Keuangan", href: "/financial-report", visual: "financial",
+    screenshot: { src: "/images/changelog/pemasukan-sales-outstanding-dp-2026-11-07.png", alt: "Contoh data uji pada tampilan Sales dengan pemasukan dan sisa DP Rp25.000, serta pilihan tampilan untuk Owner." },
+    steps: [
+      { title: "Buka laporan", detail: "Masuk ke Keuangan > Laporan Keuangan." },
+      { title: "Pilih tampilan", detail: "Sales melihat Pemasukan Harian; Owner dapat memilih Lihat sebagai Sales." },
+      { title: "Periksa saldo", detail: "Baca pemasukan dan sisa DP terkini dari nota hingga tanggal pilihan sesuai izin Sales, lalu pilih Laporan Lengkap untuk kembali. Sisa DP bukan saldo historis dan tidak termasuk Tempo." },
+    ],
+  },
+
+  {
     id: "offline-pos-authorized-checkout", date: "2026-11-07", revision: 1,
     highlight: { title: "POS offline kembali siap", summary: "Buka POS dengan PIN dan simpan transaksi sesuai izin kasir." },
     title: "Pembayaran POS offline kembali tersedia.",

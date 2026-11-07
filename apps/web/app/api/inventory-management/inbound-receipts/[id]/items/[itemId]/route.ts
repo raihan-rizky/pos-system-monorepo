@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { inboundPricingSchema } from "@/features/inventory-management/api/inbound-pricing-schema";
+import { inboundPricingBaselineSchema, inboundPricingSchema } from "@/features/inventory-management/api/inbound-pricing-schema";
 import { InventoryInboundReceiptRepository } from "@/features/inventory-management/repositories/InventoryInboundReceiptRepository";
 import {
   editInboundReceiptItem,
@@ -21,10 +21,11 @@ const pricingUnitSchema = z.object({
 
 const editItemSchema = z
   .object({
+    productId: z.string().min(1).optional(),
     matchStatus: z.enum(["MATCHED", "MISMATCHED"]),
     receivedQuantity: z.number().min(0),
     supplierCostPrice: z.number().min(0).max(9_999_999_999.99).optional(),
-    pricing: z.union([inboundPricingSchema, z.object({ version: z.literal(2), units: z.array(pricingUnitSchema.extend({ priceEdited: z.boolean().optional() })) }).strict()]).nullable().optional(),
+    pricing: z.union([inboundPricingSchema, z.object({ version: z.literal(2), units: z.array(pricingUnitSchema.extend({ priceEdited: z.boolean().optional(), baseline: inboundPricingBaselineSchema.optional() })) }).strict()]).nullable().optional(),
     note: z.string().trim().max(500).optional().nullable(),
     expectedUpdatedAt: z.string().datetime().optional(),
   })

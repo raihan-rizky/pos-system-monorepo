@@ -1185,6 +1185,7 @@ model GoodsPurchase {
   approvedBy               User?                          @relation("goods_purchase_approver", fields: [approvedById], references: [id])
   rejectedBy               User?                          @relation("goods_purchase_rejector", fields: [rejectedById], references: [id])
   items                    GoodsPurchaseItem[]
+  payments                 GoodsPurchasePayment[]
   expense                  Expense?
   supplierPayable          SupplierPayable?
   inboundReceipts          InventoryInboundReceipt[]
@@ -1199,6 +1200,21 @@ model GoodsPurchase {
 enum PurchasePaymentMethod {
   TRANSFER
   GIRO
+}
+
+model GoodsPurchasePayment {
+  id              String               @id @default(cuid())
+  goodsPurchaseId String
+  method          PurchasePaymentMethod
+  amount          Decimal              @db.Decimal(12, 2)
+  dueDate         DateTime?            @db.Date
+  note            String?
+  createdById     String?
+  createdAt       DateTime             @default(now())
+  goodsPurchase   GoodsPurchase        @relation(fields: [goodsPurchaseId], references: [id], onDelete: Cascade)
+
+  @@index([goodsPurchaseId, dueDate])
+  @@map("pos_goods_purchase_payments")
 }
 
 model GoodsPurchaseItem {
@@ -1241,6 +1257,7 @@ model InventoryInboundReceipt {
   goodsPurchaseId   String?
   paymentMethod     PurchasePaymentMethod?
   paymentDueDate    DateTime?                     @db.Date
+  paymentSchedule   Json?
   stockBundleId     String?                       @unique
   supplierId        String?
   status            InventoryInboundReceiptStatus @default(DRAFT)

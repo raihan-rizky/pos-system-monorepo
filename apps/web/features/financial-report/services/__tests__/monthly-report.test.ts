@@ -21,6 +21,35 @@ describe('pembacaan data bulanan', () => {
     mocks.balances.mockReset().mockResolvedValue({ openingInventoryBalance: 100, inventoryBalance: 90, supplierDebts: [], supplierDebtBalance: 0 });
     mocks.runTransaction.mockReset().mockImplementation(callback => callback(mocks.tx));
   });
+  it('membaca jadwal anak dan mengambil jatuh tempo lewat hubungan langsung maupun daftar belanja', async () => {
+    await getMonthlyFinancialReport('store-test', 2026, 9, new Date('2026-10-21T00:00:00Z'));
+    const query = mocks.expense.mock.calls[0][0];
+    expect(query.select.goodsPurchase.select.payments.select).toEqual({ id: true, method: true, amount: true, dueDate: true });
+    expect(query.select.shoppingRequest.select.goodsPurchases.select.payments.select).toEqual({ id: true, method: true, amount: true, dueDate: true });
+    const due = { payments: { some: { method: 'GIRO', dueDate: { gte: new Date('2026-09-01T00:00:00Z'), lt: new Date('2026-10-01T00:00:00Z') } } } };
+    expect(query.where.OR).toContainEqual({ occurredAt: { lte: new Date('2026-10-21T00:00:00Z') }, goodsPurchase: { is: { storeId: 'store-test', ...due } } });
+    expect(query.where.OR).toContainEqual({ occurredAt: { lte: new Date('2026-10-21T00:00:00Z') }, shoppingRequest: { is: { goodsPurchases: { some: { storeId: 'store-test', OR: [{ status: 'APPROVED' }, { status: 'CANCELLED', statusBeforeCancellation: 'APPROVED' }], ...due } } } } });
+  });
+
+  it('menjadwalkan anak dari satu pembelian daftar belanja yang cocok total penuh', async () => {
+    const purchase = { id: 'p1', storeId: 'store-test', number: 'PB-1', status: 'APPROVED', totalAmount: 100, paymentMethod: null, paymentDueDate: null, supplierNameSnapshot: 'Pemasok',
+      payments: [{ id: 't1', method: 'TRANSFER', amount: 30, dueDate: null }, { id: 'g1', method: 'GIRO', amount: 70, dueDate: new Date('2026-09-30T00:00:00Z') }],
+      supplierPayable: { id: 'debt-1', storeId: 'store-test', giroHistoryVerifiedAt: new Date('2026-08-01T00:00:00Z'), payments: [] } };
+    mocks.expense.mockResolvedValue([{ id: 'old', goodsPurchaseId: null, shoppingRequestId: 's1', occurredAt: new Date('2026-08-01T03:00:00Z'), category: 'SUPPLIES', amount: 100, changeAmount: 0, description: 'Bahan', shoppingRequest: { status: 'APPROVED', number: 'DB-1', goodsPurchases: [purchase] }, goodsPurchase: null }]);
+    const result = await getMonthlyFinancialReport('store-test', 2026, 9, new Date('2026-10-21T00:00:00Z'));
+    expect(result.purchaseExpenses).toEqual([expect.objectContaining({ amount: 70, date: '2026-09-30', purchase: expect.objectContaining({ reference: 'PB-1', method: 'GIRO' }) })]);
+    expect(result.cashIncomplete).toBe(false);
+  });
+
+  it('memperingatkan jadwal anak ambigu sebelum bulan penerimaan', async () => {
+    const purchase = { id: 'p1', storeId: 'store-test', number: 'PB-1', status: 'APPROVED', totalAmount: 100, paymentMethod: null, paymentDueDate: null, supplierNameSnapshot: 'Pemasok', payments: [{ id: 'g1', method: 'GIRO', amount: 100, dueDate: new Date('2026-09-30T00:00:00Z') }], supplierPayable: null };
+    mocks.expense.mockResolvedValue([{ id: 'old', goodsPurchaseId: null, shoppingRequestId: 's1', occurredAt: new Date('2026-10-01T03:00:00Z'), category: 'SUPPLIES', amount: 100, changeAmount: 0, description: 'Bahan', shoppingRequest: { status: 'APPROVED', number: 'DB-1', goodsPurchases: [purchase, { ...purchase, id: 'p2' }] }, goodsPurchase: null }]);
+    const result = await getMonthlyFinancialReport('store-test', 2026, 9, new Date('2026-10-21T00:00:00Z'));
+    expect(result.purchaseExpenses).toEqual([]);
+    expect(result.warnings.join(' ')).toContain('jadwal belanja lama');
+    expect(result.cashIncomplete).toBe(false);
+  });
+
   it('membaca seluruh sumber pada satu transaksi dengan snapshot yang konsisten', async () => {
     await getMonthlyFinancialReport('store-test', 2026, 9, new Date('2026-10-21T00:00:00Z'));
     expect(mocks.runTransaction).toHaveBeenCalledOnce();

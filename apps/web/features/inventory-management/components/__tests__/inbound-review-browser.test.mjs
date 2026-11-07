@@ -27,7 +27,10 @@ const bundle = await build({
       window.mountReceipt = mode => {
         const snapshot = mode === 'legacy' ? { version: 1, ...units[1], orderedUnitMultiplierToBase: 1 } : collection;
         window.fixtureReceipt = { id: 'receipt', goodsPurchaseId: 'purchase', goodsPurchaseNumber: 'PB-EXAMPLE', status: 'SUBMITTED', supplier: {name: 'Supplier Contoh'}, lines: [makeLine('line1', 'p1', snapshot), ...(mode === 'shared' ? [makeLine('line2', 'p2', collection)] : [])] };
-        root.render(<InboundReceiptReviewModal key={mode} open receipt={window.fixtureReceipt} comparison={{items: []}} canApprove canEdit canReject onClose={() => {}} onSuccess={() => {}} />);
+        const replacementUnits = [{ productId: 'p3', unit: 'pcs', unitMultiplierToBase: 1, costPrice: 200, price: 250, hargaAgen: 240, hargaDinas: 230, pricingConfigRevision: 7 }];
+        const renderComparison = pricingUnits => root.render(<InboundReceiptReviewModal key={mode} open receipt={window.fixtureReceipt} comparison={{items: mode === 'replacement' ? [{goodsPurchaseItemId: 'gpi3', productId: 'p3', productName: 'Pengganti', unit: 'pcs', remainingQuantity: 1, pricingUnits}] : []}} canApprove canEdit canReject onClose={() => {}} onSuccess={() => {}} />);
+        window.refreshComparison = () => renderComparison(replacementUnits.map(unit => ({...unit, costPrice: 300, pricingConfigRevision: 8})));
+        renderComparison(replacementUnits);
       };
       window.fetch = async (url, init = {}) => {
         if (init.method === 'PATCH') { window.requests.push(JSON.parse(init.body)); return new Response(JSON.stringify({data: {id: 'receipt', status: 'SUBMITTED'}, finalized: false}), {status: 200}); }
@@ -84,7 +87,19 @@ try {
   assert.deepEqual(await page.evaluate(() => window.requests[1].pricing), {
     productId: "p2", costPrice: 100, price: 130, hargaAgen: 120, hargaDinas: 110,
   });
-  console.log("Inbound review confirmation and legacy pricing interactions passed.");
+  await page.evaluate(() => window.mountReceipt("replacement"));
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.locator('[name="reviewLines.line1.productId"]').selectOption("p3");
+  await page.locator('[name="reviewLines.line1.pricing.p3.costPrice"]').fill("210");
+  await page.evaluate(() => window.refreshComparison());
+  await page.getByRole("button", { name: "Simpan Perubahan" }).click();
+  await page.waitForFunction(() => window.requests.length === 3);
+  assert.deepEqual(await page.evaluate(() => window.requests[2].pricing), {
+    version: 2, units: [{ productId: "p3", costPrice: 210, price: 250, hargaAgen: 240, hargaDinas: 230, priceEdited: false,
+      baseline: { unit: "pcs", unitMultiplierToBase: 1, costPrice: 200, price: 250, hargaAgen: 240, hargaDinas: 230,
+        pricingMode: "MANUAL", pricingSourceProductId: null, pricingConfigRevision: 7 } }],
+  });
+  process.stdout.write("Inbound review confirmation, legacy pricing, and replacement baseline interactions passed.\n");
 } finally {
   await browser.close();
 }

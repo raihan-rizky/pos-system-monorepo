@@ -111,6 +111,22 @@ describe("/api/inventory-management/inbound-receipts/[id]/items/[itemId]", () =>
     expect(body.conflict).toBe(true);
   });
 
+  it("PATCH accepts a replacement product with its quantity", async () => {
+    const response = await patch({ productId: "product-3", matchStatus: "MATCHED", receivedQuantity: 4, note: "Perbaikan barang" });
+    expect(response.status).toBe(200);
+    expect(editInboundReceiptItemMock).toHaveBeenCalledWith(expect.objectContaining({ input: expect.objectContaining({ productId: "product-3", receivedQuantity: 4 }) }));
+  });
+
+  it("PATCH retains the displayed replacement pricing baseline", async () => {
+    const pricing = { version: 2, units: [{ productId: "product-3", costPrice: 100, price: 150, hargaAgen: null, hargaDinas: null,
+      baseline: { unit: "pcs", unitMultiplierToBase: 1, costPrice: 100, price: 150, hargaAgen: null, hargaDinas: null,
+        pricingMode: "MANUAL", pricingSourceProductId: null, pricingConfigRevision: 3 } }] };
+    const response = await patch({ productId: "product-3", matchStatus: "MATCHED", receivedQuantity: 4, pricing });
+    expect(response.status).toBe(200);
+    expect(editInboundReceiptItemMock).toHaveBeenCalledWith(expect.objectContaining({ input: expect.objectContaining({ pricing }) }));
+  });
+
+
   it("PATCH accepts and forwards pricing for the selected unit", async () => {
     const pricing = { productId: "unit-1", costPrice: 100, price: 150, hargaAgen: 140, hargaDinas: 130 };
     const input = { matchStatus: "MATCHED", receivedQuantity: 4, pricing, note: "Kurang satu" };

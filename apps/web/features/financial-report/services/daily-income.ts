@@ -9,13 +9,13 @@ export async function loadDailyIncome(storeId: string, date: string) {
       where: {
         storeId, status: { in: ["COMPLETED", "DP"] },
         OR: [
-          { payments: { some: { createdAt: bounds } } },
+          { invoiceDate: bounds },
           { debtPaymentLogs: { some: { createdAt: bounds } } },
-          { createdAt: bounds, paymentMethod: { not: "TEMPO" }, payments: { none: {} } },
+          { status: "DP", paymentMethod: { not: "TEMPO" }, invoiceDate: { lt: end } },
         ],
       },
       select: {
-        id: true, createdAt: true, status: true, total: true, amountPaid: true, change: true, paymentMethod: true,
+        id: true, createdAt: true, invoiceDate: true, status: true, total: true, amountPaid: true, change: true, paymentMethod: true,
         transactionCategory: true, printingSubcategory: true, printingReceipt: { select: { subcategory: true } },
         items: { select: { subtotal: true, printingServiceId: true, product: { select: { category: { select: { name: true } } } } } },
         // Complete ledgers are needed to allocate refunds before filtering by day.

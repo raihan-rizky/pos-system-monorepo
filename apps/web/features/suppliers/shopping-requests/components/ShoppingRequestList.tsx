@@ -35,6 +35,7 @@ import type {
   ShoppingRequestKpiSummary,
 } from "../types/shopping-request";
 import { useRole } from "@/components/providers/RoleProvider";
+import { InboundPaymentSummary } from "../../../inventory-management/components/InboundPaymentFields";
 import { BackdatedPurchaseCard, BackdatedPurchaseCreateModal, BackdatedPurchasePaymentsModal } from "../../backdated-purchases/components/BackdatedPurchaseModals";
 import type { BackdatedPurchaseListItem } from "../types/shopping-request";
 
@@ -321,6 +322,10 @@ export function ShoppingRequestList({
                       {row.supplierName ?? "Supplier belum dipilih"} · {row.number} · {new Date(row.createdAt).toLocaleDateString("id-ID")}
                      </p>
                      {row.purchase && <p className="mt-1 text-xs font-semibold text-cyan-700">Pembelian {row.purchase.number} · {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(row.purchase.totalAmount)}</p>}
+                     {row.purchase?.status === "APPROVED" && Boolean(row.purchase.payments?.length) && <details className="mt-2 rounded-lg border border-slate-200 p-2" onClick={event => event.stopPropagation()}>
+                       <summary className="min-h-10 cursor-pointer text-sm font-semibold text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-700">{row.purchase.payments!.length} pembayaran</summary>
+                       <div className="mt-2"><InboundPaymentSummary payments={row.purchase.payments!} /></div>
+                     </details>}
                      {row.rejectionReason && <p className="mt-1 text-xs text-rose-700">Alasan: {row.rejectionReason}</p>}
                      {row.deletion && <p className="mt-1 break-words text-xs text-slate-600">Dibatalkan oleh {row.deletion.actorName ?? "Pengguna"} · {new Date(row.deletion.createdAt).toLocaleString("id-ID")} · Alasan: {row.deletion.reason}{row.deletion.previousStatus && <> · Status sebelumnya: {STATUS_LABELS[row.deletion.previousStatus].label}</>}</p>}
                      {row.status === "REQUESTED" && row.approvalFlowVersion !== 2 && (
