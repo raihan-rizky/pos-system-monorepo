@@ -71,4 +71,10 @@ describe("inbound payment validation", () => {
       .toEqual([{ method: "TRANSFER", amount: 0, dueDate: null, note: null }]);
     expect(() => validateInboundPayments(0, [{ method: "TRANSFER", amount: 0 }])).toThrow();
   });
+  it("retains zero-valued rows in established corrected schedules without allowing a new zero payment", () => {
+    const payments = [{ method: "TRANSFER" as const, amount: 1000, dueDate: null }, { method: "GIRO" as const, amount: 0, dueDate: "2026-12-01" }];
+    expect(normalizeInboundPayments({ totalAmount: 1000, payments, legacy: null }).payments).toHaveLength(2);
+    expect(() => validateInboundPayments(1000, payments)).toThrow(/lebih dari 0/i);
+    expect(validateInboundPayments(1000, payments, { allowEstablishedZeroRows: true }).payments).toHaveLength(2);
+  });
 });

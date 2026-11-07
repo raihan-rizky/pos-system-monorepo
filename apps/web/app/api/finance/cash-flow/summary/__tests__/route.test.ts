@@ -51,6 +51,21 @@ describe("combined cash-flow summary", () => {
     expect((await response.json()).expense).toEqual({ total: null, incomplete: true, daily: [{ date: "2026-11-04", total: 10_000 }] });
   });
 
+  it("uses actual purchase payments instead of corrected purchase totals and giro rows", async () => {
+    mocks.report.mockResolvedValueOnce({
+      income: [],
+      expenses: [{ date: "2026-11-04", amount: 10_000 }],
+      purchaseExpenses: [{ date: "2026-11-05", amount: 50_000, purchase: { method: "TRANSFER" } }],
+      giroPayments: [{ date: "2026-11-10", amount: 30_000 }],
+      purchasePayments: [{ date: "2026-11-06", amount: 3_000 }, { date: "2026-11-11", amount: 17_000 }],
+      cashIncomplete: false,
+    });
+    const response = await GET(request());
+    expect((await response.json()).expense).toEqual({ total: 30_000, incomplete: false, daily: [
+      { date: "2026-11-04", total: 10_000 }, { date: "2026-11-06", total: 3_000 }, { date: "2026-11-11", total: 17_000 },
+    ] });
+  });
+
   it.each(["income", "expense"])("rejects callers without %s permission before reading data", async (denied) => {
     mocks.permission.mockImplementation(async (resource: string) => {
       if (resource === denied) throw new Error("forbidden");

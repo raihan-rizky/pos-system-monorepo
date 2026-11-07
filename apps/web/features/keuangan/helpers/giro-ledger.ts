@@ -1,7 +1,8 @@
 export type GiroPayment = { amount: number; paidAt: string };
 export type GiroBalance =
   | { status: "UNKNOWN"; paid: null; remaining: null }
-  | { status: "UNPAID" | "PARTIAL" | "PAID"; paid: number; remaining: number };
+  | { status: "UNPAID" | "PARTIAL" | "PAID"; paid: number; remaining: number }
+  | { status: "OVERPAID"; paid: number; remaining: 0; overpaid: number };
 
 function validCalendarDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -16,8 +17,8 @@ function toCents(amount: number): number {
   return Math.round(amount * 100);
 }
 
-export function summarizeGiro(amount: number, payments: GiroPayment[], verified: boolean, asOf: string): GiroBalance {
-  const total = toCents(amount);
+export function summarizeGiro(amount: number, payments: GiroPayment[], verified: boolean, asOf: string, options?: { allowCorrection?: boolean }): GiroBalance {
+  const total = options?.allowCorrection && amount === 0 ? 0 : toCents(amount);
   if (!validCalendarDate(asOf)) throw new Error("Tanggal laporan giro tidak valid.");
   if (!verified) return { status: "UNKNOWN", paid: null, remaining: null };
 
@@ -27,9 +28,12 @@ export function summarizeGiro(amount: number, payments: GiroPayment[], verified:
     const paymentCents = toCents(payment.amount);
     if (payment.paidAt <= asOf) paid += paymentCents;
   }
-  if (paid > total) throw new Error("Pembayaran giro melebihi nominal hutang.");
+  if (paid > total) {
+    if (!options?.allowCorrection) throw new Error("Pembayaran giro melebihi nominal hutang.");
+    return { status: "OVERPAID", paid: paid / 100, remaining: 0, overpaid: (paid - total) / 100 };
+  }
   return {
-    status: paid === 0 ? "UNPAID" : paid === total ? "PAID" : "PARTIAL",
+    status: paid === total ? "PAID" : paid === 0 ? "UNPAID" : "PARTIAL",
     paid: paid / 100,
     remaining: (total - paid) / 100,
   };

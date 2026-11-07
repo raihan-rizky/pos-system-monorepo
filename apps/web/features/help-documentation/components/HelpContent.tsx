@@ -17,6 +17,8 @@ import {
   ShieldCheck,
   TrendingUp,
   History,
+  Pencil,
+  GitCompareArrows,
   Warehouse,
   Search,
   Bot,
@@ -549,6 +551,17 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Klik Tombol Ubah Produk", description: "Klik tombol aksi 'Ubah Produk' (ikon pensil/edit) di kolom paling kanan untuk membuka modal edit produk.", icon: <Settings className="w-8 h-8" /> },
         { title: "Ubah Stok Saat Ini", description: "Pada form modal 'Ubah Produk' yang muncul, cari input 'Stok Saat Ini', lalu ketikkan jumlah stok terbaru yang Anda inginkan.", icon: <Warehouse className="w-8 h-8" /> },
         { title: "Simpan Perubahan", description: "Klik tombol 'Simpan Produk' di pojok kanan bawah modal untuk memperbarui stok produk secara langsung di sistem.", icon: <ShieldCheck className="w-8 h-8" /> },
+      ]
+    },
+    {
+      id: "admin-shopping-request-correction",
+      title: "Koreksi Daftar Belanja",
+      description: "Owner atau role yang diberi izin dapat mengubah daftar belanja setelah diproses, termasuk jumlah diterima, harga, barang, pembayaran, dan pilihan katalog.",
+      icon: <History className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Buka koreksi", description: "Di Supplier > Daftar Belanja, buka Tindakan lainnya pada daftar yang sudah diproses lalu pilih Edit daftar. Arsip yang dibatalkan tetap terkunci.", icon: <Pencil className="w-8 h-8" /> },
+        { title: "Tinjau dampak", description: "Ubah data yang diperlukan, masukkan alasan, lalu pilih Tinjau dampak. Periksa stok, total berdasarkan jumlah diterima, periode laporan, dan peringatan kelebihan pembayaran.", icon: <GitCompareArrows className="w-8 h-8" /> },
+        { title: "Simpan dan cek riwayat", description: "Jika harga beli berubah, pilih HPP atau harga jual katalog secara terpisah. Simpan perubahan, lalu buka badge Diubah atau Stok berubah untuk melihat pelaku, alasan, dan nilai sebelum-sesudah.", icon: <History className="w-8 h-8" /> },
       ]
     },
     {

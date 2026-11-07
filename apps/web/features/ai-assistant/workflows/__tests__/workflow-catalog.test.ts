@@ -21,8 +21,19 @@ describe("FAQ workflow catalog", () => {
   });
   it("mempertahankan urutan nomor FAQ saat panduan perubahan nota ditambahkan", () => {
     expect(FAQ_WORKFLOWS.map(workflow => workflow.faqNumber)).toEqual(
-      Array.from({ length: 52 }, (_, index) => index + 1),
+      Array.from({ length: 53 }, (_, index) => index + 1),
     );
+  });
+
+  it("menautkan panduan koreksi daftar belanja ke FAQ dan izin koreksi", () => {
+    const correction = FAQ_WORKFLOWS.find((workflow) => workflow.faqNumber === 53);
+    expect(correction).toMatchObject({
+      route: "/suppliers",
+      requiredCapabilities: [{ resource: "supplier.shopping_request.correct_processed", action: "update" }],
+    });
+    const faq = readFileSync(new URL("../../docs/help/faq.md", import.meta.url), "utf8");
+    expect(faq).toContain("### Q53: Bagaimana cara mengoreksi daftar belanja yang sudah diproses?");
+    expect(faq).toContain("Kelebihan pembayaran");
   });
 
   it("guides manual receivables separately from invoice payments", () => {
@@ -119,9 +130,9 @@ describe("FAQ workflow catalog", () => {
   });
 
   it("defines one serializable guided workflow for each numbered FAQ", () => {
-    expect(FAQ_WORKFLOWS).toHaveLength(52);
+    expect(FAQ_WORKFLOWS).toHaveLength(53);
     expect(FAQ_WORKFLOWS.map((workflow) => workflow.faqNumber).sort((a, b) => a - b))
-      .toEqual(Array.from({ length: 52 }, (_, index) => index + 1));
+      .toEqual(Array.from({ length: 53 }, (_, index) => index + 1));
 
     for (const workflow of FAQ_WORKFLOWS) {
       expect(workflow.id).toMatch(/^faq-q\d{2}-[a-z0-9-]+$/);

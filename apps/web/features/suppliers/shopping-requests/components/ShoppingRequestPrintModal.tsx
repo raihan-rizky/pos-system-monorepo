@@ -72,7 +72,7 @@ export function ShoppingRequestPrintPages({
               </div>
               <div>
                 <dt>Tanggal</dt>
-                <dd>{formatShoppingRequestDate(detail.approvedAt ?? detail.createdAt)}</dd>
+                <dd>{formatShoppingRequestDate(detail.businessDate ?? detail.approvedAt ?? detail.createdAt)}</dd>
               </div>
               <div>
                 <dt>Pemohon</dt>

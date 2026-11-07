@@ -77,6 +77,7 @@ export const RESOURCE_TARGETS = [
   "product.price_log",
   "supplier",
   "supplier.shopping_request.edit",
+  "supplier.shopping_request.correct_processed",
   "supplier.shopping_request.delete",
   "supplier.shopping_request.set_approved_qty",
   "supplier.shopping_request.approve_stock",
@@ -252,6 +253,12 @@ const RESOURCE_GRANULAR_ACCESS: Partial<
     delete: [],
   },
   "supplier.shopping_request.edit": {
+    read: [],
+    create: [],
+    update: [],
+    delete: [],
+  },
+  "supplier.shopping_request.correct_processed": {
     read: [],
     create: [],
     update: [],

@@ -18,6 +18,7 @@ function transaction(overrides: Record<string, unknown> = {}) {
     paymentDueDate: null, payments: [], expense: null, _count: { items: 1 }, ...overrides,
   };
   return {
+    shoppingRequestCorrection: { count: vi.fn().mockResolvedValue(0) },
     goodsPurchase: { findFirst: vi.fn().mockResolvedValue(purchase), update: vi.fn().mockResolvedValue({}) },
     expense: { create: vi.fn().mockResolvedValue({}) },
     supplierPayable: { create: vi.fn().mockResolvedValue({}) },

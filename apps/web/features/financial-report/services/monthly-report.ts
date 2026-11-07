@@ -2,6 +2,7 @@ import { db, Prisma } from '@pos/db';
 import { recognizedExpenseFilter } from '@/features/keuangan/helpers/recognized-expense-filter';
 import { buildMonthlyPeriod, buildMonthlyReport } from '../helpers/monthly-report-core';
 import { getMonthlyBalances } from './monthly-balances';
+import { applyShoppingCorrectionReportPayments } from '../helpers/shopping-correction-report-payments';
 
 export async function getMonthlyFinancialReport(storeId: string, year: number, month: number, now = new Date()) {
   if (!storeId) throw new Error('Toko pengguna belum tersedia.');
@@ -12,9 +13,10 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
   const knownByNow = { lte: now };
   const paymentSelect = { id: true, method: true, amount: true, createdAt: true } as const;
   const recognizedPurchase = { OR: [{ status: 'APPROVED' }, { status: 'CANCELLED', statusBeforeCancellation: 'APPROVED' }] } satisfies Prisma.GoodsPurchaseWhereInput;
-  const purchaseSelect = { id: true, storeId: true, number: true, status: true, statusBeforeCancellation: true, totalAmount: true, paymentMethod: true, paymentDueDate: true, supplierNameSnapshot: true,
+  const purchaseSelect = { id: true, storeId: true, number: true, status: true, statusBeforeCancellation: true, totalAmount: true, paymentMethod: true, paymentDueDate: true, supplierNameSnapshot: true, initialTransferAmount: true, initialTransferPaidAt: true,
     payments: { select: { id: true, method: true, amount: true, dueDate: true }, orderBy: [{ dueDate: 'asc' }, { id: 'asc' }] },
-    supplierPayable: { select: { id: true, storeId: true, debtDate: true, giroHistoryVerifiedAt: true, payments: { select: { id: true, amount: true, paidAt: true }, orderBy: [{ paidAt: 'asc' }, { id: 'asc' }] } } },
+    supplierPayable: { select: { id: true, storeId: true, amount: true, debtDate: true, dueDate: true, note: true, giroHistoryVerifiedAt: true, payments: { select: { id: true, amount: true, paidAt: true }, orderBy: [{ paidAt: 'asc' }, { id: 'asc' }] } } },
+    shoppingRequest: { select: { corrections: { where: { storeId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 1, select: { afterSnapshot: true, allocations: { select: { sourceKind: true, paymentId: true, method: true, amount: true, sourceAmount: true, paidAt: true } } } } } },
   } satisfies Prisma.GoodsPurchaseSelect;
   // All inputs must see the same committed state, including giro payments and
   // their remaining debt. A payment can otherwise commit between the queries.
@@ -45,6 +47,8 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
         { occurredAt: knownByNow, shoppingRequest: { is: { goodsPurchases: { some: { storeId, ...recognizedPurchase, payments: { some: { method: 'GIRO', dueDate: calendarBounds } } } } } } },
         { occurredAt: knownByNow, goodsPurchase: { is: { supplierPayable: { is: { storeId, debtDate: { lte: periodLastDate } } } } } },
         { occurredAt: knownByNow, shoppingRequest: { is: { goodsPurchases: { some: { storeId, ...recognizedPurchase, supplierPayable: { is: { storeId, debtDate: { lte: periodLastDate } } } } } } } },
+        { occurredAt: knownByNow, goodsPurchase: { is: { shoppingRequest: { is: { corrections: { some: { storeId } } } } } } },
+        { occurredAt: knownByNow, shoppingRequest: { is: { corrections: { some: { storeId } } } } },
       ] },
       select: { id: true, occurredAt: true, category: true, customCategory: { select: { name: true } }, amount: true, changeAmount: true, description: true, hasMissingCostSnapshot: true, applicantName: true, manualPurchasePaymentMethod: true, goodsPurchaseId: true, shoppingRequestId: true, backdatedPurchaseDueId: true, backdatedPurchasePaymentId: true,
         shoppingRequest: { select: { status: true, number: true, deletion: { select: { previousStatus: true } }, goodsPurchases: { where: { storeId, ...recognizedPurchase }, select: purchaseSelect } } },
@@ -95,5 +99,10 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
   if ((balances.openingInventoryUnvaluedCount ?? 0) > 0) report.warnings.push(`Modal awal belum lengkap: HPP belum tersedia untuk ${balances.openingInventoryUnvaluedCount} produk.`);
   if ((balances.inventoryUnvaluedCount ?? 0) > 0) report.warnings.push(`Nilai inventaris akhir belum lengkap: HPP belum tersedia untuk ${balances.inventoryUnvaluedCount} produk.`);
   report.warnings.push('Saldo hutang mencakup hutang pemasok, belanja terdahulu, dan sisa giro yang riwayatnya telah diperiksa. Pembayaran hutang manual tidak otomatis menjadi pengeluaran.');
+  applyShoppingCorrectionReportPayments(report, scopedExpenses.flatMap(expense => {
+    const purchase = expense.goodsPurchase;
+    const correction = purchase?.shoppingRequest?.corrections?.[0];
+    return purchase && correction ? [{ expenseId: expense.id, occurredAt: expense.occurredAt, purchase, correction }] : [];
+  }));
   return report;
 }

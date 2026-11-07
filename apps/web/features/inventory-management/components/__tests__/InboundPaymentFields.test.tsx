@@ -8,6 +8,11 @@ const payments = [
   { method: "GIRO" as const, amount: 1_300_000, dueDate: "2026-12-07", note: "30 hari" },
 ];
 describe("rincian pembayaran penerimaan", () => {
+  it("allows a retained zero row only in correction mode", () => {
+    const html = renderToStaticMarkup(<InboundPaymentFields payments={[{ ...payments[0], amount: 0 }]} totalAmount={0} allowZeroAmounts onChange={vi.fn()} />);
+    expect(html).toContain('min="0"');
+    expect(html).toContain('value="0"');
+  });
   it("renders two separately labelled giro amounts and dates and their exact total", () => {
     const html = renderToStaticMarkup(<InboundPaymentFields payments={payments} totalAmount={2_000_000} onChange={vi.fn()} />);
     expect(html).toContain('name="payments.0.amount"');

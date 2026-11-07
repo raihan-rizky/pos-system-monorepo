@@ -103,8 +103,10 @@ export function listShoppingRequests(
         supplier: { select: { id: true, name: true } },
         deletion: { select: { actorName: true, reason: true, createdAt: true, previousStatus: true } },
         goodsPurchases: { orderBy: { createdAt: "desc" }, select: { id: true, number: true, status: true, statusBeforeCancellation: true, fulfillmentStatus: true, totalAmount: true, paymentMethod: true, paymentDueDate: true, payments: { orderBy: { createdAt: "asc" }, select: { method: true, amount: true, dueDate: true, note: true } } } },
-        _count: { select: { items: true } },
+        _count: { select: { items: { where: { removedAt: null } }, corrections: true } },
+        corrections: { where: { movements: { some: { baseDelta: { not: 0 } } } }, take: 1, select: { id: true } },
         items: {
+          where: { removedAt: null },
           select: {
             requestedQty: true,
             approvedQty: true,
@@ -132,6 +134,8 @@ export function listShoppingRequests(
           totalAmount: Number(purchase.totalAmount.toString()),
         })),
         approvalFlowVersion: row.approvalFlowVersion,
+        correctionCount: row._count.corrections ?? 0,
+        correctionStockChanged: (row.corrections?.length ?? 0) > 0,
         number: row.number,
         name: row.name,
         status: row.status,
@@ -165,6 +169,7 @@ export function listShoppingRequests(
                 0,
               ),
         createdAt: row.createdAt.toISOString(),
+        businessDate: row.businessDate?.toISOString() ?? null,
         approvedAt: row.approvedAt ? row.approvedAt.toISOString() : null,
         rejectedAt: row.rejectedAt ? row.rejectedAt.toISOString() : null,
         rejectedByName: row.rejectedByName,
@@ -229,6 +234,7 @@ export function findShoppingRequestById(
         supplier: { select: { id: true, name: true } },
         goodsPurchases: { orderBy: { createdAt: "desc" }, select: { id: true, number: true, status: true, fulfillmentStatus: true, totalAmount: true, paymentMethod: true, paymentDueDate: true, payments: { orderBy: { createdAt: "asc" }, select: { method: true, amount: true, dueDate: true, note: true } } } },
         items: {
+          where: { removedAt: null },
           include: {
             product: { select: { name: true, sku: true, unit: true, imageUrl: true, costPrice: true, conversionNeedsReview: true, unitMultiplierToBase: true, stockGroup: { select: { id: true, displayName: true, baseUnit: true, baseStock: true } } } },
           },
@@ -304,6 +310,7 @@ export function findShoppingRequestById(
         totalRequestedQty,
         totalApprovedQty,
         createdAt: row.createdAt.toISOString(),
+        businessDate: row.businessDate?.toISOString() ?? null,
         approvedAt: row.approvedAt ? row.approvedAt.toISOString() : null,
         rejectedAt: row.rejectedAt ? row.rejectedAt.toISOString() : null,
         rejectedByName: row.rejectedByName,

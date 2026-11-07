@@ -158,6 +158,7 @@ export const RBAC_PERMISSION_MODULES: RbacPermissionModule[] = [
     resourceTargets: [
       "supplier",
       "supplier.shopping_request.edit",
+      "supplier.shopping_request.correct_processed",
       "supplier.shopping_request.delete",
       "supplier.shopping_request.set_approved_qty",
       "supplier.shopping_request.approve_stock",

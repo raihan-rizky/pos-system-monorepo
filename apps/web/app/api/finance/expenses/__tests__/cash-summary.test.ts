@@ -57,6 +57,19 @@ describe("expense cash summary permissions", () => {
     expect(body).not.toHaveProperty("cashExpense");
   });
 
+  it("uses actual purchase payments without counting corrected totals or giro rows again", async () => {
+    mocks.report.mockResolvedValue({
+      ...fixture(),
+      purchasePayments: [{ date: "2026-11-06", amount: 3_000 }, { date: "2026-11-11", amount: 17_000 }],
+    });
+    const response = await GET(new Request("http://localhost/api/finance/expenses/summary?month=2026-11"));
+    const body = await response.json();
+    expect(body.cashExpense).toEqual({ total: 30_000, incomplete: false });
+    expect(body.cashDaily).toEqual([
+      { date: "2026-11-01", total: 10_000 }, { date: "2026-11-06", total: 3_000 }, { date: "2026-11-11", total: 17_000 },
+    ]);
+  });
+
   it.each(["1899-12", "9999-01"])("rejects an unavailable report period in metrics mode: %s", async month => {
     const response = await GET(new Request(`http://localhost/api/finance/expenses/summary?month=${month}&metricsOnly=1`));
     expect(response.status).not.toBe(200);

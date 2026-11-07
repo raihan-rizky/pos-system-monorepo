@@ -5,6 +5,7 @@ const tx = vi.hoisted(() => ({
   $executeRaw: vi.fn(),
   shoppingRequest: { findFirst: vi.fn(), update: vi.fn() },
   goodsPurchase: { findMany: vi.fn(), updateMany: vi.fn() },
+  goodsPurchaseItem: { findMany: vi.fn() },
   inventoryInboundReceipt: { findMany: vi.fn(), updateMany: vi.fn() },
   product: { findMany: vi.fn(), updateMany: vi.fn() },
   productStockGroup: { findMany: vi.fn(), updateMany: vi.fn() },
@@ -13,6 +14,7 @@ const tx = vi.hoisted(() => ({
   batchOperation: { create: vi.fn(), updateMany: vi.fn() },
   batchOperationItem: { createMany: vi.fn() },
   shoppingRequestDeletion: { create: vi.fn() },
+  shoppingRequestCorrectionMovement: { findMany: vi.fn() },
 }));
 const transaction = vi.hoisted(() => vi.fn(async (callback: (value: typeof tx) => unknown) => callback(tx)));
 vi.mock("@pos/db", () => ({ db: { $transaction: transaction } }));
@@ -29,7 +31,7 @@ const product = { id: "p-1", name: "Barang A", sku: "A", unit: "pcs", stock: 8, 
 function receipt() {
   return {
     id: "receipt-1", goodsPurchaseId: "purchase-1", status: "APPROVED", createdAt: new Date("2026-11-01T00:00:00Z"), stockBundleId: "batch-1",
-    lines: [{ id: "line-1", productId: "p-1", inventoryLogId: "log-1", receivedQuantity: 4 }],
+    lines: [{ id: "line-1", productId: "p-1", inventoryLogId: "log-1", status: "RECEIVED", receivedQuantity: 4 }],
     stockBundle: { id: "batch-1", type: "INBOUND_RECEIPT", undoOfBatchId: null as string | null, summary: { source: "INBOUND_RECEIPT", receiptId: "receipt-1", goodsPurchaseId: "purchase-1" }, status: "COMMITTED", items: [{ productId: "p-1", inventoryLogId: "log-1" as string | null, afterSnapshot: { unit: "pcs", inboundReceiptImpact: { kind: "CANONICAL", receiptId: "receipt-1", receiptLineId: "line-1" as string | null, stockGroupId: null as string | null, delta: 4, baseDelta: 4 } } }] },
   };
 }
@@ -41,6 +43,7 @@ describe("transaksi penghapusan daftar belanja", () => {
     tx.$executeRaw.mockResolvedValue(0);
     tx.shoppingRequest.findFirst.mockResolvedValue({ id: "sr-1", number: "DPB-1", name: "Daftar", status: "APPROVED", stockAppliedAt: null, items: [], deletion: null });
     tx.goodsPurchase.findMany.mockResolvedValue([{ id: "purchase-1", status: "APPROVED" }]);
+    tx.goodsPurchaseItem.findMany.mockResolvedValue([]);
     tx.inventoryInboundReceipt.findMany.mockResolvedValue([receipt()]);
     tx.product.findMany.mockResolvedValue([product]);
     tx.productStockGroup.findMany.mockResolvedValue([]);
@@ -57,6 +60,7 @@ describe("transaksi penghapusan daftar belanja", () => {
     tx.inventoryLog.findFirst.mockResolvedValue(null);
     tx.shoppingRequest.update.mockResolvedValue({ id: "sr-1" });
     tx.shoppingRequestDeletion.create.mockResolvedValue({ id: "audit-1" });
+    tx.shoppingRequestCorrectionMovement.findMany.mockResolvedValue([]);
   });
 
   it("membalik stok penerimaan sekali dan menyimpan sumber dalam audit", async () => {
@@ -118,7 +122,7 @@ describe("transaksi penghapusan daftar belanja", () => {
 
   it("menolak penerimaan positif yang tidak memiliki catatan stok meski bundle tersedia", async () => {
     const incomplete = receipt();
-    incomplete.lines.push({ id: "line-missing", inventoryLogId: null, receivedQuantity: 2 } as any);
+    incomplete.lines.push({ id: "line-missing", inventoryLogId: null, status: "RECEIVED", receivedQuantity: 2 } as any);
     tx.inventoryInboundReceipt.findMany.mockResolvedValue([incomplete]);
     await expect(repository.deleteShoppingRequestRecord("sr-1", "Salah catat", actor)).rejects.toThrow(/riwayat stok|dampak stok/i);
     expect(tx.product.updateMany).not.toHaveBeenCalled();
@@ -216,7 +220,7 @@ describe("transaksi penghapusan daftar belanja", () => {
     const grouped = receipt();
     grouped.lines[0].receivedQuantity = 0.1;
     Object.assign(grouped.stockBundle.items[0].afterSnapshot.inboundReceiptImpact, { stockGroupId: "group-1", delta: 0.1, baseDelta: 0.1 });
-    grouped.lines.push({ id: "line-2", productId: "p-2", inventoryLogId: "log-2", receivedQuantity: 0.2 });
+    grouped.lines.push({ id: "line-2", productId: "p-2", inventoryLogId: "log-2", status: "RECEIVED", receivedQuantity: 0.2 });
     grouped.stockBundle.items.push({ productId: "p-2", inventoryLogId: "log-2", afterSnapshot: { unit: "pcs", inboundReceiptImpact: { kind: "CANONICAL", receiptId: "receipt-1", receiptLineId: "line-2", stockGroupId: "group-1", delta: 0.2, baseDelta: 0.2 } } });
     tx.inventoryInboundReceipt.findMany.mockResolvedValue([grouped]);
     tx.product.findMany.mockResolvedValue([{ ...product, stockGroupId: "group-1" }, { ...product, id: "p-2", stockGroupId: "group-1" }]);

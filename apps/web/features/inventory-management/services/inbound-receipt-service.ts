@@ -194,6 +194,7 @@ interface GoodsPurchaseForReceipt {
     unitMultiplierToBase?: number;
     pricingUnits?: InboundPricingUnit[];
     quantity: number;
+    approvedReceivedQuantity?: number;
     inboundReceiptLines: Array<{
       status: InboundReceiptLineStatus;
       receivedQuantity: number;
@@ -1316,7 +1317,7 @@ export async function createAndSubmitGoodsPurchaseReceipt(
             legacy: purchase.paymentMethod ? { method: purchase.paymentMethod, dueDate: purchase.paymentDueDate?.toISOString().slice(0, 10) ?? null } : null }).payments
         : null;
       const normalized = input.input.payments !== undefined
-        ? validateInboundPayments(purchaseTotalAmount, input.input.payments)
+        ? validateInboundPayments(purchaseTotalAmount, input.input.payments, { allowEstablishedZeroRows: Boolean(established) })
         : normalizeInboundPayments({
             totalAmount: purchaseTotalAmount,
             payments: input.input.paymentMethod || input.input.paymentDueDate !== undefined ? [] : established,
@@ -1336,7 +1337,7 @@ export async function createAndSubmitGoodsPurchaseReceipt(
     }
 
     const availableItems = purchase.items.flatMap((item) => {
-      const approvedReceivedQuantity = item.inboundReceiptLines
+      const approvedReceivedQuantity = item.approvedReceivedQuantity ?? item.inboundReceiptLines
         .filter((line) => line.receipt.status === "APPROVED")
         .reduce(
           (sum, line) =>

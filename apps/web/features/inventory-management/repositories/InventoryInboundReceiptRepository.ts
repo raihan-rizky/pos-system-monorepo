@@ -20,6 +20,8 @@ import {
 } from "@/features/product-stock-groups/automatic-pricing";
 import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
 import { normalizeInboundPayments, sameInboundPayments, inboundPaymentSummary, validateInboundPayments } from "../helpers/inbound-payment";
+import { loadCorrectedReceiptTotals } from "@/features/suppliers/shopping-requests/repositories/received-quantity-repository";
+import { refreshReceivedPurchaseTotal } from "@/features/suppliers/shopping-requests/repositories/refresh-received-purchase-total";
 import {
   calculateInboundAvailability,
   getInboundStockQuantity,
@@ -142,9 +144,10 @@ export class InventoryInboundReceiptRepository
       where: { id: input.goodsPurchaseId, storeId: input.storeId, status: "APPROVED" },
       select: {
         id: true, number: true, shoppingRequestId: true, supplierNameSnapshot: true,
-        totalAmount: true, paymentMethod: true, paymentDueDate: true,
+        totalAmount: true, paymentMethod: true, paymentDueDate: true, initialTransferAmount: true,
         payments: { orderBy: { createdAt: "asc" }, select: { method: true, amount: true, dueDate: true, note: true } },
         expense: { select: { id: true } },
+        supplierPayable: { select: { id: true } },
         shoppingRequest: { select: { expense: { select: { id: true } } } },
         _count: { select: { items: true } },
       },
@@ -152,7 +155,6 @@ export class InventoryInboundReceiptRepository
     if (!purchase) throw new Error("Pembelian Barang tidak tersedia.");
     const existingExpense = purchase.expense ?? purchase.shoppingRequest?.expense;
     const hasScheduledPayments = (purchase.payments?.length ?? 0) > 0;
-    const isNewPayment = !existingExpense && !purchase.paymentMethod && !hasScheduledPayments;
     if (!input.payments && input.paymentMethod && hasScheduledPayments) {
       const totalAmount = Number(purchase.totalAmount.toString());
       const established = normalizeInboundPayments({ totalAmount, legacy: null,
@@ -168,7 +170,7 @@ export class InventoryInboundReceiptRepository
     }
     if (input.payments !== undefined) {
       const total = Number(purchase.totalAmount.toString());
-      const proposal = validateInboundPayments(total, input.payments, { allowZeroTotalLegacy: true }).payments;
+      const proposal = validateInboundPayments(total, input.payments, { allowZeroTotalLegacy: true, allowEstablishedZeroRows: hasScheduledPayments }).payments;
       const established = hasScheduledPayments || purchase.paymentMethod
         ? normalizeInboundPayments({ totalAmount: total, payments: purchase.payments?.map(row => ({
             method: row.method, amount: Number(row.amount.toString()), dueDate: row.dueDate?.toISOString().slice(0, 10) ?? null, note: row.note,
@@ -205,6 +207,13 @@ export class InventoryInboundReceiptRepository
       });
     }
     if (!existingExpense) {
+      const establishedPayments = input.payments ?? (purchase.payments.length ? purchase.payments.map(row => ({ method: row.method, amount: Number(row.amount), dueDate: row.dueDate?.toISOString().slice(0, 10) ?? null, note: row.note }))
+        : [{ method: purchase.paymentMethod ?? input.paymentMethod!, amount: Number(purchase.totalAmount), dueDate: (purchase.paymentDueDate ?? input.paymentDueDate)?.toISOString().slice(0, 10) ?? null, note: null }]);
+      const receiptDate = new Date(input.now.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      if (purchase.initialTransferAmount == null) await tx.goodsPurchase.update({ where: { id: purchase.id }, data: {
+        initialTransferAmount: establishedPayments.filter(row => row.method === "TRANSFER").reduce((sum, row) => sum.plus(String(row.amount)), new Prisma.Decimal(0)),
+        initialTransferPaidAt: new Date(`${receiptDate}T00:00:00.000Z`),
+      } });
       await tx.expense.create({
         data: {
           storeId: input.storeId, recordedById: input.actor.id,
@@ -215,14 +224,14 @@ export class InventoryInboundReceiptRepository
           hasMissingCostSnapshot: false,
         },
       });
-      const giroPayments = input.payments?.filter(payment => payment.method === "GIRO");
+      const giroPayments = establishedPayments.filter(payment => payment.method === "GIRO");
       const giroAmount = giroPayments
         ? giroPayments.reduce((sum, payment) => sum + Math.round(payment.amount * 100), 0) / 100
         : input.paymentMethod === "GIRO" ? Number(purchase.totalAmount.toString()) : 0;
       const giroDueDate = giroPayments
         ? giroPayments.map(payment => payment.dueDate!).sort()[0]
         : input.paymentDueDate?.toISOString().slice(0, 10);
-      if (isNewPayment && giroAmount > 0) {
+      if (!purchase.supplierPayable && giroAmount > 0) {
         const receiptDate = new Date(input.now.getTime() + 7 * 60 * 60 * 1000)
           .toISOString().slice(0, 10);
         await tx.supplierPayable.create({
@@ -232,7 +241,7 @@ export class InventoryInboundReceiptRepository
             goodsPurchaseId: purchase.id,
             giroHistoryVerifiedAt: input.now,
             supplierName: purchase.supplierNameSnapshot,
-            amount: giroAmount,
+            amount: await tx.shoppingRequestCorrection.count({ where: { storeId: input.storeId, shoppingRequestId: purchase.shoppingRequestId } }) ? purchase.totalAmount : giroAmount,
             debtDate: new Date(`${receiptDate}T00:00:00.000Z`),
             dueDate: giroDueDate ? new Date(`${giroDueDate}T00:00:00.000Z`) : null,
             createdById: input.actor.id,
@@ -309,6 +318,8 @@ export class InventoryInboundReceiptRepository
                 },
               },
             },
+            shoppingRequestId: true,
+            totalBasis: true,
           },
         },
         lines: {
@@ -357,6 +368,12 @@ export class InventoryInboundReceiptRepository
       },
     });
     if (!receipt) return null;
+
+    const correctedReceived = receipt.goodsPurchase?.totalBasis === "RECEIVED" && receipt.goodsPurchaseId
+      ? await loadCorrectedReceiptTotals(tx, input.storeId, receipt.lines.flatMap((line) => line.goodsPurchaseItem
+        ? [{ id: line.goodsPurchaseItem.id, purchaseId: receipt.goodsPurchaseId!, requestId: receipt.goodsPurchase!.shoppingRequestId }]
+        : []))
+      : null;
 
     return {
       id: receipt.id,
@@ -426,7 +443,7 @@ export class InventoryInboundReceiptRepository
             }
           : null,
         approvedReceivedExcludingCurrentReceipt:
-          line.goodsPurchaseItem?.inboundReceiptLines.reduce(
+          (line.goodsPurchaseItem ? correctedReceived?.get(line.goodsPurchaseItem.id) : undefined) ?? line.goodsPurchaseItem?.inboundReceiptLines.reduce(
             (sum, approvedLine) =>
               sum +
               getInboundStockQuantity({
@@ -1048,13 +1065,16 @@ export class InventoryInboundReceiptRepository
     const items = await tx.goodsPurchaseItem.findMany({
       where: {
         goodsPurchaseId: input.goodsPurchaseId,
+        removedAt: null,
         goodsPurchase: {
           storeId: input.storeId,
           status: "APPROVED",
         },
       },
       select: {
+        id: true,
         quantity: true,
+        goodsPurchase: { select: { totalBasis: true, shoppingRequestId: true } },
         inboundReceiptLines: {
           where: {
             receipt: {
@@ -1064,6 +1084,7 @@ export class InventoryInboundReceiptRepository
             },
           },
           select: {
+            id: true,
             status: true,
             receivedQuantity: true,
           },
@@ -1071,9 +1092,15 @@ export class InventoryInboundReceiptRepository
       },
     });
 
+    const received = items[0]?.goodsPurchase.totalBasis === "RECEIVED"
+      ? await loadCorrectedReceiptTotals(tx, input.storeId, items.map((item) => ({
+        id: item.id, purchaseId: input.goodsPurchaseId, requestId: item.goodsPurchase.shoppingRequestId,
+      })))
+      : null;
+
     return items.map((item) => ({
       orderedQuantity: item.quantity,
-      approvedReceivedQuantity: item.inboundReceiptLines.reduce(
+      approvedReceivedQuantity: received?.get(item.id) ?? item.inboundReceiptLines.reduce(
         (sum, line) =>
           sum +
           getInboundStockQuantity({
@@ -1106,6 +1133,10 @@ export class InventoryInboundReceiptRepository
     if (updated.count !== 1) {
       throw new Error("INBOUND_RECEIPT_CONFLICT");
     }
+    await refreshReceivedPurchaseTotal(tx, {
+      storeId: input.storeId,
+      purchaseId: input.goodsPurchaseId,
+    });
   }
 
   async markReceiptApproved(
@@ -1432,6 +1463,7 @@ export class InventoryInboundReceiptRepository
         id: true,
         number: true,
         shoppingRequestId: true,
+        totalBasis: true,
         supplierId: true,
         supplierNameSnapshot: true,
         totalAmount: true,
@@ -1439,6 +1471,7 @@ export class InventoryInboundReceiptRepository
         paymentDueDate: true,
         payments: { orderBy: { createdAt: "asc" }, select: { method: true, amount: true, dueDate: true, note: true } },
         items: {
+          where: { removedAt: null },
           orderBy: { createdAt: "asc" },
           select: {
             id: true,
@@ -1469,6 +1502,10 @@ export class InventoryInboundReceiptRepository
     });
     if (!purchase) return null;
 
+    const correctedReceived = purchase.totalBasis === "RECEIVED"
+      ? await loadCorrectedReceiptTotals(tx, input.storeId, purchase.items.map((item) => ({ id: item.id, purchaseId: purchase.id, requestId: purchase.shoppingRequestId })))
+      : null;
+
     return {
       ...purchase,
       totalAmount: purchase.totalAmount === undefined ? purchase.items.reduce((sum, item) => sum + Number(item.latestUnitPrice) * item.quantity, 0) : Number(purchase.totalAmount.toString()),
@@ -1480,6 +1517,7 @@ export class InventoryInboundReceiptRepository
       })),
       items: purchase.items.map((item) => ({
         ...item,
+        ...(correctedReceived ? { approvedReceivedQuantity: correctedReceived.get(item.id) ?? 0 } : {}),
         latestUnitPrice: Number(item.latestUnitPrice.toString()),
         currentCostPrice:
           item.product?.costPrice == null
@@ -1657,6 +1695,7 @@ export class InventoryInboundReceiptRepository
                 {
                   items: {
                     some: {
+                      removedAt: null,
                       OR: [
                         {
                           productNameSnapshot: {
@@ -1683,6 +1722,8 @@ export class InventoryInboundReceiptRepository
       select: {
         id: true,
         number: true,
+        shoppingRequestId: true,
+        totalBasis: true,
         paymentMethod: true,
         paymentDueDate: true,
         totalAmount: true,
@@ -1693,6 +1734,7 @@ export class InventoryInboundReceiptRepository
         shoppingRequest: { select: { name: true } },
         fulfillmentStatus: true,
         items: {
+          where: { removedAt: null },
           orderBy: { createdAt: "asc" },
           select: {
             id: true,
@@ -1723,9 +1765,15 @@ export class InventoryInboundReceiptRepository
       },
     });
 
+    const correctedReceived = await loadCorrectedReceiptTotals(db, storeId, purchases.flatMap((purchase) =>
+      purchase.totalBasis === "RECEIVED"
+        ? purchase.items.map((item) => ({ id: item.id, purchaseId: purchase.id, requestId: purchase.shoppingRequestId }))
+        : [],
+    ));
+
     return purchases.flatMap((purchase) =>
       purchase.items.map((item) => {
-        const approvedReceivedQuantity = item.inboundReceiptLines
+        const approvedReceivedQuantity = correctedReceived.get(item.id) ?? item.inboundReceiptLines
           .filter((line) => line.receipt.status === "APPROVED")
           .reduce(
             (sum, line) =>
@@ -1799,9 +1847,12 @@ export class InventoryInboundReceiptRepository
       select: {
         id: true,
         number: true,
+        shoppingRequestId: true,
+        totalBasis: true,
         supplierNameSnapshot: true,
         fulfillmentStatus: true,
         items: {
+          where: { removedAt: null },
           orderBy: { createdAt: "asc" },
           select: {
             id: true,
@@ -1859,13 +1910,17 @@ export class InventoryInboundReceiptRepository
     });
     if (!purchase) return null;
 
+    const correctedReceived = purchase.totalBasis === "RECEIVED"
+      ? await loadCorrectedReceiptTotals(db, storeId, purchase.items.map((item) => ({ id: item.id, purchaseId: purchase.id, requestId: purchase.shoppingRequestId })))
+      : null;
+
     return {
       goodsPurchaseId: purchase.id,
       goodsPurchaseNumber: purchase.number,
       supplierName: purchase.supplierNameSnapshot,
       fulfillmentStatus: purchase.fulfillmentStatus,
       items: purchase.items.map((item) => {
-        const approvedReceivedQuantity = item.inboundReceiptLines
+        const approvedReceivedQuantity = correctedReceived?.get(item.id) ?? item.inboundReceiptLines
           .filter((line) => line.receipt.status === "APPROVED")
           .reduce(
             (sum, line) =>

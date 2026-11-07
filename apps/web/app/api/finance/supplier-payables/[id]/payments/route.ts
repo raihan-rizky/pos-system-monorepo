@@ -6,6 +6,7 @@ import { handleAuthError, requirePermission, requireRole } from '@/lib/rbac/guar
 import { ALL_ROLES } from '@/features/rbac/helpers/rbac-core';
 import { getLogger } from '@/lib/logger';
 import { jakartaToday, parseAmount, validDate } from '@/features/keuangan/helpers/supplier-payable-input';
+import { loadCorrectionPaymentState } from '@/features/suppliers/shopping-requests/repositories/shopping-request-correction-payment-state';
 
 const log = getLogger('api:finance:supplier-payable-payments');
 type LockedPayable = { amount: string; debtDate: string; goodsPurchaseId: string | null; giroHistoryVerifiedAt: Date | null };
@@ -17,6 +18,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   try {
     const user = await requireRole(...ALL_ROLES);
     if (!user.storeId) return apiError('Toko pengguna belum tersedia.', 403, { code: 'Forbidden' });
+    const storeId = user.storeId;
     const body = await request.json().catch(() => null) as { amount?: unknown; paidAt?: unknown; expectedBalance?: unknown } | null;
     const amount = parseAmount(body?.amount);
     if (!amount || !validDate(body?.paidAt) || body.paidAt > jakartaToday()) return apiError('Periksa nominal dan tanggal pembayaran.', 422, { code: 'ValidationError' });
@@ -32,8 +34,17 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     };
     const result = await db.$transaction(async tx => {
       const [debt] = await tx.$queryRaw<LockedPayable[]>`
-        SELECT "amount"::text, "debtDate"::text, "goodsPurchaseId", "giroHistoryVerifiedAt" FROM "pos_supplier_payables"
-        WHERE "id" = ${id} AND "storeId" = ${user.storeId} FOR UPDATE
+        WITH payable_hint AS MATERIALIZED (
+          SELECT "goodsPurchaseId" FROM "pos_supplier_payables" WHERE "id" = ${id} AND "storeId" = ${user.storeId}
+        ), purchase_lock AS MATERIALIZED (
+          SELECT g."id" FROM "pos_goods_purchases" g JOIN payable_hint h ON h."goodsPurchaseId" = g."id"
+          WHERE g."storeId" = ${user.storeId} FOR UPDATE OF g
+        )
+        SELECT d."amount"::text, d."debtDate"::text, d."goodsPurchaseId", d."giroHistoryVerifiedAt"
+        FROM "pos_supplier_payables" d
+        WHERE d."id" = ${id} AND d."storeId" = ${user.storeId}
+          AND (d."goodsPurchaseId" IS NULL OR EXISTS (SELECT 1 FROM purchase_lock WHERE "id" = d."goodsPurchaseId"))
+        FOR UPDATE OF d
       `;
       const authorizedUser = await requirePermission(debt?.goodsPurchaseId ? 'expense.giro' : 'expense.payable', 'update');
       if (authorizedUser.id !== user.id || authorizedUser.storeId !== user.storeId) return 'forbidden' as const;
@@ -52,10 +63,25 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }
       if (debt.goodsPurchaseId && !debt.giroHistoryVerifiedAt) return 'history-unknown' as const;
       if (paidAt < debt.debtDate) return 'invalid' as const;
-      const [total] = await tx.$queryRaw<{ paid: string }[]>`
-        SELECT COALESCE(SUM("amount"), 0)::text AS paid FROM "pos_supplier_payable_payments" WHERE "payableId" = ${id}
+      const [total] = await tx.$queryRaw<{ paid: string; corrected: boolean; purchaseMethod: string | null }[]>`
+        SELECT COALESCE(SUM(p."amount"), 0)::text AS paid,
+          EXISTS (
+            SELECT 1 FROM "pos_shopping_request_corrections" c
+            JOIN "pos_goods_purchases" g ON g."shoppingRequestId" = c."shoppingRequestId" AND g."storeId" = c."storeId"
+            WHERE g."id" = ${debt.goodsPurchaseId} AND g."storeId" = ${user.storeId}
+          ) AS corrected,
+          (SELECT g."paymentMethod"::text FROM "pos_goods_purchases" g
+           WHERE g."id" = ${debt.goodsPurchaseId} AND g."storeId" = ${user.storeId}) AS "purchaseMethod"
+        FROM "pos_supplier_payable_payments" p WHERE p."payableId" = ${id}
       `;
-      const remainingCents = Math.round(Number(debt.amount) * 100) - Math.round(Number(total.paid) * 100);
+      if (total.corrected && total.purchaseMethod !== 'GIRO') {
+        const giroSchedule = await tx.goodsPurchasePayment.count({ where: { goodsPurchaseId: debt.goodsPurchaseId!, method: 'GIRO', amount: { gt: 0 } } });
+        if (!giroSchedule) return 'balance-changed' as const;
+      }
+      const paid = total.corrected && debt.goodsPurchaseId
+        ? (await loadCorrectionPaymentState(tx, { storeId, purchaseId: debt.goodsPurchaseId })).paid
+        : total.paid;
+      const remainingCents = Math.round(Number(debt.amount) * 100) - Math.round(Number(paid) * 100);
       if (debt.goodsPurchaseId && Math.round(expectedBalance! * 100) !== remainingCents) return 'balance-changed' as const;
       if (Math.round(amount * 100) > remainingCents) return 'invalid' as const;
       if (requestScope) {

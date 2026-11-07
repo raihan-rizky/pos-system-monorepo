@@ -143,10 +143,12 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
   const expenses = [...report.expenses].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   const purchasedExpenses = report.purchaseExpenses ?? expenses.filter((entry) => entry.purchase);
   const transfers = report.purchaseExpenses ? purchasedExpenses.filter((entry) => entry.purchase?.method === "TRANSFER") : [];
-  const cashPurchases = [
+  const cashPurchases = (report.purchasePayments ? report.purchasePayments.map(entry => ({
+    ...entry, description: `${entry.reference} · ${entry.supplier} · ${entry.method === "GIRO" ? "Pembayaran giro" : "Transfer"}`,
+  })) : [
     ...transfers.map((entry) => ({ id: entry.id, date: entry.date, group: entry.group, amount: entry.amount, description: `${entry.purchase?.reference} · ${entry.description} · Transfer` })),
     ...(report.giroPayments ?? []).map((entry) => ({ ...entry, description: `${entry.reference} · ${entry.supplier} · Pembayaran giro` })),
-  ].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  ]).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   const cashIncomplete = report.cashIncomplete === true;
   const methods = [...new Set(["GIRO", "TRANSFER", ...purchasedExpenses.map((entry) => entry.purchase!.method || "LAINNYA")])];
   const cashPurchaseRow = 7 + methods.reduce((rows, method) => rows + 5 + Math.max(1, purchasedExpenses.filter((entry) => (entry.purchase!.method || "LAINNYA") === method).length), 0);

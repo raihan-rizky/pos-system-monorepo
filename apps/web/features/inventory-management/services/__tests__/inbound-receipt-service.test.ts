@@ -2037,6 +2037,28 @@ describe("inbound receipt service", () => {
     expect(repository.createInboundStockLog).not.toHaveBeenCalled();
   });
 
+  it("menerima sisa barang berdasarkan jumlah yang sudah dikoreksi", async () => {
+    const repository = createRepository();
+    const purchase = await repository.findGoodsPurchaseForReceipt();
+    const item = purchase.items[0];
+    item.inboundReceiptLines = [{ status: "RECEIVED", receivedQuantity: 10, receipt: { status: "APPROVED" } }];
+    Object.assign(item, { approvedReceivedQuantity: 7 });
+    purchase.items = [item];
+    repository.findGoodsPurchaseForReceipt.mockResolvedValueOnce(purchase);
+
+    await expect(createAndSubmitGoodsPurchaseReceipt({
+      repository,
+      user: { id: "inventory-1", name: "Ira", role: "INVENTORY", storeId: "store-main" },
+      input: { goodsPurchaseId: "gp-1", lines: [{
+        goodsPurchaseItemId: "gpi-1", matchStatus: "MATCHED", receivedQuantity: 3,
+        pricing: { productId: "product-1", costPrice: 118_000, price: 150_000, hargaAgen: 140_000, hargaDinas: 130_000 },
+      }] },
+    })).resolves.toMatchObject({ status: "SUBMITTED" });
+    expect(repository.createSubmittedGoodsPurchaseReceipt).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      lines: [expect.objectContaining({ goodsPurchaseItemId: "gpi-1", expectedQuantity: 3, receivedQuantity: 3 })],
+    }));
+  });
+
   it("locks the goods purchase before loading current receipt reservations", async () => {
     const repository = createRepository();
 

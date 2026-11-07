@@ -1,5 +1,6 @@
 import { db, type Prisma } from "@pos/db";
 import { lockStockMutationRows } from "@/features/product-stock-groups/stock-group-lock";
+import { getInboundStockQuantity } from "@/features/inventory-management/helpers/inbound-receipt-rules";
 import { buildShoppingRequestDeletionPlan, type ShoppingRequestDeletionMovement } from "../helpers/shopping-request-deletion";
 import type { ShoppingRequestActor } from "../types/shopping-request";
 import { ShoppingRequestDeletionError } from "../services/shopping-request-deletion-error";
@@ -71,7 +72,7 @@ async function loadLockedDeletionContext(tx: Tx, id: string, storeId: string): P
   };
   const receiptSelect = {
     id: true, goodsPurchaseId: true, status: true, createdAt: true, stockBundleId: true,
-    lines: { select: { id: true, productId: true, inventoryLogId: true, receivedQuantity: true } },
+    lines: { select: { id: true, productId: true, goodsPurchaseItemId: true, inventoryLogId: true, status: true, receivedQuantity: true } },
     stockBundle: { select: { id: true, type: true, status: true, undoOfBatchId: true, summary: true, items: { select: { productId: true, inventoryLogId: true, afterSnapshot: true } } } },
   } satisfies Prisma.InventoryInboundReceiptSelect;
   let receipts = await tx.inventoryInboundReceipt.findMany({ where: receiptWhere, select: receiptSelect });
@@ -106,7 +107,7 @@ async function loadLockedDeletionContext(tx: Tx, id: string, storeId: string): P
       continue;
     }
     if (!receipt.stockBundleId || !receipt.stockBundle) {
-      if (receipt.lines.some((line) => line.inventoryLogId || line.receivedQuantity > 0)) {
+      if (receipt.lines.some((line) => line.inventoryLogId || getInboundStockQuantity(line) > 0)) {
         throw new ShoppingRequestDeletionError("Riwayat stok lama belum dapat dipastikan. Periksa stok secara manual sebelum menghapus daftar.");
       }
       continue;
@@ -117,7 +118,7 @@ async function loadLockedDeletionContext(tx: Tx, id: string, storeId: string): P
         summary.receiptId !== receipt.id || summary.goodsPurchaseId !== receipt.goodsPurchaseId) {
       throw new ShoppingRequestDeletionError("Riwayat stok penerimaan belum dapat dipastikan.");
     }
-    if (receipt.lines.some((line) => line.receivedQuantity > 0 && !line.inventoryLogId)) {
+    if (receipt.lines.some((line) => (getInboundStockQuantity(line) > 0) !== Boolean(line.inventoryLogId))) {
       throw new ShoppingRequestDeletionError("Riwayat stok penerimaan belum dapat dipastikan.");
     }
     const canonicalLines = new Map<string, string>();
@@ -154,6 +155,70 @@ async function loadLockedDeletionContext(tx: Tx, id: string, storeId: string): P
       throw new ShoppingRequestDeletionError("Riwayat stok penerimaan belum dapat dipastikan.");
     }
     sourceReceipts.push({ id: receipt.id, bundleStatus: receipt.stockBundle.status, items: receipt.stockBundle.items });
+  }
+
+  const corrections = await tx.shoppingRequestCorrectionMovement.findMany({
+    where: { correction: { storeId, shoppingRequestId: id } },
+    select: { id: true, productId: true, goodsPurchaseItemId: true, receiptLineId: true, inventoryLogId: true, stockGroupId: true,
+      oldReceivedQty: true, newReceivedQty: true, baseDelta: true, details: true, correction: { select: { createdAt: true } } },
+    orderBy: [{ correction: { createdAt: "asc" } }, { id: "asc" }],
+  });
+  const correctionLogIds = corrections.flatMap((correction) => correction.inventoryLogId ? [correction.inventoryLogId] : []);
+  if (correctionLogIds.length !== corrections.length || new Set(correctionLogIds).size !== corrections.length) {
+    throw new ShoppingRequestDeletionError("Riwayat koreksi stok tidak dapat dipastikan.");
+  }
+  const correctionLogs = await tx.inventoryLog.findMany({
+    where: { id: { in: correctionLogIds } },
+    select: { id: true, productId: true, type: true, reason: true, status: true, quantity: true, stockBaseDelta: true, stockGroupIdSnapshot: true, unitMultiplierSnapshot: true },
+  });
+  const correctionLogById = new Map(correctionLogs.map((log) => [log.id, log]));
+  const syntheticItemIds = [...new Set(corrections.flatMap((correction) => !correction.receiptLineId && correction.goodsPurchaseItemId ? [correction.goodsPurchaseItemId] : []))];
+  const syntheticItems = await tx.goodsPurchaseItem.findMany({
+    where: { id: { in: syntheticItemIds }, goodsPurchase: { storeId, shoppingRequestId: id } }, select: { id: true, productId: true },
+  });
+  const syntheticItemById = new Map(syntheticItems.map((item) => [item.id, item]));
+  const correctionPlan: NonNullable<Parameters<typeof buildShoppingRequestDeletionPlan>[0]["corrections"]> = [];
+  for (const correction of corrections) {
+    const details = record(correction.details);
+    const multiplier = details?.multiplier;
+    const quantityDelta = correction.newReceivedQty - correction.oldReceivedQty;
+    const log = correction.inventoryLogId ? correctionLogById.get(correction.inventoryLogId) : null;
+    if (!log || !Number.isFinite(quantityDelta) || quantityDelta === 0 || typeof multiplier !== "number" || !Number.isFinite(multiplier) || multiplier <= 0 ||
+        log.productId !== correction.productId || log.type !== (quantityDelta > 0 ? "IN" : "OUT") || log.reason !== "RESTOCK" || log.status !== "APPROVED" ||
+        !sameQuantity(log.quantity, Math.abs(quantityDelta)) || log.stockBaseDelta === null || !sameQuantity(log.stockBaseDelta, correction.baseDelta) ||
+        log.stockGroupIdSnapshot !== correction.stockGroupId || log.unitMultiplierSnapshot === null || !sameQuantity(log.unitMultiplierSnapshot, multiplier)) {
+      throw new ShoppingRequestDeletionError("Riwayat koreksi stok tidak dapat dipastikan.");
+    }
+    let receiptId: string;
+    let receiptLineId: string;
+    if (correction.receiptLineId) {
+      const receipt = receipts.find((entry) => entry.lines.some((line) => line.id === correction.receiptLineId));
+      const line = receipt?.lines.find((entry) => entry.id === correction.receiptLineId);
+      if (!receipt || receipt.status !== "APPROVED" || !line || line.productId !== correction.productId ||
+          line.goodsPurchaseItemId !== correction.goodsPurchaseItemId || details?.sourceInventoryLogId !== line.inventoryLogId) {
+        throw new ShoppingRequestDeletionError("Sumber koreksi penerimaan tidak dapat dipastikan.");
+      }
+      receiptId = receipt.id;
+      receiptLineId = line.id;
+    } else {
+      const item = correction.goodsPurchaseItemId ? syntheticItemById.get(correction.goodsPurchaseItemId) : null;
+      if (!item || item.productId !== correction.productId || details?.sourceInventoryLogId !== null) {
+        throw new ShoppingRequestDeletionError("Sumber koreksi penerimaan baru tidak dapat dipastikan.");
+      }
+      receiptId = `correction:${item.id}`;
+      receiptLineId = receiptId;
+    }
+    correctionPlan.push({ receiptId, receiptLineId, productId: correction.productId, stockGroupId: correction.stockGroupId,
+      inventoryLogId: log.id, quantityDelta, baseDelta: correction.baseDelta });
+    productIds.add(correction.productId);
+    if (correction.stockGroupId) {
+      groupIds.add(correction.stockGroupId);
+      const first = firstReceiptByGroup.get(correction.stockGroupId);
+      if (!first || correction.correction.createdAt < first) firstReceiptByGroup.set(correction.stockGroupId, correction.correction.createdAt);
+      const ids = receiptProductIdsByGroup.get(correction.stockGroupId) ?? new Set<string>();
+      ids.add(correction.productId);
+      receiptProductIdsByGroup.set(correction.stockGroupId, ids);
+    }
   }
 
   if (expectedLogs.size) {
@@ -196,7 +261,7 @@ async function loadLockedDeletionContext(tx: Tx, id: string, storeId: string): P
   }
   let movements: ShoppingRequestDeletionMovement[];
   try {
-    movements = buildShoppingRequestDeletionPlan({ receipts: sourceReceipts, products, groups }).movements;
+    movements = buildShoppingRequestDeletionPlan({ receipts: sourceReceipts, products, groups, corrections: correctionPlan }).movements;
   } catch (error) {
     throw new ShoppingRequestDeletionError(error instanceof Error ? error.message : "Dampak stok tidak dapat dipastikan.");
   }

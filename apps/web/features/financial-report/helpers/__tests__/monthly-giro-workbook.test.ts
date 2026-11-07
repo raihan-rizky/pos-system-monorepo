@@ -68,4 +68,15 @@ describe("workbook payments and giro schedules", () => {
     expect(wb.Sheets.NOVEMBER.K18.v).toBe(30_000);
     expect(wb.Sheets.BERSIH.F25.v).toBe(40_000);
   });
+
+  it("uses actual correction payments for cash while keeping the corrected purchase value", () => {
+    const wb = buildMonthlyWorkbook(report({
+      purchaseExpenses: [{ id: "transfer", date: "2026-11-05", description: "Belanja terkoreksi", amount: 70_000, group: "OTHER", purchase: { reference: "PB-2", method: "TRANSFER", dueDate: null, supplier: "Pemasok B" } }],
+      giroPayments: [],
+      purchasePayments: [{ id: "original-transfer", date: "2026-11-05", amount: 100_000, method: "TRANSFER", reference: "PB-2", supplier: "Pemasok B", group: "OTHER" }],
+    }));
+    expect(values(wb.Sheets["PENGELUARAN BELANJA"])).toContain(70_000);
+    expect(wb.Sheets.NOVEMBER.K13.v).toBe(100_000);
+    expect(wb.Sheets.BERSIH.F25.v).toBe(110_000);
+  });
 });

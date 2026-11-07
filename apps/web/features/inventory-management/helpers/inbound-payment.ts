@@ -22,14 +22,14 @@ function isIsoDate(value: string): boolean {
 export function validateInboundPayments(
   totalAmount: number,
   payments: InboundPaymentInput[],
-  options: { allowZeroTotalLegacy?: boolean } = {},
+  options: { allowZeroTotalLegacy?: boolean; allowEstablishedZeroRows?: boolean } = {},
 ): { totalAmount: number; payments: InboundPaymentInput[] } {
   if (!payments.length || payments.length > 50) throw new Error("Isi minimal satu pembayaran dan maksimal 50 pembayaran.");
   const expectedCents = toCents(totalAmount);
   const normalized = payments.map((payment) => {
     if (payment.method !== "GIRO" && payment.method !== "TRANSFER") throw new Error("Metode pembayaran harus Transfer atau Giro.");
     const amountCents = toCents(payment.amount);
-    if (amountCents <= 0 && !(options.allowZeroTotalLegacy && expectedCents === 0 && payments.length === 1)) {
+    if (amountCents <= 0 && !options.allowEstablishedZeroRows && !(options.allowZeroTotalLegacy && expectedCents === 0 && payments.length === 1)) {
       throw new Error("Nominal pembayaran harus lebih dari 0.");
     }
     if (payment.method === "GIRO") {
@@ -74,7 +74,7 @@ export function normalizeInboundPayments(input: {
   legacy: LegacyInboundPayment | null;
 }): { source: "current" | "legacy"; payments: InboundPaymentInput[] } {
   if (input.payments?.length) {
-    return { source: "current", payments: validateInboundPayments(input.totalAmount, input.payments, { allowZeroTotalLegacy: true }).payments };
+    return { source: "current", payments: validateInboundPayments(input.totalAmount, input.payments, { allowZeroTotalLegacy: true, allowEstablishedZeroRows: true }).payments };
   }
   if (!input.legacy) throw new Error("Metode pembayaran belum diisi pada Pembelian Barang.");
   const legacy = validateInboundPayments(input.totalAmount, [{

@@ -1087,6 +1087,7 @@ model ShoppingRequest {
   rejectedByName  String?
   rejectionReason String?
   note            String?
+  businessDate    DateTime?                 @db.Date
   createdAt       DateTime                  @default(now())
   updatedAt       DateTime                  @updatedAt
   inboundReceipts InventoryInboundReceipt[]
@@ -1096,6 +1097,7 @@ model ShoppingRequest {
   expense         Expense?
   goodsPurchases  GoodsPurchase[]
   deletion        ShoppingRequestDeletion?
+  corrections     ShoppingRequestCorrection[]
 
   @@index([storeId, createdAt])
   @@unique([storeId, number])
@@ -1122,6 +1124,64 @@ model ShoppingRequestDeletion {
   @@map("pos_shopping_request_deletions")
 }
 
+model ShoppingRequestCorrection {
+  id                 String                                  @id @default(cuid())
+  storeId            String
+  shoppingRequestId  String
+  actorId            String
+  actorName          String?
+  reason             String
+  idempotencyKey     String
+  requestFingerprint String
+  beforeSnapshot     Json
+  afterSnapshot      Json
+  preview            Json
+  createdAt          DateTime                                @default(now())
+  shoppingRequest    ShoppingRequest                         @relation(fields: [shoppingRequestId], references: [id], onDelete: Restrict, map: "pos_shopping_request_corrections_request_fkey")
+  movements          ShoppingRequestCorrectionMovement[]
+  allocations        ShoppingRequestCorrectionAllocation[]
+
+  @@unique([storeId, shoppingRequestId, idempotencyKey], map: "pos_shopping_request_corrections_idempotency_key")
+  @@index([storeId, shoppingRequestId, createdAt], map: "pos_shopping_request_corrections_store_request_created_idx")
+  @@map("pos_shopping_request_corrections")
+}
+
+model ShoppingRequestCorrectionMovement {
+  id                    String                    @id @default(cuid())
+  correctionId          String
+  productId             String
+  shoppingRequestItemId String?
+  goodsPurchaseItemId   String?
+  receiptLineId         String?
+  inventoryLogId        String?
+  stockGroupId          String?
+  oldReceivedQty        Float
+  newReceivedQty        Float
+  baseDelta             Float
+  details               Json
+  correction            ShoppingRequestCorrection @relation(fields: [correctionId], references: [id], onDelete: Restrict, map: "pos_shopping_request_correction_movements_correction_fkey")
+
+  @@index([correctionId], map: "pos_shopping_request_correction_movements_correction_idx")
+  @@index([receiptLineId], map: "pos_shopping_request_correction_movements_line_idx")
+  @@map("pos_shopping_request_correction_movements")
+}
+
+model ShoppingRequestCorrectionAllocation {
+  id           String                    @id @default(cuid())
+  correctionId String
+  paymentId    String
+  sourceKind   String
+  method       PurchasePaymentMethod
+  amount       Decimal                   @db.Decimal(12, 2)
+  sourceAmount Decimal                   @db.Decimal(12, 2)
+  paidAt       DateTime                  @db.Date
+  details      Json
+  correction   ShoppingRequestCorrection @relation(fields: [correctionId], references: [id], onDelete: Restrict, map: "pos_shopping_request_correction_allocations_correction_fkey")
+
+  @@unique([correctionId, sourceKind, paymentId, method], map: "pos_shopping_request_correction_allocations_payment_key")
+  @@map("pos_shopping_request_correction_allocations")
+}
+
 model ShoppingRequestItem {
   id                 String                            @id @default(cuid())
   shoppingRequestId  String
@@ -1137,6 +1197,7 @@ model ShoppingRequestItem {
   decidedByName      String?
   decidedAt          DateTime?
   stockAppliedAt     DateTime?
+  removedAt          DateTime?
   costPriceSnapshot  Decimal?                          @db.Decimal(12, 2)
   createdAt          DateTime                          @default(now())
   updatedAt          DateTime                          @updatedAt
@@ -1164,6 +1225,9 @@ model GoodsPurchase {
   statusBeforeCancellation GoodsPurchaseStatus?
   fulfillmentStatus        GoodsPurchaseFulfillmentStatus @default(NOT_RECEIVED)
   totalAmount              Decimal                        @db.Decimal(12, 2)
+  totalBasis               GoodsPurchaseTotalBasis        @default(ORDERED)
+  initialTransferAmount    Decimal?                       @db.Decimal(12, 2)
+  initialTransferPaidAt    DateTime?                      @db.Date
   deferMasterHppToReceipt  Boolean                        @default(false)
   paymentMethod            PurchasePaymentMethod?
   paymentDueDate           DateTime?                      @db.Date
@@ -1202,6 +1266,11 @@ enum PurchasePaymentMethod {
   GIRO
 }
 
+enum GoodsPurchaseTotalBasis {
+  ORDERED
+  RECEIVED
+}
+
 model GoodsPurchasePayment {
   id              String               @id @default(cuid())
   goodsPurchaseId String
@@ -1235,6 +1304,7 @@ model GoodsPurchaseItem {
   approvedById            String?
   approvedByName          String?
   approvedAt              DateTime?
+  removedAt               DateTime?
   createdAt               DateTime                      @default(now())
   updatedAt               DateTime                      @updatedAt
   goodsPurchase           GoodsPurchase                 @relation(fields: [goodsPurchaseId], references: [id], onDelete: Cascade)

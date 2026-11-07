@@ -2,7 +2,7 @@
 
 Tanggal: 2026-11-06 (WIB)
 
-Status: Draf untuk ditinjau
+Status: Disetujui
 
 ## Tujuan
 

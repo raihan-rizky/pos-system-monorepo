@@ -122,6 +122,7 @@ export function SupplierPageShell() {
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
   const requestedGoodsPurchaseId = searchParams.get("goodsPurchaseId");
+  const requestedShoppingRequestId = searchParams.get("shoppingRequestId");
   const requestedSupplierId = searchParams.get("supplierId");
   const canReadSupplierWorkspace = canPerform("supplier", "read");
   const canReadInboundReceipts = canPerform("inventory", "read");
@@ -498,6 +499,8 @@ export function SupplierPageShell() {
               <p className="text-sm text-slate-500">Buat dan cetak daftar kebutuhan barang untuk pengajuan belanja.</p>
             </div>
             <ShoppingRequestList
+              key={requestedShoppingRequestId ?? "shopping-list"}
+              initialCorrectionHistoryId={requestedShoppingRequestId ?? undefined}
               onCreateClick={() => setShoppingCreateOpen(true)}
               onReceive={setReceivingGoodsPurchaseId}
               onCompare={setComparisonGoodsPurchaseId}

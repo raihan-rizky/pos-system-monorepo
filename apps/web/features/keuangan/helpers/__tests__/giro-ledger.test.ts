@@ -32,4 +32,18 @@ describe("giro payment balances", () => {
     expect(() => summarizeGiro(100, [{ amount: 101, paidAt: "2026-11-01" }], true, "2026-11-30"))
       .toThrow(/melebihi/i);
   });
+
+  it("menampilkan kelebihan pembayaran untuk pembelian yang dikoreksi tanpa mengubah riwayat pembayaran", () => {
+    expect(summarizeGiro(700_000, [
+      { amount: 1_000_000, paidAt: "2026-11-01" },
+    ], true, "2026-11-30", { allowCorrection: true })).toEqual({
+      status: "OVERPAID", paid: 1_000_000, remaining: 0, overpaid: 300_000,
+    });
+  });
+
+  it("menerima total nol setelah koreksi tanpa menciptakan utang", () => {
+    expect(summarizeGiro(0, [], true, "2026-11-30", { allowCorrection: true })).toEqual({
+      status: "PAID", paid: 0, remaining: 0,
+    });
+  });
 });

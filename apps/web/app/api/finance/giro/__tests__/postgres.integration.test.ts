@@ -46,6 +46,12 @@ describe.skipIf(!connection)('giro endpoints on isolated PostgreSQL', () => {
       "id" text PRIMARY KEY, "goodsPurchaseId" text NOT NULL REFERENCES "pos_goods_purchases"("id"),
       "method" text NOT NULL, "amount" numeric(12,2) NOT NULL, "dueDate" date, "note" text
     )`);
+    await client.$executeRawUnsafe(`CREATE TABLE "pos_shopping_request_corrections" (
+      "id" text PRIMARY KEY, "storeId" text NOT NULL, "shoppingRequestId" text NOT NULL,
+      "createdAt" timestamptz NOT NULL DEFAULT now(), "afterSnapshot" jsonb NOT NULL DEFAULT '{}'::jsonb)`);
+    await client.$executeRawUnsafe(`CREATE TABLE "pos_shopping_request_correction_allocations" (
+      "correctionId" text NOT NULL, "sourceKind" text NOT NULL, "paymentId" text NOT NULL,
+      "method" text NOT NULL, "amount" numeric(12,2) NOT NULL, "sourceAmount" numeric(12,2) NOT NULL, "paidAt" date NOT NULL)`);
     await client.$executeRawUnsafe(`CREATE TABLE "pos_expenses" (
       "id" text PRIMARY KEY, "storeId" text NOT NULL, "amount" numeric(12,2) NOT NULL,
       "occurredAt" timestamp NOT NULL, "deletedAt" timestamp, "goodsPurchaseId" text, "shoppingRequestId" text
@@ -62,7 +68,7 @@ describe.skipIf(!connection)('giro endpoints on isolated PostgreSQL', () => {
       "createdAt" timestamp NOT NULL DEFAULT now(), "requestScope" text UNIQUE
     )`);
     await client.$executeRawUnsafe(readFileSync(path.resolve(process.cwd(), '../../packages/db/prisma/migrations/20261101130000_giro_payment_expected_balance/migration.sql'), 'utf8'));
-    await client.$executeRawUnsafe(`INSERT INTO "pos_goods_purchases" VALUES
+    await client.$executeRawUnsafe(`INSERT INTO "pos_goods_purchases" ("id", "storeId", "number", "supplierNameSnapshot", "totalAmount", "shoppingRequestId", "paymentDueDate", "status", "paymentMethod") VALUES
       ('purchase-1','store-1','PB-1','Pemasok',100000,'shopping-1','2026-11-20','APPROVED','GIRO'),
       ('purchase-2','store-2','PB-2','Lain',100000,'shopping-2','2026-11-20','APPROVED','GIRO'),
       ('purchase-3','store-1','PB-3','Pemasok',100000,'shopping-3','2026-11-20','APPROVED','GIRO'),
@@ -124,7 +130,7 @@ describe.skipIf(!connection)('giro endpoints on isolated PostgreSQL', () => {
   });
 
   it('rejects a stale reconciliation after a concurrent manual payment commits', async () => {
-    await client.$executeRaw`INSERT INTO "pos_goods_purchases" VALUES ('purchase-race','store-1','PB-RACE','Pemasok',100000,'shopping-race','2026-11-20','APPROVED','GIRO')`;
+    await client.$executeRaw`INSERT INTO "pos_goods_purchases" ("id", "storeId", "number", "supplierNameSnapshot", "totalAmount", "shoppingRequestId", "paymentDueDate", "status", "paymentMethod") VALUES ('purchase-race','store-1','PB-RACE','Pemasok',100000,'shopping-race','2026-11-20','APPROVED','GIRO')`;
     await client.$executeRaw`INSERT INTO "pos_expenses" VALUES ('expense-race','store-1',100000,'2026-10-09 18:00:00'::timestamp,null,'purchase-race','shopping-race')`;
     await client.$executeRaw`INSERT INTO "pos_supplier_payables" ("id", "storeId", "supplierName", "amount", "debtDate", "createdById") VALUES ('manual-race','store-1','Pemasok',100000,'2026-10-01'::date,'user-1')`;
 

@@ -38,6 +38,8 @@ export interface ShoppingRequestListItem {
   } | null;
   purchaseHistory?: NonNullable<ShoppingRequestListItem["purchase"]>[];
   approvalFlowVersion?: number;
+  correctionCount?: number;
+  correctionStockChanged?: boolean;
   number: string;
   name: string;
   status: ShoppingRequestStatus;
@@ -52,6 +54,7 @@ export interface ShoppingRequestListItem {
   totalRequestedQty: number;
   totalApprovedQty: number | null;
   createdAt: string;
+  businessDate?: string | null;
   approvedAt: string | null;
   rejectedAt?: string | null;
   rejectedByName?: string | null;

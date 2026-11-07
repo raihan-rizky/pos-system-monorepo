@@ -178,6 +178,18 @@ const writerInventory: ReadonlyArray<WriterSpec> = [
     ],
   },
   {
+    name: "shopping request correction stock adjustment",
+    relativePath:
+      "features/suppliers/shopping-requests/repositories/shopping-request-correction-stock.ts",
+    startMarker: "export async function applyCorrectionStock(",
+    requiredMarkers: [
+      "lockStockMutationRows(",
+      "const products = await tx.product.findMany(",
+      "planCorrectionStock(",
+      "tx.productStockGroup.updateMany(",
+    ],
+  },
+  {
     name: "shopping request deletion stock reversal",
     relativePath: "features/suppliers/shopping-requests/repositories/shopping-request-deletion-repository.ts",
     startMarker: "async function loadLockedDeletionContext(",
@@ -278,8 +290,8 @@ describe("shared-stock writer source audit", () => {
       new Set(writerInventory.map((writer) => writer.relativePath)),
     ).sort();
 
-    expect(writerInventory).toHaveLength(19);
-    expect(new Set(writerInventory.map((writer) => writer.name)).size).toBe(19);
+    expect(writerInventory).toHaveLength(20);
+    expect(new Set(writerInventory.map((writer) => writer.name)).size).toBe(20);
     expect(discovered).toEqual(classifiedPaths);
   });
 

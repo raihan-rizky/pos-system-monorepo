@@ -119,6 +119,19 @@ export async function POST(
       if (!batch) throw new Error("BATCH_NOT_FOUND");
       if (batch.status === "UNDONE") throw new Error("ALREADY_UNDONE");
       if (batch.undoOfBatchId) throw new Error("CANNOT_UNDO_UNDO");
+      if (batch.type === "INBOUND_RECEIPT") {
+        // The batch row is locked before this read. A concurrent correction
+        // either commits first and is seen here, or sees this batch undone.
+        const corrections = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT c."id" FROM "pos_shopping_request_corrections" c
+          JOIN "pos_inventory_inbound_receipts" r ON r."storeId" = c."storeId"
+          LEFT JOIN "pos_goods_purchases" p ON p."id" = r."goodsPurchaseId" AND p."storeId" = r."storeId"
+          WHERE r."stockBundleId" = ${batch.id} AND r."storeId" = ${storeId}
+            AND (c."shoppingRequestId" = r."shoppingRequestId" OR c."shoppingRequestId" = p."shoppingRequestId")
+          LIMIT 1
+        `;
+        if (corrections.length) throw new Error("CORRECTED_INBOUND_RECEIPT");
+      }
       if (batch.type === "PRODUCT_IMPORT" && readImportPricingUndo(batch.summary)) {
         if (batch.status === "PENDING") throw new GroupPricingError("Selesaikan atau batalkan proses impor sebelum membatalkan hasilnya.", 409);
         return undoImportPricing(tx, { batch, actor: user, storeId });
@@ -606,6 +619,7 @@ export async function POST(
       if (error.message === "BATCH_NOT_FOUND") return NextResponse.json({ message: "Batch operation not found" }, { status: 404 });
       if (error.message === "ALREADY_UNDONE") return NextResponse.json({ message: "Batch operation is already undone" }, { status: 409 });
       if (error.message === "CANNOT_UNDO_UNDO") return NextResponse.json({ message: "Undo operations cannot be undone" }, { status: 409 });
+      if (error.message === "CORRECTED_INBOUND_RECEIPT") return NextResponse.json({ message: "Penerimaan dari daftar belanja yang sudah dikoreksi tidak dapat dibatalkan melalui undo. Gunakan koreksi daftar belanja." }, { status: 409 });
       if (error.message.startsWith("LATER_BATCH_TOUCH:")) {
         return NextResponse.json({ message: "A later batch touched at least one affected product", blockedProducts: [error.message.replace("LATER_BATCH_TOUCH:", "")] }, { status: 409 });
       }

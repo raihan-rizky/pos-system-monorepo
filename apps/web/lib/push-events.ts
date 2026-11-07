@@ -92,6 +92,9 @@ export async function sendRolePushEvent({
       isActive: true,
       role: { in: roles },
       ...(storeId ? { storeId } : {}),
+      ...(excludeUserIds.length > 0
+        ? { userId: { notIn: excludeUserIds } }
+        : {}),
     },
   });
   const selected = subscriptions.filter((subscription) =>

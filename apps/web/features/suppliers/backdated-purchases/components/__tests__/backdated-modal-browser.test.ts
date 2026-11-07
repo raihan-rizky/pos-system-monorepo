@@ -37,7 +37,7 @@ beforeAll(async () => {
         build.onResolve({ filter: /^@pos\/ui$/ }, () => ({ path: "ui", namespace: "test-stub" }));
         build.onResolve({ filter: /RoleProvider$/ }, () => ({ path: "role", namespace: "test-stub" }));
         build.onResolve({ filter: /useShoppingRequests$/ }, () => ({ path: "hooks", namespace: "test-stub" }));
-        build.onResolve({ filter: /(?:ShoppingRequest(?:Print|Approve|Edit|ApprovedQty|FinalApproval)|GoodsPurchase(?:Create|Approval|Detail|Reject))Modal$/ }, (args: any) => ({
+        build.onResolve({ filter: /(?:ShoppingRequest(?:Print|Approve|Edit|ApprovedQty|FinalApproval|Correction|CorrectionHistory)|GoodsPurchase(?:Create|Approval|Detail|Reject))Modal$/ }, (args: any) => ({
           path: path.basename(args.path), namespace: "test-stub",
         }));
         build.onResolve({ filter: /^@\// }, (args: any) => ({ path: path.join(webRoot, args.path.slice(2)) }));

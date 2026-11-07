@@ -34,12 +34,18 @@ describe.skipIf(!connection)('manual giro linking on isolated local PostgreSQL',
     mocks.db = client;
     await client.$executeRawUnsafe(`CREATE TABLE "pos_goods_purchases" (
       "id" text PRIMARY KEY, "storeId" text NOT NULL, "number" text NOT NULL, "supplierNameSnapshot" text NOT NULL,
-      "totalAmount" numeric(12,2) NOT NULL, "shoppingRequestId" text NOT NULL, "paymentDueDate" date, "status" text NOT NULL, "paymentMethod" text)`);
+      "totalAmount" numeric(12,2) NOT NULL, "shoppingRequestId" text NOT NULL, "paymentDueDate" date, "status" text NOT NULL, "paymentMethod" text, "statusBeforeCancellation" text)`);
     await client.$executeRawUnsafe('ALTER TABLE "pos_goods_purchases" ADD COLUMN "statusBeforeCancellation" text');
     await client.$executeRawUnsafe(`CREATE TABLE "pos_goods_purchase_payments" (
       "id" text PRIMARY KEY, "goodsPurchaseId" text NOT NULL REFERENCES "pos_goods_purchases"("id"),
       "method" text NOT NULL, "amount" numeric(12,2) NOT NULL, "dueDate" date, "note" text
     )`);
+    await client.$executeRawUnsafe(`CREATE TABLE "pos_shopping_request_corrections" (
+      "id" text PRIMARY KEY, "storeId" text NOT NULL, "shoppingRequestId" text NOT NULL,
+      "createdAt" timestamptz NOT NULL DEFAULT now(), "afterSnapshot" jsonb NOT NULL DEFAULT '{}'::jsonb)`);
+    await client.$executeRawUnsafe(`CREATE TABLE "pos_shopping_request_correction_allocations" (
+      "correctionId" text NOT NULL, "sourceKind" text NOT NULL, "paymentId" text NOT NULL,
+      "method" text NOT NULL, "amount" numeric(12,2) NOT NULL, "sourceAmount" numeric(12,2) NOT NULL, "paidAt" date NOT NULL)`);
     await client.$executeRawUnsafe(`CREATE TABLE "pos_expenses" (
       "id" text PRIMARY KEY, "storeId" text NOT NULL, "amount" numeric(12,2) NOT NULL, "occurredAt" timestamp NOT NULL,
       "deletedAt" timestamp, "goodsPurchaseId" text, "shoppingRequestId" text)`);
@@ -80,7 +86,7 @@ describe.skipIf(!connection)('manual giro linking on isolated local PostgreSQL',
     const shopping = `shopping-${suffix}`;
     const giroKey = randomUUID();
     const manualKey = randomUUID();
-    await client.$executeRaw`INSERT INTO "pos_goods_purchases" VALUES (${purchase},'store-1',${purchase},'Pemasok',100000,${shopping},'2026-11-20'::date,'APPROVED','GIRO')`;
+    await client.$executeRaw`INSERT INTO "pos_goods_purchases" ("id", "storeId", "number", "supplierNameSnapshot", "totalAmount", "shoppingRequestId", "paymentDueDate", "status", "paymentMethod") VALUES (${purchase},'store-1',${purchase},'Pemasok',100000,${shopping},'2026-11-20'::date,'APPROVED','GIRO')`;
     await client.$executeRaw`INSERT INTO "pos_expenses" VALUES (${`expense-${suffix}`},'store-1',100000,'2026-10-09 18:00:00'::timestamp,null,${purchase},${shopping})`;
     await client.$executeRaw`INSERT INTO "pos_supplier_payables" ("id","storeId","goodsPurchaseId","giroHistoryVerifiedAt","supplierName","amount","debtDate","dueDate","createdById")
       VALUES (${giro},'store-1',${purchase},NOW(),'Pemasok',100000,'2026-10-10'::date,'2026-11-20'::date,'creator-giro')`;

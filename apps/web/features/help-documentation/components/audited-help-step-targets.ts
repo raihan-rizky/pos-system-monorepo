@@ -65,6 +65,7 @@ export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepT
   "admin-export-reports": [["finance", "finance-primary"], ["finance", "finance-export"], ["finance", "finance-export"], ["finance", "finance-summary"], ["finance", "finance-export"], ["finance", "finance-export"]],
   "admin-export-customer-recap": [["customers", "customers-primary"], ["customers", "customers-table"], ["customers", "customers-table"], ["customers", "customers-table"], ["customers", "customers-profile"]],
   "admin-shopping-request": [["suppliers", "suppliers-shopping-tab"], ["suppliers", "suppliers-create-request"], ["suppliers", "suppliers-add-products"], ["suppliers", "suppliers-request-quantity"], ["suppliers", "suppliers-shopping-tab"]],
+  "admin-shopping-request-correction": same("suppliers", "suppliers-shopping-tab", 3),
   "admin-change-price": [["products", "products-primary"], ["products", "products-price-action"], ["products", "products-edit-action"], ["products", "products-price-history-tab"]],
   "admin-change-stock-individual": [["products", "products-primary"], ["products", "products-table"], ["products", "products-edit-action"], ["products", "products-stock-field"], ["products", "products-edit-action"]],
   "admin-update-stok-massal": [["inventory", "inventory-primary"], ...same("inventory", "inventory-update-stock", 6)],

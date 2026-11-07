@@ -21,6 +21,8 @@ import {
 import { ShoppingRequestPrintModal } from "./ShoppingRequestPrintModal";
 import { ShoppingRequestApproveModal } from "./ShoppingRequestApproveModal";
 import { ShoppingRequestEditModal } from "./ShoppingRequestEditModal";
+import { ShoppingRequestCorrectionModal } from "./ShoppingRequestCorrectionModal";
+import { ShoppingRequestCorrectionHistoryModal } from "./ShoppingRequestCorrectionHistoryModal";
 import { ShoppingRequestApprovedQtyModal } from "./ShoppingRequestApprovedQtyModal";
 import { ShoppingRequestFinalApprovalModal } from "./ShoppingRequestFinalApprovalModal";
 import { ShoppingRequestDeletionDialog } from "./ShoppingRequestDeletionDialog";
@@ -82,11 +84,13 @@ export function ShoppingRequestList({
   onReceive,
   onCompare,
   onViewReceiptHistory,
+  initialCorrectionHistoryId,
 }: {
   onCreateClick: () => void;
   onReceive: (purchaseId: string) => void;
   onCompare: (purchaseId: string) => void;
   onViewReceiptHistory: (purchaseId: string) => void;
+  initialCorrectionHistoryId?: string;
 }) {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>("");
@@ -110,6 +114,8 @@ export function ShoppingRequestList({
   const [purchaseRejectId, setPurchaseRejectId] = useState<string | null>(null);
   const [legacyCreateOpen, setLegacyCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ShoppingRequestDetail | null>(null);
+  const [correctionId, setCorrectionId] = useState<string | null>(null);
+  const [correctionHistoryId, setCorrectionHistoryId] = useState<string | null>(initialCorrectionHistoryId ?? null);
   const { canPerform } = useRole();
   const canApproveStock = canPerform(
     "supplier.shopping_request.approve_stock",
@@ -128,6 +134,7 @@ export function ShoppingRequestList({
   const canCreatePurchase = canPerform("supplier", "create");
   const canReceive = canPerform("inventory.inbound_receipt.create", "create");
   const canDeleteRequest = canPerform("supplier.shopping_request.delete", "delete");
+  const canCorrectProcessed = canPerform("supplier.shopping_request.correct_processed", "update");
 
   const list = useShoppingRequests({
     page,
@@ -295,6 +302,8 @@ export function ShoppingRequestList({
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="break-words text-base font-black text-slate-950">{row.name}</p>
+                      {!!row.correctionCount && <button type="button" onClick={() => setCorrectionHistoryId(row.id)} className="min-h-11 rounded-full border border-amber-300 bg-amber-50 px-3 text-xs font-bold text-amber-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600">Diubah</button>}
+                      {row.correctionStockChanged && <button type="button" onClick={() => setCorrectionHistoryId(row.id)} className="min-h-11 rounded-full border border-violet-300 bg-violet-50 px-3 text-xs font-bold text-violet-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600">Stok berubah</button>}
                       <span
                         className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-wider ${status.className}`}
                       >
@@ -319,7 +328,7 @@ export function ShoppingRequestList({
                       )}
                     </div>
                      <p className="mt-1 break-words text-xs leading-relaxed text-slate-500">
-                      {row.supplierName ?? "Supplier belum dipilih"} · {row.number} · {new Date(row.createdAt).toLocaleDateString("id-ID")}
+                      {row.supplierName ?? "Supplier belum dipilih"} · {row.number} · {new Date(row.businessDate ?? row.createdAt).toLocaleDateString("id-ID")}
                      </p>
                      {row.purchase && <p className="mt-1 text-xs font-semibold text-cyan-700">Pembelian {row.purchase.number} · {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(row.purchase.totalAmount)}</p>}
                      {row.purchase?.status === "APPROVED" && Boolean(row.purchase.payments?.length) && <details className="mt-2 rounded-lg border border-slate-200 p-2" onClick={event => event.stopPropagation()}>
@@ -371,6 +380,7 @@ export function ShoppingRequestList({
                     <details className="group rounded-xl border border-slate-200 bg-slate-50/60 text-sm open:border-cyan-200 open:bg-white">
                       <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-xl px-3 py-2 font-semibold text-slate-700 transition-colors hover:bg-cyan-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 [&::-webkit-details-marker]:hidden"><Ellipsis aria-hidden="true" className="h-4 w-4 text-cyan-700" />Tindakan lainnya<ChevronDown aria-hidden="true" className="ml-auto h-4 w-4 transition-transform group-open:rotate-180" /></summary>
                       <div className="flex flex-col gap-1 border-t border-slate-100 p-2">
+                        {row.status !== "CANCELLED" && row.purchase?.status === "APPROVED" && canCorrectProcessed && <button type="button" onClick={() => setCorrectionId(row.id)} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent bg-amber-50 px-3 py-2 text-left text-sm font-medium text-amber-800 hover:border-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"><Pencil aria-hidden="true" className="h-4 w-4" />Edit daftar</button>}
                         <button type="button" onClick={() => setPrintTarget({ ...row, items: [] })} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 bg-sky-50 text-sky-800 hover:border-sky-200 hover:bg-sky-100"><Printer aria-hidden="true" className="h-4 w-4 shrink-0" />Lihat / cetak daftar</button>
                         {row.status === "REQUESTED" && row.decidedItemCount === 0 && canEditRequest && <button type="button" onClick={() => setEditTarget({ ...row, items: [] })} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 bg-amber-50 text-amber-800 hover:border-amber-200 hover:bg-amber-100"><Pencil aria-hidden="true" className="h-4 w-4 shrink-0" />Edit daftar</button>}
                         {row.status === "REQUESTED" && row.approvalFlowVersion !== 2 && row.pendingItemCount > 0 && canSetApprovedQty && <button type="button" onClick={() => setApprovedQtyTarget({ ...row, items: [] })} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 bg-emerald-50 text-emerald-800 hover:border-emerald-200 hover:bg-emerald-100"><CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0" />Isi Jumlah yang Di-ACC</button>}
@@ -387,7 +397,7 @@ export function ShoppingRequestList({
                 </div>
                 <div className="mt-2 flex items-center gap-1 text-[11px] text-slate-400">
                   <ChevronRight className="h-3 w-3" />
-                  {new Date(row.createdAt).toLocaleString("id-ID")}
+                  {new Date(row.businessDate ?? row.createdAt).toLocaleString("id-ID")}
                 </div>
               </article>
             );
@@ -460,6 +470,8 @@ export function ShoppingRequestList({
         onClose={() => setCancelTarget(null)}
       />
       {deleteTarget && <ShoppingRequestDeletionDialog detail={deleteTarget} onClose={() => setDeleteTarget(null)} />}
+      {correctionId && <ShoppingRequestCorrectionModal requestId={correctionId} onClose={() => setCorrectionId(null)} />}
+      {correctionHistoryId && <ShoppingRequestCorrectionHistoryModal requestId={correctionHistoryId} onClose={() => setCorrectionHistoryId(null)} />}
     </div>
   );
 }

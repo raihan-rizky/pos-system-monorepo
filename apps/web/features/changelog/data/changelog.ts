@@ -42,6 +42,18 @@ export const CHANGELOG: ChangeEntry[] = [
   },
 
   {
+    id: "shopping-request-correction", date: "2026-11-07", revision: 1,
+    highlight: { title: "Koreksi daftar belanja", summary: "Perbaiki penerimaan, stok, harga, dan pembayaran dengan riwayat." },
+    title: "Daftar belanja yang diproses dapat dikoreksi.",
+    summary: "Perbaiki barang, jumlah diterima, harga, dan pembayaran dengan pratinjau stok serta riwayat perubahan yang jelas.",
+    kind: "feature", impact: "major", area: "Daftar Belanja", href: "/suppliers", visual: "shopping",
+    steps: [
+      { title: "Buka koreksi", detail: "Di Supplier > Daftar Belanja, buka Tindakan lainnya pada daftar diproses lalu pilih Edit daftar." },
+      { title: "Tinjau dampak", detail: "Masukkan perubahan dan alasan, lalu periksa stok, total berdasarkan barang diterima, periode laporan, dan peringatan kelebihan pembayaran." },
+      { title: "Simpan dan cek riwayat", detail: "Simpan perubahan, lalu pilih badge Diubah atau Stok berubah untuk melihat riwayat koreksi." },
+    ],
+  },
+  {
     id: "offline-pos-authorized-checkout", date: "2026-11-07", revision: 1,
     highlight: { title: "POS offline kembali siap", summary: "Buka POS dengan PIN dan simpan transaksi sesuai izin kasir." },
     title: "Pembayaran POS offline kembali tersedia.",

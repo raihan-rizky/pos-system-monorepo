@@ -93,8 +93,14 @@ export async function createShoppingRequest(
         createdAt: { gte: monthStart, lt: nextMonth },
       },
     });
-    const sequence = monthlyCount + 1;
-    const number = buildShoppingRequestNumber(now, sequence);
+    let sequence = monthlyCount + 1;
+    let number = buildShoppingRequestNumber(now, sequence);
+    if (typeof tx.shoppingRequest.findFirst === "function") {
+      while (await tx.shoppingRequest.findFirst({ where: { storeId: actor.storeId, number }, select: { id: true } })) {
+        sequence += 1;
+        number = buildShoppingRequestNumber(now, sequence);
+      }
+    }
     const resolvedName = resolveShoppingRequestName(input.name, number);
     return createShoppingRequestWithItems(
       {

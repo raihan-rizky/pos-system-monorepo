@@ -133,6 +133,16 @@ describe("sendRolePushEvent", () => {
     });
   });
 
+  it("excludes the actor from browser push subscriptions", async () => {
+    const { sendRolePushEvent } = await import("../push-events");
+    pushSubscriptionFindManyMock.mockImplementation(async ({ where }) => {
+      const rows = [{ id: "actor-sub", userId: "owner-1", features: null }, { id: "other-sub", userId: "owner-2", features: null }];
+      return rows.filter(row => !where.userId?.notIn?.includes(row.userId));
+    });
+    await sendRolePushEvent({ eventName: "shopping_request.corrected", storeId: "store-main", roles: ["OWNER"], featureKey: "shoppingRequests", excludeUserIds: ["owner-1"], payload: { title: "Daftar diubah", body: "Koreksi", url: "/suppliers?tab=shopping-requests" } });
+    expect(sendPushToSubscriptionsMock.mock.calls[0][0].map((row: { id: string }) => row.id)).toEqual(["other-sub"]);
+  });
+
   it("does not configure or send web push when no recipients match", async () => {
     const { sendRolePushEvent } = await import("../push-events");
     pushSubscriptionFindManyMock.mockResolvedValue([

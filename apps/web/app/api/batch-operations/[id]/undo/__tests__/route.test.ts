@@ -222,6 +222,30 @@ describe("POST /api/batch-operations/[id]/undo", () => {
     );
   });
 
+  it("menolak undo penerimaan yang daftar belanjanya sudah dikoreksi", async () => {
+    txMock.batchOperation.findFirst.mockResolvedValue({
+      ...committedBatch([]),
+      type: "INBOUND_RECEIPT",
+      summary: { source: "INBOUND_RECEIPT" },
+    });
+    txMock.product.findMany.mockResolvedValue([]);
+    txMock.$queryRaw.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join(" ").includes("pos_shopping_request_corrections")
+        ? [{ id: "correction-1" }]
+        : [{ id: "batch-1" }],
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/batch-operations/batch-1/undo", { method: "POST" }),
+      { params: Promise.resolve({ id: "batch-1" }) },
+    );
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).message).toMatch(/daftar belanja.*dikoreksi/i);
+    expect(txMock.product.update).not.toHaveBeenCalled();
+    expect(txMock.batchOperation.update).not.toHaveBeenCalled();
+  });
+
   it("restores an import cascade through the route after finish preserves its snapshots", async () => {
     const d = importPricingDatabase(); dbTransactionMock.mockImplementation(d.transaction);
     d.addRow("rim", 2, 0, 60000, 45000);

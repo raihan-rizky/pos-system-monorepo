@@ -18,10 +18,11 @@ export function InboundPaymentSummary({ payments }: { payments: InboundPaymentIn
   </div>;
 }
 
-export function InboundPaymentFields({ payments, totalAmount, disabled = false, onChange }: {
+export function InboundPaymentFields({ payments, totalAmount, disabled = false, allowZeroAmounts = false, onChange }: {
   payments: InboundPaymentInput[];
   totalAmount: number;
   disabled?: boolean;
+  allowZeroAmounts?: boolean;
   onChange: (payments: InboundPaymentInput[]) => void;
 }) {
   const update = (index: number, patch: Partial<InboundPaymentInput>) =>
@@ -41,8 +42,8 @@ export function InboundPaymentFields({ payments, totalAmount, disabled = false, 
           </select>
         </label>
         <label className="text-sm font-semibold text-slate-700">Nominal Pembayaran {index + 1}
-          <input name={`payments.${index}.amount`} type="number" inputMode="decimal" min="0.01" max="9999999999.99" step="0.01" required className={inputClass}
-            value={payment.amount || ""} onChange={event => update(index, { amount: Number(event.target.value) })} />
+          <input name={`payments.${index}.amount`} type="number" inputMode="decimal" min={allowZeroAmounts ? "0" : "0.01"} max="9999999999.99" step="0.01" required className={inputClass}
+            value={allowZeroAmounts ? payment.amount : payment.amount || ""} onChange={event => update(index, { amount: Number(event.target.value) })} />
         </label>
         {payment.method === "GIRO" && <label className="text-sm font-semibold text-slate-700">Tanggal Jatuh Tempo {index + 1}
           <input name={index === 0 ? "paymentDueDate" : `payments.${index}.dueDate`} type="date" required className={inputClass}

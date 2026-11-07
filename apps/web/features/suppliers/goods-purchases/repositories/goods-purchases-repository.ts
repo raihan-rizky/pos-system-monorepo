@@ -55,6 +55,7 @@ export class GoodsPurchaseRepositoryError extends Error {
 const goodsPurchaseInclude = {
   shoppingRequest: { select: { number: true } },
   items: {
+    where: { removedAt: null },
     orderBy: { createdAt: "asc" as const },
     include: {
       product: { select: { stockGroupId: true } },

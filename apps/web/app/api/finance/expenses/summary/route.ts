@@ -84,8 +84,12 @@ export async function GET(request: Request) {
       cashDays.set(date, (cashDays.get(date) ?? 0) + Math.round(amount * 100));
     };
     for (const row of report.expenses) addCash(row.date, row.amount);
-    for (const row of report.purchaseExpenses ?? []) if (row.purchase?.method === "TRANSFER") addCash(row.date, row.amount);
-    for (const row of report.giroPayments ?? []) addCash(row.date, row.amount);
+    if (report.purchasePayments != null) {
+      for (const row of report.purchasePayments) addCash(row.date, row.amount);
+    } else {
+      for (const row of report.purchaseExpenses ?? []) if (row.purchase?.method === "TRANSFER") addCash(row.date, row.amount);
+      for (const row of report.giroPayments ?? []) addCash(row.date, row.amount);
+    }
     const cashDaily = [...cashDays.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, amount]) => ({ date, total: amount / 100 }));
     const expenseCents = [...cashDays.values()].reduce((sum, amount) => sum + amount, 0);
     const incomplete = report.cashIncomplete === true;

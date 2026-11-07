@@ -21,7 +21,7 @@ describe("shopping request flow metadata", () => {
       requestedByName: "A", approvedByName: null, approvedById: null,
       rejectedByName: "B", rejectionReason: "Perlu revisi",
       rejectedAt: new Date("2026-10-10T01:00:00.000Z"),
-      _count: { items: 0 }, items: [],
+      _count: { items: 0, corrections: 2 }, items: [], corrections: [{ id: "correction-with-stock" }],
       goodsPurchases: [
         { id: "purchase-1", number: "PB-1", status: "APPROVED", fulfillmentStatus: "NOT_RECEIVED", totalAmount: { toString: () => "15000" } },
         { id: "purchase-old", number: "PB-OLD", status: "REJECTED", fulfillmentStatus: "NOT_RECEIVED", totalAmount: { toString: () => "12000" } },
@@ -34,6 +34,8 @@ describe("shopping request flow metadata", () => {
 
     expect(row).toMatchObject({
       approvalFlowVersion: 2,
+      correctionCount: 2,
+      correctionStockChanged: true,
       rejectedByName: "B",
       rejectionReason: "Perlu revisi",
       rejectedAt: "2026-10-10T01:00:00.000Z",
@@ -43,5 +45,11 @@ describe("shopping request flow metadata", () => {
         { id: "purchase-old", number: "PB-OLD" },
       ],
     });
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ storeId: "store-1" }),
+      include: expect.objectContaining({
+        corrections: expect.objectContaining({ where: { movements: { some: { baseDelta: { not: 0 } } } }, take: 1 }),
+      }),
+    }));
   });
 });

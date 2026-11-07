@@ -448,3 +448,9 @@ Untuk menghubungkan giro yang sudah diperiksa dengan hutang manual yang benar-be
 1. Buka Laporan Keuangan.
 2. Pilih hari ini atau tanggal sebelumnya dalam WIB.
 3. Baca total, ATK/Percetakan, subkategori, dan metode pembayaran sesuai izin.
+
+### Q53: Bagaimana cara mengoreksi daftar belanja yang sudah diproses?
+
+1. Di **Supplier > Daftar Belanja**, buka **Tindakan lainnya > Edit daftar**. Izin `supplier.shopping_request.correct_processed:update` tersedia untuk Owner secara bawaan dan dapat diberikan kepada role lain.
+2. Ubah data yang diperlukan, isi alasan, dan tinjau dampak terhadap barang diterima, stok, pembayaran, serta tanggal laporan. Bila harga beli berubah, pilih secara terpisah apakah HPP dan harga jual katalog perlu diperbarui.
+3. Simpan setelah memeriksa ringkasan. **Kelebihan pembayaran** ditampilkan sebagai peringatan, bukan pengembalian uang otomatis. Badge **Diubah** atau **Stok berubah** membuka riwayat perubahan.

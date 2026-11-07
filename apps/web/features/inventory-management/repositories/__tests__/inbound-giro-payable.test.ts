@@ -9,6 +9,7 @@ type Purchase = {
   totalAmount: number;
   paymentMethod: "GIRO" | "TRANSFER" | null;
   paymentDueDate: Date | null;
+  payments: Array<{ method: "TRANSFER" | "GIRO"; amount: number; dueDate: Date | null; note: string | null }>;
   expense: { id: string } | null;
   shoppingRequest: { expense: { id: string } | null };
   _count: { items: number };
@@ -23,6 +24,7 @@ function fakeTransaction(overrides: Partial<Purchase> = {}) {
     totalAmount: 76_000,
     paymentMethod: null,
     paymentDueDate: null,
+    payments: [],
     expense: null,
     shoppingRequest: { expense: null },
     _count: { items: 1 },
@@ -31,6 +33,7 @@ function fakeTransaction(overrides: Partial<Purchase> = {}) {
   const payables: Record<string, unknown>[] = [];
   const expenses: Record<string, unknown>[] = [];
   const tx = {
+    shoppingRequestCorrection: { count: async () => 0 },
     goodsPurchase: {
       findFirst: async () => purchase,
       update: async ({ data }: { data: Pick<Purchase, "paymentMethod" | "paymentDueDate"> }) => {

@@ -1019,6 +1019,21 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Baca rincian", description: "Periksa pemasukan, Outstanding DP, kategori ATK dan Percetakan, subkategori, serta metode pembayaran. Outstanding DP memakai sisa DP terkini dari nota hingga tanggal pilihan, bukan saldo historis dan tidak termasuk Tempo. Kelima bagian mengikuti izin masing-masing. Owner memilih Lihat sebagai Sales untuk meninjau izin Sales yang tersimpan, termasuk laporan penuh jika diizinkan, lalu Laporan Lengkap untuk kembali." },
     ],
   }),
+  workflow({
+    faqNumber: 53,
+    slug: "correct-shopping-request",
+    title: "Bagaimana cara mengoreksi daftar belanja yang sudah diproses?",
+    aliases: ["edit daftar belanja", "koreksi daftar belanja", "ubah barang diterima", "stok berubah daftar belanja"],
+    route: "/suppliers",
+    actionLabel: "Buka Daftar Belanja",
+    iconKey: "shopping-cart",
+    requiredCapabilities: [{ resource: "supplier.shopping_request.correct_processed", action: "update" }],
+    steps: [
+      { title: "Buka daftar diproses", description: "Masuk ke Supplier > Daftar Belanja, buka Tindakan lainnya pada daftar yang sudah diproses, lalu pilih Edit daftar." },
+      { title: "Tinjau dampak koreksi", description: "Ubah barang, jumlah diterima, harga, pembayaran, atau pilihan katalog; masukkan alasan dan pilih Tinjau dampak untuk melihat stok, total, periode laporan, serta kelebihan pembayaran." },
+      { title: "Simpan perubahan", description: "Periksa ringkasan lalu pilih Simpan perubahan. Badge Diubah atau Stok berubah membuka riwayat koreksi." },
+    ],
+  }),
 ];
 
 export function getWorkflowPayload(workflow: AssistantWorkflowDefinition): AssistantWorkflowPayload {

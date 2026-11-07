@@ -16,6 +16,15 @@ export interface ShoppingRequestDeletionPlanInput {
     conversionNeedsReview: boolean;
   }>;
   groups: Array<{ id: string; baseStock: number; baseUnit?: string | null }>;
+  corrections?: Array<{
+    receiptId: string;
+    receiptLineId: string;
+    productId: string;
+    stockGroupId: string | null;
+    inventoryLogId: string;
+    quantityDelta: number;
+    baseDelta: number;
+  }>;
 }
 
 export interface ShoppingRequestDeletionSource {
@@ -169,7 +178,49 @@ export function buildShoppingRequestDeletionPlan(input: ShoppingRequestDeletionP
     }
   }
 
-  const result = [...movements.values()].sort((left, right) =>
+  for (const correction of input.corrections ?? []) {
+    const product = products.get(correction.productId);
+    const group = correction.stockGroupId ? groups.get(correction.stockGroupId) : null;
+    const multiplier = correction.stockGroupId ? product?.unitMultiplierToBase : 1;
+    if (!product || product.stockGroupId !== correction.stockGroupId || product.conversionNeedsReview ||
+        (correction.stockGroupId && !group) || !Number.isFinite(multiplier) || !multiplier || multiplier <= 0 ||
+        !Number.isFinite(correction.quantityDelta) || !Number.isFinite(correction.baseDelta) ||
+        !closeEnough(correction.quantityDelta * multiplier, correction.baseDelta) || sourceIds.has(correction.inventoryLogId)) {
+      throw new Error("Riwayat koreksi stok tidak dapat dipastikan.");
+    }
+    sourceIds.add(correction.inventoryLogId);
+    const key = correction.stockGroupId ? `group:${correction.stockGroupId}` : `product:${correction.productId}`;
+    const movement = movements.get(key) ?? {
+      productId: product.id, productName: product.name, stockGroupId: correction.stockGroupId,
+      unit: correction.stockGroupId ? group?.baseUnit ?? null : product.unit,
+      baseQuantity: 0, availableBaseStock: 0, sourceLogIds: [], sources: [],
+    };
+    let source = movement.sources.find((entry) => entry.receiptLineId === correction.receiptLineId);
+    if (source && (source.productId !== correction.productId || source.receiptId !== correction.receiptId)) {
+      throw new Error("Sumber koreksi stok tidak cocok dengan penerimaan.");
+    }
+    if (!source) {
+      source = { receiptId: correction.receiptId, receiptLineId: correction.receiptLineId, productId: correction.productId,
+        inventoryLogId: correction.inventoryLogId, quantity: 0, baseQuantity: 0 };
+      movement.sources.push(source);
+    }
+    source.quantity += correction.quantityDelta;
+    source.baseQuantity += correction.baseDelta;
+    movement.baseQuantity += correction.baseDelta;
+    movement.sourceLogIds.push(correction.inventoryLogId);
+    movements.set(key, movement);
+  }
+
+  for (const movement of movements.values()) {
+    for (const source of movement.sources) {
+      if ((source.quantity < 0 && !closeEnough(source.quantity, 0)) ||
+          (source.baseQuantity < 0 && !closeEnough(source.baseQuantity, 0))) {
+        throw new Error("Jumlah stok terkoreksi tidak dapat dipastikan.");
+      }
+    }
+    movement.sources = movement.sources.filter((source) => source.baseQuantity > 0 && !closeEnough(source.baseQuantity, 0));
+  }
+  const result = [...movements.values()].filter((movement) => movement.sources.length > 0).sort((left, right) =>
     `${left.stockGroupId ?? ""}:${left.productId}`.localeCompare(`${right.stockGroupId ?? ""}:${right.productId}`),
   );
   for (const movement of result) {

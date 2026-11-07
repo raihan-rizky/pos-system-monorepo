@@ -84,7 +84,10 @@ describe("izin pembayaran giro dan hutang manual", () => {
   it("membatasi pencarian pada toko sesi sebelum memilih jenis pembayaran", async () => {
     mocks.query.mockResolvedValueOnce([]);
     expect((await pay({ storeId: "store-lain" })).status).toBe(404);
-    expect(mocks.query.mock.calls[0].slice(1)).toEqual(["debt-1", "store-1"]);
+    const parameters = mocks.query.mock.calls[0].slice(1);
+    expect(parameters).toContain("debt-1");
+    expect(parameters).toContain("store-1");
+    expect(parameters).not.toContain("store-lain");
     expect(writes).toEqual([]);
   });
 

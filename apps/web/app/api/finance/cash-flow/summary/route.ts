@@ -37,10 +37,14 @@ export async function GET(request: Request) {
       for (const amount of Object.values(row.amounts)) add(incomeDays, row.date, amount);
     }
     for (const row of report.expenses) add(expenseDays, row.date, row.amount);
-    for (const row of report.purchaseExpenses ?? []) {
-      if (row.purchase?.method === "TRANSFER") add(expenseDays, row.date, row.amount);
+    if (report.purchasePayments != null) {
+      for (const row of report.purchasePayments) add(expenseDays, row.date, row.amount);
+    } else {
+      for (const row of report.purchaseExpenses ?? []) {
+        if (row.purchase?.method === "TRANSFER") add(expenseDays, row.date, row.amount);
+      }
+      for (const row of report.giroPayments ?? []) add(expenseDays, row.date, row.amount);
     }
-    for (const row of report.giroPayments ?? []) add(expenseDays, row.date, row.amount);
     const daily = (days: Map<string, number>) => [...days.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, cents]) => ({ date, total: cents / 100 }));
