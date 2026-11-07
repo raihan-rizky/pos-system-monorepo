@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+import { useRole } from "@/components/providers/RoleProvider";
+import { DailyIncomeReport } from "@/features/financial-report/components/DailyIncomeReport";
 import dynamic from "next/dynamic";
 import {
   RefreshCw,
@@ -79,6 +81,12 @@ function formatRange(dateFrom: string, dateTo: string): string {
 }
 
 export default function FinancialReportPage() {
+  const { canAccess, canPerform } = useRole();
+  if (!canAccess("/financial-report")) return <p className="p-6 text-sm text-surface-600">Akses Laporan Keuangan belum diizinkan.</p>;
+  return canPerform("financial-report", "read") ? <FullFinancialReport /> : <DailyIncomeReport />;
+}
+
+function FullFinancialReport() {
   const initialRange = React.useMemo(
     () => buildFinancialReportRange("month"),
     [],
@@ -487,11 +495,19 @@ export default function FinancialReportPage() {
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <RankedListCard
-            title="Kategori"
+            title="Top Kategori"
             accent="warning"
             rows={categoryRows}
             loading={isLoading}
             emptyText="Belum ada kategori pada periode ini."
+          />
+          <RankedListCard
+            title="Top Subkategori"
+            accent="brand"
+            rows={(report?.subcategories ?? []).slice().sort((a, b) => b.revenue - a.revenue).map(row => ({ key: `${row.categoryName}:${row.subcategoryName}`, name: `${row.categoryName} / ${row.subcategoryName}`, primaryValue: row.revenue, secondaryValue: row.grossProfit, countLabel: `${row.transactionCount} trx` }))}
+            maxRows={100}
+            loading={isLoading}
+            emptyText="Belum ada subkategori pada periode ini."
           />
         </section>
 

@@ -98,7 +98,8 @@ test("shows assistant progress while the response is still streaming", async ({ 
     }, { streamUrl: progressServer.url });
 
     await page.goto("/help");
-    await page.locator(".floating-ai-button").click();
+    await page.waitForLoadState("networkidle", { timeout: 30_000 });
+    await page.getByRole("button", { name: "Buka asisten AI" }).click();
     await page.locator("textarea").fill("Cek stok rendah");
     await page.locator("textarea").press("Enter");
 

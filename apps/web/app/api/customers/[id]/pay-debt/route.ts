@@ -165,6 +165,7 @@ export async function POST(
             storeId,
             status: transaction.status,
             amountPaid: transaction.amountPaid,
+            note: transaction.note,
             ...(transaction.status === "COMPLETED" && transaction.paymentMethod === "TEMPO"
               ? { paymentMethod: "TEMPO" }
               : {}),

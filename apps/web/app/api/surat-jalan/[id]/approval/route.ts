@@ -27,6 +27,18 @@ export async function POST(
     const { id } = await params;
 
     const result = await db.$transaction(async (tx) => {
+      const anchor = await tx.suratJalan.findFirst({
+        where: { id, storeId }, select: { transactionId: true },
+      });
+      if (!anchor) throw new Error("SURAT_JALAN_NOT_FOUND");
+      const transactionStatus = await lockTransactionForStockMutation(tx, {
+        storeId, transactionId: anchor.transactionId,
+      });
+      if (transactionStatus === null) throw new Error("TRANSACTION_NOT_FOUND");
+      if (["VOIDED", "REFUNDED"].includes(transactionStatus)) {
+        throw new Error("TRANSACTION_CLOSED");
+      }
+
       const suratJalan = await tx.suratJalan.findFirst({
         where: { id, storeId },
         include: {
@@ -58,15 +70,6 @@ export async function POST(
       }
       if (suratJalan.status !== "PENDING") {
         throw new Error("INVALID_STATUS");
-      }
-
-      const transactionStatus = await lockTransactionForStockMutation(tx, {
-        storeId,
-        transactionId: suratJalan.transactionId,
-      });
-      if (transactionStatus === null) throw new Error("TRANSACTION_NOT_FOUND");
-      if (["VOIDED", "REFUNDED"].includes(transactionStatus)) {
-        throw new Error("TRANSACTION_CLOSED");
       }
 
       const usesLegacyStock =

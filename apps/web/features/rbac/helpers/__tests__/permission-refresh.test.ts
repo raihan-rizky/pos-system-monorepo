@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildDefaultRolePermissions } from "../rbac-core";
-import { loadCurrentRoleAccess, startPermissionRefresh } from "../permission-refresh";
+import { loadCurrentRoleAccess, PermissionRefreshError, startPermissionRefresh } from "../permission-refresh";
 
 describe("live permission verification", () => {
   afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
@@ -18,6 +18,24 @@ describe("live permission verification", () => {
     delete permissions.SALES.resources.transaction;
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ permissions, authorizationFingerprint: "version", user: { id: "sales-1", name: "Sales", role: "SALES", storeId: "store-1" } })));
     await expect(loadCurrentRoleAccess(new AbortController().signal)).rejects.toThrow();
+  });
+
+  it("distinguishes a denied response from an offline transport failure", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 403 })));
+    await expect(loadCurrentRoleAccess(new AbortController().signal)).rejects.toMatchObject({
+      name: "PermissionRefreshError", reason: "http", status: 403,
+    });
+
+    const networkError = new TypeError("network unavailable");
+    vi.stubGlobal("fetch", vi.fn(async () => { throw networkError; }));
+    await expect(loadCurrentRoleAccess(new AbortController().signal)).rejects.toBe(networkError);
+  });
+
+  it("classifies malformed successful responses as invalid authorization data", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ user: null })));
+    const error = await loadCurrentRoleAccess(new AbortController().signal).catch((cause) => cause);
+    expect(error).toBeInstanceOf(PermissionRefreshError);
+    expect(error).toMatchObject({ reason: "invalid" });
   });
 
   it("ends a stalled verification so the UI can deny access and recover on a later refresh", async () => {
@@ -61,5 +79,24 @@ describe("live permission verification", () => {
     await vi.advanceTimersByTimeAsync(30_000);
     expect(refresh).toHaveBeenCalledTimes(4);
     expect(lastSignal.aborted).toBe(true);
+  });
+
+  it("rechecks after reconnect when an earlier verification is still in flight", async () => {
+    const windowEvents = new EventTarget();
+    const documentEvents = Object.assign(new EventTarget(), { visibilityState: "visible" });
+    vi.stubGlobal("window", windowEvents);
+    vi.stubGlobal("document", documentEvents);
+    let finishFirst!: () => void;
+    const refresh = vi.fn()
+      .mockImplementationOnce(() => new Promise<void>(resolve => { finishFirst = resolve; }))
+      .mockResolvedValue(undefined);
+    const onOnline = vi.fn();
+    const stop = startPermissionRefresh(refresh, { onOnline });
+    expect(refresh).toHaveBeenCalledTimes(1);
+    windowEvents.dispatchEvent(new Event("online"));
+    expect(onOnline).toHaveBeenCalledOnce();
+    finishFirst();
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(2));
+    stop();
   });
 });

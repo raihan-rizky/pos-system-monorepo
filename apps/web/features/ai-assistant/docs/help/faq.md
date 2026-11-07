@@ -93,15 +93,13 @@ Untuk **Nota Percetakan**, periksa isi dan pembayaran tersimpan lalu klik **Setu
 **A:** Surat Jalan digunakan untuk mengirimkan barang pesanan kepada pelanggan secara bertahap atau sekaligus, langsung dari transaksi penjualan yang ada:
 1. Cari transaksi penjualan bersangkutan di halaman **Riwayat Transaksi** (harus berstatus **Lunas** atau **DP** serta memiliki produk fisik).
 2. Klik ikon tiga titik `...` di ujung kanan baris transaksi, lalu pilih opsi **Cetak Surat Jalan**.
-3. Pada modal yang muncul, klik tombol **Buat Surat Jalan** (atau **Buat Surat Jalan Baru** jika sebelumnya sudah pernah dibuatkan pengiriman sebagian).
-4. Isi detail pengiriman:
-   - **Jumlah Barang:** Masukkan jumlah barang yang dikirim saat ini untuk masing-masing produk (bisa dikirim sebagian jika stok belum lengkap).
-   - **Form Pengiriman:** Isi nama kurir/ekspedisi, nama pengemudi, pelat kendaraan, nama penerima, dan catatan tambahan jika ada.
-5. Klik proses untuk membuat Surat Jalan. Dokumen Surat Jalan baru akan tersimpan dan siap dicetak sebagai bukti pengiriman barang.
+3. Struk langsung terbuka tanpa langkah pembuatan terpisah. Dokumen aktif terbaru dipilih bila ada; gunakan pilihan **Dokumen** untuk pengiriman lain atau **Pengiriman baru** bila masih ada sisa barang. Membuka struk tidak membuat catatan pengiriman.
+4. Klik langsung **Penerima**, **Nama barang**, **Jumlah**, atau **Keterangan** di struk untuk mengedit. Jumlah dibatasi sisa invoice setelah pengiriman PENDING/CONFIRMED lainnya; isi 0 agar barang tidak disertakan saat disimpan. Nama barang hanya berubah pada surat jalan tersebut. Dokumen tersimpan hanya dapat diubah dengan izin `surat_jalan.update`; dokumen CANCELLED/REJECTED hanya dapat dilihat dan dicetak.
+5. Pilih **Simpan & Cetak** agar perubahan tersimpan sebelum dicetak. **Cetak** mencetak ulang dokumen yang tidak berubah tanpa pengiriman baru. Jika simpan gagal, isian tetap tersedia. Saat menutup atau berpindah dengan perubahan belum disimpan, pilih **Lanjut edit** atau **Buang perubahan**.
 6. Untuk transaksi baru, stok sudah dikurangi ketika transaksi disimpan sebagai Lunas/DP atau ketika transaksi pending disetujui. Membuat, menyetujui, mencetak, dan melakukan marking Surat Jalan tidak mengurangi stok lagi.
 7. Status Surat Jalan langsung **CONFIRMED** secara default. Jika Owner menonaktifkan `surat_jalan.auto_approve:create` untuk role pembuat melalui RBAC, dokumen tersimpan sebagai **PENDING** dan menunggu approval. Approval tersebut hanya mengonfirmasi dokumen.
 
-Transaksi lama sebelum pembaruan tetap mengikuti alur stok Surat Jalan sebelumnya agar saldo historis tidak berubah mendadak.
+Transaksi lama dengan sumber stok SURAT_JALAN tetap mengikuti alur stok historis. Perubahan jumlah dokumen CONFIRMED menyesuaikan selisih stok dan menulis jurnal hanya jika bukti mutasi, grup stok, dan konversi satuannya dapat diverifikasi; bila bukti tidak cukup, perubahan jumlah ditolak dengan pesan yang jelas.
 
 ### Q9: Bagaimana cara mencetak invoice atau struk transaksi?
 **A:** Anda dapat mencetak invoice dengan dua cara:
@@ -434,5 +432,19 @@ Untuk menghubungkan giro yang sudah diperiksa dengan hutang manual yang benar-be
 ### Q50: Bagaimana Owner memeriksa perubahan nota oleh Sales?
 
 1. Klik notifikasi perubahan nota, atau buka **Riwayat**, cari transaksi, lalu pilih menu tiga titik > **Riwayat perubahan nota**.
-2. Pilih perubahan untuk melihat nama Sales, waktu penyimpanan, dan rincian **Sebelum** serta **Sesudah**. Setiap perubahan yang berhasil tersimpan memiliki versi sendiri.
-3. Buka **Nota asli sebelum perubahan Sales pertama** untuk memeriksa rincian transaksi awal yang tercatat. Pencatatan dimulai setelah fitur tersedia, untuk nota yang sudah diproses termasuk DP dan Tempo serta pembayaran piutang oleh Sales. Draft dan nota menunggu persetujuan tidak termasuk. Riwayat hanya dapat dibuka Owner pada toko yang sama.
+2. Pilih revisi di **Jejak perubahan**, atau pemilih **Jejak versi** pada ponsel. Lihat nama Sales, waktu penyimpanan, total sebelum dan sesudah, serta selisihnya. **Yang berubah** menampilkan rincian **Sebelum** dan **Sesudah** per bagian atau barang.
+3. Buka **Nota asli** untuk memeriksa rincian sebelum perubahan Sales pertama, atau **Versi lengkap** untuk kedua nota pada revisi terpilih. Identitas data tersedia dalam rincian tambahan. Pencatatan dimulai setelah fitur tersedia, untuk nota yang sudah diproses termasuk DP dan Tempo serta pembayaran piutang oleh Sales. Draft dan nota menunggu persetujuan tidak termasuk. Riwayat hanya dapat dibuka Owner pada toko yang sama.
+
+### Q51: Bagaimana cara Void atau Hapus transaksi beserta surat jalan terkait?
+
+**A:** Buka **Riwayat** dan menu tiga titik pada baris komputer atau kartu ponsel. Semua jenis transaksi, termasuk ATK, Percetakan, nota penawaran, dan transaksi dengan surat jalan, mengikuti izin akun serta statusnya.
+
+1. Pilih **Void** untuk membatalkan transaksi aktif, termasuk draft atau pending. Aksi memerlukan `transaction.update` bagi role yang diberi izin; tinjau dampaknya lalu konfirmasi. Transaksi **VOIDED/REFUNDED** tidak dapat di-void ulang. Seluruh surat jalan terkait berstatus **PENDING/CONFIRMED** menjadi **CANCELLED**; yang sudah **CANCELLED/REJECTED** tetap pada statusnya.
+2. Pilih **Hapus** untuk menghapus permanen transaksi, seluruh surat jalan terkait, dan item dokumennya. Pada transaksi Percetakan, nota sumbernya juga dihapus; snapshot dokumen tetap tersimpan dalam audit. Aksi memerlukan `transaction.delete` bagi role yang diberi izin. Jurnal stok tetap tersimpan. **Void** mempertahankan nota Percetakan sumber pada transaksi yang dibatalkan.
+3. Periksa dampak stok sebelum mengonfirmasi. Stok yang terbukti keluar dikembalikan paling banyak sekali berdasarkan mutasi yang tercatat; **Hapus setelah Void** tidak mengembalikannya lagi. Dampak keuangan invoice tetap diproses saat Hapus; masalah keuangan atau kegagalan sistem tetap perlu diselesaikan.
+4. Semua jenis transaksi, termasuk ATK, Percetakan, dan nota penawaran yang sudah atau belum menjadi invoice, tetap dapat dihapus bila riwayat stok kosong atau tidak konsisten. Peringatan tercatat di audit; pemeriksaan izin dan dampak keuangan tetap berlaku. Baca peringatan yang juga muncul **setelah penghapusan berhasil** dan tindak lanjuti bila perlu pemeriksaan. Sistem tidak menebak jumlah stok yang harus dikembalikan.
+
+### Q52: Bagaimana cara melihat pemasukan per tanggal?
+1. Buka Laporan Keuangan.
+2. Pilih hari ini atau tanggal sebelumnya dalam WIB.
+3. Baca total, ATK/Percetakan, subkategori, dan metode pembayaran sesuai izin.

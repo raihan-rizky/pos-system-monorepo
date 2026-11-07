@@ -58,3 +58,15 @@ describe.each(["preview", "PDF"])("regular receipt payment header in %s", output
     }
   });
 });
+
+describe.each(["preview", "PDF"])("catatan transaksi terbaru di %s", output => {
+  it("menampilkan catatan yang tersimpan dan menyembunyikan anotasi pelunasan", () => {
+    const receipt = { ...transaction, note: "Kirim pagi | Pelunasan piutang 50.000 (CASH)" };
+    const content = output === "preview"
+      ? renderToStaticMarkup(<ReceiptModal open onClose={vi.fn()} transaction={receipt} />)
+      : textContent(InvoicePdfDocument({ data: buildInvoicePdfData(receipt, store), paperSize: { w: 215.9, h: 139.7 } }));
+
+    expect(content).toContain("Kirim pagi");
+    expect(content).not.toContain("Pelunasan piutang");
+  });
+});

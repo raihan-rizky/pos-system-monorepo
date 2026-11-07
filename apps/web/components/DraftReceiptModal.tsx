@@ -425,7 +425,7 @@ export function DraftReceiptModal({
             {cleanNote && (
               <div style={{ fontSize: 11, marginTop: 10, fontStyle: "italic" }}>
                 <span style={{ fontWeight: "bold" }}>Catatan: </span>
-                {cleanNote}
+                <span style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{cleanNote}</span>
               </div>
             )}
 

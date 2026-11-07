@@ -5,12 +5,6 @@ import { describe, expect, it } from "vitest";
 const componentSource = readFileSync(
   join(process.cwd(), "features/surat-jalan/components/SuratJalanCreateModal.tsx"),
   "utf8",
-) + readFileSync(
-  join(process.cwd(), "features/surat-jalan/components/SuratJalanHeader.tsx"),
-  "utf8",
-) + readFileSync(
-  join(process.cwd(), "features/surat-jalan/components/SuratJalanForm.tsx"),
-  "utf8",
 );
 const listSource = readFileSync(
   join(process.cwd(), "features/surat-jalan/components/SuratJalanList.tsx"),
@@ -18,10 +12,6 @@ const listSource = readFileSync(
 );
 const quantityTableSource = readFileSync(
   join(process.cwd(), "features/surat-jalan/components/SuratJalanQuantityTable.tsx"),
-  "utf8",
-);
-const customerSelectSource = readFileSync(
-  join(process.cwd(), "features/pos-checkout/components/CustomerCheckoutSelect.tsx"),
   "utf8",
 );
 const inventorySource =
@@ -41,34 +31,33 @@ const inventorySource =
   );
 
 describe("SuratJalanCreateModal UI contract", () => {
-  it("uses the localized clickable invoice utama label", () => {
-    expect(componentSource).toContain("Invoice Utama");
-    expect(componentSource).not.toContain("Main Invoice");
-    expect(componentSource).toContain("setInvoicePreviewOpen");
-    expect(componentSource).toContain("aria-expanded={invoicePreviewOpen}");
+  it("opens the receipt directly without the old summary and creation step", () => {
+    expect(componentSource).toContain("<SuratJalanReceiptEditor");
+    expect(componentSource).not.toContain("<SuratJalanStats");
+    expect(componentSource).not.toContain("<SuratJalanHeader");
+    expect(componentSource).not.toContain("<SuratJalanForm");
+    expect(componentSource).not.toContain("setIsCreating");
   });
 
   it("opens the main receipt preview from grouped Surat Jalan rows without redirecting to history", () => {
     expect(listSource).toContain("Lihat Struk Utama");
     expect(listSource).toContain("onViewMainReceipt");
     expect(listSource).not.toContain("/history?search=");
-    expect(componentSource).toContain("viewingMainReceipt");
-    expect(componentSource).toContain("<ReceiptModal");
   });
 
-  it("uses restricted customer selection for penerima", () => {
-    expect(componentSource).toContain("<CustomerCheckoutSelect");
-    expect(componentSource).toContain('label="Penerima"');
-    expect(componentSource).toContain("allowNewCustomer={false}");
-    expect(customerSelectSource).toContain("allowNewCustomer = true");
+  it("uses existing permissions for creation and saved document editing", () => {
+    expect(componentSource).toContain('canPerform("surat_jalan", "create")');
+    expect(componentSource).toContain('canPerform("surat_jalan", "update")');
+    expect(componentSource).toContain("expectedUpdatedAt");
+    expect(componentSource).toContain("updateSuratJalanDocument");
   });
 
-  it("keeps modal actions sticky", () => {
-    expect(componentSource).toContain("sticky bottom-0");
-    expect(componentSource).toContain("Konfirmasi Surat Jalan");
-    expect(componentSource).toContain("Simpan Surat Jalan");
-    expect(componentSource).toContain("Ya, Kurangi Stok");
-    expect(componentSource).toContain("stockDeductionSource");
+  it("keeps the selected saved document and approval action available", () => {
+    expect(componentSource).toContain("initialRecordId");
+    expect(componentSource).toContain("onApprove");
+    const printSource = readFileSync(join(process.cwd(), "features/surat-jalan/components/SuratJalanPrintModal.tsx"), "utf8");
+    expect(printSource).toContain("<SuratJalanCreateModal");
+    expect(printSource).toContain("initialRecordId={suratJalan.id}");
   });
 
   it("describes pending approval as document-only for new transactions", () => {

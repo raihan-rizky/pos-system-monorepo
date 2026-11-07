@@ -20,21 +20,21 @@ export function HistoryPreview(ctx: PreviewContext) {
     return (
       <PreviewPageRoot ctx={ctx} className="bg-surface-50 p-8">
         <GuideTarget ctx={ctx} target="history-receipt-comparison" className="mx-auto max-w-4xl space-y-5">
-          <PreviewHeader title="Perubahan nota" subtitle="Bandingkan perubahan yang disimpan oleh Sales dan lihat rincian nota asli." icon={WalletCards} />
-          <div className="rounded-xl border border-surface-200 bg-white p-4">
-            <p className="text-sm font-semibold">Pilih perubahan</p>
-            <p className="mt-2 rounded-lg border border-surface-300 p-3 text-sm">Perubahan 1 - Sales Contoh - 04 November 2026, 09.00.00 WIB</p>
-          </div>
-          <h2 className="text-lg font-bold">Rincian yang berubah</h2>
-          <div className="rounded-xl border border-surface-200 bg-white p-4">
-            <h3 className="font-semibold">Catatan transaksi</h3>
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <div className="rounded-lg bg-surface-50 p-3"><p className="text-xs font-semibold">Sebelum</p><p className="mt-1 text-sm">Diambil hari Jumat</p></div>
-              <div className="rounded-lg bg-brand-50 p-3"><p className="text-xs font-semibold">Sesudah</p><p className="mt-1 text-sm">Diambil hari Sabtu</p></div>
+          <PreviewHeader title="Perubahan nota" subtitle="Telusuri setiap revisi. Pahami apa yang berubah." icon={WalletCards} />
+          <div className="grid items-start gap-5 lg:grid-cols-[200px_minmax(0,1fr)]">
+            <div className="rounded-2xl bg-surface-900 p-5 text-white">
+              <h2 className="text-sm font-semibold">Jejak perubahan</h2><p className="mt-5 text-xs text-surface-300">0 · Nota asli</p>
+              <div className="mt-4 rounded-lg border border-white/30 bg-white/10 p-3"><p className="text-sm font-semibold">01 · Revisi 1 · Terbaru</p><p className="mt-2 text-xs text-surface-200">Sales Contoh · 09.00 WIB</p></div>
+              <p className="mt-5 text-xs leading-relaxed text-surface-300">Setiap versi tersimpan untuk ditelusuri kembali.</p>
+            </div>
+            <div className="min-w-0 space-y-4">
+              <div><p className="text-xs text-surface-600">Revisi 1 dari 1</p><h2 className="mt-1 text-lg font-bold">Rincian nota diperbarui</h2><p className="mt-1 text-xs text-surface-600">Diubah oleh Sales Contoh · 5 November 2026, 09.00.00 WIB</p></div>
+              <div className="rounded-xl border border-surface-200 bg-white p-4"><div className="grid grid-cols-2 gap-4"><div><p className="text-xs text-surface-600">Total sebelum</p><p className="mt-1 text-lg font-bold">Rp120.000</p></div><div><p className="text-xs text-surface-600">Total sesudah</p><p className="mt-1 text-lg font-bold text-brand-800">Rp120.000</p></div></div><p className="mt-3 border-t border-surface-200 pt-3 text-xs font-semibold text-amber-900">Total tetap · 1 rincian berubah</p></div>
+              <div className="flex gap-5 border-b border-surface-200 text-xs font-semibold"><span className="border-b-2 border-brand-600 py-3 text-brand-800">Yang berubah</span><span className="py-3 text-surface-600">Nota asli</span><span className="py-3 text-surface-600">Versi lengkap</span></div>
+              <div className="rounded-xl border border-surface-200 bg-white p-4"><h3 className="text-sm font-semibold">Catatan transaksi</h3><div className="mt-3 grid grid-cols-2 gap-3"><div className="p-3"><p className="text-xs font-semibold text-surface-600">Sebelum</p><p className="mt-1 text-sm">Diambil hari Jumat</p></div><div className="rounded-lg bg-brand-50 p-3"><p className="text-xs font-semibold text-brand-800">Sesudah</p><p className="mt-1 text-sm">Diambil hari Sabtu</p></div></div></div>
+              <p className="rounded-xl border border-dashed border-surface-300 bg-white p-4 text-xs text-surface-600">Buka Nota asli untuk rincian sebelum perubahan Sales pertama.</p>
             </div>
           </div>
-          <h2 className="text-lg font-bold">Versi nota</h2>
-          <p className="rounded-xl border border-surface-200 bg-white p-4 font-semibold">Nota asli sebelum perubahan Sales pertama</p>
         </GuideTarget>
       </PreviewPageRoot>
     );

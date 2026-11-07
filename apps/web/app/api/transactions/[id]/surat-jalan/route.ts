@@ -23,6 +23,7 @@ import { applyProductStockDelta } from "@/features/product-stock-groups/stock-mu
 import { lockTransactionForStockMutation } from "@/features/transactions-stock/services/transaction-reversal-service";
 import { canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
+import { getDocumentQuantityLimits } from "@/features/surat-jalan/helpers/surat-jalan-document";
 import type { Role } from "@/lib/rbac/permissions";
 
 const log = getLogger("api:transactions:surat-jalan");
@@ -31,7 +32,8 @@ export const dynamic = "force-dynamic";
 
 const createSuratJalanSchema = z.object({
   recipientName: z.string().trim().min(1),
-  quantities: z.record(z.string(), z.coerce.number().int().min(0)),
+  quantities: z.record(z.string(), z.coerce.number().finite().min(0)),
+  documentNames: z.record(z.string(), z.string().trim().min(1).max(300)).optional().default({}),
   keterangan: z.record(z.string(), z.string().trim().max(500)).optional().default({}),
   note: z.string().trim().max(500).optional().nullable(),
 });
@@ -255,6 +257,10 @@ export async function POST(
             todayCount + 1 + attempt,
           );
 
+          const quantityLimits = getDocumentQuantityLimits(transaction.items, transaction.suratJalan);
+          if (Object.entries(parsed.data.quantities).some(([id, quantity]) => quantity > (quantityLimits[id] ?? 0) + 1e-8)) {
+            throw new Error("QUANTITY_EXCEEDS_REMAINING");
+          }
           const plan = planSuratJalanCreation({
             transaction: {
               id: transaction.id,
@@ -324,7 +330,7 @@ export async function POST(
                 create: plan.items.map((item) => ({
                   transactionItemId: item.transactionItemId,
                   productId: item.productId,
-                  productName: item.productName,
+                  productName: parsed.data.documentNames[item.transactionItemId] ?? item.productName,
                   quantity: item.quantity,
                   unit: item.unit,
                   keterangan: item.keterangan,
@@ -479,6 +485,8 @@ function toPlannerTransactionItem(item: {
 
 function toPlannerSuratJalan(suratJalan: {
   id: string;
+  transactionId?: string;
+  updatedAt?: Date;
   number: string;
   status: string;
   recipientName: string;
@@ -505,6 +513,8 @@ function toPlannerSuratJalan(suratJalan: {
 }): SuratJalanRecord {
   return {
     id: suratJalan.id,
+    transactionId: suratJalan.transactionId,
+    updatedAt: suratJalan.updatedAt?.toISOString(),
     number: suratJalan.number,
     status: suratJalan.status as SuratJalanRecord["status"],
     recipientName: suratJalan.recipientName,

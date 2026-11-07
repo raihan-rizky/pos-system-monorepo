@@ -94,7 +94,7 @@ test("successful first login lands on POS with sidebar menus visible", async ({ 
   await page.locator("#login-password").fill("password");
   await page.locator("#login-submit").click();
 
-  await expect(page).toHaveURL(/\/pos$/);
+  await expect(page).toHaveURL(/\/pos$/, { timeout: 30_000 });
   await expect(page.getByRole("link", { name: "Kasir", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
 });

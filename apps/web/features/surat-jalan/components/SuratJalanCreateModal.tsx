@@ -1,115 +1,65 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
-import { Truck } from "lucide-react";
-import { Modal, Button } from "@pos/ui";
+import React from "react";
+import { Modal } from "@pos/ui";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRole } from "@/components/providers/RoleProvider";
-import { ReceiptModal } from "@/components/ReceiptModal";
-import type { Transaction as ReceiptTransaction } from "@/hooks/useTransactions";
-import { useSuspenseSuratJalanBundle, useApproveSuratJalan } from "../hooks/useSuratJalan";
+import { useStoreSettings } from "@/hooks/useSettings";
+import { useSuratJalanBundle, suratJalanBundleKey } from "../hooks/useSuratJalan";
+import { approveSuratJalan, createSuratJalan, updateSuratJalanDocument } from "../api/surat-jalan-api";
+import type { SuratJalanBundle } from "../api/surat-jalan-api";
 import type { SuratJalanRecord } from "../types/surat-jalan";
-
-import { SuratJalanHeader } from "./SuratJalanHeader";
-import { SuratJalanStats } from "./SuratJalanStats";
-import { SuratJalanList } from "./SuratJalanList";
-import { SuratJalanForm } from "./SuratJalanForm";
+import { SuratJalanReceiptEditor } from "./SuratJalanReceiptEditor";
 
 interface SuratJalanCreateModalProps {
   open: boolean;
   transactionId: string;
+  initialRecordId?: string;
   onClose: () => void;
 }
 
-export const SuratJalanCreateModal: React.FC<SuratJalanCreateModalProps> = ({
-  open,
-  transactionId,
-  onClose,
-}) => {
+export const SuratJalanCreateModal: React.FC<SuratJalanCreateModalProps> = ({ open, ...props }) => {
   if (!open) return null;
-
-  return (
-    <Modal open={open} onClose={onClose} title="Cetak Surat Jalan" size="5xl">
-      <Suspense fallback={<SuratJalanCreateModalSkeleton />}>
-        <SuratJalanCreateModalContent
-          transactionId={transactionId}
-          onClose={onClose}
-        />
-      </Suspense>
-    </Modal>
-  );
+  return <SuratJalanCreateModalContent key={`${props.transactionId}:${props.initialRecordId ?? "latest"}`} {...props} />;
 };
 
-interface SuratJalanCreateModalContentProps {
-  transactionId: string;
-  onClose: () => void;
+function SuratJalanCreateModalContent({ transactionId, initialRecordId, onClose }: Omit<SuratJalanCreateModalProps, "open">) {
+  const { canPerform } = useRole();
+  const { data: bundle, isPending, error, refetch } = useSuratJalanBundle(transactionId);
+  const { data: store } = useStoreSettings();
+  const queryClient = useQueryClient();
+  const publish = (saved: SuratJalanRecord) => {
+    queryClient.setQueryData<SuratJalanBundle>(suratJalanBundleKey(transactionId), current => current ? {
+      ...current, suratJalan: [...current.suratJalan.filter(item => item.id !== saved.id), saved],
+    } : current);
+    for (const queryKey of [["surat-jalan"], ["surat-jalans"], ["transaction-history"], ["transactions"], ["products"], ["inventory-management"], ["inventory-movements"], ["product-stock-groups"]]) {
+      void queryClient.invalidateQueries({ queryKey });
+    }
+    return saved;
+  };
+  if (!bundle) {
+    return <Modal open onClose={onClose} title="Surat Jalan" size="5xl">
+      {isPending ? <SuratJalanCreateModalSkeleton /> : <div role="alert" className="space-y-3"><p>Surat jalan belum dapat dimuat. Silakan coba lagi.</p><p className="text-sm text-surface-500">{error?.message}</p><button type="button" className="sj-secondary-button" onClick={() => void refetch()}>Coba lagi</button></div>}
+    </Modal>;
+  }
+  return <SuratJalanReceiptEditor
+    bundle={bundle}
+    initialRecordId={initialRecordId}
+    store={{ name: store?.name || "TOKO TELADAN", address: store?.address || "Jl. Temu Putih No.30 Cilegon", phone: store?.phone || "0254 393022" }}
+    canCreate={canPerform("surat_jalan", "create")}
+    canUpdate={canPerform("surat_jalan", "update")}
+    onClose={onClose}
+    onSave={async (record, changes) => {
+      if (record) {
+        if (!record.updatedAt) throw new Error("Versi dokumen belum tersedia. Tutup lalu buka kembali surat jalan.");
+        return publish(await updateSuratJalanDocument(record.id, { ...changes, expectedUpdatedAt: record.updatedAt }));
+      }
+      return publish(await createSuratJalan({ transactionId, ...changes }));
+    }}
+    onApprove={async record => publish(await approveSuratJalan(record.id))}
+  />;
 }
 
-const SuratJalanCreateModalContent: React.FC<SuratJalanCreateModalContentProps> = ({
-  transactionId,
-  onClose,
-}) => {
-  const { canPerform } = useRole();
-  const { data: bundle } = useSuspenseSuratJalanBundle(transactionId);
-  const approveMutation = useApproveSuratJalan(transactionId);
-  const [isCreating, setIsCreating] = useState(false);
-  const [viewingMainReceipt, setViewingMainReceipt] = useState<
-    NonNullable<SuratJalanRecord["transaction"]> | null
-  >(null);
-
-  return (
-    <div className="space-y-6">
-      <SuratJalanHeader transactionId={transactionId} bundle={bundle} />
-      
-      <SuratJalanStats progress={bundle.progress} />
-      
-      {!isCreating && bundle.suratJalan.length > 0 && (
-        <SuratJalanList 
-          records={bundle.suratJalan} 
-          canApprove={canPerform("surat_jalan", "update")}
-          approveMutation={approveMutation}
-          onViewMainReceipt={setViewingMainReceipt}
-        />
-      )}
-
-      {!isCreating ? (
-        <Button
-          variant="accent"
-          size="lg"
-          icon={<Truck className="h-4 w-4" />}
-          onClick={() => setIsCreating(true)}
-          className="w-full shadow-sm"
-          disabled={bundle.progress.remainingQuantity <= 0}
-        >
-          {bundle.suratJalan.length === 0 ? "Buat Surat Jalan" : "Buat Surat Jalan Baru"}
-        </Button>
-      ) : (
-        <SuratJalanForm 
-          transactionId={transactionId} 
-          bundle={bundle} 
-          onCancel={() => setIsCreating(false)} 
-        />
-      )}
-
-      {viewingMainReceipt && (
-        <ReceiptModal
-          open={Boolean(viewingMainReceipt)}
-          onClose={() => setViewingMainReceipt(null)}
-          transaction={viewingMainReceipt as unknown as ReceiptTransaction}
-        />
-      )}
-    </div>
-  );
-};
-
-const SuratJalanCreateModalSkeleton = () => (
-  <div className="space-y-6 animate-pulse">
-    <div className="h-28 rounded-2xl bg-surface-100" />
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-      <div className="h-24 rounded-2xl bg-surface-100" />
-      <div className="h-24 rounded-2xl bg-surface-100" />
-      <div className="h-24 rounded-2xl bg-surface-100" />
-      <div className="h-24 rounded-2xl bg-surface-100" />
-    </div>
-    <div className="h-40 rounded-2xl bg-surface-100" />
-  </div>
-);
+function SuratJalanCreateModalSkeleton() {
+  return <div role="status" className="animate-pulse space-y-4 py-8"><p>Menyiapkan struk surat jalan…</p><div className="h-64 rounded-lg bg-surface-100" /></div>;
+}

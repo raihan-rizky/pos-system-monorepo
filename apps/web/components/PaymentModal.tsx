@@ -208,8 +208,8 @@ export function PaymentModal({
   );
   const invoiceDate = receiptInvoiceDate ?? selectedInvoiceDate;
   
-  const { role } = useRole();
-  const canChangeInvoiceDate = role === "OWNER" || role === "ADMIN";
+  const { role, isOfflineSession } = useRole();
+  const canChangeInvoiceDate = !isOfflineSession && (role === "OWNER" || role === "ADMIN");
   const selectedCustomerType: CustomerType =
     customerSelection.kind === "existing"
       ? customerSelection.customer.type ?? "UMUM"
@@ -217,7 +217,7 @@ export function PaymentModal({
   const specialPricingSettings = useSpecialPricingSettings();
   const specialPricingEnabled = specialPricingSettings.data ?? false;
   const canUseSpecialPricingPolicy = !items.some(item => item.lineType === "PRODUCT") || specialPricingSettings.data !== undefined;
-  const canEditCustomPrices = specialPricingEnabled && canEditCustomPriceForCustomer(
+  const canEditCustomPrices = !isOfflineSession && specialPricingEnabled && canEditCustomPriceForCustomer(
     role,
     selectedCustomerType,
   );

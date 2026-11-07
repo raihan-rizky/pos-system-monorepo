@@ -25,7 +25,27 @@ export interface CreateSuratJalanInput {
   recipientName: string;
   quantities: Record<string, number>;
   keterangan: Record<string, string>;
+  documentNames?: Record<string, string>;
   note?: string | null;
+}
+
+export interface UpdateSuratJalanDocumentInput {
+  expectedUpdatedAt: string;
+  recipientName: string;
+  quantities: Record<string, number>;
+  documentNames: Record<string, string>;
+  keterangan: Record<string, string>;
+}
+
+export async function updateSuratJalanDocument(id: string, input: UpdateSuratJalanDocumentInput): Promise<SuratJalanRecord> {
+  const response = await fetch(`/api/surat-jalan/${id}/document`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Perubahan surat jalan belum berhasil disimpan.");
+  }
+  return response.json();
 }
 
 export interface MarkSuratJalanInput {

@@ -1,10 +1,10 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { categories, products } from "./fixtures/mock-data";
 import { CHANGELOG } from "../features/changelog/data/changelog";
 import { changeKey, seenStorageKey } from "../features/changelog/helpers/changelog";
 
-test("reopens the actual POS, opens a shift, and queues a sale after the connection is lost", async ({ page, context }) => {
-  test.setTimeout(420_000);
+async function exerciseOfflineCheckout({ page, context }: { page: Page; context: BrowserContext }, outage: "disconnected" | "server-unavailable") {
+  test.setTimeout(180_000);
   const browserErrors: string[] = [];
   page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.stack || error.message}`));
   page.on("console", (message) => {
@@ -21,6 +21,7 @@ test("reopens the actual POS, opens a shift, and queues a sale after the connect
     if (window.caches) window.caches.keys = async () => [];
     localStorage.setItem("pos-price-rounding-settings", JSON.stringify({ enabled: false, increment: 500, threshold: 50 }));
     localStorage.setItem("pos-special-pricing-enabled", "false");
+    localStorage.setItem("pos_push_prompt_seen_v1", "1");
   });
   await context.addInitScript(({ storageKey, seen }) => {
     localStorage.setItem(storageKey, JSON.stringify(seen));
@@ -32,8 +33,9 @@ test("reopens the actual POS, opens a shift, and queues a sale after the connect
   ]);
   let simulateOffline = false;
   await context.route("**/api/**", async (route) => {
-    if (simulateOffline) return route.abort("internetdisconnected");
     const path = new URL(route.request().url()).pathname;
+    if (simulateOffline) return route.abort("internetdisconnected");
+    if (path === "/api/auth/permissions") return route.fallback();
     const body = path === "/api/auth/me"
       ? { user: { id: "e2e-user", storeId: "store-main", role: "OWNER" } }
       : path === "/api/products"
@@ -58,29 +60,21 @@ test("reopens the actual POS, opens a shift, and queues a sale after the connect
   });
   await page.reload();
   await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
-  await page.evaluate(async () => {
-    const response = await fetch("/api/offline-sync/catalog");
-    const snapshot = await response.json();
-    await new Promise<void>((resolve, reject) => {
-      const request = indexedDB.open("pos-offline-pwa");
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        const db = request.result;
-        const tx = db.transaction("catalogSnapshots", "readwrite");
-        tx.objectStore("catalogSnapshots").put({ ...snapshot, id: `${snapshot.cashierId}:${snapshot.storeId}` });
-        tx.oncomplete = () => { db.close(); resolve(); };
-        tx.onerror = () => { db.close(); reject(tx.error); };
-      };
-    });
-  });
-  await page.evaluate(`(async () => {
-    const { prepareOfflineAccess } = await import('/offline-prepare.mjs');
-    await prepareOfflineAccess({ cashierId: 'e2e-user', storeId: 'store-main', pin: '123456' });
-  })()`);
+  await page.goto("/pos/offline");
+  const preparation = page.getByRole("region", { name: "Buka kembali POS saat offline" });
+  await preparation.getByLabel("PIN offline", { exact: true }).fill("123456");
+  await preparation.getByLabel("Ulangi PIN").fill("123456");
+  await preparation.getByRole("button", { name: "Siapkan POS offline" }).click();
+  await expect(preparation.getByRole("status")).toHaveText("POS offline disiapkan untuk akun ini di perangkat ini.", { timeout: 120_000 });
 
+  if (outage === "server-unavailable") await context.addInitScript(() => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, get: () => true });
+  });
   simulateOffline = true;
   await context.setOffline(true);
   await page.goto("/pos");
+  await expect(page.getByLabel("PIN offline")).toBeVisible({ timeout: 30_000 });
+  if (outage === "server-unavailable") expect(await page.evaluate(() => navigator.onLine)).toBe(true);
   await page.getByLabel("PIN offline").fill("123456");
   await page.getByRole("button", { name: "Buka POS offline" }).click();
   const openShift = page.getByRole("dialog", { name: "Buka Shift Kasir" });
@@ -106,7 +100,12 @@ test("reopens the actual POS, opens a shift, and queues a sale after the connect
     throw error;
   }
   const payment = page.getByRole("dialog", { name: "Pembayaran" });
-  await expect(payment).toBeVisible();
+  try {
+    await expect(payment).toBeVisible();
+  } catch (error) {
+    console.error("Browser errors:", browserErrors.join("\n"));
+    throw error;
+  }
   await payment.getByLabel("Jumlah Bayar (Rp)").fill("60000");
   await payment.getByRole("button", { name: "Konfirmasi Bayar" }).click();
   await expect(page.getByText(/Transaksi tersimpan di perangkat/)).toBeVisible();
@@ -124,4 +123,12 @@ test("reopens the actual POS, opens a shift, and queues a sale after the connect
     status: "PENDING_SYNC",
     payload: expect.objectContaining({ originCashierId: "e2e-user", originStoreId: "store-main", amountPaid: 60000 }),
   })]));
+}
+
+test("reopens the actual POS, opens a shift, and queues a sale after the connection is lost", async ({ page, context }) => {
+  await exerciseOfflineCheckout({ page, context }, "disconnected");
+});
+
+test("opens a shift and queues a sale when the server is unavailable but Wi-Fi remains online", async ({ page, context }) => {
+  await exerciseOfflineCheckout({ page, context }, "server-unavailable");
 });

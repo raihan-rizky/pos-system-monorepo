@@ -109,6 +109,8 @@ export interface SuratJalanReceiptTransaction {
 
 export interface SuratJalanRecord {
   id: string;
+  transactionId?: string;
+  updatedAt?: string;
   number: string;
   status: SuratJalanStatus;
   recipientName: string;

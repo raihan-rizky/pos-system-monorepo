@@ -1,6 +1,7 @@
 import type { Prisma } from "@pos/db";
 import { lockStockMutationRows } from "@/features/product-stock-groups/stock-group-lock";
 import { collectStockItems, planOutstandingReturns } from "../helpers/stock-lifecycle";
+import { canVoidTransaction, isUnconvertedQuotation } from "../helpers/transaction-lifecycle-policy";
 
 export type TransactionReversalAction = "VOID" | "DELETE";
 export type TransactionReversalOutcome =
@@ -17,11 +18,20 @@ export class TransactionReversalConflictError extends Error {
   }
 }
 
+class StockHistoryReviewError extends TransactionReversalConflictError {}
+
+export interface TransactionReversalWarning {
+  code: "STOCK_HISTORY_REVIEW_REQUIRED";
+  message: string;
+}
+
 export interface ReverseTransactionInput {
   storeId: string;
   transactionId: string;
   action: TransactionReversalAction;
   actor: { id: string; name: string | null; role: string };
+  onWarning?: (warning: TransactionReversalWarning) => void;
+  beforeApply?: (lockedStatus: string) => Promise<void>;
 }
 
 type JournalRow = {
@@ -41,12 +51,11 @@ type JournalRow = {
 };
 
 const ACTIVE_STATUSES = new Set(["COMPLETED", "DP"]);
-const NON_REVERSIBLE_STATUSES = new Set(["PENDING_APPROVAL", "DRAFT"]);
 const REVIEW_MESSAGE = "Riwayat stok perlu diperiksa sebelum transaksi dibatalkan atau dihapus.";
 
 function toFiniteNumber(value: unknown): number {
   const number = Number(value instanceof Object && "toString" in value ? value.toString() : value);
-  if (!Number.isFinite(number)) throw new TransactionReversalConflictError();
+  if (!Number.isFinite(number)) throw new StockHistoryReviewError();
   return number;
 }
 
@@ -78,9 +87,9 @@ export async function lockTransactionForStockMutation(
 
 function validateJournal(rows: JournalRow[]): void {
   for (const row of rows) {
-    if (row.status !== "APPROVED") throw new TransactionReversalConflictError();
+    if (row.status !== "APPROVED") throw new StockHistoryReviewError();
     if (row.stockBaseDelta === null || !Number.isFinite(row.stockBaseDelta)) {
-      throw new TransactionReversalConflictError();
+      throw new StockHistoryReviewError();
     }
     if (
       row.stockGroupIdSnapshot !== null &&
@@ -88,7 +97,7 @@ function validateJournal(rows: JournalRow[]): void {
         !Number.isFinite(row.unitMultiplierSnapshot) ||
         row.unitMultiplierSnapshot <= 0)
     ) {
-      throw new TransactionReversalConflictError();
+      throw new StockHistoryReviewError();
     }
   }
 }
@@ -103,10 +112,10 @@ function legacyEvidenceKey(input: {
 
 function legacyStockDelta(row: JournalRow): number {
   const quantity = toFiniteNumber(row.quantity);
-  if (quantity <= 0) throw new TransactionReversalConflictError();
+  if (quantity <= 0) throw new StockHistoryReviewError();
   if (row.type === "OUT") return -quantity;
   if (row.type === "IN") return quantity;
-  throw new TransactionReversalConflictError();
+  throw new StockHistoryReviewError();
 }
 
 async function proveLegacyStockDeduction(
@@ -117,7 +126,7 @@ async function proveLegacyStockDeduction(
 ): Promise<JournalRow[]> {
   const invoiceNumber = transaction.invoiceNumber;
   if (typeof invoiceNumber !== "string" || invoiceNumber.length === 0) {
-    throw new TransactionReversalConflictError();
+    throw new StockHistoryReviewError();
   }
 
   const expected = new Map<string, { productId: string; quantity: number }>();
@@ -129,11 +138,11 @@ async function proveLegacyStockDeduction(
   ) => {
     if (!productId || quantity == null) return;
     const amount = toFiniteNumber(quantity);
-    if (amount < 0) throw new TransactionReversalConflictError();
+    if (amount < 0) throw new StockHistoryReviewError();
     if (amount === 0) return;
     const key = legacyEvidenceKey({ productId, reason, note });
     const total = (expected.get(key)?.quantity ?? 0) + amount;
-    if (!Number.isFinite(total)) throw new TransactionReversalConflictError();
+    if (!Number.isFinite(total)) throw new StockHistoryReviewError();
     expected.set(key, { productId, quantity: total });
   };
 
@@ -152,7 +161,7 @@ async function proveLegacyStockDeduction(
       addExpected(item.rawMaterialProductId, item.rawMaterialQuantity, "USAGE", materialNote);
     }
   }
-  if (expected.size === 0) throw new TransactionReversalConflictError();
+  if (expected.size === 0) throw new StockHistoryReviewError();
 
   const expectedProductIds = [...new Set([...expected.values()].map((entry) => entry.productId))];
   const products = await tx.product.findMany({
@@ -164,8 +173,8 @@ async function proveLegacyStockDeduction(
       conversionNeedsReview: true,
     },
   });
+  if (products.length !== expectedProductIds.length) throw new TransactionReversalConflictError();
   if (
-    products.length !== expectedProductIds.length ||
     products.some(
       (product: any) =>
         product.stockGroupId !== null ||
@@ -173,14 +182,14 @@ async function proveLegacyStockDeduction(
         toFiniteNumber(product.unitMultiplierToBase) !== 1,
     )
   ) {
-    throw new TransactionReversalConflictError();
+    throw new StockHistoryReviewError();
   }
 
   const groupHistory = await tx.productStockGroupActivity.findMany({
     where: { productId: { in: expectedProductIds } },
     select: { id: true },
   });
-  if (groupHistory.length > 0) throw new TransactionReversalConflictError();
+  if (groupHistory.length > 0) throw new StockHistoryReviewError();
 
   const actual = new Map<string, number>();
   const evidenceIds = new Set<string>();
@@ -196,7 +205,7 @@ async function proveLegacyStockDeduction(
       typeof note !== "string" ||
       !note.includes(invoiceNumber)
     ) {
-      throw new TransactionReversalConflictError();
+      throw new StockHistoryReviewError();
     }
     if (
       row.stockGroupIdSnapshot !== null ||
@@ -205,19 +214,19 @@ async function proveLegacyStockDeduction(
       !row.id ||
       evidenceIds.has(row.id)
     ) {
-      throw new TransactionReversalConflictError();
+      throw new StockHistoryReviewError();
     }
     const key = legacyEvidenceKey({ productId: row.productId, reason: row.reason, note });
     const expectedRow = expected.get(key);
-    if (!expectedRow) throw new TransactionReversalConflictError();
+    if (!expectedRow) throw new StockHistoryReviewError();
     const quantity = toFiniteNumber(row.quantity);
-    if (quantity <= 0) throw new TransactionReversalConflictError();
+    if (quantity <= 0) throw new StockHistoryReviewError();
     evidenceIds.add(row.id);
     actual.set(key, (actual.get(key) ?? 0) + quantity);
   }
 
   if (rows.length === 0 || actual.size !== expected.size) {
-    throw new TransactionReversalConflictError();
+    throw new StockHistoryReviewError();
   }
   for (const [key, expectedRow] of expected) {
     const actualQuantity = actual.get(key);
@@ -225,7 +234,7 @@ async function proveLegacyStockDeduction(
       actualQuantity == null ||
       Math.abs(actualQuantity - expectedRow.quantity) > 1e-8
     ) {
-      throw new TransactionReversalConflictError();
+      throw new StockHistoryReviewError();
     }
   }
 
@@ -242,7 +251,7 @@ async function proveLegacyShipmentStockDeduction(
     (shipment: any) => shipment.status === "CONFIRMED",
   );
   if (shipments.length === 0 || rows.length === 0) {
-    throw new TransactionReversalConflictError();
+    throw new StockHistoryReviewError();
   }
 
   const expected = new Map<
@@ -251,7 +260,7 @@ async function proveLegacyShipmentStockDeduction(
   >();
   for (const shipment of shipments) {
     if (typeof shipment.id !== "string" || typeof shipment.number !== "string") {
-      throw new TransactionReversalConflictError();
+      throw new StockHistoryReviewError();
     }
     const note = `Surat Jalan ${shipment.number} untuk invoice ${transaction.id}`;
     for (const item of shipment.items ?? []) {
@@ -260,17 +269,17 @@ async function proveLegacyShipmentStockDeduction(
         typeof item.productId !== "string" ||
         !item.productId
       ) {
-        throw new TransactionReversalConflictError();
+        throw new StockHistoryReviewError();
       }
       const quantity = toFiniteNumber(item.quantity);
-      if (quantity <= 0) throw new TransactionReversalConflictError();
+      if (quantity <= 0) throw new StockHistoryReviewError();
       const key = JSON.stringify([shipment.id, item.productId, note]);
       const items = expected.get(key) ?? [];
       items.push({ itemId: item.id, productId: item.productId, quantity, note });
       expected.set(key, items);
     }
   }
-  if (expected.size === 0) throw new TransactionReversalConflictError();
+  if (expected.size === 0) throw new StockHistoryReviewError();
 
   const shipmentRows = rows.filter(
     (row) => row.type === "OUT" && row.reason === "SALE" && row.suratJalanId !== null,
@@ -283,7 +292,7 @@ async function proveLegacyShipmentStockDeduction(
     reversalRows.length === 0 ||
     shipmentRows.length + reversalRows.length !== rows.length
   ) {
-    throw new TransactionReversalConflictError();
+    throw new StockHistoryReviewError();
   }
 
   const productIds = [...new Set([...expected.values()].flatMap((items) => items.map((item) => item.productId)))];
@@ -296,8 +305,8 @@ async function proveLegacyShipmentStockDeduction(
       conversionNeedsReview: true,
     },
   });
+  if (products.length !== productIds.length) throw new TransactionReversalConflictError();
   if (
-    products.length !== productIds.length ||
     products.some(
       (product: any) =>
         product.stockGroupId !== null ||
@@ -305,13 +314,13 @@ async function proveLegacyShipmentStockDeduction(
         toFiniteNumber(product.unitMultiplierToBase) !== 1,
     )
   ) {
-    throw new TransactionReversalConflictError();
+    throw new StockHistoryReviewError();
   }
   const groupHistory = await tx.productStockGroupActivity.findMany({
     where: { productId: { in: productIds } },
     select: { id: true },
   });
-  if (groupHistory.length > 0) throw new TransactionReversalConflictError();
+  if (groupHistory.length > 0) throw new StockHistoryReviewError();
 
   const actual = new Map<string, JournalRow[]>();
   const rowIds = new Set<string>();
@@ -330,23 +339,23 @@ async function proveLegacyShipmentStockDeduction(
       typeof row.suratJalanId !== "string" ||
       typeof row.note !== "string"
     ) {
-      throw new TransactionReversalConflictError();
+      throw new StockHistoryReviewError();
     }
     const key = JSON.stringify([row.suratJalanId, row.productId, row.note]);
-    if (!expected.has(key)) throw new TransactionReversalConflictError();
+    if (!expected.has(key)) throw new StockHistoryReviewError();
     const quantity = toFiniteNumber(row.quantity);
-    if (quantity <= 0) throw new TransactionReversalConflictError();
+    if (quantity <= 0) throw new StockHistoryReviewError();
     rowIds.add(row.id);
     const matchedRows = actual.get(key) ?? [];
     matchedRows.push(row);
     actual.set(key, matchedRows);
   }
 
-  if (actual.size !== expected.size) throw new TransactionReversalConflictError();
+  if (actual.size !== expected.size) throw new StockHistoryReviewError();
   for (const [key, expectedItems] of expected) {
     const actualRows = actual.get(key);
     if (!actualRows || actualRows.length !== expectedItems.length) {
-      throw new TransactionReversalConflictError();
+      throw new StockHistoryReviewError();
     }
     const expectedQuantities = expectedItems.map((item) => item.quantity).sort((a, b) => a - b);
     const actualQuantities = actualRows
@@ -357,25 +366,25 @@ async function proveLegacyShipmentStockDeduction(
         (quantity, index) => Math.abs(quantity - actualQuantities[index]) > 1e-8,
       )
     ) {
-      throw new TransactionReversalConflictError();
+      throw new StockHistoryReviewError();
     }
   }
 
   const reversalNotes = new Set(reversalRows.map((row) => row.note));
-  if (reversalNotes.size !== 1) throw new TransactionReversalConflictError();
+  if (reversalNotes.size !== 1) throw new StockHistoryReviewError();
   const reversalNote = [...reversalNotes][0];
   const matchingShipment = shipments.find(
     (shipment: any) =>
       reversalNote === `Reversal invoice ${transaction.id} untuk Surat Jalan ${shipment.number}`,
   );
   if (!matchingShipment || typeof reversalNote !== "string") {
-    throw new TransactionReversalConflictError();
+    throw new StockHistoryReviewError();
   }
   const expectedReversal = new Map<string, number[]>();
   for (const item of transaction.items) {
     if (!item.productId) continue;
     const quantity = toFiniteNumber(item.quantity);
-    if (quantity <= 0) throw new TransactionReversalConflictError();
+    if (quantity <= 0) throw new StockHistoryReviewError();
     const quantities = expectedReversal.get(item.productId) ?? [];
     quantities.push(quantity);
     expectedReversal.set(item.productId, quantities);
@@ -393,11 +402,11 @@ async function proveLegacyShipmentStockDeduction(
       !row.id ||
       rowIds.has(row.id)
     ) {
-      throw new TransactionReversalConflictError();
+      throw new StockHistoryReviewError();
     }
     const quantity = toFiniteNumber(row.quantity);
     if (quantity <= 0 || !expectedReversal.has(row.productId)) {
-      throw new TransactionReversalConflictError();
+      throw new StockHistoryReviewError();
     }
     rowIds.add(row.id);
     const quantities = actualReversal.get(row.productId) ?? [];
@@ -405,17 +414,17 @@ async function proveLegacyShipmentStockDeduction(
     actualReversal.set(row.productId, quantities);
   }
   if (actualReversal.size !== expectedReversal.size) {
-    throw new TransactionReversalConflictError();
+    throw new StockHistoryReviewError();
   }
   for (const [productId, quantities] of expectedReversal) {
     const actualQuantities = actualReversal.get(productId);
     if (!actualQuantities || actualQuantities.length !== quantities.length) {
-      throw new TransactionReversalConflictError();
+      throw new StockHistoryReviewError();
     }
     const sortedExpected = [...quantities].sort((a, b) => a - b);
     const sortedActual = [...actualQuantities].sort((a, b) => a - b);
     if (sortedExpected.some((quantity, index) => Math.abs(quantity - sortedActual[index]) > 1e-8)) {
-      throw new TransactionReversalConflictError();
+      throw new StockHistoryReviewError();
     }
   }
 
@@ -581,13 +590,9 @@ export async function reverseTransaction(
       expenses: true,
       invoiceDateChangeLogs: true,
       productionActivityLogs: true,
+      printingReceipt: true,
       suratJalan: {
-        select: {
-          id: true,
-          number: true,
-          status: true,
-          items: { select: { id: true, productId: true, quantity: true } },
-        },
+        include: { items: true },
       },
     },
   });
@@ -607,22 +612,20 @@ export async function reverseTransaction(
     throw new TransactionReversalConflictError("Audit transaksi tidak konsisten. Perlu pemeriksaan manual.");
   }
 
-  if (input.action === "VOID" && transaction.status === "REFUNDED") {
-    throw new TransactionReversalConflictError("Transaksi yang sudah dikembalikan tidak dapat dibatalkan lagi.");
+  if (input.action === "VOID") {
+    if (transaction.status === "VOIDED") return "ALREADY_VOIDED";
+    if (!canVoidTransaction(transaction.status)) {
+      throw new TransactionReversalConflictError("Status transaksi ini tidak dapat dibatalkan.");
+    }
   }
+
+  // The caller may capture related state while the transaction row remains locked.
+  await input.beforeApply?.(transaction.status);
 
   const shipments = transaction.suratJalan ?? [];
-  if (input.action === "DELETE" && shipments.length > 0) {
-    throw new TransactionReversalConflictError(
-      "Transaksi masih terhubung ke Surat Jalan. Batalkan transaksi tanpa menghapus dokumennya.",
-    );
-  }
-  if (input.action === "VOID" && shipments.some((shipment: any) => shipment.status === "PENDING")) {
-    throw new TransactionReversalConflictError(
-      "Selesaikan atau batalkan Surat Jalan yang masih menunggu sebelum membatalkan transaksi.",
-    );
-  }
-
+  const unconvertedQuotation = isUnconvertedQuotation(transaction);
+  const allowStockReviewWarning = input.action === "DELETE";
+  const warnings: TransactionReversalWarning[] = [];
   const shipmentIds = shipments.map((shipment: any) => shipment.id);
   const logFilters: Array<Record<string, unknown>> = [
     { transactionId: transaction.id },
@@ -674,90 +677,109 @@ export async function reverseTransaction(
   let returns: ReturnType<typeof planOutstandingReturns> = [];
   let legacyEvidence: JournalRow[] = [];
   let proofRows = journal;
-  const stockItems = collectStockItems(transaction.items);
-  if (stockItems.length > 0 && isStockProofStatus(transaction.status)) {
-    if (journal.length > 0) {
-      if (
-        transaction.stockDeductionSource === "SURAT_JALAN" &&
-        journal.some((row) => row.stockBaseDelta === null)
-      ) {
-        const legacyShipmentRows = journal.filter((row) => row.stockBaseDelta === null);
-        const signedRows = journal.filter((row) => row.stockBaseDelta !== null);
-        if (signedRows.length > 0) {
-          throw new TransactionReversalConflictError();
+  try {
+    let stockItems: ReturnType<typeof collectStockItems>;
+    try {
+      stockItems = collectStockItems(transaction.items);
+    } catch {
+      throw new StockHistoryReviewError();
+    }
+    if (
+      journal.length > 0 ||
+      legacyCandidates.length > 0 ||
+      (stockItems.length > 0 && (isStockProofStatus(transaction.status) || allowStockReviewWarning))
+    ) {
+      if (journal.length > 0) {
+        if (
+          transaction.stockDeductionSource === "SURAT_JALAN" &&
+          journal.some((row) => row.stockBaseDelta === null)
+        ) {
+          const legacyShipmentRows = journal.filter((row) => row.stockBaseDelta === null);
+          const signedRows = journal.filter((row) => row.stockBaseDelta !== null);
+          if (signedRows.length > 0) {
+            throw new StockHistoryReviewError();
+          }
+          const invoiceEvidence = await proveLegacyStockDeduction(
+            tx,
+            transaction,
+            legacyCandidates,
+            input.storeId,
+          );
+          const shipmentEvidence = await proveLegacyShipmentStockDeduction(
+            tx,
+            transaction,
+            legacyShipmentRows,
+            input.storeId,
+          );
+          legacyEvidence = [...invoiceEvidence, ...shipmentEvidence];
+          proofRows = [
+            ...legacyEvidence.map((row) => ({
+              ...row,
+              stockGroupIdSnapshot: null,
+              unitMultiplierSnapshot: 1,
+              stockBaseDelta: legacyStockDelta(row),
+            })),
+          ];
+        } else {
+          if (legacyCandidates.length > 0) throw new StockHistoryReviewError();
+          validateJournal(journal);
         }
-        const invoiceEvidence = await proveLegacyStockDeduction(
+      } else if (transaction.stockDeductionSource !== "SURAT_JALAN" || shipments.length === 0) {
+        legacyEvidence = await proveLegacyStockDeduction(
           tx,
           transaction,
           legacyCandidates,
           input.storeId,
         );
-        const shipmentEvidence = await proveLegacyShipmentStockDeduction(
-          tx,
-          transaction,
-          legacyShipmentRows,
-          input.storeId,
-        );
-        legacyEvidence = [...invoiceEvidence, ...shipmentEvidence];
-        proofRows = [
-          ...legacyEvidence.map((row) => ({
-            ...row,
-            stockGroupIdSnapshot: null,
-            unitMultiplierSnapshot: 1,
-            stockBaseDelta: legacyStockDelta(row),
-          })),
-        ];
-      } else {
-        if (legacyCandidates.length > 0) throw new TransactionReversalConflictError();
-        validateJournal(journal);
+        proofRows = legacyEvidence.map((row) => ({
+          ...row,
+          stockGroupIdSnapshot: null,
+          unitMultiplierSnapshot: 1,
+          stockBaseDelta: -toFiniteNumber(row.quantity),
+        }));
       }
-    } else if (transaction.stockDeductionSource !== "SURAT_JALAN" || shipments.length === 0) {
-      legacyEvidence = await proveLegacyStockDeduction(
-        tx,
-        transaction,
-        legacyCandidates,
-        input.storeId,
-      );
-      proofRows = legacyEvidence.map((row) => ({
-        ...row,
-        stockGroupIdSnapshot: null,
-        unitMultiplierSnapshot: 1,
-        stockBaseDelta: -toFiniteNumber(row.quantity),
-      }));
-    }
-    const journalProducts = new Set(proofRows.map((row) => row.productId));
-    const expectedRawMaterials = transaction.items
-      .map((item: any) => item.rawMaterialProductId)
-      .filter((productId: string | null): productId is string => Boolean(productId));
-    if (expectedRawMaterials.some((productId) => !journalProducts.has(productId))) {
-      throw new TransactionReversalConflictError();
-    }
-    if (transaction.stockDeductionSource !== "SURAT_JALAN" || shipments.length === 0) {
-      if (stockItems.some((item) => !journalProducts.has(item.productId))) {
-        throw new TransactionReversalConflictError();
-      }
-    } else {
-      const expectedShipmentProducts = shipments
-        .filter((shipment: any) => shipment.status === "CONFIRMED")
-        .flatMap((shipment: any) => shipment.items.map((item: any) => item.productId))
+      const journalProducts = new Set(proofRows.map((row) => row.productId));
+      const expectedRawMaterials = transaction.items
+        .map((item: any) => item.rawMaterialProductId)
         .filter((productId: string | null): productId is string => Boolean(productId));
-      if (expectedShipmentProducts.some((productId) => !journalProducts.has(productId))) {
-        throw new TransactionReversalConflictError();
+      if (expectedRawMaterials.some((productId) => !journalProducts.has(productId))) {
+        throw new StockHistoryReviewError();
+      }
+      if (transaction.stockDeductionSource !== "SURAT_JALAN" || shipments.length === 0) {
+        if (stockItems.some((item) => !journalProducts.has(item.productId))) {
+          throw new StockHistoryReviewError();
+        }
+      } else {
+        const expectedShipmentProducts = shipments
+          .filter((shipment: any) => shipment.status === "CONFIRMED")
+          .flatMap((shipment: any) => shipment.items.map((item: any) => item.productId))
+          .filter((productId: string | null): productId is string => Boolean(productId));
+        if (expectedShipmentProducts.some((productId) => !journalProducts.has(productId))) {
+          throw new StockHistoryReviewError();
+        }
+      }
+      try {
+        returns = planOutstandingReturns(
+          isStockProofStatus(transaction.status) ? transaction.status : "COMPLETED",
+          proofRows.map((row) => ({
+            productId: row.productId,
+            stockGroupIdSnapshot: row.stockGroupIdSnapshot,
+            baseDelta: row.stockBaseDelta,
+          })),
+          true,
+        );
+      } catch {
+        throw new StockHistoryReviewError(REVIEW_MESSAGE);
       }
     }
-    try {
-      returns = planOutstandingReturns(
-        transaction.status,
-        proofRows.map((row) => ({
-          productId: row.productId,
-          stockGroupIdSnapshot: row.stockGroupIdSnapshot,
-          baseDelta: row.stockBaseDelta,
-        })),
-        true,
-      );
-    } catch {
-      throw new TransactionReversalConflictError(REVIEW_MESSAGE);
-    }
+  } catch (error) {
+    if (!(error instanceof StockHistoryReviewError) || !allowStockReviewWarning) throw error;
+    returns = [];
+    legacyEvidence = [];
+    warnings.push({
+      code: "STOCK_HISTORY_REVIEW_REQUIRED",
+      message: "Transaksi dihapus, tetapi riwayat stok perlu diperiksa. Stok yang tidak dapat dipastikan tidak dikembalikan.",
+    });
   }
 
   if (legacyEvidence.length > 0) {
@@ -779,14 +801,9 @@ export async function reverseTransaction(
     }
   }
 
-  let stockResults: Array<Record<string, unknown>> = [];
-  if (input.action === "VOID" && transaction.status !== "VOIDED" && NON_REVERSIBLE_STATUSES.has(transaction.status)) {
-    // Drafts and unapproved transactions have no stock or financial contribution to reverse.
-  } else {
-    stockResults = await restoreStock(tx, input, transaction, journal, returns);
-  }
+  const stockResults = await restoreStock(tx, input, transaction, journal, returns);
 
-  const financialSnapshot = ACTIVE_STATUSES.has(transaction.status)
+  const financialSnapshot = !unconvertedQuotation && ACTIVE_STATUSES.has(transaction.status)
     ? await reverseCustomerTotals(tx, input, transaction)
     : null;
 
@@ -796,6 +813,7 @@ export async function reverseTransaction(
     transaction: {
       id: transaction.id,
       invoiceNumber: transaction.invoiceNumber,
+      draftNumber: transaction.draftNumber,
       customerId: transaction.customerId,
       paymentMethod: transaction.paymentMethod,
       total: transaction.total,
@@ -807,6 +825,7 @@ export async function reverseTransaction(
     expenses: transaction.expenses,
     invoiceDateChangeLogs: transaction.invoiceDateChangeLogs,
     productionActivityLogs: transaction.productionActivityLogs,
+    printingReceipt: transaction.printingReceipt,
     suratJalan: shipments,
     stockJournal: journal.map((row) => ({
       id: row.id,
@@ -818,6 +837,10 @@ export async function reverseTransaction(
       unitMultiplierSnapshot: row.unitMultiplierSnapshot,
       stockBaseDelta: row.stockBaseDelta,
       suratJalanId: row.suratJalanId,
+      transactionId: row.transactionId,
+      sourceTransactionRef: row.sourceTransactionRef,
+      status: row.status,
+      note: row.note,
     })),
     legacyStockEvidence: legacyEvidence.map((row) => ({
       id: row.id,
@@ -829,6 +852,8 @@ export async function reverseTransaction(
     })),
     stockReturns: returns,
     stockResults,
+    warnings,
+    stockHistoryReviewRequired: warnings.length > 0,
     financialReversal: financialSnapshot,
     actor: input.actor,
   });
@@ -839,6 +864,16 @@ export async function reverseTransaction(
       data: { status: "VOIDED" },
     });
     if (result.count !== 1) throw new TransactionReversalConflictError();
+    if (shipments.length > 0) {
+      await tx.suratJalan.updateMany({
+        where: {
+          transactionId: transaction.id,
+          storeId: input.storeId,
+          status: { in: ["PENDING", "CONFIRMED"] },
+        },
+        data: { status: "CANCELLED", cancelledAt: new Date() },
+      });
+    }
   } else {
     if (journal.length > 0) {
       await tx.inventoryLog.updateMany({
@@ -852,8 +887,24 @@ export async function reverseTransaction(
         data: { transactionId: null, sourceTransactionRef: transaction.id },
       });
     }
+    if (shipmentIds.length > 0) {
+      await tx.inventoryLog.updateMany({
+        where: { suratJalanId: { in: shipmentIds } },
+        data: { suratJalanId: null },
+      });
+      await tx.suratJalanItem.deleteMany({ where: { suratJalanId: { in: shipmentIds } } });
+      await tx.suratJalan.deleteMany({
+        where: { transactionId: transaction.id, storeId: input.storeId },
+      });
+    }
     const deletedItems = await tx.transactionItem.deleteMany({ where: { transactionId: transaction.id } });
     void deletedItems;
+    if (transaction.printingReceipt) {
+      const deletedReceipt = await tx.printingReceipt.deleteMany({
+        where: { transactionId: transaction.id, storeId: input.storeId },
+      });
+      if (deletedReceipt.count !== 1) throw new TransactionReversalConflictError();
+    }
     const result = await tx.transaction.deleteMany({
       where: { id: transaction.id, storeId: input.storeId, status: transaction.status },
     });
@@ -873,6 +924,8 @@ export async function reverseTransaction(
       snapshot,
     } as any,
   });
+
+  for (const warning of warnings) input.onWarning?.(warning);
 
   return "APPLIED";
 }

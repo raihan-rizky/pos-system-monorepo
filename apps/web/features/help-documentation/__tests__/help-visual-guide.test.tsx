@@ -25,10 +25,11 @@ describe("visual help guides", () => {
     );
     const visibleText = html.replace(/<[^>]*>/g, "");
 
-    for (const label of ["Pilih perubahan", "Rincian yang berubah", "Sebelum", "Sesudah", "Nota asli"]) {
+    for (const label of ["Jejak perubahan", "Yang berubah", "Sebelum", "Sesudah", "Nota asli", "Versi lengkap"]) {
       expect(visibleText).toContain(label);
     }
     expect(html).toContain('data-help-target-active="true"');
+    expect(html).toContain("lg:grid-cols-[200px_minmax(0,1fr)]");
   });
 
   it("shows direct Edit and Harga actions in the POS cart preview", () => {

@@ -6,7 +6,7 @@
  */
 
 const CACHE_PREFIX = "pos-v";
-const CACHE_NAME = "pos-v10";
+const CACHE_NAME = "pos-v11";
 const OFFLINE_STATIC_CACHE = "pos-offline-static-v1";
 
 const REQUIRED_OFFLINE_ASSETS = [
@@ -67,7 +67,7 @@ self.addEventListener("message", (event) => {
           unlock?.ok && !unlock.redirected && /javascript|ecmascript/i.test(unlock.headers.get("content-type") || "") &&
           vault?.ok && !vault.redirected && /javascript|ecmascript/i.test(vault.headers.get("content-type") || ""));
       } catch { /* Preparation must fail closed if the fallback is unavailable. */ }
-      event.ports?.[0]?.postMessage({ version: 1, ready });
+      event.ports?.[0]?.postMessage({ version: 2, ready });
     })());
   }
 });

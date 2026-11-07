@@ -28,7 +28,7 @@ export function displayTransactionNote(
   if (!note) return null;
 
   const { cleanNote } = decodeDivisionFromNote(note);
-  const withoutDivision = cleanNote ?? "";
+  const withoutDivision = (cleanNote ?? "").replace(/\[DIVISI:[^\]]*\]/g, "");
 
   const withoutPelunasan = withoutDivision.replace(PELUNASAN_ANNOTATION_RE, "");
 
@@ -39,4 +39,24 @@ export function displayTransactionNote(
     .trim();
 
   return collapsed || null;
+}
+
+/** Replace the editable portion while retaining annotations stored by the system. */
+export function mergeTransactionUserNote(
+  storedNote: string | null | undefined,
+  userNote: string,
+): string | null {
+  const settlements = (storedNote?.match(PELUNASAN_ANNOTATION_RE) ?? []).map(
+    (annotation) => annotation.replace(/^\s*\|\s*/, "").trim(),
+  );
+  const divisions = storedNote?.match(/\[DIVISI:[^\]]*\]/g) ?? [];
+  const visibleAndSettlements = [userNote.trim(), ...settlements]
+    .filter(Boolean)
+    .join(" | ");
+  return [visibleAndSettlements, ...divisions].filter(Boolean).join(" ") || null;
+}
+
+/** User-entered text must not create annotations owned by the system. */
+export function containsTransactionNoteAnnotations(note: string): boolean {
+  return /\[DIVISI:[^\]]*\]/.test(note) || (note.match(PELUNASAN_ANNOTATION_RE)?.length ?? 0) > 0;
 }

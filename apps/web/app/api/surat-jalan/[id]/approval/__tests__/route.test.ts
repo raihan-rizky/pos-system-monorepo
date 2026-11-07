@@ -209,6 +209,37 @@ describe("POST /api/surat-jalan/[id]/approval", () => {
     expect(suratJalanUpdateMock).not.toHaveBeenCalled();
     expect(inventoryLogCreateManyMock).not.toHaveBeenCalled();
   });
+
+  it("approves the quantity saved while approval was waiting for the parent lock", async () => {
+    let current = makePendingSuratJalan("SURAT_JALAN");
+    suratJalanFindFirstMock.mockImplementation(async () => structuredClone(current));
+    transactionFindFirstMock.mockImplementationOnce(async () => {
+      current = { ...current, items: current.items.map(item => ({ ...item, quantity: 6 })) };
+      return { status: "COMPLETED" };
+    });
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/surat-jalan/sj-2/approval", { method: "POST" }), { params: Promise.resolve({ id: "sj-2" }) });
+
+    expect(response.status).toBe(200);
+    expect(productUpdateManyMock).toHaveBeenCalledWith(expect.objectContaining({ data: { stock: { increment: -6 } } }));
+    expect(inventoryLogCreateManyMock).toHaveBeenCalledWith({ data: [expect.objectContaining({ quantity: 6, stockBaseDelta: -6 })] });
+  });
+
+  it("does not approve or deduct again if another approval completed before the lock", async () => {
+    let current = makePendingSuratJalan("SURAT_JALAN");
+    suratJalanFindFirstMock.mockImplementation(async () => structuredClone(current));
+    transactionFindFirstMock.mockImplementationOnce(async () => {
+      current = { ...current, status: "CONFIRMED" };
+      return { status: "COMPLETED" };
+    });
+    const { POST } = await import("../route");
+    const response = await POST(new Request("http://localhost/api/surat-jalan/sj-2/approval", { method: "POST" }), { params: Promise.resolve({ id: "sj-2" }) });
+
+    expect(response.status).toBe(409);
+    expect(productUpdateManyMock).not.toHaveBeenCalled();
+    expect(suratJalanUpdateMock).not.toHaveBeenCalled();
+    expect(inventoryLogCreateManyMock).not.toHaveBeenCalled();
+  });
 });
 
 function makePendingSuratJalan(

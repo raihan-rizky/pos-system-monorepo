@@ -5,7 +5,7 @@ import { join } from "node:path";
 describe("surat jalan print header", () => {
   it("places surat jalan metadata in the top-right header and removes the red divider", () => {
     const source = readFileSync(
-      join(process.cwd(), "features/surat-jalan/components/SuratJalanPrintModal.tsx"),
+      join(process.cwd(), "features/surat-jalan/components/SuratJalanDocument.tsx"),
       "utf8",
     );
 

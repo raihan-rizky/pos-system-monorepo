@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, FileText, FolderInput, History, Layers, Package, ReceiptText, ShieldCheck, ShoppingBag } from "lucide-react";
+import { ArrowUpRight, FileClock, FileText, FolderInput, History, Layers, Package, ReceiptText, ShieldCheck, ShoppingBag } from "lucide-react";
 import type { ChangeEntry } from "../types";
 import { formatChangeDate } from "../helpers/changelog";
+import { ChangeBadges } from "./ChangeBadges";
 import { ChangeDialog } from "./ChangeDialog";
 
-const icons = { changelog: History, tax: ReceiptText, categories: FolderInput, units: Package, quotation: FileText, "stock-groups": Layers, printing: FileText, shopping: ShoppingBag, "history-table": History, financial: FileText, rbac: ShieldCheck };
+const icons = { changelog: History, tax: ReceiptText, categories: FolderInput, units: Package, quotation: FileText, "stock-groups": Layers, printing: FileText, shopping: ShoppingBag, "history-table": History, "receipt-audit": FileClock, financial: FileText, rbac: ShieldCheck };
 const badgeDate = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" });
 
 export function WhatsNewDialog({ entries, onClose, canAccess }: {
@@ -18,23 +19,24 @@ export function WhatsNewDialog({ entries, onClose, canAccess }: {
         <p className="flex items-center justify-between gap-3 px-1 pb-2 pt-4 text-xs text-surface-500">
           <span>7 hari terakhir</span><span>{entries.length} pembaruan</span>
         </p>
-        {entries.length ? <ul aria-label="Pembaruan 7 hari terakhir" className="divide-y divide-surface-100 pb-2">
+        {entries.length ? <ul aria-label="Pembaruan 7 hari terakhir" className="space-y-1.5 pb-4">
           {entries.map(entry => {
             const Icon = icons[entry.visual];
             const content = <>
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700"><Icon className="h-[18px] w-[18px]" aria-hidden="true" /></span>
+              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${entry.impact === "major" ? "bg-brand-600 text-white" : "bg-white text-brand-700"}`}><Icon className="h-[18px] w-[18px]" aria-hidden="true" /></span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-start justify-between gap-2">
                   <span className="min-w-0 text-sm font-bold leading-5 text-surface-900">{entry.highlight.title}</span>
-                  <time dateTime={entry.date} title={formatChangeDate(entry.date)} className="shrink-0 whitespace-nowrap rounded-md bg-surface-100 px-1.5 py-0.5 text-[10px] font-semibold leading-4 text-surface-600">{badgeDate.format(new Date(`${entry.date}T00:00:00+07:00`))}</time>
+                  <time dateTime={entry.date} title={formatChangeDate(entry.date)} className="shrink-0 whitespace-nowrap text-[10px] font-semibold leading-5 text-surface-500">{badgeDate.format(new Date(`${entry.date}T00:00:00+07:00`))}</time>
                 </span>
                 <span className="mt-0.5 block text-xs leading-[18px] text-surface-600">{entry.highlight.summary}</span>
+                <span className="mt-2 flex flex-wrap items-center gap-1"><ChangeBadges entry={entry} /></span>
               </span>
             </>;
-            const rowClass = "flex items-center gap-3 rounded-xl px-1 py-2.5";
+            const rowClass = `flex items-start gap-3 rounded-2xl border px-3 py-2.5 ${entry.impact === "major" ? "border-brand-200 bg-brand-50/70" : "border-surface-100 bg-surface-50/70"}`;
             return <li key={entry.id}>
-              {canAccess(entry.href) ? <Link href={entry.href} prefetch={false} onClick={onClose} className={`${rowClass} transition-colors hover:bg-brand-50/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600`}>
-                {content}<ArrowUpRight className="h-4 w-4 shrink-0 text-surface-400" aria-hidden="true" />
+              {canAccess(entry.href) ? <Link href={entry.href} prefetch={false} onClick={onClose} className={`${rowClass} transition-colors hover:border-brand-300 hover:bg-brand-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600`}>
+                {content}<ArrowUpRight className="mt-1 h-4 w-4 shrink-0 text-surface-400" aria-hidden="true" />
               </Link> : <div className={rowClass}>{content}</div>}
             </li>;
           })}

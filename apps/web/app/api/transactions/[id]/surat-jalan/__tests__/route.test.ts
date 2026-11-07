@@ -118,6 +118,21 @@ describe("POST /api/transactions/[id]/surat-jalan", () => {
     vi.useRealTimers();
   });
 
+  it("saves document display names without renaming the invoice or product", async () => {
+    const transaction = makeTransaction({ stockDeductionSource: "TRANSACTION", existingSuratJalan: [] });
+    transactionFindFirstMock.mockResolvedValue(transaction);
+    const response = await request({ recipientName: "Gudang", quantities: { "item-paper": 2 }, documentNames: { "item-paper": "  Kertas untuk rapat  " } });
+    expect(response.status).toBe(201);
+    expect(suratJalanCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ productId: "product-paper", transactionItemId: "item-paper", productName: "Kertas untuk rapat", quantity: 2 });
+    expect(transaction.items[0].productName).toBe("Kertas A4");
+  });
+
+  it("rejects quantities already reserved by a pending delivery", async () => {
+    transactionFindFirstMock.mockResolvedValue(makeTransaction({ stockDeductionSource: "TRANSACTION", existingSuratJalan: [{ id: "pending", number: "SJ-PENDING", status: "PENDING", sequence: 1, recipientName: "Gudang", requestedByName: null, approvedByName: null, markingStatus: "UNMARKED", markedByName: null, markedAt: null, markingNote: null, createdAt: new Date(), confirmedAt: null, items: [{ id: "sj-pending-item", transactionItemId: "item-paper", productId: "product-paper", productName: "Kertas A4", quantity: 8, unit: "rim", keterangan: "", stockBefore: null, stockAfter: null }] }] }));
+    expect((await request({ recipientName: "Gudang", quantities: { "item-paper": 3 } })).status).toBe(422);
+    expect(suratJalanCreateMock).not.toHaveBeenCalled();
+  });
+
   it("creates the first surat jalan as confirmed, reverses invoice stock, and writes delivery stock-outs", async () => {
     transactionFindFirstMock.mockResolvedValue(makeTransaction({ existingSuratJalan: [] }));
 
