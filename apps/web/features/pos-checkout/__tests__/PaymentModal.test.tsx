@@ -94,6 +94,58 @@ describe("PaymentModal custom invoice date", () => {
     expect(html).not.toContain("No. Faktur");
     expect(html).not.toContain("Gunakan otomatis");
   });
+
+  it.each([
+    {
+      name: "layanan percetakan",
+      item: {
+        cartLineId: "service-1",
+        lineType: "PRINTING_SERVICE" as const,
+        printingServiceId: "printing-1",
+        name: "Cetak A4",
+        price: 5000,
+        quantity: 1,
+        unit: "lembar",
+        needsMaterial: true,
+        material: "Kertas A4",
+      },
+    },
+    {
+      name: "produk dengan bahan",
+      item: {
+        cartLineId: "product-1",
+        lineType: "PRODUCT" as const,
+        productId: "product-1",
+        name: "Brosur",
+        price: 10000,
+        catalogPrice: 10000,
+        quantity: 1,
+        unit: "pcs",
+        stock: 10,
+        categoryId: "printing",
+        categoryName: "Percetakan",
+        material: "Art Paper",
+        size: "A4",
+      },
+    },
+  ])("defaults to Beli Langsung for $name", ({ item }) => {
+    const html = renderToStaticMarkup(
+      <PaymentModal
+        open
+        onClose={vi.fn()}
+        items={[item]}
+        subtotal={item.price}
+        onConfirm={vi.fn()}
+      />,
+    );
+    const start = html.indexOf("Tipe Pesanan");
+    const end = html.indexOf("Diskon", start);
+    const typeSection = html.slice(start, end);
+
+    expect(typeSection).toMatch(/<button[^>]*border-brand-500[^>]*>[\s\S]*Beli Langsung/);
+    expect(typeSection).toMatch(/<button[^>]*border-surface-200[^>]*>[\s\S]*Job Order/);
+  });
+
   beforeEach(() => {
     offlineSessionMock = false;
     pricingRulesMock.mockReturnValue([]);

@@ -194,9 +194,7 @@ export function PaymentModal({
   const { data: salespersons = [] } = useSalespersons();
   const [isDP, setIsDP] = useState(false);
   const [isTempo, setIsTempo] = useState(false);
-  const [isJobOrder, setIsJobOrder] = useState(() => {
-    return items.some(item => item.lineType === "PRINTING_SERVICE" || item.material || item.size);
-  });
+  const [isJobOrder, setIsJobOrder] = useState(false);
   const [estimatedDoneAt, setEstimatedDoneAt] = useState("");
   const [invoiceDateReason, setInvoiceDateReason] = useState("");
   const serverClock = useServerClock(open);
