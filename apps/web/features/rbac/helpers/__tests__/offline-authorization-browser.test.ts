@@ -159,6 +159,16 @@ describe("offline POS authorization", () => {
     finally { await page.close(); }
   }, 15_000);
 
+  it("keeps the login page visible after access is revoked while denying protected actions", async () => {
+    const page = await open({ path: "/login", mode: "pending" });
+    try {
+      await page.evaluate(() => (window as any).denyVerification());
+      await expect.poll(() => page.locator("#protected").isVisible()).toBe(true);
+      expect(await page.locator("#protected").getAttribute("data-pos")).toBe("false");
+      expect(await page.locator("#protected").getAttribute("data-create")).toBe("false");
+    } finally { await page.close(); }
+  }, 15_000);
+
   it.each(["network-down", "server-unavailable", "bad-gateway"])("allows the PIN-unlocked POS after %s when the browser still reports online", async mode => {
     const page = await open({ handoff: true, mode });
     try {

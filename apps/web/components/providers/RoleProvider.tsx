@@ -264,7 +264,7 @@ export function RoleProvider({
     [role, userId, userName, storeId, authorizationFingerprint, offline, canAccess, canPerform],
   );
 
-  const blocked = Boolean(role) && !verified;
+  const blocked = Boolean(role) && !verified && pathname !== "/login" && pathname !== "/login/";
   return (
     <RoleContext.Provider value={value}>
       <span hidden data-offline-auth-user={userId ?? ""} data-offline-auth-store={storeId || "store-main"}
