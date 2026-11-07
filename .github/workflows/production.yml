@@ -68,6 +68,9 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      - name: Lock utility safety tests
+        run: node --test packages/db/tests/clear-locks-safety.test.cjs
+
       - name: Build production bundle
         run: pnpm build
 
