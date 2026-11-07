@@ -13,6 +13,7 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
   const paymentSelect = { id: true, method: true, amount: true, createdAt: true } as const;
   const recognizedPurchase = { OR: [{ status: 'APPROVED' }, { status: 'CANCELLED', statusBeforeCancellation: 'APPROVED' }] } satisfies Prisma.GoodsPurchaseWhereInput;
   const purchaseSelect = { id: true, storeId: true, number: true, status: true, statusBeforeCancellation: true, totalAmount: true, paymentMethod: true, paymentDueDate: true, supplierNameSnapshot: true,
+    payments: { select: { id: true, method: true, amount: true, dueDate: true }, orderBy: [{ dueDate: 'asc' }, { id: 'asc' }] },
     supplierPayable: { select: { id: true, storeId: true, debtDate: true, giroHistoryVerifiedAt: true, payments: { select: { id: true, amount: true, paidAt: true }, orderBy: [{ paidAt: 'asc' }, { id: 'asc' }] } } },
   } satisfies Prisma.GoodsPurchaseSelect;
   // All inputs must see the same committed state, including giro payments and
@@ -40,6 +41,8 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
         { occurredAt: { lt: period.end }, OR: [{ goodsPurchaseId: { not: null } }, { shoppingRequestId: { not: null } }] },
         { occurredAt: knownByNow, goodsPurchase: { is: { paymentMethod: 'GIRO', paymentDueDate: calendarBounds } } },
         { occurredAt: knownByNow, shoppingRequest: { is: { goodsPurchases: { some: { storeId, ...recognizedPurchase, paymentMethod: 'GIRO', paymentDueDate: calendarBounds } } } } },
+        { occurredAt: knownByNow, goodsPurchase: { is: { storeId, payments: { some: { method: 'GIRO', dueDate: calendarBounds } } } } },
+        { occurredAt: knownByNow, shoppingRequest: { is: { goodsPurchases: { some: { storeId, ...recognizedPurchase, payments: { some: { method: 'GIRO', dueDate: calendarBounds } } } } } } },
         { occurredAt: knownByNow, goodsPurchase: { is: { supplierPayable: { is: { storeId, debtDate: { lte: periodLastDate } } } } } },
         { occurredAt: knownByNow, shoppingRequest: { is: { goodsPurchases: { some: { storeId, ...recognizedPurchase, supplierPayable: { is: { storeId, debtDate: { lte: periodLastDate } } } } } } } },
       ] },
@@ -71,7 +74,9 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
     return {
       ...expense,
       purchaseAmountMismatch: Boolean(purchase && Math.round(Number(purchase.totalAmount) * 100) !== Math.max(0, Math.round(Number(expense.amount) * 100) - Math.round(Number(expense.changeAmount) * 100))),
-      ambiguousPurchaseDueDates: !expense.goodsPurchaseId && !purchase ? candidates.filter(row => row.paymentMethod === 'GIRO' && row.paymentDueDate).map(row => row.paymentDueDate!) : [],
+      ambiguousPurchaseDueDates: !expense.goodsPurchaseId && !purchase ? candidates.flatMap(row => row.payments?.length
+        ? row.payments.filter(payment => payment.method === 'GIRO' && payment.dueDate).map(payment => payment.dueDate!)
+        : row.paymentMethod === 'GIRO' && row.paymentDueDate ? [row.paymentDueDate] : []) : [],
       goodsPurchase: purchase?.storeId === storeId ? {
         ...purchase,
         supplierPayable: purchase.supplierPayable?.storeId === storeId ? purchase.supplierPayable : null,

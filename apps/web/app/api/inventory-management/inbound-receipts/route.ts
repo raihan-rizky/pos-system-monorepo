@@ -45,6 +45,12 @@ const createSchema = z.object({
   goodsPurchaseId: z.string().min(1),
   paymentMethod: z.enum(["TRANSFER", "GIRO"]).optional(),
   paymentDueDate: z.string().nullable().optional(),
+  payments: z.array(z.object({
+    method: z.enum(["TRANSFER", "GIRO"]),
+    amount: z.number().positive().max(9_999_999_999.99),
+    dueDate: z.iso.date().nullable().optional(),
+    note: z.string().trim().max(500).nullable().optional(),
+  }).strict()).min(1).max(50).optional(),
   note: z.string().trim().max(500).optional().nullable(),
   lines: z.array(
     z.object({

@@ -62,14 +62,17 @@ export function buildShoppingRequestWhere(
   if (filters.status) where.status = filters.status;
   if (filters.supplierId) where.supplierId = filters.supplierId;
   if (filters.fulfillmentStatus || filters.paymentMethod || filters.paymentDueDate) {
+    const dueDate = filters.paymentDueDate ? new Date(`${filters.paymentDueDate}T00:00:00.000Z`) : undefined;
     where.goodsPurchases = {
       some: {
         ...(filters.status === "CANCELLED"
           ? { OR: [{ status: "APPROVED" as const }, { status: "CANCELLED" as const, statusBeforeCancellation: "APPROVED" as const }] }
           : { status: "APPROVED" as const }),
         ...(filters.fulfillmentStatus ? { fulfillmentStatus: filters.fulfillmentStatus } : {}),
-        ...(filters.paymentMethod ? { paymentMethod: filters.paymentMethod } : {}),
-        ...(filters.paymentDueDate ? { paymentDueDate: new Date(`${filters.paymentDueDate}T00:00:00.000Z`) } : {}),
+        ...(filters.paymentMethod || dueDate ? { AND: [{ OR: [
+          { payments: { some: { ...(filters.paymentMethod ? { method: filters.paymentMethod } : {}), ...(dueDate ? { dueDate } : {}) } } },
+          { payments: { none: {} }, ...(filters.paymentMethod ? { paymentMethod: filters.paymentMethod } : {}), ...(dueDate ? { paymentDueDate: dueDate } : {}) },
+        ] }] } : {}),
       },
     };
   }
@@ -99,7 +102,7 @@ export function listShoppingRequests(
       include: {
         supplier: { select: { id: true, name: true } },
         deletion: { select: { actorName: true, reason: true, createdAt: true, previousStatus: true } },
-        goodsPurchases: { orderBy: { createdAt: "desc" }, select: { id: true, number: true, status: true, statusBeforeCancellation: true, fulfillmentStatus: true, totalAmount: true, paymentMethod: true, paymentDueDate: true } },
+        goodsPurchases: { orderBy: { createdAt: "desc" }, select: { id: true, number: true, status: true, statusBeforeCancellation: true, fulfillmentStatus: true, totalAmount: true, paymentMethod: true, paymentDueDate: true, payments: { orderBy: { createdAt: "asc" }, select: { method: true, amount: true, dueDate: true, note: true } } } },
         _count: { select: { items: true } },
         items: {
           select: {
@@ -118,11 +121,13 @@ export function listShoppingRequests(
         id: row.id,
         purchase: row.goodsPurchases?.[0] ? {
           ...row.goodsPurchases[0],
+          payments: (row.goodsPurchases[0].payments ?? []).map(payment => ({ method: payment.method, amount: Number(payment.amount.toString()), dueDate: payment.dueDate?.toISOString().slice(0, 10) ?? null, note: payment.note })),
           paymentDueDate: row.goodsPurchases[0].paymentDueDate?.toISOString().slice(0, 10) ?? null,
           totalAmount: Number(row.goodsPurchases[0].totalAmount.toString()),
         } : null,
         purchaseHistory: row.goodsPurchases.map((purchase) => ({
           ...purchase,
+          payments: (purchase.payments ?? []).map(payment => ({ method: payment.method, amount: Number(payment.amount.toString()), dueDate: payment.dueDate?.toISOString().slice(0, 10) ?? null, note: payment.note })),
           paymentDueDate: purchase.paymentDueDate?.toISOString().slice(0, 10) ?? null,
           totalAmount: Number(purchase.totalAmount.toString()),
         })),
@@ -222,7 +227,7 @@ export function findShoppingRequestById(
       where: { id, ...(storeId ? { storeId } : {}) },
       include: {
         supplier: { select: { id: true, name: true } },
-        goodsPurchases: { orderBy: { createdAt: "desc" }, select: { id: true, number: true, status: true, fulfillmentStatus: true, totalAmount: true, paymentMethod: true, paymentDueDate: true } },
+        goodsPurchases: { orderBy: { createdAt: "desc" }, select: { id: true, number: true, status: true, fulfillmentStatus: true, totalAmount: true, paymentMethod: true, paymentDueDate: true, payments: { orderBy: { createdAt: "asc" }, select: { method: true, amount: true, dueDate: true, note: true } } } },
         items: {
           include: {
             product: { select: { name: true, sku: true, unit: true, imageUrl: true, costPrice: true, conversionNeedsReview: true, unitMultiplierToBase: true, stockGroup: { select: { id: true, displayName: true, baseUnit: true, baseStock: true } } } },
@@ -271,11 +276,13 @@ export function findShoppingRequestById(
         id: row.id,
         purchase: row.goodsPurchases[0] ? {
           ...row.goodsPurchases[0],
+          payments: (row.goodsPurchases[0].payments ?? []).map(payment => ({ method: payment.method, amount: Number(payment.amount.toString()), dueDate: payment.dueDate?.toISOString().slice(0, 10) ?? null, note: payment.note })),
           paymentDueDate: row.goodsPurchases[0].paymentDueDate?.toISOString().slice(0, 10) ?? null,
           totalAmount: Number(row.goodsPurchases[0].totalAmount.toString()),
         } : null,
         purchaseHistory: row.goodsPurchases.map((purchase) => ({
           ...purchase,
+          payments: (purchase.payments ?? []).map(payment => ({ method: payment.method, amount: Number(payment.amount.toString()), dueDate: payment.dueDate?.toISOString().slice(0, 10) ?? null, note: payment.note })),
           paymentDueDate: purchase.paymentDueDate?.toISOString().slice(0, 10) ?? null,
           totalAmount: Number(purchase.totalAmount.toString()),
         })),

@@ -63,6 +63,16 @@ function elements(node: unknown): ReactElement<any>[] {
 }
 
 describe("status penerimaan di Daftar Belanja", () => {
+  it("shows both giro terms on one shopping request", () => {
+    listMock.mockReturnValue({ data: { data: [row({ ...purchase("NOT_RECEIVED"), payments: [
+      { method: "GIRO", amount: 3000, dueDate: "2026-11-14", note: null },
+      { method: "GIRO", amount: 4600, dueDate: "2026-12-07", note: null },
+    ] })] } });
+    const html = renderToStaticMarkup(render());
+    expect(html).toContain("2 pembayaran");
+    expect(html).toContain("14/11/2026");
+    expect(html).toContain("07/12/2026");
+  });
   it.each(["GIRO", "TRANSFER"] as const)("shows the recorded %s payment badge on an approved purchase", (paymentMethod) => {
     listMock.mockReturnValue({ data: { data: [row({ ...purchase("NOT_RECEIVED"), paymentMethod })] } });
     expect(renderToStaticMarkup(render())).toContain(`aria-label="Metode pembayaran: ${paymentMethod === "GIRO" ? "Giro" : "Transfer"}"`);

@@ -21,12 +21,14 @@ import {
 import type { InboundReceiptStatus } from "../types/inventory-management";
 import { InboundReceiptReviewModal } from "./InboundReceiptReviewModal";
 import { InboundReceiptProductThumbnail } from "./InboundReceiptProductThumbnail";
+import { InboundPaymentSummary } from "./InboundPaymentFields";
 import "./inbound-receipt-tab.css";
 
 export interface InboundReceiptRowActionInput {
   status: InboundReceiptStatus;
   canApproveInboundReceipt: boolean;
   canRejectInboundReceipt: boolean;
+  canEditInboundReceipt?: boolean;
 }
 
 export interface InboundReceiptRowAction {
@@ -39,8 +41,8 @@ export function getInboundReceiptRowActions(
 ): InboundReceiptRowAction[] {
   if (input.status !== "SUBMITTED") return [];
   const actions: InboundReceiptRowAction[] = [];
-  if (input.canApproveInboundReceipt) {
-    actions.push({ key: "process", label: "Proses" });
+  if (input.canApproveInboundReceipt || input.canEditInboundReceipt) {
+    actions.push({ key: "process", label: input.canApproveInboundReceipt ? "Proses" : "Ubah Penerimaan" });
   }
   if (input.canRejectInboundReceipt) {
     actions.push({ key: "reject", label: "Tolak" });
@@ -351,6 +353,7 @@ export const InboundReceiptTab: React.FC<InboundReceiptTabProps> = ({
                     status: receipt.status,
                     canApproveInboundReceipt: canApprove,
                     canRejectInboundReceipt: canReject,
+                    canEditInboundReceipt: canEdit,
                   });
                   const StatusIcon =
                     receipt.status === "APPROVED"
@@ -502,6 +505,10 @@ export const InboundReceiptTab: React.FC<InboundReceiptTabProps> = ({
                                   {receipt.note}
                                 </p>
                               )}
+                              {Boolean(receipt.payments?.length) && <div className="mb-3 rounded-lg border border-slate-200 bg-white p-3">
+                                <h4 className="mb-2 text-sm font-semibold text-slate-900">Pembayaran Pembelian</h4>
+                                <InboundPaymentSummary payments={receipt.payments!} />
+                              </div>}
                               <div className="space-y-3">
                                 {receipt.lines.map((line) => (
                                   <div

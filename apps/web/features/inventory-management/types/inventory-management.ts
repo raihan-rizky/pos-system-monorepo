@@ -30,6 +30,13 @@ export interface InboundPricingInput {
   hargaDinas: number | null;
 }
 
+export interface InboundPaymentInput {
+  method: "TRANSFER" | "GIRO";
+  amount: number;
+  dueDate?: string | null;
+  note?: string | null;
+}
+
 export interface InboundPricingSingleSnapshot extends InboundPricingInput {
   version: 1;
   unit: string | null;
@@ -245,10 +252,29 @@ export interface LockedSubmittedInboundReceipt {
   goodsPurchaseId: string | null;
   paymentMethod?: "TRANSFER" | "GIRO" | null;
   paymentDueDate?: Date | null;
+  payments?: InboundPaymentInput[];
   goodsPurchaseNumber: string | null;
   stockBundleId: string | null;
   supplierId: string | null;
   supplierName: string;
+  replacementItems?: Array<{
+    id: string;
+    shoppingRequestItemId?: string | null;
+    stockGroupId?: string | null;
+    productId: string;
+    productNameSnapshot: string;
+    skuSnapshot: string;
+    unitSnapshot: string | null;
+    quantity: number;
+    latestUnitPrice: number;
+    pricingUnits: InboundPricingUnit[];
+    unitMultiplierToBase: number;
+    inboundReceiptLines: Array<{
+      status: InboundReceiptLineStatus;
+      receivedQuantity: number;
+      receipt: { status: InboundReceiptStatus };
+    }>;
+  }>;
   lines: LockedSubmittedInboundReceiptLine[];
 }
 
@@ -314,6 +340,8 @@ export interface ReceivingQueueRepositoryRow {
   supplierName: string;
   paymentMethod?: "TRANSFER" | "GIRO" | null;
   paymentDueDate?: string | null;
+  totalAmount?: number;
+  payments?: InboundPaymentInput[];
   fulfillmentStatus: GoodsPurchaseFulfillmentStatus;
   itemId: string;
   productId: string;
@@ -355,6 +383,8 @@ export interface ReceivingQueuePurchase {
   supplierName: string;
   paymentMethod?: "TRANSFER" | "GIRO" | null;
   paymentDueDate?: string | null;
+  totalAmount?: number;
+  payments?: InboundPaymentInput[];
   fulfillmentStatus: GoodsPurchaseFulfillmentStatus;
   pendingReceiptCount: number;
   items: ReceivingQueuePurchaseItem[];
@@ -387,6 +417,9 @@ export interface GoodsPurchaseReceivingComparison {
   fulfillmentStatus: GoodsPurchaseFulfillmentStatus;
   items: Array<{
     goodsPurchaseItemId: string;
+    productId?: string;
+    pricingUnits?: InboundPricingUnit[];
+    isAvailableProduct?: boolean;
     productName: string;
     sku: string;
     unit: string | null;
@@ -427,6 +460,7 @@ export interface InventoryInboundReceiptRepository {
       goodsPurchaseId: string;
       paymentMethod: "TRANSFER" | "GIRO" | null;
       paymentDueDate: Date | null;
+      payments?: InboundPaymentInput[];
       actor: { id: string; name?: string | null };
       now: Date;
     },
@@ -609,6 +643,14 @@ export interface InventoryInboundReceiptRepository {
       storeId: string;
       receiptId: string;
       itemId: string;
+      productId?: string;
+      goodsPurchaseItemId?: string;
+      shoppingRequestItemId?: string | null;
+      expectedQuantity?: number;
+      productNameSnapshot?: string;
+      skuSnapshot?: string;
+      unitSnapshot?: string | null;
+      costPriceSnapshot?: number | null;
       matchStatus: InboundReceiptMatchStatus;
       receivedQuantity: number;
       note: string | null;

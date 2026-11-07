@@ -46,9 +46,16 @@ export async function POST(request: Request, context: { params: Promise<{ goodsP
       // Prevent concurrent FK DDL from changing the safety check before deletion.
       await tx.$executeRaw`LOCK TABLE "pos_supplier_payables" IN ROW EXCLUSIVE MODE`;
       const [purchase] = await tx.$queryRaw<Purchase[]>`
-        SELECT g."id", g."supplierNameSnapshot" AS "supplierName", g."totalAmount"::text AS "amount",
-          e."debtDate", g."paymentDueDate"::text AS "dueDate"
+        SELECT g."id", g."supplierNameSnapshot" AS "supplierName", (CASE WHEN s."count" > 0 THEN s."giroAmount" ELSE g."totalAmount" END)::text AS "amount",
+          e."debtDate", (CASE WHEN s."count" > 0 THEN s."dueDate" ELSE g."paymentDueDate" END)::text AS "dueDate"
         FROM "pos_goods_purchases" g
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*) AS "count", SUM(pay."amount") FILTER (WHERE pay."method"::text = 'GIRO') AS "giroAmount",
+          MIN(pay."dueDate") FILTER (WHERE pay."method"::text = 'GIRO') AS "dueDate",
+          COALESCE(json_agg(json_build_object('id', pay."id", 'amount', pay."amount"::text, 'dueDate', pay."dueDate"::text, 'note', pay."note")
+            ORDER BY pay."dueDate", pay."id") FILTER (WHERE pay."method"::text = 'GIRO'), '[]'::json) AS "schedule"
+        FROM "pos_goods_purchase_payments" pay WHERE pay."goodsPurchaseId" = g."id"
+      ) s ON true
         LEFT JOIN LATERAL (
           SELECT (((x."occurredAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta')::date)::text AS "debtDate"
           FROM "pos_expenses" x
@@ -60,7 +67,7 @@ export async function POST(request: Request, context: { params: Promise<{ goodsP
           ORDER BY (x."goodsPurchaseId" = g."id") DESC NULLS LAST, x."occurredAt" ASC LIMIT 1
           FOR SHARE OF x
         ) e ON true
-        WHERE g."id" = ${goodsPurchaseId} AND g."storeId" = ${storeId} AND (g."status" = 'APPROVED' OR (g."status" = 'CANCELLED' AND g."statusBeforeCancellation" = 'APPROVED')) AND g."paymentMethod" = 'GIRO'
+        WHERE g."id" = ${goodsPurchaseId} AND g."storeId" = ${storeId} AND (g."status" = 'APPROVED' OR (g."status" = 'CANCELLED' AND g."statusBeforeCancellation" = 'APPROVED')) AND ((s."count" > 0 AND s."giroAmount" > 0) OR (s."count" = 0 AND g."paymentMethod" = 'GIRO'))
         FOR UPDATE OF g
       `;
       if (!purchase) throw notFound();

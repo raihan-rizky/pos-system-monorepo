@@ -33,8 +33,14 @@ export async function listMergedPurchases(filters: MergedPurchaseFilters) {
             WHERE gp."shoppingRequestId" = sr.id AND (gp.status::text = 'APPROVED'
               ${filters.status === "CANCELLED" ? Prisma.sql`OR (gp.status::text = 'CANCELLED' AND gp."statusBeforeCancellation"::text = 'APPROVED')` : Prisma.empty})
               AND (${filters.fulfillmentStatus ?? null}::text IS NULL OR gp."fulfillmentStatus"::text = ${filters.fulfillmentStatus ?? null})
-              AND (${filters.paymentMethod ?? null}::text IS NULL OR gp."paymentMethod"::text = ${filters.paymentMethod ?? null})
-              AND (${due}::date IS NULL OR gp."paymentDueDate" = ${due}::date)))`;
+              AND ((${filters.paymentMethod ?? null}::text IS NULL AND ${due}::date IS NULL)
+                OR EXISTS (SELECT 1 FROM "pos_goods_purchase_payments" payment
+                  WHERE payment."goodsPurchaseId" = gp.id
+                    AND (${filters.paymentMethod ?? null}::text IS NULL OR payment.method::text = ${filters.paymentMethod ?? null})
+                    AND (${due}::date IS NULL OR payment."dueDate" = ${due}::date))
+                OR (NOT EXISTS (SELECT 1 FROM "pos_goods_purchase_payments" payment WHERE payment."goodsPurchaseId" = gp.id)
+                  AND (${filters.paymentMethod ?? null}::text IS NULL OR gp."paymentMethod"::text = ${filters.paymentMethod ?? null})
+                  AND (${due}::date IS NULL OR gp."paymentDueDate" = ${due}::date)))))`;
   const historical = filters.recordType === "SHOPPING_REQUEST" || filters.status || filters.supplierId || filters.fulfillmentStatus
     ? Prisma.sql`SELECT NULL::text AS id, NULL::text AS kind, NULL::timestamp AS "createdAt" WHERE FALSE`
     : Prisma.sql`

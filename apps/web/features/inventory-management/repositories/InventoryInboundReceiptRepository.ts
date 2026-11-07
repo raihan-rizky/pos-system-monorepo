@@ -19,6 +19,7 @@ import {
   type GroupPricingConfig,
 } from "@/features/product-stock-groups/automatic-pricing";
 import { buildProductPriceLogEntries } from "@/lib/product-price-logs/price-log-entries";
+import { normalizeInboundPayments, sameInboundPayments, inboundPaymentSummary, validateInboundPayments } from "../helpers/inbound-payment";
 import {
   calculateInboundAvailability,
   getInboundStockQuantity,
@@ -35,6 +36,7 @@ import type {
   InboundPricingSingleSnapshot,
   InboundPricingCollectionUnit,
   InboundPricingUnit,
+  InboundPaymentInput,
   InventoryInboundReceiptRepository as InventoryInboundReceiptRepositoryContract,
   LockedInboundStockGroup,
   LockedSubmittedInboundReceipt,
@@ -131,6 +133,7 @@ export class InventoryInboundReceiptRepository
       goodsPurchaseId: string;
       paymentMethod: "TRANSFER" | "GIRO" | null;
       paymentDueDate: Date | null;
+      payments?: InboundPaymentInput[];
       actor: { id: string; name?: string | null };
       now: Date;
     },
@@ -140,6 +143,7 @@ export class InventoryInboundReceiptRepository
       select: {
         id: true, number: true, shoppingRequestId: true, supplierNameSnapshot: true,
         totalAmount: true, paymentMethod: true, paymentDueDate: true,
+        payments: { orderBy: { createdAt: "asc" }, select: { method: true, amount: true, dueDate: true, note: true } },
         expense: { select: { id: true } },
         shoppingRequest: { select: { expense: { select: { id: true } } } },
         _count: { select: { items: true } },
@@ -147,17 +151,54 @@ export class InventoryInboundReceiptRepository
     });
     if (!purchase) throw new Error("Pembelian Barang tidak tersedia.");
     const existingExpense = purchase.expense ?? purchase.shoppingRequest?.expense;
-    const isNewGiro = !existingExpense && !purchase.paymentMethod && input.paymentMethod === "GIRO";
-    if (!input.paymentMethod && !purchase.paymentMethod && !existingExpense) {
+    const hasScheduledPayments = (purchase.payments?.length ?? 0) > 0;
+    const isNewPayment = !existingExpense && !purchase.paymentMethod && !hasScheduledPayments;
+    if (!input.payments && input.paymentMethod && hasScheduledPayments) {
+      const totalAmount = Number(purchase.totalAmount.toString());
+      const established = normalizeInboundPayments({ totalAmount, legacy: null,
+        payments: purchase.payments.map(row => ({ method: row.method, amount: Number(row.amount.toString()),
+          dueDate: row.dueDate?.toISOString().slice(0, 10) ?? null, note: row.note })),
+      }).payments;
+      const legacyProposal = normalizeInboundPayments({ totalAmount,
+        legacy: { method: input.paymentMethod, dueDate: input.paymentDueDate?.toISOString().slice(0, 10) ?? null },
+      }).payments;
+      if (!sameInboundPayments(established, legacyProposal)) {
+        throw new Error("Pembayaran pembelian telah berubah. Tolak penerimaan ini dan gunakan jadwal terbaru.");
+      }
+    }
+    if (input.payments !== undefined) {
+      const total = Number(purchase.totalAmount.toString());
+      const proposal = validateInboundPayments(total, input.payments, { allowZeroTotalLegacy: true }).payments;
+      const established = hasScheduledPayments || purchase.paymentMethod
+        ? normalizeInboundPayments({ totalAmount: total, payments: purchase.payments?.map(row => ({
+            method: row.method, amount: Number(row.amount.toString()), dueDate: row.dueDate?.toISOString().slice(0, 10) ?? null, note: row.note,
+          })), legacy: purchase.paymentMethod ? { method: purchase.paymentMethod, dueDate: purchase.paymentDueDate?.toISOString().slice(0, 10) } : null }).payments
+        : null;
+      if (established && !sameInboundPayments(established, proposal)) {
+        throw new Error("Pembayaran pembelian telah berubah. Tolak penerimaan ini dan gunakan jadwal terbaru.");
+      }
+      if (!hasScheduledPayments) {
+        await tx.goodsPurchasePayment.createMany({ data: proposal.map(row => ({
+          goodsPurchaseId: purchase.id, method: row.method, amount: row.amount,
+          dueDate: row.dueDate ? new Date(`${row.dueDate}T00:00:00Z`) : null,
+          note: row.note ?? null, createdById: input.actor.id,
+        })) });
+      }
+      const summary = inboundPaymentSummary(proposal);
+      if (!purchase.paymentMethod) await tx.goodsPurchase.update({ where: { id: purchase.id }, data: {
+        paymentMethod: summary.paymentMethod, paymentDueDate: summary.paymentDueDate ? new Date(`${summary.paymentDueDate}T00:00:00Z`) : null,
+      } });
+    }
+    if (!input.payments && !input.paymentMethod && !purchase.paymentMethod && !hasScheduledPayments && !existingExpense) {
       throw new Error("Metode pembayaran belum diisi pada penerimaan barang.");
     }
-    if (purchase.paymentMethod && input.paymentMethod &&
+    if (!input.payments && purchase.paymentMethod && input.paymentMethod &&
       (purchase.paymentMethod !== input.paymentMethod ||
         (purchase.paymentMethod === "GIRO" &&
           purchase.paymentDueDate?.toISOString().slice(0, 10) !== input.paymentDueDate?.toISOString().slice(0, 10)))) {
       throw new Error("Metode pembayaran pembelian telah berubah. Tolak penerimaan ini dan buat kembali dengan metode terbaru.");
     }
-    if (!purchase.paymentMethod && input.paymentMethod) {
+    if (!input.payments && !purchase.paymentMethod && input.paymentMethod && !hasScheduledPayments) {
       await tx.goodsPurchase.update({
         where: { id: purchase.id },
         data: { paymentMethod: input.paymentMethod, paymentDueDate: input.paymentDueDate },
@@ -174,7 +215,14 @@ export class InventoryInboundReceiptRepository
           hasMissingCostSnapshot: false,
         },
       });
-      if (isNewGiro) {
+      const giroPayments = input.payments?.filter(payment => payment.method === "GIRO");
+      const giroAmount = giroPayments
+        ? giroPayments.reduce((sum, payment) => sum + Math.round(payment.amount * 100), 0) / 100
+        : input.paymentMethod === "GIRO" ? Number(purchase.totalAmount.toString()) : 0;
+      const giroDueDate = giroPayments
+        ? giroPayments.map(payment => payment.dueDate!).sort()[0]
+        : input.paymentDueDate?.toISOString().slice(0, 10);
+      if (isNewPayment && giroAmount > 0) {
         const receiptDate = new Date(input.now.getTime() + 7 * 60 * 60 * 1000)
           .toISOString().slice(0, 10);
         await tx.supplierPayable.create({
@@ -184,9 +232,9 @@ export class InventoryInboundReceiptRepository
             goodsPurchaseId: purchase.id,
             giroHistoryVerifiedAt: input.now,
             supplierName: purchase.supplierNameSnapshot,
-            amount: purchase.totalAmount,
+            amount: giroAmount,
             debtDate: new Date(`${receiptDate}T00:00:00.000Z`),
-            dueDate: input.paymentDueDate,
+            dueDate: giroDueDate ? new Date(`${giroDueDate}T00:00:00.000Z`) : null,
             createdById: input.actor.id,
           },
         });
@@ -232,6 +280,7 @@ export class InventoryInboundReceiptRepository
         goodsPurchaseId: true,
         paymentMethod: true,
         paymentDueDate: true,
+        paymentSchedule: true,
         stockBundleId: true,
         supplierId: true,
         supplier: { select: { name: true } },
@@ -239,6 +288,27 @@ export class InventoryInboundReceiptRepository
           select: {
             number: true,
             supplierNameSnapshot: true,
+            items: {
+              orderBy: { createdAt: "asc" },
+              select: {
+                id: true,
+                shoppingRequestItemId: true,
+                productId: true,
+                productNameSnapshot: true,
+                skuSnapshot: true,
+                unitSnapshot: true,
+                quantity: true,
+                latestUnitPrice: true,
+                product: { select: pricingProductSelect },
+                inboundReceiptLines: {
+                  where: {
+                    receiptId: { not: input.receiptId },
+                    receipt: { storeId: input.storeId, status: { in: ["APPROVED", "SUBMITTED"] } },
+                  },
+                  select: { status: true, receivedQuantity: true, receipt: { select: { status: true } } },
+                },
+              },
+            },
           },
         },
         lines: {
@@ -295,6 +365,7 @@ export class InventoryInboundReceiptRepository
       goodsPurchaseId: receipt.goodsPurchaseId,
       paymentMethod: receipt.paymentMethod,
       paymentDueDate: receipt.paymentDueDate,
+      payments: Array.isArray(receipt.paymentSchedule) ? receipt.paymentSchedule as unknown as InboundPaymentInput[] : undefined,
       goodsPurchaseNumber: receipt.goodsPurchase?.number ?? null,
       stockBundleId: receipt.stockBundleId,
       supplierId: receipt.supplierId,
@@ -302,6 +373,20 @@ export class InventoryInboundReceiptRepository
         receipt.goodsPurchase?.supplierNameSnapshot ??
         receipt.supplier?.name ??
         "Supplier",
+      replacementItems: receipt.goodsPurchase?.items?.filter(item => item.product?.storeId === input.storeId && item.product.isActive).map((item) => ({
+        id: item.id,
+        shoppingRequestItemId: item.shoppingRequestItemId,
+        stockGroupId: item.product?.stockGroupId,
+        productId: item.productId,
+        productNameSnapshot: item.productNameSnapshot,
+        skuSnapshot: item.skuSnapshot,
+        unitSnapshot: item.unitSnapshot,
+        quantity: item.quantity,
+        latestUnitPrice: Number(item.latestUnitPrice.toString()),
+        pricingUnits: pricingUnitsForProduct(item.product),
+        unitMultiplierToBase: item.product?.unitMultiplierToBase ?? 1,
+        inboundReceiptLines: item.inboundReceiptLines,
+      })) ?? [],
       lines: receipt.lines.map((line) => ({
         id: line.id,
         updatedAt: line.updatedAt,
@@ -393,6 +478,14 @@ export class InventoryInboundReceiptRepository
       storeId: string;
       receiptId: string;
       itemId: string;
+      productId?: string;
+      goodsPurchaseItemId?: string;
+      shoppingRequestItemId?: string | null;
+      expectedQuantity?: number;
+      productNameSnapshot?: string;
+      skuSnapshot?: string;
+      unitSnapshot?: string | null;
+      costPriceSnapshot?: number | null;
       matchStatus: "MATCHED" | "MISMATCHED";
       receivedQuantity: number;
       note: string | null;
@@ -414,6 +507,14 @@ export class InventoryInboundReceiptRepository
         },
       },
       data: {
+        ...(input.productId !== undefined ? { productId: input.productId } : {}),
+        ...(input.goodsPurchaseItemId !== undefined ? { goodsPurchaseItemId: input.goodsPurchaseItemId } : {}),
+        ...(input.shoppingRequestItemId !== undefined ? { shoppingRequestItemId: input.shoppingRequestItemId } : {}),
+        ...(input.expectedQuantity !== undefined ? { expectedQuantity: input.expectedQuantity, expectedQuantitySnapshot: input.expectedQuantity } : {}),
+        ...(input.productNameSnapshot !== undefined ? { productNameSnapshot: input.productNameSnapshot } : {}),
+        ...(input.skuSnapshot !== undefined ? { skuSnapshot: input.skuSnapshot } : {}),
+        ...(input.unitSnapshot !== undefined ? { unitSnapshot: input.unitSnapshot } : {}),
+        ...(input.costPriceSnapshot !== undefined ? { costPriceSnapshot: input.costPriceSnapshot } : {}),
         matchStatus: input.matchStatus,
         receivedQuantity: input.receivedQuantity,
         receivedQuantitySnapshot: input.receivedQuantity,
@@ -1333,8 +1434,10 @@ export class InventoryInboundReceiptRepository
         shoppingRequestId: true,
         supplierId: true,
         supplierNameSnapshot: true,
+        totalAmount: true,
         paymentMethod: true,
         paymentDueDate: true,
+        payments: { orderBy: { createdAt: "asc" }, select: { method: true, amount: true, dueDate: true, note: true } },
         items: {
           orderBy: { createdAt: "asc" },
           select: {
@@ -1368,6 +1471,13 @@ export class InventoryInboundReceiptRepository
 
     return {
       ...purchase,
+      totalAmount: purchase.totalAmount === undefined ? purchase.items.reduce((sum, item) => sum + Number(item.latestUnitPrice) * item.quantity, 0) : Number(purchase.totalAmount.toString()),
+      payments: (purchase.payments ?? []).map((payment) => ({
+        method: payment.method,
+        amount: Number(payment.amount.toString()),
+        dueDate: payment.dueDate?.toISOString().slice(0, 10) ?? null,
+        note: payment.note,
+      })),
       items: purchase.items.map((item) => ({
         ...item,
         latestUnitPrice: Number(item.latestUnitPrice.toString()),
@@ -1388,8 +1498,9 @@ export class InventoryInboundReceiptRepository
       goodsPurchaseId: string;
       shoppingRequestId: string;
       supplierId: string | null;
-      paymentMethod: "TRANSFER" | "GIRO";
+      paymentMethod: "TRANSFER" | "GIRO" | null;
       paymentDueDate: Date | null;
+      payments: Array<{ method: "TRANSFER" | "GIRO"; amount: number; dueDate: Date | null; note?: string | null }>;
       submittedBy: string;
       submittedAt: Date;
       note: string | null;
@@ -1422,6 +1533,10 @@ export class InventoryInboundReceiptRepository
         supplierId: input.supplierId,
         paymentMethod: input.paymentMethod,
         paymentDueDate: input.paymentDueDate,
+        paymentSchedule: input.payments.map(payment => ({
+          method: payment.method, amount: payment.amount,
+          dueDate: payment.dueDate?.toISOString().slice(0, 10) ?? null, note: payment.note ?? null,
+        })),
         status: "SUBMITTED",
         submittedBy: input.submittedBy,
         submittedAt: input.submittedAt,
@@ -1477,7 +1592,7 @@ export class InventoryInboundReceiptRepository
       take: 50,
       include: {
         supplier: { select: { id: true, name: true } },
-        goodsPurchase: { select: { number: true } },
+        goodsPurchase: { select: { number: true, totalAmount: true, payments: { orderBy: { createdAt: "asc" }, select: { method: true, amount: true, dueDate: true, note: true } } } },
         stockBundle: { select: { status: true } },
         lines: {
           orderBy: { createdAt: "asc" },
@@ -1490,6 +1605,11 @@ export class InventoryInboundReceiptRepository
       ...receipt,
       goodsPurchaseNumber: goodsPurchase?.number ?? null,
       stockReversed: stockBundle?.status === "UNDONE",
+      payments: Array.isArray(receipt.paymentSchedule) ? receipt.paymentSchedule as unknown as InboundPaymentInput[]
+        : (goodsPurchase?.payments ?? []).map(payment => ({
+            method: payment.method, amount: Number(payment.amount.toString()),
+            dueDate: payment.dueDate?.toISOString().slice(0, 10) ?? null, note: payment.note,
+          })),
       lines: receipt.lines.map(({ product, ...line }) => ({
         ...line,
         imageUrl: product?.imageUrl ?? null,
@@ -1565,6 +1685,8 @@ export class InventoryInboundReceiptRepository
         number: true,
         paymentMethod: true,
         paymentDueDate: true,
+        totalAmount: true,
+        payments: { orderBy: { createdAt: "asc" }, select: { method: true, amount: true, dueDate: true, note: true } },
         deferMasterHppToReceipt: true,
         supplierId: true,
         supplierNameSnapshot: true,
@@ -1639,6 +1761,11 @@ export class InventoryInboundReceiptRepository
           supplierName: purchase.supplierNameSnapshot,
           paymentMethod: purchase.paymentMethod,
           paymentDueDate: purchase.paymentDueDate?.toISOString().slice(0, 10) ?? null,
+          totalAmount: purchase.totalAmount == null ? undefined : Number(purchase.totalAmount.toString()),
+          payments: (purchase.payments ?? []).map(payment => ({
+            method: payment.method, amount: Number(payment.amount.toString()),
+            dueDate: payment.dueDate?.toISOString().slice(0, 10) ?? null, note: payment.note,
+          })),
           fulfillmentStatus: purchase.fulfillmentStatus,
           itemId: item.id,
           productId: item.productId,
@@ -1678,6 +1805,8 @@ export class InventoryInboundReceiptRepository
           orderBy: { createdAt: "asc" },
           select: {
             id: true,
+            productId: true,
+            product: { select: pricingProductSelect },
             productNameSnapshot: true,
             skuSnapshot: true,
             unitSnapshot: true,
@@ -1766,6 +1895,9 @@ export class InventoryInboundReceiptRepository
 
         return {
           goodsPurchaseItemId: item.id,
+          productId: item.productId,
+          pricingUnits: pricingUnitsForProduct(item.product),
+          isAvailableProduct: item.product?.storeId === storeId && item.product.isActive,
           productName: item.productNameSnapshot,
           sku: item.skuSnapshot,
           unit: item.unitSnapshot,

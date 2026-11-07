@@ -36,10 +36,14 @@ describe("database reset protects financial ledgers", () => {
     const plan = await createDatabaseResetPlan({ db, storeId: "store-a", models: ["Expense"] });
     expect(plan.canExecute).toBe(false);
     expect(plan.requiredDependencies).toContainEqual(expect.objectContaining({ blocking: true, reason: expect.stringMatching(/giro/i) }));
+    const giroPurchase = { storeId: "store-a", OR: [
+      { payments: { some: { method: "GIRO" } } },
+      { payments: { none: {} }, paymentMethod: "GIRO" },
+    ] };
     expect(expenseCount).toHaveBeenCalledWith({ where: {
       storeId: "store-a", deletedAt: null, OR: [
-        { goodsPurchase: { is: { storeId: "store-a", paymentMethod: "GIRO" } } },
-        { goodsPurchaseId: null, shoppingRequest: { is: { storeId: "store-a", goodsPurchases: { some: { storeId: "store-a", paymentMethod: "GIRO" } } } } },
+        { goodsPurchase: { is: giroPurchase } },
+        { goodsPurchaseId: null, shoppingRequest: { is: { storeId: "store-a", goodsPurchases: { some: giroPurchase } } } },
       ],
     } });
   });

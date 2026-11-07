@@ -14,6 +14,7 @@ import {
 } from "../helpers/inbound-receipt-rules";
 import type {
   InboundPricingUnit,
+  InboundPaymentInput,
   ReceivingQueuePurchase,
   ReceivingQueuePurchaseItem,
   ReceivingQueueResult,
@@ -26,6 +27,8 @@ import {
   pricingDraftForUnit,
   type InboundPricingDraft,
 } from "./InboundPricingFields";
+import { InboundPaymentFields } from "./InboundPaymentFields";
+import { validateInboundPayments } from "../helpers/inbound-payment";
 
 export interface InboundReceiptModalProps {
   open: boolean;
@@ -239,8 +242,7 @@ export function InboundReceiptModal({
   const [lineInputs, setLineInputs] = useState<Record<string, LineInput>>({});
   const [pricingDrafts, setPricingDrafts] = useState<Record<string, InboundPricingDraft>>({});
   const [note, setNote] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"TRANSFER" | "GIRO">("TRANSFER");
-  const [paymentDueDate, setPaymentDueDate] = useState("");
+  const [paymentDrafts, setPaymentDrafts] = useState<InboundPaymentInput[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -293,6 +295,15 @@ export function InboundReceiptModal({
   const purchases = receivingQueue?.purchases.filter(hasAvailableItem) ?? [];
   const selectedPurchase =
     purchases.find((purchase) => purchase.id === goodsPurchaseId) ?? null;
+  const purchaseAmount = selectedPurchase?.totalAmount ?? selectedPurchase?.items.reduce(
+    (sum, item) => sum + item.orderedQuantity * (item.suggestedCostPrice ?? item.currentCostPrice ?? 0), 0,
+  ) ?? 0;
+  const hasEstablishedPayments = Boolean(selectedPurchase?.payments?.length || selectedPurchase?.paymentMethod);
+  const initialPayments: InboundPaymentInput[] = selectedPurchase?.payments?.length ? selectedPurchase.payments : [{
+    method: selectedPurchase?.paymentMethod ?? "TRANSFER", amount: purchaseAmount,
+    dueDate: selectedPurchase?.paymentDueDate ?? null, note: null,
+  }];
+  const payments = hasEstablishedPayments ? initialPayments : paymentDrafts ?? initialPayments;
   const visibleItems =
     selectedPurchase?.items.filter((item) => item.availableQuantity > 1e-9) ??
     [];
@@ -346,8 +357,7 @@ export function InboundReceiptModal({
 
   const selectPurchase = (purchaseId: string) => {
     setGoodsPurchaseId(purchaseId);
-    setPaymentMethod("TRANSFER");
-    setPaymentDueDate("");
+    setPaymentDrafts(null);
     setLineInputs({});
     setPricingDrafts({});
     setError(null);
@@ -363,10 +373,10 @@ export function InboundReceiptModal({
       setError("Pembelian Barang ini tidak memiliki produk yang bisa diterima.");
       return;
     }
-    const selectedMethod = selectedPurchase.paymentMethod ?? paymentMethod;
-    const selectedDueDate = selectedPurchase.paymentMethod ? selectedPurchase.paymentDueDate ?? "" : paymentDueDate;
-    if (selectedMethod === "GIRO" && !selectedDueDate) {
-      setError("Isi tanggal jatuh tempo giro.");
+    try {
+      if (purchaseAmount !== 0) validateInboundPayments(purchaseAmount, payments);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Periksa rincian pembayaran.");
       return;
     }
     if (unresolvedHpp) {
@@ -384,8 +394,7 @@ export function InboundReceiptModal({
     try {
       await createInboundReceipt({
         goodsPurchaseId: selectedPurchase.id,
-        paymentMethod: selectedMethod,
-        paymentDueDate: selectedMethod === "GIRO" ? selectedDueDate : null,
+        ...(purchaseAmount === 0 ? {} : { payments }),
         note: note.trim() || null,
         lines: visibleItems.map((item) => {
           const input = getInboundReceiptLineInput({
@@ -420,6 +429,7 @@ export function InboundReceiptModal({
       onSuccess("Penerimaan barang berhasil diajukan ke owner.");
       setLineInputs({});
       setPricingDrafts({});
+      setPaymentDrafts(null);
       setNote("");
       setReceivingQueue(null);
       setGoodsPurchaseId(initialGoodsPurchaseId ?? "");
@@ -555,26 +565,11 @@ export function InboundReceiptModal({
           ))}
         </section>
 
-        {selectedPurchase && <fieldset className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-          <legend className="px-1 text-xs font-bold text-slate-700">Pembayaran Pembelian</legend>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-xs font-bold text-slate-600">Metode Pembayaran
-              <select name="paymentMethod" value={selectedPurchase.paymentMethod ?? paymentMethod}
-                disabled={Boolean(selectedPurchase.paymentMethod) || isSubmitting}
-                onChange={(event) => { setPaymentMethod(event.target.value as "TRANSFER" | "GIRO"); setPaymentDueDate(""); setError(null); }}
-                className="mt-1 block h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm disabled:bg-slate-100">
-                <option value="TRANSFER">Transfer</option>
-                <option value="GIRO">Giro</option>
-              </select>
-            </label>
-            {(selectedPurchase.paymentMethod ?? paymentMethod) === "GIRO" && <label className="text-xs font-bold text-slate-600">Tanggal Jatuh Tempo
-              <input type="date" name="paymentDueDate" required value={selectedPurchase.paymentMethod ? selectedPurchase.paymentDueDate ?? "" : paymentDueDate}
-                disabled={Boolean(selectedPurchase.paymentMethod) || isSubmitting} onChange={(event) => { setPaymentDueDate(event.target.value); setError(null); }}
-                className="mt-1 block h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm disabled:bg-slate-100" />
-            </label>}
-          </div>
-          <p className="mt-2 text-xs text-slate-500">Jumlah 0 berarti barang belum diterima. Pengeluaran dicatat saat penerimaan pertama yang berisi barang disetujui.</p>
-        </fieldset>}
+        {selectedPurchase && (purchaseAmount === 0
+          ? <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">Total pembelian Rp0. Tidak ada nominal pembayaran yang perlu dialokasikan.</p>
+          : <InboundPaymentFields payments={payments} totalAmount={purchaseAmount}
+              disabled={hasEstablishedPayments || isSubmitting} onChange={value => { setPaymentDrafts(value); setError(null); }} />)}
+        {selectedPurchase && <p className="text-xs text-slate-500">Jumlah 0 berarti barang belum diterima. Pengeluaran dicatat saat penerimaan pertama yang berisi barang disetujui.</p>}
 
         <label className="block text-xs font-bold text-slate-600">
           Catatan Penerimaan

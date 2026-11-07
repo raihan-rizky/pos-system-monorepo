@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "inbound-receipt-edit-products-multi-giro", date: "2026-11-07", revision: 1,
+    highlight: { title: "Ubah penerimaan dan pakai multi-giro", summary: "Perbaiki barang dan jumlah, lalu bagi pembayaran ke beberapa giro." },
+    title: "Koreksi barang dan bagi pembayaran giro.",
+    summary: "Perbaiki produk dan jumlah pada penerimaan yang masih menunggu persetujuan. Satu pembelian dapat memakai beberapa giro dengan nominal dan jatuh tempo masing-masing.",
+    kind: "improvement", impact: "major", area: "Penerimaan Barang", href: "/inventory", visual: "shopping",
+    screenshot: { src: "/images/changelog/penerimaan-multi-giro-2026-11-07.png", alt: "Dua giro dengan data contoh: Rp700.000 jatuh tempo 14 November 2026 dan Rp1.300.000 jatuh tempo 7 Desember 2026 pada form Penerimaan Barang." },
+    steps: [
+      { title: "Isi penerimaan", detail: "Buka Inventaris > Transaksi > Penerimaan Barang, pilih Catat Penerimaan, lalu isi barang dari Pembelian Barang yang disetujui." },
+      { title: "Bagi giro", detail: "Pada Pembayaran Pembelian, klik Tambah Giro. Isi nominal dan tanggal setiap giro, misalnya 7 hari dan 30 hari, hingga total alokasinya sesuai pembelian." },
+      { title: "Ajukan dan periksa", detail: "Ajukan ke Owner. Jika perlu koreksi, buka Proses atau Ubah Penerimaan > Edit, pilih produk pembelian yang belum ada di baris lain, ubah jumlah, lalu simpan untuk persetujuan ulang." },
+    ],
+  },
+  {
     id: "daily-finance-saved-invoice-date", date: "2026-11-07", revision: 1,
     highlight: { title: "Pemasukan mengikuti tanggal nota", summary: "Pembayaran awal ikut tanggal nota; pelunasan tetap ikut hari pembayaran." },
     title: "Tanggal nota dipakai pada pemasukan harian.",

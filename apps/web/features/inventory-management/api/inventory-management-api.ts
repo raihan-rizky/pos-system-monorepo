@@ -419,6 +419,7 @@ export interface CreateInboundReceiptInput {
   goodsPurchaseId: string;
   paymentMethod?: "TRANSFER" | "GIRO";
   paymentDueDate?: string | null;
+  payments?: import("../types/inventory-management").InboundPaymentInput[];
   note?: string | null;
   lines: Array<{
     goodsPurchaseItemId: string;
@@ -457,6 +458,7 @@ export interface InboundReceiptListItem {
   goodsPurchaseNumber: string | null;
   paymentMethod?: "TRANSFER" | "GIRO" | null;
   paymentDueDate?: string | null;
+  payments?: import("../types/inventory-management").InboundPaymentInput[];
   status: InboundReceiptStatus;
   stockReversed?: boolean;
   createdAt: string;
@@ -539,6 +541,13 @@ export async function fetchGoodsPurchaseReceivingComparison(
   return payload.data;
 }
 
+export async function fetchInboundReceiptComparison(receiptId: string): Promise<GoodsPurchaseReceivingComparison> {
+  const response = await fetch(`/api/inventory-management/inbound-receipts/${receiptId}/receiving-comparison`);
+  const payload = await response.json().catch(() => ({})) as { data?: GoodsPurchaseReceivingComparison; message?: string };
+  if (!response.ok || !payload.data) throw new Error(payload.message || "Gagal memuat pilihan barang penerimaan.");
+  return payload.data;
+}
+
 export function approveInboundReceiptItem(
   id: string,
   itemId: string,
@@ -558,6 +567,7 @@ export async function editInboundReceiptItem(
   id: string,
   itemId: string,
   input: {
+    productId?: string;
     matchStatus: InboundReceiptMatchStatus;
     receivedQuantity: number;
     supplierCostPrice?: number;

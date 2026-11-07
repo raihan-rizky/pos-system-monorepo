@@ -143,6 +143,20 @@ describe("/api/inventory-management/inbound-receipts", () => {
     }) }));
   });
 
+  it("accepts two giro payments with separate dates", async () => {
+    const payments = [
+      { method: "GIRO", amount: 700_000, dueDate: "2026-11-14", note: "7 hari" },
+      { method: "GIRO", amount: 1_300_000, dueDate: "2026-12-07", note: "30 hari" },
+    ];
+    const response = await POST(new Request("http://localhost/api/inventory-management/inbound-receipts", { method: "POST", body: JSON.stringify({
+      goodsPurchaseId: "gp-1", payments,
+      lines: [{ goodsPurchaseItemId: "gpi-1", matchStatus: "MISMATCHED", receivedQuantity: 0, note: "Belum datang", pricing: { version: 2, units: [] } }],
+    }) }));
+    expect(response.status).toBe(201);
+    expect(requirePermissionMock).toHaveBeenCalledWith("inventory.inbound_receipt.create", "create");
+    expect(createAndSubmitGoodsPurchaseReceiptMock).toHaveBeenCalledWith(expect.objectContaining({ input: expect.objectContaining({ payments }) }));
+  });
+
   it.each([
     { productId: "pcs", costPrice: 100, price: 150, hargaAgen: null, hargaDinas: null },
     undefined,

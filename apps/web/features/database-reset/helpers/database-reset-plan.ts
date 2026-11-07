@@ -132,10 +132,14 @@ export async function createDatabaseResetPlan(input: {
     requiredDependencies.push({ domain: "supplierProcurement", model: "GoodsPurchase", blocking: true, reason: "Pembelian masih terhubung ke catatan hutang atau giro yang dilindungi. Pembelian ini tidak dapat di-reset." });
   }
   if (operations.has("Expense")) {
+    const giroPurchase: Prisma.GoodsPurchaseWhereInput = { storeId: input.storeId, OR: [
+      { payments: { some: { method: "GIRO" } } },
+      { payments: { none: {} }, paymentMethod: "GIRO" },
+    ] };
     const [giroExpenses, backdatedExpenses] = await Promise.all([
       input.db.expense.count({ where: { storeId: input.storeId, deletedAt: null, OR: [
-        { goodsPurchase: { is: { storeId: input.storeId, paymentMethod: "GIRO" } } },
-        { goodsPurchaseId: null, shoppingRequest: { is: { storeId: input.storeId, goodsPurchases: { some: { storeId: input.storeId, paymentMethod: "GIRO" } } } } },
+        { goodsPurchase: { is: giroPurchase } },
+        { goodsPurchaseId: null, shoppingRequest: { is: { storeId: input.storeId, goodsPurchases: { some: giroPurchase } } } },
       ] } }),
       input.db.expense.count({ where: { storeId: input.storeId, deletedAt: null, OR: [
         { backdatedPurchaseDueId: { not: null } }, { backdatedPurchasePaymentId: { not: null } },
