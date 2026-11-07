@@ -131,7 +131,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       icon: <TrendingUp className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Laporan Keuangan", description: "Dari menu samping (sidebar) sebelah kiri layar, gulir ke bawah pada kategori 'Keuangan', lalu klik menu 'Laporan Keuangan' (ikon grafik batang).", icon: <DollarSign className="w-8 h-8" /> },
-        { title: "Pilih Rentang Waktu", description: "Di bagian atas halaman laporan, klik pada kolom pemilih tanggal (kalender), tentukan rentang tanggal mulai dan tanggal akhir yang ingin dipantau, lalu klik tombol 'Terapkan'.", icon: <History className="w-8 h-8" /> },
+        { title: "Pilih Tampilan dan Tanggal", description: "Di Laporan Lengkap, pilih rentang tanggal yang ingin dipantau. Pilih Lihat sebagai Sales untuk meninjau pemasukan harian dan Outstanding DP sesuai izin Sales yang tersimpan di Hak Akses. Jika Sales diberi akses laporan penuh, pratinjau juga menampilkan laporan penuh. Pilih satu tanggal WIB di tampilan harian; Outstanding DP memakai sisa pembayaran terkini dari nota hingga tanggal pilihan, bukan saldo historis. Pilih Laporan Lengkap untuk kembali.", icon: <History className="w-8 h-8" /> },
         { title: "Cetak atau Ekspor", description: "Jika ingin menyimpan file laporan, klik tombol 'Ekspor' di pojok kanan atas layar, lalu pilih Excel atau PDF. File Excel menyertakan ringkasan revenue per kategori produk.", icon: <FileText className="w-8 h-8" /> },
       ]
     },
@@ -743,12 +743,12 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "sales-daily-income",
       title: "Melihat Pemasukan Harian",
-      description: "Sales dapat melihat uang diterima pada satu tanggal, termasuk rincian ATK, Percetakan, subkategori, dan metode pembayaran sesuai izin Owner.",
+      description: "Sales dapat melihat uang diterima pada satu tanggal, rincian ATK, Percetakan, subkategori, metode pembayaran, dan Outstanding DP sesuai izin Owner.",
       icon: <TrendingUp className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Laporan Keuangan", description: "Masuk ke Laporan Keuangan. Sales melihat tampilan pemasukan harian dan tidak melihat laba, HPP, pengeluaran, produk terlaris, atau ekspor laporan.", icon: <TrendingUp className="w-8 h-8" /> },
-        { title: "Pilih tanggal WIB", description: "Gunakan pemilih tanggal untuk melihat hari ini atau tanggal sebelumnya. Nilai memakai uang yang benar-benar diterima pada tanggal tersebut, termasuk DP dan pelunasan nota lama.", icon: <History className="w-8 h-8" /> },
-        { title: "Baca rincian pemasukan", description: "Periksa total, kategori ATK dan Percetakan, subkategori, serta metode pembayaran. Akses tiap bagian diatur terpisah oleh Owner melalui izin RBAC.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Pilih tanggal WIB", description: "Gunakan pemilih tanggal untuk melihat hari ini atau tanggal sebelumnya. Pembayaran awal/DP mengikuti tanggal nota yang tersimpan, sehingga nota yang dipindah ke tanggal lain tidak masuk pemasukan hari ini. Pelunasan nota lama tetap masuk pada hari pembayaran.", icon: <History className="w-8 h-8" /> },
+        { title: "Baca rincian pemasukan", description: "Periksa total pemasukan, Outstanding DP, kategori ATK dan Percetakan, subkategori, serta metode pembayaran. Outstanding DP memakai sisa pembayaran terkini dari nota DP hingga tanggal pilihan, bukan saldo historis, dan tidak termasuk Tempo. Contoh nota Rp50.000 dengan DP Rp25.000: pemasukan Rp25.000 dan sisa DP Rp25.000. Akses kelima bagian diatur terpisah oleh Owner melalui izin RBAC.", icon: <DollarSign className="w-8 h-8" /> },
       ],
     },
     {

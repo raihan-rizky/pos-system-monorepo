@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { RefreshCw } from "lucide-react";
 import { useRole } from "@/components/providers/RoleProvider";
 import { formatRupiah } from "@/lib/utils";
@@ -18,17 +18,18 @@ function IncomeBreakdown({ title, rows }: { title: string; rows: Array<{ label: 
   </section>;
 }
 
-export function DailyIncomeReport() {
+export function DailyIncomeReport({ previewSales = false, fullReportPreview }: { previewSales?: boolean; fullReportPreview?: ReactNode } = {}) {
   const { canPerform } = useRole();
   const access = Object.fromEntries(Object.entries(DAILY_INCOME_PERMISSIONS).map(([key, target]) => [key, canPerform(target, "read")])) as DailyIncomeAccess;
   const [date, setDate] = useState(jakartaToday);
-  const { data, isLoading, isFetching, error, refetch } = useDailyIncome(date, access);
+  const { data, isLoading, isFetching, error, refetch } = useDailyIncome(date, access, previewSales);
   const hasAccess = Object.values(access).some(Boolean);
   const report = !error && !isLoading && data?.date === date ? data : undefined;
+  if (previewSales && report?.viewMode === "full" && fullReportPreview) return fullReportPreview;
   return <main className="flex-1 overflow-y-auto bg-surface-50/40">
     <header className="border-b border-surface-100 bg-white px-4 py-5 sm:px-6">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
-        <div><h1 className="text-xl font-bold text-surface-900">Pemasukan Harian</h1><p className="mt-1 text-sm text-surface-500">Uang diterima toko pada tanggal pilihan, mengikuti WIB.</p></div>
+        <div><h1 className="text-xl font-bold text-surface-900">Pemasukan Harian</h1><p className="mt-1 text-sm text-surface-500">Pembayaran awal/DP mengikuti tanggal nota; pelunasan mengikuti tanggal pembayaran (WIB).</p></div>
         {hasAccess && <div className="flex flex-wrap items-end gap-2">
           <label className="flex flex-col gap-1 text-sm text-surface-700">Tanggal pemasukan
             <input type="date" value={date} max={jakartaToday()} onChange={event => { if (event.target.value) setDate(event.target.value); }} className="rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500" />
@@ -41,7 +42,10 @@ export function DailyIncomeReport() {
       {!hasAccess ? <p className="text-sm text-surface-600">Akses pemasukan harian belum diizinkan. Hubungi Owner untuk mengatur hak akses.</p> : error ?
         <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error.message} <button type="button" onClick={() => void refetch()} className="font-semibold underline">Coba lagi</button></div> : isLoading || !report ?
           <p role="status" className="text-sm text-surface-500">Memuat pemasukan harian...</p> : <>
-            {access.total && report.total !== undefined && <section className="rounded-2xl border border-surface-200 bg-white p-5 shadow-sm"><h2 className="text-sm font-medium text-surface-600">Total Pemasukan</h2><p className="mt-2 break-words text-3xl font-bold tabular-nums text-surface-900">{formatRupiah(report.total)}</p></section>}
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              {access.total && report.total !== undefined && <section className="rounded-2xl border border-surface-200 bg-white p-5 shadow-sm"><h2 className="text-sm font-medium text-surface-600">Total Pemasukan</h2><p className="mt-2 break-words text-3xl font-bold tabular-nums text-surface-900">{formatRupiah(report.total)}</p></section>}
+              {access.outstandingDp && report.outstandingDp !== undefined && <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5 shadow-sm"><h2 className="text-sm font-medium text-amber-800">Outstanding DP</h2><p className="mt-2 break-words text-3xl font-bold tabular-nums text-amber-900">{formatRupiah(report.outstandingDp)}</p><p className="mt-1 text-xs text-amber-800">Sisa DP saat ini dari nota hingga tanggal pilihan. Tidak termasuk Tempo.</p><p className="mt-1 text-xs text-amber-800">Mengikuti pembayaran terbaru, bukan saldo historis pada tanggal tersebut.</p></section>}
+            </div>
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               {access.categories && report.categories && <IncomeBreakdown title="Pemasukan per Kategori" rows={report.categories.map(row => ({ label: row.category, amount: row.amount }))} />}
               {access.subcategories && report.subcategories && <IncomeBreakdown title="Pemasukan per Subkategori" rows={report.subcategories.map(row => ({ label: `${row.category} / ${row.subcategory}`, amount: row.amount }))} />}

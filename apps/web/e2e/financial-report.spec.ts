@@ -12,7 +12,11 @@ test("financial report page renders summary metrics from API", async ({
   ).toBeVisible();
   await expect(page.getByText("Rp 4.500.000")).toBeVisible(); // omzet
   await expect(page.getByText("Rp 4.200.000")).toBeVisible(); // collected
-  await expect(page.getByText("33.3%", { exact: true })).toBeVisible(); // margin
+  const summary = page.getByRole("region", { name: "Ringkasan KPI" });
+  await expect(summary.getByText("Laba Kotor", { exact: true })).toBeVisible();
+  for (const label of ["Laba Bersih (Estimasi)", "Margin"]) {
+    await expect(summary.getByText(label, { exact: true })).toHaveCount(0);
+  }
   await expect(page.getByText("Rp 300.000")).toBeVisible(); // outstanding DP
   await expect(
     page.getByRole("region", { name: "Ringkasan KPI" }).getByText("Rp 250.000"),
@@ -220,6 +224,7 @@ test("sales role sees daily income without full financial reports", async ({
     return route.fulfill({ json: {
       date,
       total: 100_000,
+      outstandingDp: 25_000,
       categories: [{ category: "ATK", amount: 100_000 }],
       subcategories: [{ category: "ATK", subcategory: "Alat Tulis", amount: 100_000 }],
       paymentMethods: [{ method: "CASH", amount: 100_000 }],
@@ -229,10 +234,46 @@ test("sales role sees daily income without full financial reports", async ({
   await page.goto("/financial-report");
   await expect(page.getByRole("heading", { name: "Pemasukan Harian" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Total Pemasukan" })).toBeVisible();
+  const outstanding = page.locator("section").filter({ has: page.getByRole("heading", { name: "Outstanding DP", exact: true }) });
+  await expect(outstanding.getByText("Rp 25.000", { exact: true })).toBeVisible();
+  await expect(outstanding).toContainText("bukan saldo historis");
   await expect(page.getByRole("heading", { name: "Pemasukan per Kategori" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Pemasukan per Subkategori" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Pemasukan per Metode Pembayaran" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Laporan Keuangan", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Ekspor", exact: true })).toHaveCount(0);
   expect(fullReportRequests).toBe(0);
+});
+
+test("owner can preview the Sales daily report and return using the keyboard on mobile", async ({ appPage: page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  let requestedView: string | null = null;
+  await page.route("**/api/finance/report/daily?*", route => {
+    const params = new URL(route.request().url()).searchParams;
+    requestedView = params.get("view");
+    return route.fulfill({ json: {
+      date: params.get("date"), total: 25_000, outstandingDp: 25_000,
+      categories: [{ category: "Percetakan", amount: 25_000 }],
+      subcategories: [{ category: "Percetakan", subcategory: "Spanduk", amount: 25_000 }],
+      paymentMethods: [{ method: "CASH", amount: 25_000 }],
+    } });
+  });
+  await page.goto("/financial-report");
+  const salesView = page.getByRole("button", { name: "Lihat sebagai Sales", exact: true });
+  await expect(salesView).toHaveAttribute("aria-pressed", "false");
+  await salesView.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "Pemasukan Harian", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Outstanding DP", exact: true })).toBeVisible();
+  await expect(salesView).toHaveAttribute("aria-pressed", "true");
+  await expect(salesView).toBeFocused();
+  expect(requestedView).toBe("sales");
+  await expect(page.getByRole("heading", { name: "Laporan Keuangan", exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const fullView = page.getByRole("button", { name: "Laporan Lengkap", exact: true });
+  await fullView.focus();
+  await page.keyboard.press("Space");
+  await expect(fullView).toHaveAttribute("aria-pressed", "true");
+  await expect(fullView).toBeFocused();
+  await expect(page.getByRole("heading", { name: "Laporan Keuangan", exact: true })).toBeVisible();
 });

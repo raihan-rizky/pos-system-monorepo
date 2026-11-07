@@ -12,17 +12,25 @@ describe("daily income guidance", () => {
     expect(JSON.stringify(workflow?.steps)).toContain("WIB");
     expect(JSON.stringify(workflow?.steps)).toContain("metode pembayaran");
   });
-  it("helps SALES understand their daily-only view and the four separate permissions", () => {
+  it("helps SALES distinguish daily receipts from the current open DP balance", () => {
     const guide = HELP_ROLE_CONTENT.SALES.find(row => row.id === "sales-daily-income");
     expect(guide).toBeDefined();
     const text = JSON.stringify(guide);
-    for (const word of ["ATK", "Percetakan", "subkategori", "metode pembayaran", "WIB"]) expect(text).toContain(word);
+    for (const word of ["ATK", "Percetakan", "subkategori", "metode pembayaran", "Outstanding DP", "WIB"]) expect(text).toContain(word);
     expect(guide?.steps).toHaveLength(3);
     expect(guide?.steps.every(row => row.visual?.page === "finance")).toBe(true);
+    const workflow = FAQ_WORKFLOWS.find(row => row.id === "faq-q52-daily-income");
+    expect(JSON.stringify(workflow)).toContain("Lihat sebagai Sales");
+    expect(text).toContain("bukan saldo historis");
+  });
+  it("explains the OWNER preview and its saved SALES grants", () => {
+    const ownerGuide = HELP_ROLE_CONTENT.OWNER.find(row => row.id === "owner-reports");
+    expect(JSON.stringify(ownerGuide)).toContain("Lihat sebagai Sales");
+    expect(JSON.stringify(ownerGuide)).toContain("izin Sales");
   });
   it("publishes a concise dated announcement with exactly three usage steps", () => {
-    const entry = CHANGELOG.find(row => row.id === "daily-finance-sales-rbac");
-    expect(entry).toMatchObject({ date: "2026-11-05", revision: 1, href: "/financial-report", visual: "financial" });
+    const entry = CHANGELOG.find(row => row.id === "daily-finance-sales-outstanding-owner-view");
+    expect(entry).toMatchObject({ date: "2026-11-07", revision: 1, href: "/financial-report", visual: "financial" });
     expect(entry?.steps).toHaveLength(3);
     expect(entry!.highlight.title.length).toBeLessThanOrEqual(40);
     expect(entry!.highlight.summary.length).toBeLessThanOrEqual(85);

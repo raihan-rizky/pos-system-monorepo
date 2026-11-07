@@ -3,6 +3,32 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "daily-finance-saved-invoice-date", date: "2026-11-07", revision: 1,
+    highlight: { title: "Pemasukan mengikuti tanggal nota", summary: "Pembayaran awal ikut tanggal nota; pelunasan tetap ikut hari pembayaran." },
+    title: "Tanggal nota dipakai pada pemasukan harian.",
+    summary: "Pembayaran awal dan DP berpindah mengikuti tanggal nota yang disimpan. Pelunasan nota lama tetap tercatat pada hari pembayaran.",
+    kind: "fix", impact: "major", area: "Laporan Keuangan", href: "/financial-report", visual: "financial",
+    steps: [
+      { title: "Simpan tanggal nota", detail: "Saat mengubah tanggal transaksi, simpan tanggal nota yang sesuai." },
+      { title: "Pilih tanggal laporan", detail: "Buka Pemasukan Harian dan pilih tanggal WIB; pembayaran awal mengikuti tanggal nota tersimpan." },
+      { title: "Periksa pelunasan", detail: "Pelunasan nota lama tetap masuk pada hari pembayaran; sisa DP mengikuti pembayaran terbaru." },
+    ],
+  },
+  {
+    id: "daily-finance-sales-outstanding-owner-view", date: "2026-11-07", revision: 1,
+    highlight: { title: "Outstanding DP di Sales", summary: "Sales melihat sisa DP; Owner dapat meninjau tampilan Sales." },
+    title: "Rincian Outstanding DP tersedia untuk Sales.",
+    summary: "Sales dapat melihat sisa DP pada pemasukan harian, sementara Owner dapat meninjau tampilan Sales dari Laporan Keuangan.",
+    kind: "improvement", impact: "major", area: "Laporan Keuangan", href: "/financial-report", visual: "financial",
+    screenshot: { src: "/images/changelog/pemasukan-sales-outstanding-dp-2026-11-07.png", alt: "Contoh data uji pada tampilan Sales dengan pemasukan dan sisa DP Rp25.000, serta pilihan tampilan untuk Owner." },
+    steps: [
+      { title: "Buka laporan", detail: "Masuk ke Keuangan > Laporan Keuangan." },
+      { title: "Pilih tampilan", detail: "Sales melihat Pemasukan Harian; Owner dapat memilih Lihat sebagai Sales." },
+      { title: "Periksa saldo", detail: "Baca pemasukan dan sisa DP terkini dari nota hingga tanggal pilihan sesuai izin Sales, lalu pilih Laporan Lengkap untuk kembali. Sisa DP bukan saldo historis dan tidak termasuk Tempo." },
+    ],
+  },
+
+  {
     id: "offline-pos-authorized-checkout", date: "2026-11-07", revision: 1,
     highlight: { title: "POS offline kembali siap", summary: "Buka POS dengan PIN dan simpan transaksi sesuai izin kasir." },
     title: "Pembayaran POS offline kembali tersedia.",

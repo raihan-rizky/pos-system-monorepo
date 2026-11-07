@@ -74,7 +74,7 @@ export const RBAC_PERMISSION_MODULES: RbacPermissionModule[] = [
     label: "Laporan Keuangan",
     description: "Laporan omzet, ekspor laporan, dan pemasukan manual.",
     pageTargets: ["/financial-report"],
-    resourceTargets: ["financial-report", "financial-report.daily-income", "financial-report.daily-category", "financial-report.daily-subcategory", "financial-report.daily-payment-method", "income", "income.manual", "financial-report.export"],
+    resourceTargets: ["financial-report", "financial-report.daily-income", "financial-report.daily-outstanding-dp", "financial-report.daily-category", "financial-report.daily-subcategory", "financial-report.daily-payment-method", "income", "income.manual", "financial-report.export"],
     sensitivity: "sensitive",
   },
   {
