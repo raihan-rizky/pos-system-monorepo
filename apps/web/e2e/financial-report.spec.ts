@@ -12,9 +12,9 @@ test("financial report page renders summary metrics from API", async ({
   ).toBeVisible();
   await expect(page.getByText("Rp 4.500.000")).toBeVisible(); // omzet
   await expect(page.getByText("Rp 4.200.000")).toBeVisible(); // collected
-  // Profit and margin KPI cards were intentionally removed from the full report.
   const summary = page.getByRole("region", { name: "Ringkasan KPI" });
-  for (const label of ["Laba Kotor", "Laba Bersih (Estimasi)", "Margin"]) {
+  await expect(summary.getByText("Laba Kotor", { exact: true })).toBeVisible();
+  for (const label of ["Laba Bersih (Estimasi)", "Margin"]) {
     await expect(summary.getByText(label, { exact: true })).toHaveCount(0);
   }
   await expect(page.getByText("Rp 300.000")).toBeVisible(); // outstanding DP

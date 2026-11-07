@@ -11,7 +11,7 @@ export const DAILY_INCOME_PERMISSIONS = {
 export type DailyIncomeAccess = Record<keyof typeof DAILY_INCOME_PERMISSIONS, boolean>;
 type Payment = { id: string; method: string; amount: unknown; createdAt: Date };
 export type DailyIncomeTransaction = IncomeClassificationInput & {
-  id: string; createdAt: Date; status: string; paymentMethod: string; total: unknown; amountPaid: unknown; change?: unknown;
+  id: string; createdAt: Date; invoiceDate?: Date; status: string; paymentMethod: string; total: unknown; amountPaid: unknown; change?: unknown;
   payments: Payment[];
   debtPaymentLogs: Array<{ id: string; paymentMethod: string; amount: unknown; createdAt: Date }>;
 };
@@ -66,7 +66,8 @@ export function buildDailyIncome(input: { date: string; transactions: DailyIncom
   };
   for (const tx of unique(input.transactions)) {
     if (tx.status !== "COMPLETED" && tx.status !== "DP") continue;
-    if (tx.status === "DP" && tx.paymentMethod !== "TEMPO" && tx.createdAt.getTime() < start + 86_400_000) {
+    const invoiceDate = tx.invoiceDate ?? tx.createdAt;
+    if (tx.status === "DP" && tx.paymentMethod !== "TEMPO" && invoiceDate.getTime() < start + 86_400_000) {
       const totalCents = Math.round(money(tx.total) * 100);
       const paidCents = Math.min(totalCents, Math.round(money(tx.amountPaid) * 100));
       outstandingDpCents += Math.max(0, totalCents - paidCents);
@@ -78,7 +79,9 @@ export function buildDailyIncome(input: { date: string; transactions: DailyIncom
     const initial = unique(tx.payments);
     const ledger = initial.length ? initial : tx.paymentMethod === "TEMPO" ? [] : [{ id: `legacy-${tx.id}`, method: tx.paymentMethod, amount: initialLimit, createdAt: tx.createdAt }];
     const events = [
-      ...netInitialPayments(ledger, { total: initialLimit, amountPaid: initialLimit }),
+      ...netInitialPayments(ledger, { total: initialLimit, amountPaid: initialLimit }).map(event => ({
+        ...event, createdAt: tx.invoiceDate ?? event.createdAt,
+      })),
       ...netInitialPayments(debts, { total: Math.min(debtTotal, retained), amountPaid: Math.min(debtTotal, retained) }),
     ];
     for (const event of events) {

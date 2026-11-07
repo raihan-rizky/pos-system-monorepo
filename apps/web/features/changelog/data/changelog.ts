@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "daily-finance-saved-invoice-date", date: "2026-11-07", revision: 1,
+    highlight: { title: "Pemasukan mengikuti tanggal nota", summary: "Pembayaran awal ikut tanggal nota; pelunasan tetap ikut hari pembayaran." },
+    title: "Tanggal nota dipakai pada pemasukan harian.",
+    summary: "Pembayaran awal dan DP berpindah mengikuti tanggal nota yang disimpan. Pelunasan nota lama tetap tercatat pada hari pembayaran.",
+    kind: "fix", impact: "major", area: "Laporan Keuangan", href: "/financial-report", visual: "financial",
+    steps: [
+      { title: "Simpan tanggal nota", detail: "Saat mengubah tanggal transaksi, simpan tanggal nota yang sesuai." },
+      { title: "Pilih tanggal laporan", detail: "Buka Pemasukan Harian dan pilih tanggal WIB; pembayaran awal mengikuti tanggal nota tersimpan." },
+      { title: "Periksa pelunasan", detail: "Pelunasan nota lama tetap masuk pada hari pembayaran; sisa DP mengikuti pembayaran terbaru." },
+    ],
+  },
+  {
     id: "daily-finance-sales-outstanding-owner-view", date: "2026-11-07", revision: 1,
     highlight: { title: "Outstanding DP di Sales", summary: "Sales melihat sisa DP; Owner dapat meninjau tampilan Sales." },
     title: "Rincian Outstanding DP tersedia untuk Sales.",

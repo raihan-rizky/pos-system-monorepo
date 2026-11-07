@@ -30,13 +30,35 @@ describe("daily finance API", () => {
     const query = mocks.transactions.mock.calls[0][0];
     expect(query.where.storeId).toBe("store-1");
     expect(JSON.stringify(query.where)).toContain("2026-11-04T17:00:00.000Z");
-    expect(query.where.OR).toEqual(expect.arrayContaining([expect.objectContaining({ status: "DP", createdAt: { lt: new Date("2026-11-05T17:00:00.000Z") } })]));
-    expect(query.where).not.toHaveProperty("invoiceDate");
+    expect(query.where.OR).toEqual(expect.arrayContaining([
+      { invoiceDate: { gte: new Date("2026-11-04T17:00:00.000Z"), lt: new Date("2026-11-05T17:00:00.000Z") } },
+      expect.objectContaining({ status: "DP", invoiceDate: { lt: new Date("2026-11-05T17:00:00.000Z") } }),
+      { debtPaymentLogs: { some: { createdAt: { gte: new Date("2026-11-04T17:00:00.000Z"), lt: new Date("2026-11-05T17:00:00.000Z") } } } },
+    ]));
+    expect(query.select.invoiceDate).toBe(true);
     for (const field of ["unitCost", "grossProfit", "customer", "cashier", "salesperson", "expense"]) {
       expect(JSON.stringify(query.select)).not.toContain(field);
       expect(JSON.stringify(body)).not.toContain(field);
     }
     expect(mocks.manual.mock.calls[0][0].where).toMatchObject({ storeId: "store-1", deletedAt: null });
+  });
+
+  it("keeps only today's settlement when a newly created invoice is dated yesterday", async () => {
+    const now = new Date();
+    mocks.transactions.mockResolvedValueOnce([{
+      id: "moved-invoice", createdAt: now, invoiceDate: new Date("2026-11-04T03:00:00Z"),
+      status: "COMPLETED", total: 50_000, amountPaid: 50_000, change: 0,
+      paymentMethod: "CASH", transactionCategory: "ATK", items: [],
+      payments: [{ id: "dp", method: "CASH", amount: 25_000, createdAt: now }],
+      debtPaymentLogs: [{ id: "settlement", paymentMethod: "TRANSFER", amount: 25_000, createdAt: now }],
+    }]);
+    const response = await GET(request());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      total: 25_000, outstandingDp: 0,
+      categories: [{ category: "ATK", amount: 25_000 }],
+      paymentMethods: [{ method: "TRANSFER", amount: 25_000 }],
+    });
   });
 
   it.each(targets.map((target, index) => [target, sections[index]]))("returns only the independently granted section %s", async (target, section) => {

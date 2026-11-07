@@ -29,7 +29,7 @@ export function DailyIncomeReport({ previewSales = false, fullReportPreview }: {
   return <main className="flex-1 overflow-y-auto bg-surface-50/40">
     <header className="border-b border-surface-100 bg-white px-4 py-5 sm:px-6">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
-        <div><h1 className="text-xl font-bold text-surface-900">Pemasukan Harian</h1><p className="mt-1 text-sm text-surface-500">Uang diterima toko pada tanggal pilihan, mengikuti WIB.</p></div>
+        <div><h1 className="text-xl font-bold text-surface-900">Pemasukan Harian</h1><p className="mt-1 text-sm text-surface-500">Pembayaran awal/DP mengikuti tanggal nota; pelunasan mengikuti tanggal pembayaran (WIB).</p></div>
         {hasAccess && <div className="flex flex-wrap items-end gap-2">
           <label className="flex flex-col gap-1 text-sm text-surface-700">Tanggal pemasukan
             <input type="date" value={date} max={jakartaToday()} onChange={event => { if (event.target.value) setDate(event.target.value); }} className="rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500" />
