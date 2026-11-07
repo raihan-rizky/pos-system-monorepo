@@ -1008,7 +1008,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     faqNumber: 52,
     slug: "daily-income",
     title: "Bagaimana cara melihat pemasukan per tanggal?",
-    aliases: ["pemasukan per tanggal", "pendapatan harian", "rincian pemasukan ATK Percetakan", "rincian pemasukan subkategori"],
+    aliases: ["pemasukan per tanggal", "pendapatan harian", "rincian pemasukan ATK Percetakan", "rincian pemasukan subkategori", "pemasukan harian sales", "metode pembayaran harian", "outstanding dp sales", "lihat sebagai sales"],
     route: "/financial-report",
     actionLabel: "Buka Pemasukan Harian",
     iconKey: "trending-up",
@@ -1016,7 +1016,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     steps: [
       { title: "Buka Laporan Keuangan", description: "Masuk ke Laporan Keuangan untuk membuka tampilan Pemasukan Harian." },
       { title: "Pilih tanggal", description: "Pilih hari ini atau tanggal sebelumnya dalam WIB. Nilai memakai uang yang diterima pada tanggal itu, termasuk DP dan pelunasan." },
-      { title: "Baca rincian", description: "Periksa kategori ATK dan Percetakan, subkategori, serta pemasukan per metode pembayaran. Owner mengatur empat izin rincian ini secara terpisah." },
+      { title: "Baca rincian", description: "Periksa pemasukan, Outstanding DP, kategori ATK dan Percetakan, subkategori, serta metode pembayaran. Outstanding DP memakai sisa DP terkini dari nota hingga tanggal pilihan, bukan saldo historis dan tidak termasuk Tempo. Kelima bagian mengikuti izin masing-masing. Owner memilih Lihat sebagai Sales untuk meninjau izin Sales yang tersimpan, termasuk laporan penuh jika diizinkan, lalu Laporan Lengkap untuk kembali." },
     ],
   }),
 ];

@@ -40,6 +40,7 @@ describe("daily cash received", () => {
   it("counts receipts on their date, not the invoice date; categories and methods reconcile", () => {
     const report = buildDailyIncome({ date, transactions: [transaction()], manualIncome: [] });
     expect(report.total).toBe(100);
+    expect(report.outstandingDp).toBe(0);
     expect(report.categories).toEqual([{ category: "ATK", amount: 100 }]);
     expect(report.subcategories).toEqual([{ category: "ATK", subcategory: "Alat Tulis", amount: 60 }, { category: "ATK", subcategory: "Kertas", amount: 40 }]);
     expect(report.paymentMethods).toEqual([{ method: "CASH", amount: 100 }]);
@@ -61,7 +62,37 @@ describe("daily cash received", () => {
     expect(buildDailyIncome({ date, transactions: rows, manualIncome: [] }).total).toBe(0);
   });
   it("counts legacy receipts at creation and handles DP without payment rows", () => {
-    expect(buildDailyIncome({ date, transactions: [transaction({ createdAt: time, status: "DP", total: 100, amountPaid: 40, payments: [] })], manualIncome: [] }).total).toBe(40);
+    expect(buildDailyIncome({ date, transactions: [transaction({ createdAt: time, status: "DP", total: 100, amountPaid: 40, payments: [] })], manualIncome: [] })).toMatchObject({ total: 40, outstandingDp: 60 });
+  });
+  it("reports the remaining balance for active DP transactions separately from daily receipts", () => {
+    const report = buildDailyIncome({
+      date,
+      transactions: [transaction({
+        id: "old-dp",
+        createdAt: new Date("2026-11-04T03:00:00Z"),
+        status: "DP",
+        total: 50_000,
+        amountPaid: 25_000,
+        payments: [payment("old-dp-payment", "CASH", 25_000, new Date("2026-11-04T03:00:00Z"))],
+      })],
+      manualIncome: [],
+    });
+    expect(report.total).toBe(0);
+    expect(report.outstandingDp).toBe(25_000);
+  });
+  it("excludes future, inactive, fully paid, and TEMPO invoices from the current open DP balance", () => {
+    const dp = transaction({ status: "DP", total: 50_000, amountPaid: 25_000 });
+    const report = buildDailyIncome({ date, transactions: [
+      dp, dp,
+      { ...dp, id: "midnight", createdAt: new Date("2026-11-05T17:00:00Z") },
+      { ...dp, id: "future", createdAt: new Date("2026-11-06T03:00:00Z") },
+      { ...dp, id: "paid", amountPaid: 60_000 },
+      { ...dp, id: "completed", status: "COMPLETED" },
+      { ...dp, id: "voided", status: "VOIDED" },
+      { ...dp, id: "pending", status: "PENDING_APPROVAL" },
+      { ...dp, id: "tempo", paymentMethod: "TEMPO" },
+    ], manualIncome: [] });
+    expect(report.outstandingDp).toBe(25_000);
   });
   it("includes undeleted manual income without inventing a payment method", () => {
     const manual = { id: "m1", occurredAt: time, category: "SPANDUK", amount: 50, deletedAt: null };

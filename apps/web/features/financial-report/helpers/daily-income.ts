@@ -3,6 +3,7 @@ import { allocateIncomeSubcategories, incomeClassification, type IncomeClassific
 
 export const DAILY_INCOME_PERMISSIONS = {
   total: "financial-report.daily-income",
+  outstandingDp: "financial-report.daily-outstanding-dp",
   categories: "financial-report.daily-category",
   subcategories: "financial-report.daily-subcategory",
   paymentMethods: "financial-report.daily-payment-method",
@@ -17,11 +18,12 @@ export type DailyIncomeTransaction = IncomeClassificationInput & {
 export type DailyManualIncome = { id: string; occurredAt: Date; category: string; amount: unknown; deletedAt?: Date | null };
 export type DailyIncomeReport = {
   date: string; total: number;
+  outstandingDp: number;
   categories: Array<{ category: IncomeCategory; amount: number }>;
   subcategories: IncomeSubcategoryRow[];
   paymentMethods: Array<{ method: string; amount: number }>;
 };
-export type DailyIncomeResponse = Pick<DailyIncomeReport, "date"> & Partial<Omit<DailyIncomeReport, "date">>;
+export type DailyIncomeResponse = Pick<DailyIncomeReport, "date"> & Partial<Omit<DailyIncomeReport, "date">> & { viewMode?: "full" };
 
 export function jakartaToday(now = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
@@ -48,6 +50,7 @@ export function buildDailyIncome(input: { date: string; transactions: DailyIncom
   const subcategories = new Map<string, IncomeSubcategoryRow>();
   const methods = new Map<string, number>();
   let totalCents = 0;
+  let outstandingDpCents = 0;
   const add = (amount: number, method: string, breakdown: IncomeSubcategoryRow[]) => {
     const cents = Math.round(amount * 100);
     if (cents <= 0) return;
@@ -63,6 +66,11 @@ export function buildDailyIncome(input: { date: string; transactions: DailyIncom
   };
   for (const tx of unique(input.transactions)) {
     if (tx.status !== "COMPLETED" && tx.status !== "DP") continue;
+    if (tx.status === "DP" && tx.paymentMethod !== "TEMPO" && tx.createdAt.getTime() < start + 86_400_000) {
+      const totalCents = Math.round(money(tx.total) * 100);
+      const paidCents = Math.min(totalCents, Math.round(money(tx.amountPaid) * 100));
+      outstandingDpCents += Math.max(0, totalCents - paidCents);
+    }
     const retained = Math.min(money(tx.total), Math.max(0, money(tx.amountPaid) - money(tx.change)));
     const debts = unique(tx.debtPaymentLogs).map(row => ({ ...row, method: row.paymentMethod }));
     const debtTotal = debts.reduce((sum, row) => sum + (row.method === "TEMPO" ? 0 : money(row.amount)), 0);
@@ -87,7 +95,7 @@ export function buildDailyIncome(input: { date: string; transactions: DailyIncom
     add(amount, "Belum dicatat", [{ ...classification, amount }]);
   }
   return {
-    date: input.date, total: totalCents / 100,
+    date: input.date, total: totalCents / 100, outstandingDp: outstandingDpCents / 100,
     categories: [...categories].map(([category, cents]) => ({ category, amount: cents / 100 })).sort((a, b) => a.category.localeCompare(b.category)),
     subcategories: [...subcategories.values()].sort((a, b) => a.category.localeCompare(b.category) || a.subcategory.localeCompare(b.subcategory)),
     paymentMethods: [...methods].map(([method, cents]) => ({ method, amount: cents / 100 })).sort((a, b) => a.method.localeCompare(b.method)),

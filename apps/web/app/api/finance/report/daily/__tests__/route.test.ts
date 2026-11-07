@@ -7,8 +7,8 @@ vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions
 vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual } } }));
 import { GET } from "../route";
 
-const targets = ["financial-report.daily-income", "financial-report.daily-category", "financial-report.daily-subcategory", "financial-report.daily-payment-method"];
-const sections = ["total", "categories", "subcategories", "paymentMethods"];
+const targets = ["financial-report.daily-income", "financial-report.daily-category", "financial-report.daily-subcategory", "financial-report.daily-payment-method", "financial-report.daily-outstanding-dp"];
+const sections = ["total", "categories", "subcategories", "paymentMethods", "outstandingDp"];
 const request = (query = "date=2026-11-05") => new Request(`http://localhost/api/finance/report/daily?${query}`);
 
 describe("daily finance API", () => {
@@ -26,10 +26,11 @@ describe("daily finance API", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toContain("no-store");
     const body = await response.json();
-    expect(body).toMatchObject({ date: "2026-11-05", total: 40, categories: [{ category: "Percetakan", amount: 40 }], paymentMethods: [{ method: "TRANSFER", amount: 40 }] });
+    expect(body).toMatchObject({ date: "2026-11-05", total: 40, outstandingDp: 60, categories: [{ category: "Percetakan", amount: 40 }], paymentMethods: [{ method: "TRANSFER", amount: 40 }] });
     const query = mocks.transactions.mock.calls[0][0];
     expect(query.where.storeId).toBe("store-1");
     expect(JSON.stringify(query.where)).toContain("2026-11-04T17:00:00.000Z");
+    expect(query.where.OR).toEqual(expect.arrayContaining([expect.objectContaining({ status: "DP", createdAt: { lt: new Date("2026-11-05T17:00:00.000Z") } })]));
     expect(query.where).not.toHaveProperty("invoiceDate");
     for (const field of ["unitCost", "grossProfit", "customer", "cashier", "salesperson", "expense"]) {
       expect(JSON.stringify(query.select)).not.toContain(field);
@@ -75,17 +76,46 @@ describe("daily finance API", () => {
     expect((await GET(request(query))).status).toBe(422);
     expect(mocks.transactions).not.toHaveBeenCalled();
   });
-  it("includes all sections for a non-owner with full report read permission", async () => {
-    const permissions = buildDefaultRolePermissions();
-    permissions.SALES.resources["financial-report"].read = true;
-    for (const target of targets) permissions.SALES.resources[target].read = false;
-    mocks.permissions.mockResolvedValue(permissions);
-    const response = await GET(request());
-    expect(response.status).toBe(200);
-    expect(Object.keys(await response.json()).sort()).toEqual(["date", ...sections].sort());
-  });
   it("lets the OWNER use daily aggregates with no granular grants", async () => {
     mocks.user.mockResolvedValueOnce({ id: "owner", role: "OWNER", storeId: "store-1" });
     expect((await GET(request())).status).toBe(200);
+  });
+  it("uses saved SALES section grants in the OWNER preview, not OWNER grants", async () => {
+    mocks.user.mockResolvedValue({ id: "owner", role: "OWNER", storeId: "store-1" });
+    const permissions = buildDefaultRolePermissions();
+    for (const key of targets) permissions.SALES.resources[key] = { create: false, read: key === "financial-report.daily-outstanding-dp", update: false, delete: false };
+    mocks.permissions.mockResolvedValue(permissions);
+    const response = await GET(request("date=2026-11-05&view=sales"));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ date: "2026-11-05", outstandingDp: 60 });
+  });
+  it("reports the full SALES view when full access is granted without querying daily data", async () => {
+    mocks.user.mockResolvedValue({ id: "owner", role: "OWNER", storeId: "store-1" });
+    const permissions = buildDefaultRolePermissions();
+    permissions.SALES.resources["financial-report"].read = true;
+    for (const key of targets) permissions.SALES.resources[key].read = false;
+    mocks.permissions.mockResolvedValue(permissions);
+    const response = await GET(request("date=2026-11-05&view=sales"));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ date: "2026-11-05", viewMode: "full" });
+    expect(mocks.transactions).not.toHaveBeenCalled();
+    expect(mocks.manual).not.toHaveBeenCalled();
+  });
+  it("does not let the OWNER preview bypass the SALES page grant", async () => {
+    mocks.user.mockResolvedValue({ id: "owner", role: "OWNER", storeId: "store-1" });
+    const permissions = buildDefaultRolePermissions();
+    permissions.SALES.pages["/financial-report"] = false;
+    mocks.permissions.mockResolvedValue(permissions);
+    expect((await GET(request("date=2026-11-05&view=sales"))).status).toBe(403);
+    expect(mocks.transactions).not.toHaveBeenCalled();
+  });
+  it.each(["SALES", "ADMIN", "CASHIER", "INVENTORY"])("denies the OWNER preview parameter to %s", async role => {
+    mocks.user.mockResolvedValue({ id: "other", role, storeId: "store-1" });
+    expect((await GET(request("date=2026-11-05&view=sales"))).status).toBe(403);
+    expect(mocks.transactions).not.toHaveBeenCalled();
+  });
+  it("rejects duplicate preview values", async () => {
+    mocks.user.mockResolvedValue({ id: "owner", role: "OWNER", storeId: "store-1" });
+    expect((await GET(request("date=2026-11-05&view=sales&view=sales"))).status).toBe(422);
   });
 });

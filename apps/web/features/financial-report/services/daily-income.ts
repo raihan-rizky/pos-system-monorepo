@@ -12,6 +12,7 @@ export async function loadDailyIncome(storeId: string, date: string) {
           { payments: { some: { createdAt: bounds } } },
           { debtPaymentLogs: { some: { createdAt: bounds } } },
           { createdAt: bounds, paymentMethod: { not: "TEMPO" }, payments: { none: {} } },
+          { status: "DP", paymentMethod: { not: "TEMPO" }, createdAt: { lt: end } },
         ],
       },
       select: {
