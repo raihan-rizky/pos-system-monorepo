@@ -128,7 +128,7 @@ jobs:
           };
           writeFileSync("artifact/metadata.json", `${JSON.stringify(metadata, null, 2)}\n`);
           NODE
-          tar -C artifact -czf "artifact/${archive}" runtime
+          tar -C artifact -czf "${archive}" runtime
           sha256sum "artifact/${archive}" artifact/metadata.json > artifact/sha256sums.txt
           (
             cd artifact

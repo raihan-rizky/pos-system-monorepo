@@ -25,6 +25,7 @@ test("VPS artifact workflow is manual, CI-only, portable, and integrity checked"
     "apps/web/.next/BUILD_ID",
     "find artifact/runtime/node_modules/.pnpm -path '*/node_modules/@prisma/client'",
     "metadata.json",
+    "tar -C artifact -czf \"${archive}\" runtime",
     "sha256sum",
     "sha256sum --check",
     "actions/upload-artifact@v4",
