@@ -1,4 +1,4 @@
-name: VPS artifact
+name: VPS dev artifact
 
 on:
   push:
@@ -7,13 +7,13 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Branch, tag, or commit SHA to build"
+        description: "Application branch, tag, or commit SHA to build for dev"
         required: true
         default: main
         type: string
 
 concurrency:
-  group: vps-artifact-${{ inputs.ref }}
+  group: vps-dev-artifact-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -21,41 +21,33 @@ permissions:
 
 jobs:
   build-artifact:
-    name: Build VPS runtime artifact
+    name: Build and verify VPS dev runtime
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
       CI: true
       HUSKY: 0
       NODE_OPTIONS: --max-old-space-size=4096
-      COREPACK_HOME: ${{ github.workspace }}/.corepack
+      NEXT_TELEMETRY_DISABLED: 1
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pos_ci?schema=public
       DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/pos_ci?schema=public
-      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
-      SUPABASE_SERVICE_KEY: ""
-      SUPABASE_SERVICE_ROLE_KEY: ""
-      WAHA_BASE_URL: ""
-      WAHA_SESSION: default
-      WAHA_API_KEY: ""
-      WAHA_WEBHOOK_SECRET: ""
-      WEBHOOK_BASE_URL: ""
-      CLOSING_DEAL_PUSH_SECRET: ""
+      NEXT_PUBLIC_SUPABASE_URL: https://app-teladan-pos-84d9ee-dev.abyte.my.id/supabase
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.POS_VPS_DEV_PUBLIC_SUPABASE_ANON_KEY }}
       NEXT_PUBLIC_VAPID_PUBLIC_KEY: ""
-      VAPID_PRIVATE_KEY: ""
-      VAPID_SUBJECT: mailto:ci@example.com
-      R2_ACCOUNT_ID: ""
-      R2_ACCESS_KEY_ID: ""
-      R2_SECRET_ACCESS_KEY: ""
-      R2_BUCKET_NAME: ""
-      R2_ENDPOINT: ""
-      R2_PUBLIC_BASE_URL: ""
+      R2_PUBLIC_BASE_URL: https://dev-assets.teladanpos.biz.id
 
     steps:
-      - name: Checkout requested ref
+      - name: Checkout artifact builder
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Checkout requested application ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          path: source
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -67,91 +59,146 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+          cache-dependency-path: source/pnpm-lock.yaml
 
-      - name: Install dependencies
+      - name: Test artifact packaging and dev gateway
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test scripts/tests/vps-artifact-package.test.mjs
+          test -n "${NEXT_PUBLIC_SUPABASE_ANON_KEY}" || { echo 'Missing dev public anon key' >&2; exit 1; }
+          curl --fail --silent --show-error --max-time 20 \
+            -H "apikey: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}" \
+            "${NEXT_PUBLIC_SUPABASE_URL}/auth/v1/health" -o /dev/null
+
+      - name: Install locked dependencies
+        working-directory: source
         run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma Client
+        working-directory: source
         run: pnpm db:generate
 
-      - name: Build production bundle
+      - name: Build web and workspace dependencies
+        working-directory: source
         run: pnpm exec turbo run build
 
-      - name: Stage portable web runtime
+      - name: Verify dev configuration in browser assets
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf artifact
-          mkdir -p artifact
-          echo "Deploying portable workspace"
-          pnpm --filter @pos/web deploy --prod --legacy artifact/runtime
-          echo "Copying Next build output"
-          cp -a apps/web/.next artifact/runtime/.next
-          echo "Copying public assets"
-          cp -a apps/web/public artifact/runtime/public
-          echo "Copying Next config"
-          cp -a apps/web/next.config.mjs artifact/runtime/next.config.mjs
-          echo "Copying web manifest"
-          cp -a apps/web/package.json artifact/runtime/package.json
-          echo "Checking build ID"
-          test -f apps/web/.next/BUILD_ID
-          test -f artifact/runtime/.next/BUILD_ID
-          echo "Checking Next runtime dependency"
-          test -e artifact/runtime/node_modules/next
-          echo "Checking Prisma runtime dependency"
-          prisma_client="$(find artifact/runtime/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d -print -quit)"
-          test -n "${prisma_client}"
-          echo "Prisma client staged at ${prisma_client}"
-          echo "Portable runtime staged"
+          test -s source/apps/web/.next/BUILD_ID
+          grep -RFq -- "${NEXT_PUBLIC_SUPABASE_URL}" source/apps/web/.next/static
+          grep -RFq -- "${NEXT_PUBLIC_SUPABASE_ANON_KEY}" source/apps/web/.next/static
 
-      - name: Create archive and checksums
-        id: metadata
+      - name: Stage monorepo runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime="${GITHUB_WORKSPACE}/artifact/staging/runtime"
+          mkdir -p "${runtime}/apps/web" "${runtime}/apps/admin" "${runtime}/packages" "${GITHUB_WORKSPACE}/artifact/output"
+          cp -a source/package.json source/pnpm-workspace.yaml source/pnpm-lock.yaml source/tsconfig.json "${runtime}/"
+          cp -al source/node_modules "${runtime}/node_modules"
+          cp -a source/apps/admin/package.json "${runtime}/apps/admin/"
+          cp -a source/apps/web/package.json source/apps/web/next.config.mjs source/apps/web/tsconfig.json "${runtime}/apps/web/"
+          cp -a source/apps/web/public source/apps/web/node_modules "${runtime}/apps/web/"
+          rsync -a --exclude='/cache/' source/apps/web/.next/ "${runtime}/apps/web/.next/"
+          for dir in app components features hooks lib utils; do
+            rsync -a --exclude='__tests__/' --exclude='*.test.*' --exclude='*.spec.*' \
+              --exclude='*.log' --exclude='*.log.*' --exclude='.env*' \
+              "source/apps/web/${dir}" "${runtime}/apps/web/"
+          done
+          for package in db ui config product-import-worker; do
+            mkdir -p "${runtime}/packages/${package}"
+            cp -a "source/packages/${package}/package.json" "${runtime}/packages/${package}/"
+            for entry in src prisma node_modules tsconfig.json tailwind.config.js tailwind.config.ts; do
+              if [ -e "source/packages/${package}/${entry}" ]; then
+                cp -al "source/packages/${package}/${entry}" "${runtime}/packages/${package}/"
+              fi
+            done
+          done
+          du -sh "${runtime}"
+
+      - name: Package and check checksums
+        id: package
         shell: bash
         env:
-          REQUESTED_REF: ${{ inputs.ref }}
+          VPS_BUILD_REF: ${{ inputs.ref || github.sha }}
         run: |
           set -euo pipefail
-          build_sha="$(git rev-parse HEAD)"
-          build_id="$(cat artifact/runtime/.next/BUILD_ID)"
-          archive="pos-web-runtime-${build_sha}.tar.gz"
-          export BUILD_SHA="${build_sha}"
-          export BUILD_ID="${build_id}"
-          export RUNNER_IMAGE="${ImageOS:-unknown}"
-          node --input-type=module <<'NODE'
-          import { writeFileSync } from "node:fs";
-          const metadata = {
-            requestedRef: process.env.REQUESTED_REF,
-            checkedOutSha: process.env.BUILD_SHA,
-            buildId: process.env.BUILD_ID,
-            runner: process.env.RUNNER_IMAGE,
-            createdAt: new Date().toISOString(),
-          };
-          writeFileSync("artifact/metadata.json", `${JSON.stringify(metadata, null, 2)}\n`);
-          NODE
-          tar -C artifact -czf "${archive}" runtime
-          sha256sum "artifact/${archive}" artifact/metadata.json > artifact/sha256sums.txt
-          (
-            cd artifact
-            sha256sum --check sha256sums.txt
-          )
-          echo "sha=${build_sha}" >> "$GITHUB_OUTPUT"
+          commit="$(git -C source rev-parse HEAD)"
+          node scripts/package-vps-artifact.mjs artifact/staging/runtime artifact/output "${commit}" dev
+          (cd artifact/output && sha256sum --check sha256sums.txt)
+          printf 'sha=%s\n' "${commit}" >> "${GITHUB_OUTPUT}"
 
-      - name: Verify artifact metadata
+      - name: Smoke test extracted archive
         shell: bash
         run: |
           set -euo pipefail
-          test -s artifact/metadata.json
-          test -s artifact/sha256sums.txt
-          grep -F '"checkedOutSha"' artifact/metadata.json
-          grep -F '"buildId"' artifact/metadata.json
+          archive="artifact/output/pos-web-runtime-${{ steps.package.outputs.sha }}.tar.gz"
+          probe="${RUNNER_TEMP}/pos-vps-artifact-probe"
+          mkdir -p "${probe}"
+          tar -xzf "${archive}" -C "${probe}"
+          runtime="${probe}/runtime"
+          test -s "${runtime}/apps/web/.next/BUILD_ID"
+          node - "${runtime}" <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const root = fs.realpathSync(process.argv[2]);
+          function check(directory) {
+            for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+              const item = path.join(directory, entry.name);
+              if (entry.isSymbolicLink()) {
+                const target = fs.realpathSync(item);
+                const relative = path.relative(root, target);
+                if (path.isAbsolute(relative) || relative === '..' || relative.startsWith(`..${path.sep}`)) {
+                  throw new Error(`Symlink escapes release: ${item}`);
+                }
+              } else if (entry.isDirectory()) check(item);
+            }
+          }
+          check(root);
+          NODE
+          prisma_schema_script="const p=require('node:path'); console.log(p.resolve(p.dirname(require.resolve('@prisma/client')),'../../.prisma/client/schema.prisma'));"
+          source_prisma_schema="$(cd source/packages/db && node -e "${prisma_schema_script}")"
+          artifact_prisma_schema="$(cd "${runtime}/packages/db" && node -e "${prisma_schema_script}")"
+          cmp "${source_prisma_schema}" "${artifact_prisma_schema}"
+          (
+            cd "${runtime}/packages/db"
+            node --input-type=commonjs <<'NODE'
+          const { Prisma, PrismaClient } = require('@prisma/client');
+          if (!Prisma.dmmf.datamodel.models.length) throw new Error('Generated Prisma models missing');
+          new PrismaClient().$disconnect();
+          NODE
+          )
+          (
+            cd "${runtime}/packages/product-import-worker"
+            ./node_modules/.bin/tsx -e 'import("../../apps/web/features/product-import/services/product-import-job-service.ts").then((m) => { if (typeof (m.processNextProductImportJob ?? m.default?.processNextProductImportJob) !== "function") throw new Error("Worker job service missing"); })'
+          )
+          (
+            cd "${runtime}/apps/web"
+            ./node_modules/.bin/next start -H 127.0.0.1 -p 39300 > "${RUNNER_TEMP}/pos-vps-smoke.log" 2>&1
+          ) &
+          server_pid=$!
+          trap 'kill "${server_pid}" 2>/dev/null || true' EXIT
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --output "${RUNNER_TEMP}/pos-vps-login.html" http://127.0.0.1:39300/login; then ready=1; break; fi
+            if ! kill -0 "${server_pid}" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          if [ "${ready}" != 1 ]; then tail -n 50 "${RUNNER_TEMP}/pos-vps-smoke.log"; exit 1; fi
+          asset="$(node -e "const s=require('fs').readFileSync(process.argv[1],'utf8'); const m=s.match(/\\/_next\\/static\\/[^\"'<> ]+\\.js(?:\\?[^\"'<> ]*)?/); if(!m)process.exit(1); console.log(m[0]);" "${RUNNER_TEMP}/pos-vps-login.html")"
+          curl --fail --silent --show-error --output /dev/null "http://127.0.0.1:39300${asset}"
+          echo 'Extracted runtime passed Prisma, worker import, login, and static asset checks.'
 
-      - name: Upload VPS runtime artifact
+      - name: Upload VPS dev runtime
         uses: actions/upload-artifact@v4
         with:
-          name: vps-web-runtime-${{ steps.metadata.outputs.sha }}
+          name: vps-dev-runtime-${{ steps.package.outputs.sha }}
           path: |
-            artifact/pos-web-runtime-*.tar.gz
-            artifact/metadata.json
-            artifact/sha256sums.txt
+            artifact/output/pos-web-runtime-*.tar.gz
+            artifact/output/metadata.json
+            artifact/output/sha256sums.txt
           if-no-files-found: error
           retention-days: 7
