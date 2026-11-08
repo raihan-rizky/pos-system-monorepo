@@ -83,15 +83,24 @@ jobs:
           set -euo pipefail
           rm -rf artifact
           mkdir -p artifact
+          echo "Deploying portable workspace"
           pnpm --filter @pos/web deploy --prod --legacy artifact/runtime
+          echo "Copying Next build output"
           cp -a apps/web/.next artifact/runtime/.next
+          echo "Copying public assets"
           cp -a apps/web/public artifact/runtime/public
+          echo "Copying Next config"
           cp -a apps/web/next.config.mjs artifact/runtime/next.config.mjs
+          echo "Copying web manifest"
           cp -a apps/web/package.json artifact/runtime/package.json
+          echo "Checking build ID"
           test -f apps/web/.next/BUILD_ID
           test -f artifact/runtime/.next/BUILD_ID
+          echo "Checking Next runtime dependency"
           test -e artifact/runtime/node_modules/next
+          echo "Checking Prisma runtime dependency"
           test -e artifact/runtime/node_modules/@prisma/client
+          echo "Portable runtime staged"
 
       - name: Create archive and checksums
         id: metadata
