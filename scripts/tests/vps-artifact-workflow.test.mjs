@@ -23,7 +23,7 @@ test("VPS artifact workflow is manual, CI-only, portable, and integrity checked"
     "pnpm exec turbo run build",
     "pnpm --filter @pos/web deploy --prod --legacy",
     "apps/web/.next/BUILD_ID",
-    "artifact/runtime/node_modules/@pos/db/node_modules/@prisma/client",
+    "find artifact/runtime/node_modules/.pnpm -path '*/node_modules/@prisma/client'",
     "metadata.json",
     "sha256sum",
     "sha256sum --check",
