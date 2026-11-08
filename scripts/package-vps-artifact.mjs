@@ -14,7 +14,9 @@ async function main() {
   if (!releaseArg || !outputArg || !/^[0-9a-f]{40}$/.test(commit ?? "")) {
     throw new Error("A release directory, output directory, and full commit SHA are required");
   }
-  if (target !== "dev") throw new Error("Only the dev target is currently configured");
+  if (!["dev", "prod"].includes(target)) {
+    throw new Error("Target must be dev or prod");
+  }
 
   const release = resolve(releaseArg);
   const output = resolve(outputArg);

@@ -11,6 +11,14 @@ on:
         required: true
         default: main
         type: string
+      target:
+        description: "VPS runtime target"
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - prod
 
 concurrency:
   group: vps-dev-artifact-${{ github.ref }}
@@ -31,10 +39,10 @@ jobs:
       NEXT_TELEMETRY_DISABLED: 1
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pos_ci?schema=public
       DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/pos_ci?schema=public
-      NEXT_PUBLIC_SUPABASE_URL: https://app-teladan-pos-84d9ee-dev.abyte.my.id/supabase
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.POS_VPS_DEV_PUBLIC_SUPABASE_ANON_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ inputs.target == 'prod' && 'https://teladan-pos.abyte.my.id/supabase' || 'https://app-teladan-pos-84d9ee-dev.abyte.my.id/supabase' }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ inputs.target == 'prod' && secrets.POS_VPS_PROD_PUBLIC_SUPABASE_ANON_KEY || secrets.POS_VPS_DEV_PUBLIC_SUPABASE_ANON_KEY }}
       NEXT_PUBLIC_VAPID_PUBLIC_KEY: ""
-      R2_PUBLIC_BASE_URL: https://dev-assets.teladanpos.biz.id
+      R2_PUBLIC_BASE_URL: ${{ inputs.target == 'prod' && 'https://assets.teladanpos.biz.id' || 'https://dev-assets.teladanpos.biz.id' }}
 
     steps:
       - name: Checkout artifact builder
@@ -61,12 +69,12 @@ jobs:
           cache: pnpm
           cache-dependency-path: source/pnpm-lock.yaml
 
-      - name: Test artifact packaging and dev gateway
+      - name: Test artifact packaging and gateway
         shell: bash
         run: |
           set -euo pipefail
           node --test scripts/tests/vps-artifact-package.test.mjs
-          test -n "${NEXT_PUBLIC_SUPABASE_ANON_KEY}" || { echo 'Missing dev public anon key' >&2; exit 1; }
+          test -n "${NEXT_PUBLIC_SUPABASE_ANON_KEY}" || { echo 'Missing public anon key' >&2; exit 1; }
           curl --fail --silent --show-error --max-time 20 \
             -H "apikey: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}" \
             "${NEXT_PUBLIC_SUPABASE_URL}/auth/v1/health" -o /dev/null
@@ -127,7 +135,7 @@ jobs:
         run: |
           set -euo pipefail
           commit="$(git -C source rev-parse HEAD)"
-          node scripts/package-vps-artifact.mjs artifact/staging/runtime artifact/output "${commit}" dev
+          node scripts/package-vps-artifact.mjs artifact/staging/runtime artifact/output "${commit}" "${{ inputs.target || 'dev' }}"
           (cd artifact/output && sha256sum --check sha256sums.txt)
           printf 'sha=%s\n' "${commit}" >> "${GITHUB_OUTPUT}"
 
@@ -195,7 +203,7 @@ jobs:
       - name: Upload VPS dev runtime
         uses: actions/upload-artifact@v4
         with:
-          name: vps-dev-runtime-${{ steps.package.outputs.sha }}
+          name: vps-${{ inputs.target || 'dev' }}-runtime-${{ steps.package.outputs.sha }}
           path: |
             artifact/output/pos-web-runtime-*.tar.gz
             artifact/output/metadata.json

@@ -42,6 +42,13 @@ function run(release, out, commit = sha) {
   });
 }
 
+function runTarget(release, out, target) {
+  return spawnSync(process.execPath, [packager, release, out, sha, target], {
+    encoding: "utf8",
+    env: { ...process.env, VPS_BUILD_REF: "refs/heads/example" },
+  });
+}
+
 test("archive preserves the release, excludes cache and secrets, and has a portable checksum", (t) => {
   const { release, out } = fixture(t);
   const result = run(release, out);
@@ -94,4 +101,12 @@ test("an output directory inside the release is rejected", (t) => {
   const result = run(release, join(release, "output"));
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /outside/i);
+});
+
+test("production target is packaged with production metadata", (t) => {
+  const { release, out } = fixture(t);
+  const result = runTarget(release, out, "prod");
+  assert.equal(result.status, 0, result.stderr);
+  const metadata = JSON.parse(readFileSync(join(out, "metadata.json"), "utf8"));
+  assert.equal(metadata.target, "prod");
 });
