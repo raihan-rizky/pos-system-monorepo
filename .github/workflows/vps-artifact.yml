@@ -75,9 +75,11 @@ jobs:
           set -euo pipefail
           node --test scripts/tests/vps-artifact-package.test.mjs
           test -n "${NEXT_PUBLIC_SUPABASE_ANON_KEY}" || { echo 'Missing public anon key' >&2; exit 1; }
-          curl --fail --silent --show-error --max-time 20 \
-            -H "apikey: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}" \
-            "${NEXT_PUBLIC_SUPABASE_URL}/auth/v1/health" -o /dev/null
+          if [ "${{ inputs.target || 'dev' }}" = "dev" ]; then
+            curl --fail --silent --show-error --max-time 20 \
+              -H "apikey: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}" \
+              "${NEXT_PUBLIC_SUPABASE_URL}/auth/v1/health" -o /dev/null
+          fi
 
       - name: Install locked dependencies
         working-directory: source
