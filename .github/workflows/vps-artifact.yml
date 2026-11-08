@@ -1,0 +1,142 @@
+name: VPS artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag, or commit SHA to build"
+        required: true
+        default: main
+        type: string
+
+concurrency:
+  group: vps-artifact-${{ inputs.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-artifact:
+    name: Build VPS runtime artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: true
+      HUSKY: 0
+      COREPACK_HOME: ${{ github.workspace }}/.corepack
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pos_ci?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/pos_ci?schema=public
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+      SUPABASE_SERVICE_KEY: ""
+      SUPABASE_SERVICE_ROLE_KEY: ""
+      WAHA_BASE_URL: ""
+      WAHA_SESSION: default
+      WAHA_API_KEY: ""
+      WAHA_WEBHOOK_SECRET: ""
+      WEBHOOK_BASE_URL: ""
+      CLOSING_DEAL_PUSH_SECRET: ""
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ""
+      VAPID_PRIVATE_KEY: ""
+      VAPID_SUBJECT: mailto:ci@example.com
+      R2_ACCOUNT_ID: ""
+      R2_ACCESS_KEY_ID: ""
+      R2_SECRET_ACCESS_KEY: ""
+      R2_BUCKET_NAME: ""
+      R2_ENDPOINT: ""
+      R2_PUBLIC_BASE_URL: ""
+
+    steps:
+      - name: Checkout requested ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.24.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm db:generate
+
+      - name: Build production bundle
+        run: pnpm exec turbo run build
+
+      - name: Stage portable web runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf artifact
+          mkdir -p artifact
+          pnpm --filter @pos/web deploy --prod artifact/runtime
+          cp -a apps/web/.next artifact/runtime/.next
+          cp -a apps/web/public artifact/runtime/public
+          cp -a apps/web/next.config.mjs artifact/runtime/next.config.mjs
+          cp -a apps/web/package.json artifact/runtime/package.json
+          test -f apps/web/.next/BUILD_ID
+          test -f artifact/runtime/.next/BUILD_ID
+          test -e artifact/runtime/node_modules/next
+          test -e artifact/runtime/node_modules/@prisma/client
+
+      - name: Create archive and checksums
+        id: metadata
+        shell: bash
+        env:
+          REQUESTED_REF: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+          build_sha="$(git rev-parse HEAD)"
+          build_id="$(cat artifact/runtime/.next/BUILD_ID)"
+          archive="pos-web-runtime-${build_sha}.tar.gz"
+          export BUILD_SHA="${build_sha}"
+          export BUILD_ID="${build_id}"
+          export RUNNER_IMAGE="${ImageOS:-unknown}"
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from "node:fs";
+          const metadata = {
+            requestedRef: process.env.REQUESTED_REF,
+            checkedOutSha: process.env.BUILD_SHA,
+            buildId: process.env.BUILD_ID,
+            runner: process.env.RUNNER_IMAGE,
+            createdAt: new Date().toISOString(),
+          };
+          writeFileSync("artifact/metadata.json", `${JSON.stringify(metadata, null, 2)}\n`);
+          NODE
+          tar -C artifact -czf "artifact/${archive}" runtime
+          sha256sum "artifact/${archive}" artifact/metadata.json > artifact/sha256sums.txt
+          (
+            cd artifact
+            sha256sum --check sha256sums.txt
+          )
+          echo "sha=${build_sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify artifact metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s artifact/metadata.json
+          test -s artifact/sha256sums.txt
+          grep -F '"checkedOutSha"' artifact/metadata.json
+          grep -F '"buildId"' artifact/metadata.json
+
+      - name: Upload VPS runtime artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vps-web-runtime-${{ steps.metadata.outputs.sha }}
+          path: |
+            artifact/pos-web-runtime-*.tar.gz
+            artifact/metadata.json
+            artifact/sha256sums.txt
+          if-no-files-found: error
+          retention-days: 7
