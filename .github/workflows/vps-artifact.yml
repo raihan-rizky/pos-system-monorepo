@@ -1,6 +1,9 @@
 name: VPS artifact
 
 on:
+  push:
+    branches:
+      - codex/remove-hardcoded-db-credential
   workflow_dispatch:
     inputs:
       ref:

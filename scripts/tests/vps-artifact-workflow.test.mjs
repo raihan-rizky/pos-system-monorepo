@@ -13,6 +13,7 @@ test("VPS artifact workflow is manual, CI-only, portable, and integrity checked"
   const workflow = readFileSync(workflowPath, "utf8");
   const requiredFragments = [
     "workflow_dispatch:",
+    "push:",
     "ref:",
     "actions/checkout@v4",
     "version: 10.24.0",
