@@ -21,7 +21,7 @@ test("VPS artifact workflow is manual, CI-only, portable, and integrity checked"
     "NODE_OPTIONS: --max-old-space-size=4096",
     "pnpm db:generate",
     "pnpm exec turbo run build",
-    "pnpm --filter @pos/web deploy --prod",
+    "pnpm --filter @pos/web deploy --prod --legacy",
     "apps/web/.next/BUILD_ID",
     "artifact/runtime/node_modules/@prisma/client",
     "metadata.json",

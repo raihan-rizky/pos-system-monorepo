@@ -83,7 +83,7 @@ jobs:
           set -euo pipefail
           rm -rf artifact
           mkdir -p artifact
-          pnpm --filter @pos/web deploy --prod artifact/runtime
+          pnpm --filter @pos/web deploy --prod --legacy artifact/runtime
           cp -a apps/web/.next artifact/runtime/.next
           cp -a apps/web/public artifact/runtime/public
           cp -a apps/web/next.config.mjs artifact/runtime/next.config.mjs
