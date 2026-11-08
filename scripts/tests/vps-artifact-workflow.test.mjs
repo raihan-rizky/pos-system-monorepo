@@ -18,6 +18,7 @@ test("VPS artifact workflow is manual, CI-only, portable, and integrity checked"
     "actions/checkout@v4",
     "version: 10.24.0",
     "node-version: 22",
+    "NODE_OPTIONS: --max-old-space-size=4096",
     "pnpm db:generate",
     "pnpm exec turbo run build",
     "pnpm --filter @pos/web deploy --prod",

@@ -27,6 +27,7 @@ jobs:
     env:
       CI: true
       HUSKY: 0
+      NODE_OPTIONS: --max-old-space-size=4096
       COREPACK_HOME: ${{ github.workspace }}/.corepack
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pos_ci?schema=public
       DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/pos_ci?schema=public
