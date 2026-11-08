@@ -99,7 +99,7 @@ jobs:
           echo "Checking Next runtime dependency"
           test -e artifact/runtime/node_modules/next
           echo "Checking Prisma runtime dependency"
-          test -e artifact/runtime/node_modules/@prisma/client
+          test -e artifact/runtime/node_modules/@pos/db/node_modules/@prisma/client
           echo "Portable runtime staged"
 
       - name: Create archive and checksums
