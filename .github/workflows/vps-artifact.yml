@@ -39,7 +39,7 @@ jobs:
       NEXT_TELEMETRY_DISABLED: 1
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pos_ci?schema=public
       DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/pos_ci?schema=public
-      NEXT_PUBLIC_SUPABASE_URL: ${{ inputs.target == 'prod' && 'https://teladan-pos-84d9ee.abyte.my.id/supabase' || 'https://app-teladan-pos-84d9ee-dev.abyte.my.id/supabase' }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ inputs.target == 'prod' && 'https://teladanpos.biz.id/supabase' || 'https://app-teladan-pos-84d9ee-dev.abyte.my.id/supabase' }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ inputs.target == 'prod' && secrets.POS_VPS_PROD_PUBLIC_SUPABASE_ANON_KEY || secrets.POS_VPS_DEV_PUBLIC_SUPABASE_ANON_KEY }}
       NEXT_PUBLIC_VAPID_PUBLIC_KEY: ""
       R2_PUBLIC_BASE_URL: ${{ inputs.target == 'prod' && 'https://assets.teladanpos.biz.id' || 'https://dev-assets.teladanpos.biz.id' }}
