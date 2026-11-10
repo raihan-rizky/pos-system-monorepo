@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "./providers";
 import { cookies } from "next/headers";
@@ -11,18 +11,16 @@ import { buildAuthorizationFingerprint } from "@/features/rbac/helpers/authoriza
 import { getLogger } from "@/lib/logger";
 
 const log = getLogger("layout:root");
-const inter = Inter({
-  subsets: ["latin"],
+const inter = localFont({
+  src: [{ path: "../public/fonts/InterVariable.woff2", weight: "300 800", style: "normal" }],
   display: "swap",
   variable: "--font-inter",
-  weight: ["300", "400", "500", "600", "700", "800"],
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
+const jetbrainsMono = localFont({
+  src: [{ path: "../public/fonts/JetBrainsMono[wght].ttf", weight: "400 600", style: "normal" }],
   display: "swap",
   variable: "--font-mono",
-  weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {

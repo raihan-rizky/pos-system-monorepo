@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 describe("Production workflow", () => {
   it("installs Chromium before running unit and E2E tests", () => {
     const workflow = readFileSync(
-      resolve(process.cwd(), "../../.github/workflows/production.yml"),
+      resolve(process.cwd(), "../../.github/workflows/ci.yml"),
       "utf8",
     );
     const install = workflow.search(/^\s*run:\s*pnpm --filter @pos\/web exec playwright install --with-deps chromium\s*$/m);

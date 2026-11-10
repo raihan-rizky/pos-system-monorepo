@@ -1,0 +1,59 @@
+name: POS Deploy
+
+on:
+  workflow_run:
+    workflows: [POS CI]
+    types: [completed]
+    branches: [main, dev]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Operasi deployment
+        type: choice
+        options: [deploy, rollback]
+        default: deploy
+      target:
+        description: Lingkungan tujuan
+        type: choice
+        options: [dev, prod]
+        default: dev
+      run_id:
+        description: ID run CI sukses; kosongkan untuk slot rollback lokal
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  deploy:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' && vars.AUTO_DEPLOY_ENABLED == 'true' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       contains(fromJSON('["push","workflow_dispatch"]'), github.event.workflow_run.event) &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.path == '.github/workflows/ci.yml' &&
+       contains(fromJSON('["main","dev"]'), github.event.workflow_run.head_branch))
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    concurrency:
+      group: pos-deploy-${{ inputs.target || (github.event.workflow_run.head_branch == 'main' && 'prod' || 'dev') }}
+      cancel-in-progress: false
+    steps:
+      - name: Ambil client deployment dari main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+          sparse-checkout: scripts/deploy/dispatch.py
+          sparse-checkout-cone-mode: false
+      - name: Jalankan operasi VPS dan tunggu hasilnya
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VPS_HOST: ${{ vars.POS_VPS_HOST || '143.20.199.50' }}
+          VPS_PORT: ${{ vars.POS_VPS_PORT || '29922' }}
+          VPS_KNOWN_HOSTS: ${{ secrets.POS_VPS_KNOWN_HOSTS }}
+          VPS_SSH_KEY: ${{ (inputs.target == 'prod' || github.event.workflow_run.head_branch == 'main') && secrets.POS_VPS_PROD_DEPLOY_KEY || secrets.POS_VPS_DEV_DEPLOY_KEY }}
+        run: python3 scripts/deploy/dispatch.py

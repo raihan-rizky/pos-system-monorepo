@@ -8,9 +8,8 @@ const mocks = vi.hoisted(() => ({
   getGlobalRolePermissions: vi.fn(),
 }));
 
-vi.mock("next/font/google", () => ({
-  Inter: () => ({ variable: "font-inter" }),
-  JetBrains_Mono: () => ({ variable: "font-mono" }),
+vi.mock("next/font/local", () => ({
+  default: (options: { variable?: string }) => ({ variable: options.variable }),
 }));
 
 vi.mock("next/headers", () => ({
