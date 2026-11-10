@@ -1,0 +1,85 @@
+name: POS CI
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pos-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-build:
+    if: github.event_name == 'pull_request' || github.ref_name == 'main' || github.ref_name == 'dev'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CI: true
+      HUSKY: 0
+      NODE_OPTIONS: --max-old-space-size=4096
+      NEXT_TELEMETRY_DISABLED: 1
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pos_ci?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/pos_ci?schema=public
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+      R2_PUBLIC_BASE_URL: https://media.invalid
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.24.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Instal dependency sesuai lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Periksa TypeScript
+        run: pnpm type-check
+      - name: Unit test
+        run: pnpm test
+      - name: Tes keamanan packaging dan database
+        run: node --test scripts/tests/vps-artifact-package.test.mjs packages/db/tests/clear-locks-safety.test.cjs
+      - name: Tes deployment dan rollback
+        run: python3 -m unittest discover -s scripts/tests -p 'test_vps_*.py'
+      - name: Instal Chromium untuk E2E
+        run: pnpm --filter @pos/web exec playwright install --with-deps chromium
+      - name: E2E dengan data mock
+        run: pnpm e2e
+      - name: Build pemeriksaan PR
+        if: github.event_name == 'pull_request'
+        run: pnpm exec turbo run build
+      - name: Build dan paketkan runtime sesuai branch
+        if: github.event_name != 'pull_request'
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ github.ref_name == 'main' && vars.POS_VPS_PROD_PUBLIC_AUTH_URL || vars.POS_VPS_DEV_PUBLIC_AUTH_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ github.ref_name == 'main' && secrets.POS_VPS_PROD_PUBLIC_SUPABASE_ANON_KEY || secrets.POS_VPS_DEV_PUBLIC_SUPABASE_ANON_KEY }}
+          R2_PUBLIC_BASE_URL: ${{ github.ref_name == 'main' && vars.POS_VPS_PROD_R2_PUBLIC_BASE_URL || vars.POS_VPS_DEV_R2_PUBLIC_BASE_URL }}
+        run: bash scripts/build-vps-runtime.sh '${{ github.ref_name == 'main' && 'prod' || 'dev' }}'
+      - name: Simpan runtime yang lolos pemeriksaan
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pos-runtime-${{ github.ref_name == 'main' && 'prod' || 'dev' }}-${{ github.run_id }}
+          path: artifact/output/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
+      - name: Simpan laporan E2E
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report-${{ github.run_id }}
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          if-no-files-found: ignore
+          retention-days: 3

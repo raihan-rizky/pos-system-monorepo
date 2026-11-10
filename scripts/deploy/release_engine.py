@@ -43,10 +43,17 @@ class ReleaseManager:
             raise ReleaseError('Konfigurasi/database berubah; tinjau migrasi terlebih dahulu')
         candidate = self.github.prepare(request, active)
         sha = candidate['metadata']['checkedOutSha']
+        reason = None
         if not request.get('manual') and self.github.head(target) != sha:
-            raise ReleaseError('Build tertinggal dari push terbaru')
+            reason = 'Build tertinggal dari push terbaru'
         if state.get('blocked', {}).get(target) == sha and not request.get('manual'):
-            raise ReleaseError('Versi ini diblokir setelah kegagalan/rollback')
+            reason = 'Versi ini diblokir setelah kegagalan/rollback'
+        if reason:
+            if active['id'] != candidate['id']:
+                candidate.update(failed_at=self.clock(), healthy=False)
+                state['releases'][candidate['id']] = candidate
+                self.save(state)
+            raise ReleaseError(reason)
         if active['id'] == candidate['id']:
             return {'result': 'already_active', 'release': active['id']}
         return self.activate(state, target, candidate)
@@ -72,6 +79,11 @@ class ReleaseManager:
             candidate['failed_at'] = self.clock()
             self.save(state)
             raise ReleaseError('Worker belum berhenti aman; promosi dibatalkan dan pemulihan menunggu')
+        state['pending']['phase'] = 'waiting_worker'
+        self.save(state)
+        if not rollback and self.github.head(target) != candidate['metadata']['checkedOutSha']:
+            self.recover()
+            raise ReleaseError('Push baru tiba saat drain; promosi versi lama dibatalkan')
         state['pending']['phase'] = 'switching'
         self.save(state)
         try:
@@ -150,17 +162,26 @@ class ReleaseManager:
             protected.update((state['pending']['old'], state['pending']['candidate']))
         live = self.services.live_paths()
         for record in state['releases'].values():
-            path = record['runtime'].rstrip('/')
-            if any(str(p) == path or str(p).startswith(path + '/') for p in live):
+            path = pathlib.Path(record['runtime']).parent
+            if any(pathlib.Path(p).is_relative_to(path) for p in live):
                 protected.add(record['id'])
-        selected = cleanup_plan(list(state['releases'].values()), protected, self.clock())
+        records = []
+        for record in state['releases'].values():
+            record = dict(record)
+            record['remote_verified'] = False
+            if (record['id'] not in protected and 'inactive_at' in record
+                    and 0 <= self.clock() - record['inactive_at'] < RETENTION
+                    and hasattr(self.github, 'available')):
+                record['remote_verified'] = self.github.available(record)
+            records.append(record)
+        selected = cleanup_plan(records, protected, self.clock())
         deleted = []
         for release_id in selected:
             record = state['releases'][release_id]
             runtime = pathlib.Path(record['runtime'])
             parent = runtime.parent
             allowed = pathlib.Path(self.config['root']) / 'releases'
-            if (runtime.name != 'runtime' or parent.name != release_id or parent.is_symlink()
+            if (not parent.is_dir() or runtime.name != 'runtime' or parent.name != release_id or parent.is_symlink()
                     or runtime.is_symlink() or parent.resolve().parent != allowed.resolve()):
                 continue
             if apply:
@@ -169,3 +190,17 @@ class ReleaseManager:
                 self.save(state)
             deleted.append(release_id)
         return deleted
+
+    def status(self):
+        state, now = self.load(), self.clock()
+        active, rollback = {}, {}
+        for target, release_id in state['environments'].items():
+            record = state['releases'][release_id]
+            active[target] = {'id': release_id, 'metadata': record['metadata']}
+            choices = [r for r in state['releases'].values() if r['target'] == target and r.get('healthy')
+                       and 'inactive_at' in r and 0 <= now - r['inactive_at'] < RETENTION]
+            if choices:
+                old = max(choices, key=lambda r: r['inactive_at'])
+                rollback[target] = {'id': old['id'], 'expires_at': old['inactive_at'] + RETENTION}
+        return dict(active=active, rollback=rollback, pending=state.get('pending'),
+                    blocked=state.get('blocked', {}), free_bytes=shutil.disk_usage(self.config['root']).free)

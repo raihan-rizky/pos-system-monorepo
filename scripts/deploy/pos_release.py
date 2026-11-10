@@ -114,6 +114,10 @@ class Services:
             for key in ('web', 'worker'):
                 paths.add(self.properties(self.settings(target)[key]).get('WorkingDirectory', ''))
         prefix = self.config['root'].rstrip('/') + '/'
+        for line in pathlib.Path('/proc/self/mountinfo').read_text().splitlines():
+            mount = line.split()[4].replace('\\040', ' ')
+            if mount.startswith(prefix):
+                paths.add(mount)
         for proc in pathlib.Path('/proc').iterdir():
             if not proc.name.isdigit():
                 continue
@@ -248,6 +252,17 @@ class Github:
     def head(self, target):
         return self.api('git/ref/heads/' + BRANCHES[target])['object']['sha']
 
+    def available(self, record):
+        if not record.get('artifact_id'):
+            return False
+        try:
+            artifact = self.api('actions/artifacts/' + str(record['artifact_id']))
+            from release_policy import timestamp, RETENTION
+            return (not artifact.get('expired') and artifact.get('name') == f'pos-runtime-{record["target"]}-{record["run_id"]}'
+                    and 0 <= time.time() - timestamp(artifact['created_at']) < RETENTION)
+        except Exception:
+            return False
+
     def prepare(self, request, active):
         target, run_id, artifact_id = request['target'], request['run_id'], request['artifact_id']
         run = self.api(f'actions/runs/{run_id}')
@@ -256,6 +271,8 @@ class Github:
         if artifact is None:
             raise ReleaseError('Artefak tidak ditemukan pada run CI')
         validate_run(run, target, artifact, time.time())
+        if not request.get('manual') and self.head(target) != run['head_sha']:
+            raise ReleaseError('Build tertinggal dari push terbaru')
         if active.get('run_id') == run_id and active.get('artifact_id') == artifact_id:
             return dict(active)
         root = pathlib.Path(self.config['root'])
@@ -408,7 +425,7 @@ def cleanup_staging(config):
 
 def main(argv):
     if argv == ['--help']:
-        print('pos-release: bootstrap | recover | cleanup [--apply] | ssh TARGET | execute OPERATION_ID')
+        print('pos-release: bootstrap | status | recover | cleanup [--apply] | ssh TARGET | execute OPERATION_ID')
         return
     if os.geteuid() != 0:
         raise ReleaseError('Helper harus dijalankan melalui sudo terbatas')
@@ -416,6 +433,9 @@ def main(argv):
     services = Services(config)
     manager = ReleaseManager(config, services, Github(config, services))
     action = argv[0] if argv else ''
+    if action == 'status':
+        print(json.dumps(manager.status()))
+        return
     if action == 'ssh' and len(argv) == 2:
         raw = sys.stdin.read(8193)
         if len(raw) > 8192:

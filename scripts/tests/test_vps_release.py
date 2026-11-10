@@ -229,6 +229,45 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.manager.cleanup(apply=True), [])
         self.assertTrue(pathlib.Path(self.old['runtime']).exists())
 
+    def test_push_arriving_during_drain_never_promotes_stale_candidate(self):
+        original = self.services.drain
+        def drain(target, timeout):
+            self.github.tip = 'c' * 40
+            return original(target, timeout)
+        self.services.drain = drain
+        with self.assertRaises(self.engine.ReleaseError): self.manager.deploy(self.request)
+        self.assertNotIn('switch:new', self.services.events)
+        self.assertEqual(self.state_now()['environments']['prod'], 'old')
+
+    def test_cleanup_rechecks_remote_archive_before_deleting_recent_history(self):
+        for index in (1, 2):
+            release_id = 'history-' + str(index)
+            runtime = self.root / 'releases' / release_id / 'runtime'
+            runtime.mkdir(parents=True)
+            self.state['releases'][release_id] = dict(self.old, id=release_id, runtime=str(runtime),
+                inactive_at=NOW - index * 10, remote_verified=True)
+        self.statefile.write_text(json.dumps(self.state))
+        self.github.available = lambda record: False
+        self.assertEqual(self.manager.cleanup(apply=True), [])
+        self.assertTrue((self.root / 'releases/history-2/runtime').is_dir())
+
+    def test_cleanup_preserves_other_live_files_in_a_release_parent(self):
+        parent = self.root / 'releases/expired'
+        (parent / 'runtime').mkdir(parents=True)
+        self.state['releases']['expired'] = dict(self.old, id='expired', runtime=str(parent / 'runtime'),
+                                                 inactive_at=NOW - 900000)
+        self.statefile.write_text(json.dumps(self.state))
+        self.services.live_paths = lambda: {str(parent / 'other/open-file')}
+        self.assertEqual(self.manager.cleanup(apply=True), [])
+
+    def test_status_exposes_active_and_rollback_expiry(self):
+        self.assertTrue(hasattr(self.manager, 'status'), 'Release status must exist')
+        self.manager.deploy(self.request)
+        status = self.manager.status()
+        self.assertEqual(status['active']['prod']['id'], 'new')
+        self.assertEqual(status['rollback']['prod']['id'], 'old')
+        self.assertEqual(status['rollback']['prod']['expires_at'], NOW + 72 * 3600)
+
 
 class HostContractTests(unittest.TestCase):
     def host(self):
