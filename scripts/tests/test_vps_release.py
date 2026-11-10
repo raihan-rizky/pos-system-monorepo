@@ -139,9 +139,18 @@ class EngineTests(unittest.TestCase):
                 self.ok = True
                 self.compat = True
                 self.crash = False
+                self.canary_crash = False
+                self.canary_failure = False
             def live_paths(self): return {self.current['runtime']}
             def compatible(self, record): return self.compat
-            def canary(self, record): self.events.append('canary')
+            def canary(self, record, unit=None):
+                self.events.append('canary')
+                if self.canary_crash: raise KeyboardInterrupt('helper interrupted during canary')
+                if self.canary_failure: raise RuntimeError('unhealthy candidate')
+            def stop_canary(self, unit): self.events.append('stop-canary')
+            def reconcile(self, state):
+                if self.current['id'] != state['environments']['prod']:
+                    raise self.error('Loaded service disagrees with registry')
             def drain(self, target, timeout):
                 self.events.append('drain')
                 return self.safe
@@ -153,6 +162,7 @@ class EngineTests(unittest.TestCase):
             def worker_stopped(self, target): return self.safe
             def start_worker(self, target): self.events.append('start-worker')
         self.services = Services(self.old)
+        self.services.error = self.engine.ReleaseError
         class Github:
             def __init__(self, new): self.new, self.tip = new, SHA
             def prepare(self, request, active): return dict(self.new)
@@ -268,6 +278,35 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(status['rollback']['prod']['id'], 'old')
         self.assertEqual(status['rollback']['prod']['expires_at'], NOW + 72 * 3600)
 
+    def test_interrupted_canary_is_journalled_and_cleaned_without_worker_switch(self):
+        self.services.canary_crash = True
+        with self.assertRaises(KeyboardInterrupt): self.manager.deploy(self.request)
+        self.assertIn('pending', self.state_now())
+        self.assertEqual(self.state_now()['pending']['phase'], 'canary')
+        self.manager.recover()
+        self.assertIn('stop-canary', self.services.events)
+        self.assertNotIn('drain', self.services.events)
+        self.assertNotIn('pending', self.state_now())
+
+    def test_failed_canary_blocks_duplicate_automatic_attempt(self):
+        self.services.canary_failure = True
+        for _ in range(2):
+            with self.assertRaises(self.engine.ReleaseError): self.manager.deploy(self.request)
+        self.assertEqual(self.services.events.count('canary'), 1)
+        self.assertEqual(self.state_now()['blocked']['prod'], SHA)
+
+    def test_recovery_fails_closed_on_unexplained_service_drift(self):
+        self.services.current = self.new
+        with self.assertRaises(self.engine.ReleaseError): self.manager.recover()
+        self.assertEqual(self.state_now()['environments']['prod'], 'old')
+
+    def test_success_result_includes_operator_build_and_rollback_evidence(self):
+        result = self.manager.deploy(self.request)
+        self.assertIn('status', result, 'Actions summary needs release evidence')
+        self.assertEqual(result['readiness'], 'passed')
+        self.assertEqual(result['status']['active']['prod']['metadata']['buildId'], 'new')
+        self.assertEqual(result['status']['rollback']['prod']['expires_at'], NOW + 72 * 3600)
+
 
 class HostContractTests(unittest.TestCase):
     def host(self):
@@ -303,6 +342,28 @@ class HostContractTests(unittest.TestCase):
         self.assertIn('SendSIGKILL=no', body)
         self.assertIn('TimeoutStopSec=infinity', body)
         self.assertNotIn('StrictHostKeyChecking=no', body)
+
+    def test_database_probe_uses_non_root_systemd_identity(self):
+        host = self.host()
+        captured = []
+        host.command = lambda args, **kwargs: captured.append(args) or 'a' * 64
+        services = host.Services({'targets': {'dev': {'env_file': '/etc/pos-system/development.env'}}})
+        services.database_fingerprint('dev', '/runtime')
+        self.assertEqual(captured[0][0], 'systemd-run')
+        self.assertIn('--property=DynamicUser=yes', captured[0])
+        self.assertIn('--property=EnvironmentFile=/etc/pos-system/development.env', captured[0])
+        self.assertNotIn('--env-file=/etc/pos-system/development.env', captured[0])
+
+    def test_canary_listener_must_belong_to_candidate_cgroup(self):
+        host = self.host()
+        services = host.Services({})
+        self.assertTrue(hasattr(services, 'listener_owned'), 'Canary ownership must be checked')
+        services.properties = lambda unit: dict(WorkingDirectory='/runtime', ActiveState='active', MainPID='2', ControlGroup='/canary')
+        services.cgroup_pids = lambda props: {2}
+        host.command = lambda args, **kwargs: 'LISTEN users:((next,pid=9,fd=1))'
+        self.assertFalse(services.listener_owned('canary', '/runtime', 3102))
+        host.command = lambda args, **kwargs: 'LISTEN users:((next,pid=2,fd=1))'
+        self.assertTrue(services.listener_owned('canary', '/runtime', 3102))
 
 
 if __name__ == '__main__':

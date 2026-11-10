@@ -5,6 +5,7 @@ test "$#" = 2 || { echo 'Usage: install.sh PROD_PUBLIC_KEY_FILE DEV_PUBLIC_KEY_F
 source_dir="$(cd -- "$(dirname -- "$0")" && pwd)"
 for public_key in "$1" "$2"; do ssh-keygen -lf "$public_key" >/dev/null; done
 install -d -m 0755 /usr/local/lib/pos-deploy
+install -d -m 0700 /var/lib/pos-system-deploy
 install -m 0644 "$source_dir"/{pos_release.py,release_engine.py,release_policy.py,probe-db.cjs} /usr/local/lib/pos-deploy/
 cat > /usr/local/sbin/pos-release <<'WRAPPER'
 #!/bin/sh

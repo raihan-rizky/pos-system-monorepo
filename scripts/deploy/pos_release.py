@@ -94,11 +94,34 @@ class Services:
                     schemaSha256=hashlib.sha256(schema.read_bytes()).hexdigest())
 
     def database_fingerprint(self, target, runtime):
-        value = command(['/usr/local/bin/node', '--env-file=' + self.settings(target)['env_file'],
-                         str(LIB / 'probe-db.cjs'), str(runtime)], timeout=30)
+        value = command(['systemd-run', '--quiet', '--wait', '--pipe', '--collect',
+                         '--unit=pos-db-probe-' + uuid.uuid4().hex[:16], '--property=RuntimeMaxSec=25',
+                         *self.candidate_properties(target, runtime),
+                         '/usr/local/bin/node', str(LIB / 'probe-db.cjs'), str(runtime)], timeout=35)
         if not re.fullmatch('[a-f0-9]{64}', value):
             raise ReleaseError('Fingerprint database tidak valid')
         return value
+
+    def candidate_properties(self, target, runtime):
+        other = 'development' if target == 'prod' else 'production'
+        return ['--property=DynamicUser=yes', '--property=NoNewPrivileges=yes', '--property=PrivateTmp=yes',
+                '--property=ProtectSystem=strict', '--property=ProtectHome=yes',
+                '--property=WorkingDirectory=' + str(runtime),
+                '--property=EnvironmentFile=' + self.settings(target)['env_file'],
+                '--property=InaccessiblePaths=/etc/pos-system/' + other + '.env /var/lib/pos-system-deploy']
+
+    def reconcile(self, state):
+        for target, release_id in state['environments'].items():
+            runtime = pathlib.Path(state['releases'][release_id]['runtime']).resolve()
+            for key in ('web', 'worker'):
+                props = self.properties(self.settings(target)[key])
+                try:
+                    actual = pathlib.Path(os.readlink('/proc/' + props['MainPID'] + '/cwd')).resolve()
+                except (OSError, KeyError) as exc:
+                    raise ReleaseError('PID service tidak dapat direkonsiliasi') from exc
+                if (props.get('ActiveState') != 'active' or pathlib.Path(props['WorkingDirectory']).resolve() != runtime
+                        or actual != runtime):
+                    raise ReleaseError('Service berbeda dari registry; tinjau perubahan manual terlebih dahulu')
 
     def compatible(self, record):
         try:
@@ -195,32 +218,62 @@ class Services:
         for asset in assets:
             self.http(base + asset)
 
-    def canary(self, record):
+    def cgroup_pids(self, props):
+        group = props.get('ControlGroup', '')
+        if not group:
+            return set()
+        return {int(pid) for pid in (pathlib.Path('/sys/fs/cgroup' + group) / 'cgroup.procs').read_text().split()}
+
+    def listener_owned(self, unit, runtime, port):
+        props = self.properties(unit)
+        if props.get('ActiveState') != 'active' or props.get('WorkingDirectory') != runtime:
+            return False
+        output = command(['ss', '-ltnpH', 'sport', '=', ':' + str(port)])
+        pids = {int(pid) for pid in re.findall(r'pid=(\d+)', output)}
+        return bool(pids) and pids.issubset(self.cgroup_pids(props))
+
+    def stop_canary(self, unit):
+        if not re.fullmatch('pos-canary-[a-f0-9]{16}', unit):
+            raise ReleaseError('Identitas canary tidak valid')
+        try:
+            load = command(['systemctl', 'show', unit, '--property=LoadState', '--value'])
+        except ReleaseError:
+            if not command(['systemctl', 'list-units', '--all', '--plain', '--no-legend', unit + '.service']):
+                return
+            raise
+        if load != 'not-found':
+            command(['systemctl', 'stop', unit], timeout=25)
+
+    def canary(self, record, unit):
         target, runtime = record['target'], record['runtime']
         available = next(int(line.split()[1]) * 1024 for line in pathlib.Path('/proc/meminfo').read_text().splitlines() if line.startswith('MemAvailable:'))
         if available < 768 * 1024 ** 2:
             raise ReleaseError('Headroom RAM tidak cukup untuk canary')
-        unit = 'pos-canary-' + uuid.uuid4().hex[:12]
         port = 3102 if target == 'prod' else 3103
         command(['systemd-run', '--quiet', '--collect', '--unit=' + unit,
-                 '--property=WorkingDirectory=' + runtime, '--property=MemoryMax=512M',
+                 *self.candidate_properties(target, runtime), '--property=MemoryMax=512M',
+                 '--property=RuntimeMaxSec=90', '--property=TimeoutStopSec=15',
                  '--setenv=NODE_ENV=production', '/usr/local/bin/node',
-                 '--env-file=' + self.settings(target)['env_file'], '/usr/local/bin/pnpm',
+                 '/usr/local/bin/pnpm',
                  '--filter', '@pos/web', 'exec', 'next', 'start', '-H', '127.0.0.1', '-p', str(port)])
         try:
             until = time.monotonic() + 60
             while True:
                 try:
+                    if not self.listener_owned(unit, runtime, port):
+                        raise ReleaseError('Listener canary belum dimiliki kandidat')
                     self.page('http://127.0.0.1:' + str(port))
                     if not self.compatible(record):
                         raise ReleaseError('Canary database/konfigurasi tidak kompatibel')
+                    if not self.listener_owned(unit, runtime, port):
+                        raise ReleaseError('Proses canary berhenti saat diperiksa')
                     return
                 except Exception:
                     if time.monotonic() >= until:
                         raise ReleaseError('Canary tidak siap dalam 60 detik')
                     time.sleep(2)
         finally:
-            command(['systemctl', 'stop', unit], timeout=30)
+            self.stop_canary(unit)
 
     def ready(self, target, record):
         until = time.monotonic() + 60

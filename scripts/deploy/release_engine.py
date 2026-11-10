@@ -1,5 +1,6 @@
 """Journalled release transitions. OS/network adapters live in pos_release.py."""
 import json
+import hashlib
 import os
 import pathlib
 import shutil
@@ -64,12 +65,17 @@ class ReleaseManager:
         candidate = dict(candidate)
         candidate.setdefault('database_fingerprint', old.get('database_fingerprint'))
         state['releases'][candidate['id']] = candidate
+        canary_unit = 'pos-canary-' + hashlib.sha256(candidate['id'].encode()).hexdigest()[:16]
+        state['pending'] = dict(target=target, old=old_id, candidate=candidate['id'], phase='canary', canary_unit=canary_unit)
         self.save(state)
         try:
-            self.services.canary(candidate)
+            self.services.canary(candidate, canary_unit)
         except Exception as exc:
             candidate['failed_at'] = self.clock()
             candidate['healthy'] = False
+            state.setdefault('blocked', {})[target] = candidate['metadata']['checkedOutSha']
+            self.services.stop_canary(canary_unit)
+            state.pop('pending', None)
             self.save(state)
             raise ReleaseError('Canary gagal; release aktif dipertahankan') from exc
         state['pending'] = dict(target=target, old=old_id, candidate=candidate['id'], phase='draining')
@@ -108,7 +114,8 @@ class ReleaseManager:
         state['environments'][target] = candidate['id']
         state.pop('pending', None)
         self.save(state)
-        return {'result': 'active', 'release': candidate['id'], 'rollback': old_id}
+        return {'result': 'active', 'release': candidate['id'], 'rollback': old_id,
+                'readiness': 'passed', 'status': self.status()}
 
     def rollback(self, request):
         self.recover()
@@ -135,8 +142,18 @@ class ReleaseManager:
         state = self.load()
         pending = state.get('pending')
         if not pending:
+            self.services.reconcile(state)
             return
         target, old = pending['target'], state['releases'][pending['old']]
+        if pending['phase'] == 'canary':
+            self.services.stop_canary(pending['canary_unit'])
+            self.services.reconcile(state)
+            candidate = state['releases'][pending['candidate']]
+            candidate.update(healthy=False, failed_at=self.clock())
+            state.setdefault('blocked', {})[target] = candidate['metadata']['checkedOutSha']
+            state.pop('pending', None)
+            self.save(state)
+            return
         if not self.services.compatible(old):
             raise ReleaseError('Pemulihan memerlukan operator: konfigurasi/database berubah')
         if pending['phase'] == 'waiting_worker':
@@ -157,6 +174,7 @@ class ReleaseManager:
 
     def cleanup(self, apply=False):
         state = self.load()
+        self.services.reconcile(state)
         protected = set(state['environments'].values())
         if state.get('pending'):
             protected.update((state['pending']['old'], state['pending']['candidate']))
