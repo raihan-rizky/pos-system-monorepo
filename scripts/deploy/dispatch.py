@@ -78,7 +78,7 @@ def main():
         queued = ssh(request)
         operation = queued['operation_id']
         print('Operasi VPS: ' + operation, flush=True)
-        until = time.monotonic() + 20 * 60
+        until = time.monotonic() + 40 * 60
         while time.monotonic() < until:
             result = ssh(dict(action='status', target=request['target'], operation_id=operation))
             if result['state'] in ('success', 'failure'):

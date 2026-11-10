@@ -51,7 +51,18 @@ def publish_runtime(source, parent, uid, gid):
     os.chmod(parent, 0o750)
     os.chown(parent, -1, gid)
     os.replace(source, parent / 'runtime')
-    cache = parent / 'runtime/apps/web/.next/cache'
+    normalize_runtime(parent / 'runtime', uid, gid)
+
+
+def normalize_runtime(runtime, uid, gid):
+    runtime = pathlib.Path(runtime)
+    for current, directories, files in os.walk(runtime, followlinks=False):
+        os.chmod(current, 0o755)
+        for name in files:
+            path = pathlib.Path(current) / name
+            if not path.is_symlink():
+                os.chmod(path, 0o755 if path.stat().st_mode & 0o100 else 0o644)
+    cache = runtime / 'apps/web/.next/cache'
     cache.mkdir(parents=True, exist_ok=True)
     os.chmod(cache, 0o750)
     os.chown(cache, uid, gid)
@@ -341,6 +352,26 @@ class Github:
         if active.get('run_id') == run_id and active.get('artifact_id') == artifact_id:
             return dict(active)
         root = pathlib.Path(self.config['root'])
+        release_id = target + '-' + run['head_sha'][:16] + '-' + str(run_id)
+        parent = root / 'releases' / release_id
+        if parent.exists():
+            if parent.is_symlink() or (parent / 'runtime').is_symlink():
+                raise ReleaseError('Path kandidat yang tersimpan tidak aman')
+            receipt = json.loads((parent / 'release.json').read_text())
+            identity = dict(id=release_id, target=target, runtime=str(parent / 'runtime'), run_id=run_id,
+                            artifact_id=artifact_id, database_fingerprint=active['database_fingerprint'])
+            if any(receipt.get(k) != v for k, v in identity.items()):
+                raise ReleaseError('Identitas kandidat yang tersimpan berbeda')
+            expected = self.services.expected(target, active['runtime'])
+            validate_metadata(receipt['metadata'], target, expected, run)
+            runtime = parent / 'runtime'
+            if ((runtime / 'apps/web/.next/BUILD_ID').read_text().strip() != receipt['metadata']['buildId']
+                    or hashlib.sha256((runtime / 'packages/db/prisma/schema.prisma').read_bytes()).hexdigest() != expected['schemaSha256']):
+                raise ReleaseError('Kandidat yang tersimpan tidak lengkap')
+            import pwd
+            account = pwd.getpwnam('posapp')
+            normalize_runtime(runtime, account.pw_uid, account.pw_gid)
+            return receipt
         if shutil.disk_usage(root).free < 4 * 1024 ** 3:
             raise ReleaseError('Ruang kosong sebelum staging kurang dari 4 GiB')
         staging = root / 'staging' / (target + '-' + uuid.uuid4().hex)
@@ -349,7 +380,7 @@ class Github:
         archive_zip = staging / 'artifact.zip'
         with open(archive_zip, 'wb') as output:
             result = subprocess.run(['gh', 'api', f'repos/{REPOSITORY}/actions/artifacts/{artifact_id}/zip'],
-                                    stdout=output, stderr=subprocess.PIPE, timeout=240,
+                                    stdout=output, stderr=subprocess.PIPE, timeout=600,
                                     env={**os.environ, 'GH_CONFIG_DIR': '/root/.config/gh'})
         if result.returncode or archive_zip.stat().st_size > 1024 ** 3:
             raise ReleaseError('Unduhan artefak gagal')
@@ -379,17 +410,9 @@ class Github:
             raise ReleaseError('Checksum tidak lengkap')
         meta = json.loads((staging / 'metadata.json').read_text())
         validate_metadata(meta, target, self.services.expected(target, active['runtime']), run)
-        release_id = target + '-' + run['head_sha'][:16] + '-' + str(run_id)
-        parent = root / 'releases' / release_id
         record = dict(id=release_id, target=target, runtime=str(parent / 'runtime'), metadata=meta,
                       run_id=run_id, artifact_id=artifact_id, remote_verified=True,
                       database_fingerprint=active['database_fingerprint'])
-        if parent.exists():
-            receipt = json.loads((parent / 'release.json').read_text())
-            if receipt != record:
-                raise ReleaseError('Identitas release yang ada berbeda')
-            shutil.rmtree(staging)
-            return record
         with tarfile.open(staging / tarname, 'r:gz') as tar:
             needed = sum(item.size for item in tar.getmembers())
         if shutil.disk_usage(root).free - needed < 1024 ** 3:

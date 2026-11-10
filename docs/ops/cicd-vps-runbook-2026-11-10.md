@@ -1,6 +1,6 @@
 # Panduan CI/CD VPS - 2026-11-10
 
-Status pemasangan: sedang diverifikasi; bagian hasil aktual diisi setelah aktivasi selesai.
+Status: bootstrap produksi dan dev sudah lulus. Auto-deploy diaktifkan setelah checkpoint ini; hasil setiap push diperiksa di workflow POS CI dan POS Deploy.
 
 ## Pemakaian harian
 
@@ -13,7 +13,7 @@ Status pemasangan: sedang diverifikasi; bagian hasil aktual diisi setelah aktiva
 
 1. Buka GitHub Actions, pilih **POS Deploy**, lalu **Run workflow** dengan branch workflow **main**.
 2. Pilih `deploy` dan lingkungan `dev` atau `prod`. Masukkan ID numerik run **POS CI** yang sukses pada branch lingkungan tersebut.
-3. Tunggu hasil operasi VPS di summary. Client menunggu maksimal 20 menit; jika runner terputus, periksa operasi VPS sebelum mencoba ulang karena proses di VPS tetap persisten.
+3. Tunggu hasil operasi VPS di summary. Client menunggu maksimal 40 menit untuk mengakomodasi unduhan dan antrean prod/dev; jika runner terputus, periksa operasi VPS sebelum mencoba ulang karena proses di VPS tetap persisten.
 
 ## Rollback
 
@@ -54,4 +54,13 @@ Jika key/URL publik berubah, bangun ulang runtime sesuai target karena nilainya 
 
 ## Hasil verifikasi aktual
 
-Belum diisi: run CI, deployment dev/prod, pembuktian push otomatis, kapasitas akhir, timer, dan identitas release aktif.
+- PR implementasi: [#3](https://github.com/raihan-rizky/pos-system-monorepo/pull/3); CI PR [42774433661](https://github.com/raihan-rizky/pos-system-monorepo/actions/runs/42774433661) lulus TypeScript, unit test, E2E, build, policy deployment, dan uji perubahan tipe pada PostgreSQL sementara.
+- CI produksi: [42777337770](https://github.com/raihan-rizky/pos-system-monorepo/actions/runs/42777337770). Deployment bootstrap produksi [42784598558](https://github.com/raihan-rizky/pos-system-monorepo/actions/runs/42784598558) sukses, build `QM0lWhRsel_8H-QFrn5Nk`.
+- CI dev: [42777340755](https://github.com/raihan-rizky/pos-system-monorepo/actions/runs/42777340755). Deployment dev [42783574073](https://github.com/raihan-rizky/pos-system-monorepo/actions/runs/42783574073) sukses, build `GAeN1APZn0dMKvvQmR0aU`.
+- Halaman login, aset JavaScript, Auth gateway, fingerprint database, dan web/worker sesuai runtime lulus pada kedua lingkungan. Tidak memakai password pegawai atau membuat transaksi untuk smoke check.
+- Canary dan probe Prisma memakai DynamicUser non-root, grup baca kode `posapp`, filesystem read-only, dan environment target saja. PID listener canary harus berasal dari cgroup kandidat; canary tercatat di journal dan memiliki batas runtime.
+- Direktori deployment dikelola root dengan grup baca `posapp`; kode runtime root-owned dan hanya cache Next yang app-owned. Mode hasil ekstraksi dinormalisasi agar UMask privat helper tidak membuat kode tidak terbaca aplikasi.
+- Kunci SSH prod/dev terpisah, host key dipin, dan permintaan lintas target ditolak dalam pengujian nyata. Timer cleanup setiap jam dan recovery setiap menit sudah diaktifkan.
+- Arsip sebelum POS CI sudah diverifikasi ulang dengan ZIP digest, metadata, dan checksum runtime. Pemulihan arsip legacy yang sudah keluar dari slot rollback lokal memerlukan operator; artefak baru mengikuti jalur tombol rollback dan provenance POS CI.
+
+Checkpoint ini mencatat bootstrap. Untuk versi terbaru dan bukti auto-deploy dari push, buka [riwayat POS Deploy](https://github.com/raihan-rizky/pos-system-monorepo/actions/workflows/deploy.yml) dan `pos-release status`; summary mencantumkan commit/build, readiness, dan masa berlaku rollback. File environment, database/media, dan backup tidak menjadi target cleanup deployment.
