@@ -5,6 +5,8 @@ import pathlib
 import json
 import sys
 import os
+import types
+from unittest import mock
 import tarfile
 import tempfile
 import unittest
@@ -376,14 +378,59 @@ class HostContractTests(unittest.TestCase):
             root = pathlib.Path(tmp)
             source = root / 'staging/runtime'
             (source / 'apps/web/.next').mkdir(parents=True)
+            for directory in [source, *[p for p in source.rglob('*') if p.is_dir()]]:
+                directory.chmod(0o700)
+            build_id = source / 'apps/web/.next/BUILD_ID'
+            build_id.write_text('build')
+            build_id.chmod(0o600)
+            executable = source / 'tool'
+            executable.write_text('tool')
+            executable.chmod(0o700)
             (root / 'releases').mkdir()
             parent = root / 'releases/prod-test'
             host.publish_runtime(source, parent, os.getuid(), os.getgid())
             self.assertEqual(parent.stat().st_mode & 0o777, 0o750)
             self.assertEqual(parent.stat().st_gid, os.getgid())
+            self.assertEqual((parent / 'runtime').stat().st_mode & 0o777, 0o755)
+            self.assertEqual((parent / 'runtime/apps/web/.next/BUILD_ID').stat().st_mode & 0o777, 0o644)
+            self.assertEqual((parent / 'runtime/tool').stat().st_mode & 0o777, 0o755)
             cache = parent / 'runtime/apps/web/.next/cache'
             self.assertTrue(cache.is_dir())
             self.assertEqual(cache.stat().st_uid, os.getuid())
+
+    def test_verified_inactive_receipt_is_reused_without_downloading_again(self):
+        host = self.host()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            parent = root / 'releases' / ('prod-' + SHA[:16] + '-42')
+            runtime = parent / 'runtime'
+            (runtime / 'apps/web/.next').mkdir(parents=True)
+            (runtime / 'packages/db/prisma').mkdir(parents=True)
+            (runtime / 'apps/web/.next/BUILD_ID').write_text('build-1')
+            (runtime / 'packages/db/prisma/schema.prisma').write_text('schema')
+            import hashlib
+            expected = dict(publicAuthUrl='https://example.test/supabase', publicAnonKeySha256='b'*64,
+                            publicR2BaseUrl='https://assets.example.test', schemaSha256=hashlib.sha256(b'schema').hexdigest())
+            metadata = dict(expected, target='prod', checkedOutSha=SHA, buildId='build-1', runId='42',
+                            sourceBranch='main', sourceRepository='raihan-rizky/pos-system-monorepo')
+            record = dict(id=parent.name, target='prod', runtime=str(runtime), metadata=metadata,
+                          run_id=42, artifact_id=75, remote_verified=True, database_fingerprint='database')
+            (parent / 'release.json').write_text(json.dumps(record))
+            client = host.Github({'root': str(root)}, types.SimpleNamespace(expected=lambda *args: expected))
+            run, artifact = run_fixture()
+            artifact['created_at'] = dt.datetime.now(dt.timezone.utc).isoformat()
+            client.api = lambda path: {'artifacts':[artifact]} if '/artifacts?' in path else run
+            client.head = lambda target: SHA
+            fake_pwd = types.SimpleNamespace(getpwnam=lambda user: types.SimpleNamespace(pw_uid=0,pw_gid=0))
+            host.normalize_runtime = mock.Mock()
+            with mock.patch.dict(sys.modules, {'pwd':fake_pwd}), mock.patch.object(host.subprocess, 'run', return_value=types.SimpleNamespace(returncode=1)) as download:
+                try:
+                    result = client.prepare(dict(target='prod',run_id=42,artifact_id=75),dict(runtime='old',database_fingerprint='database'))
+                except host.ReleaseError:
+                    result = None
+                self.assertIsNotNone(result, 'Verified local candidate must not require another download')
+                self.assertEqual(result['id'], parent.name)
+                download.assert_not_called()
 
 
 if __name__ == '__main__':
