@@ -37,7 +37,7 @@ jobs:
        github.event.workflow_run.path == '.github/workflows/ci.yml' &&
        contains(fromJSON('["main","dev"]'), github.event.workflow_run.head_branch))
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     concurrency:
       group: pos-deploy-${{ inputs.target || (github.event.workflow_run.head_branch == 'main' && 'prod' || 'dev') }}
       cancel-in-progress: false
