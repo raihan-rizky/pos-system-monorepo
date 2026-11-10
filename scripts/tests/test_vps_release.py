@@ -4,6 +4,7 @@ import io
 import pathlib
 import json
 import sys
+import os
 import tarfile
 import tempfile
 import unittest
@@ -351,6 +352,7 @@ class HostContractTests(unittest.TestCase):
         services.database_fingerprint('dev', '/runtime')
         self.assertEqual(captured[0][0], 'systemd-run')
         self.assertIn('--property=DynamicUser=yes', captured[0])
+        self.assertIn('--property=SupplementaryGroups=posapp', captured[0])
         self.assertIn('--property=EnvironmentFile=/etc/pos-system/development.env', captured[0])
         self.assertNotIn('--env-file=/etc/pos-system/development.env', captured[0])
 
@@ -364,6 +366,24 @@ class HostContractTests(unittest.TestCase):
         self.assertFalse(services.listener_owned('canary', '/runtime', 3102))
         host.command = lambda args, **kwargs: 'LISTEN users:((next,pid=2,fd=1))'
         self.assertTrue(services.listener_owned('canary', '/runtime', 3102))
+
+    def test_published_runtime_has_app_read_access_and_writable_cache_only(self):
+        host = self.host()
+        self.assertTrue(hasattr(host, 'publish_runtime'), 'Runtime publishing must set access explicitly')
+        if os.name != 'posix':
+            self.skipTest('POSIX ownership verified by Linux CI')
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            source = root / 'staging/runtime'
+            (source / 'apps/web/.next').mkdir(parents=True)
+            (root / 'releases').mkdir()
+            parent = root / 'releases/prod-test'
+            host.publish_runtime(source, parent, os.getuid(), os.getgid())
+            self.assertEqual(parent.stat().st_mode & 0o777, 0o750)
+            self.assertEqual(parent.stat().st_gid, os.getgid())
+            cache = parent / 'runtime/apps/web/.next/cache'
+            self.assertTrue(cache.is_dir())
+            self.assertEqual(cache.stat().st_uid, os.getuid())
 
 
 if __name__ == '__main__':

@@ -46,6 +46,17 @@ def write_json(path, data):
     os.replace(tmp, path)
 
 
+def publish_runtime(source, parent, uid, gid):
+    parent.mkdir(mode=0o750)
+    os.chmod(parent, 0o750)
+    os.chown(parent, -1, gid)
+    os.replace(source, parent / 'runtime')
+    cache = parent / 'runtime/apps/web/.next/cache'
+    cache.mkdir(parents=True, exist_ok=True)
+    os.chmod(cache, 0o750)
+    os.chown(cache, uid, gid)
+
+
 def validate_request(request, bound):
     allowed = {'action', 'target', 'run_id', 'artifact_id', 'operation_id', 'manual'}
     if (not isinstance(request, dict) or set(request) - allowed or bound not in BRANCHES
@@ -104,7 +115,8 @@ class Services:
 
     def candidate_properties(self, target, runtime):
         other = 'development' if target == 'prod' else 'production'
-        return ['--property=DynamicUser=yes', '--property=NoNewPrivileges=yes', '--property=PrivateTmp=yes',
+        return ['--property=DynamicUser=yes', '--property=SupplementaryGroups=posapp',
+                '--property=NoNewPrivileges=yes', '--property=PrivateTmp=yes',
                 '--property=ProtectSystem=strict', '--property=ProtectHome=yes',
                 '--property=WorkingDirectory=' + str(runtime),
                 '--property=EnvironmentFile=' + self.settings(target)['env_file'],
@@ -253,9 +265,9 @@ class Services:
         command(['systemd-run', '--quiet', '--collect', '--unit=' + unit,
                  *self.candidate_properties(target, runtime), '--property=MemoryMax=512M',
                  '--property=RuntimeMaxSec=90', '--property=TimeoutStopSec=15',
-                 '--setenv=NODE_ENV=production', '/usr/local/bin/node',
-                 '/usr/local/bin/pnpm',
-                 '--filter', '@pos/web', 'exec', 'next', 'start', '-H', '127.0.0.1', '-p', str(port)])
+                 '--setenv=NODE_ENV=production', '--setenv=NEXT_TELEMETRY_DISABLED=1',
+                 '/usr/local/bin/node', str(pathlib.Path(runtime) / 'apps/web/node_modules/next/dist/bin/next'),
+                 'start', str(pathlib.Path(runtime) / 'apps/web'), '-H', '127.0.0.1', '-p', str(port)])
         try:
             until = time.monotonic() + 60
             while True:
@@ -389,8 +401,9 @@ class Github:
             raise ReleaseError('Build ID runtime berbeda')
         if hashlib.sha256((runtime / 'packages/db/prisma/schema.prisma').read_bytes()).hexdigest() != meta['schemaSha256']:
             raise ReleaseError('Schema runtime berbeda')
-        parent.mkdir()
-        os.replace(runtime, parent / 'runtime')
+        import pwd
+        account = pwd.getpwnam('posapp')
+        publish_runtime(runtime, parent, account.pw_uid, account.pw_gid)
         write_json(parent / 'release.json', record)
         shutil.rmtree(staging)
         return record
