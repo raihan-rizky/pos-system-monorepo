@@ -36,6 +36,11 @@ async function main() {
     requestedRef: process.env.VPS_BUILD_REF ?? commit,
     buildId,
     target,
+    sourceRepository: process.env.GITHUB_REPOSITORY ?? "",
+    sourceBranch: process.env.GITHUB_REF_NAME ?? "",
+    runId: process.env.GITHUB_RUN_ID ?? "",
+    schemaSha256: await sha256(join(release, "packages", "db", "prisma", "schema.prisma")),
+    publicR2BaseUrl: process.env.R2_PUBLIC_BASE_URL ?? "",
     publicAuthUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
     publicAnonKeySha256: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
       ? createHash("sha256").update(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY).digest("hex")

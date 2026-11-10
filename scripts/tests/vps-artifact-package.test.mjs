@@ -69,6 +69,11 @@ test("archive preserves the release, excludes cache and secrets, and has a porta
   assert.equal(metadata.requestedRef, "refs/heads/example");
   assert.equal(metadata.buildId, "build-test-123");
   assert.equal(metadata.target, "dev");
+  assert.equal(metadata.schemaSha256, createHash("sha256").update("schema").digest("hex"));
+  assert.equal(typeof metadata.publicR2BaseUrl, "string");
+  assert.equal(typeof metadata.sourceRepository, "string");
+  assert.equal(typeof metadata.sourceBranch, "string");
+  assert.equal(typeof metadata.runId, "string");
   const entries = readFileSync(join(out, "sha256sums.txt"), "utf8").trim().split(/\r?\n/);
   assert.equal(entries.length, 2);
   for (const line of entries) {
