@@ -420,7 +420,7 @@ Untuk menghubungkan giro yang sudah diperiksa dengan hutang manual yang benar-be
 ### Q48: Bagaimana cara mencatat pemasukan tanpa transaksi?
 
 1. Buka **Keuangan**, lalu klik **Tambah Pemasukan** di bagian **Pemasukan tanpa transaksi**.
-2. Isi tanggal, keterangan / sumber, nominal, dan kategori RC: **ATK, Cetak, Spanduk, Print, Stempel**, lalu klik **Simpan**.
+2. Isi tanggal, keterangan / sumber, nominal, dan kategori RC: **ATK, Cetak, Spanduk, Print, Stempel**. Pilih satu atau beberapa metode pembayaran; jumlah masing-masing metode harus sesuai total nominal. Klik **Simpan**.
 3. Gunakan **Ubah/Hapus** sesuai izin bila perlu. **Unduh ulang** Excel bulanan agar RC serta ringkasan memuat data terbaru. File lama tidak berubah otomatis.
 
 ### Q49: Bagaimana cara mencatat belanja manual via transfer?

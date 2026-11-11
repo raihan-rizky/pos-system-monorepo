@@ -47,6 +47,20 @@ describe("Riwayat penerimaan dan Outstanding DP", () => {
     expect(body.manualEntries).toEqual([]);
   });
 
+  it("menggabungkan pemasukan multi-payment dan memfilter nominal per metode", async () => {
+    const route = await loadRoute(); expect(route).not.toBeNull(); if (!route) return;
+    mocks.user.mockResolvedValue({ id: "owner", role: "OWNER", storeId: "store-1" });
+    const income = { id: "manual", occurredAt: new Date("2026-11-11T04:00:00Z"), category: "ATK", amount: 20_000 };
+    mocks.manual.mockImplementation(async query => query.select?.category
+      ? [{ ...income, ...(query.select.payments ? { payments: [{ method: "CASH", amount: 8_000 }, { method: "TRANSFER", amount: 12_000 }] } : {}) }]
+      : [{ id: "manual", description: "Pemasukan contoh" }]);
+
+    const all = await (await route.GET(request())).json();
+    expect(all.manualEntries).toEqual([expect.objectContaining({ id: "manual", amount: 20_000, methods: ["CASH", "TRANSFER"] })]);
+    const filtered = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&method=TRANSFER"))).json();
+    expect(filtered.manualEntries).toEqual([expect.objectContaining({ id: "manual", amount: 12_000, methods: ["TRANSFER"] })]);
+  });
+
   it("memfilter subkategori sesuai alokasi penerimaan", async () => {
     const route = await loadRoute(); expect(route).not.toBeNull(); if (!route) return;
     const body = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&category=ATK&subcategory=Kertas"))).json();

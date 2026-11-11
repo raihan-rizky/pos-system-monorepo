@@ -35,7 +35,7 @@ export async function loadIncomePeriod(storeId: string, fromDate: string, toDate
     }),
     db.manualIncome.findMany({
       where: { storeId, deletedAt: null, occurredAt: bounds },
-      select: { id: true, occurredAt: true, category: true, amount: true },
+      select: { id: true, occurredAt: true, category: true, amount: true, payments: { select: { method: true, amount: true } } },
     }),
   ]);
   return buildIncomePeriod({ fromDate, toDate: effectiveTo, transactions, manualIncome });

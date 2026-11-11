@@ -31,7 +31,7 @@ describe("pemuatan penerimaan untuk satu rentang", () => {
     expect(mocks.manual).toHaveBeenCalledTimes(1);
     expect(mocks.transactions.mock.calls[0][0].where.storeId).toBe("store-1");
     expect(mocks.manual.mock.calls[0][0].where).toMatchObject({ storeId: "store-1", deletedAt: null });
-    expect(mocks.manual.mock.calls[0][0].select).not.toHaveProperty("payments");
+    expect(mocks.manual.mock.calls[0][0].select.payments).toEqual({ select: { method: true, amount: true } });
     expect(mocks.manual.mock.calls[0][0].where.occurredAt).toEqual({ gte: new Date("2026-11-09T17:00:00Z"), lt: new Date("2026-11-11T17:00:00Z") });
   });
 

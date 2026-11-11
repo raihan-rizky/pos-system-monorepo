@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
-    const user = await requirePermission("income.manual", "read");
+    const user = await requirePermission('income.manual', 'read');
     if (!user.storeId) return apiError('Toko pengguna belum tersedia.', 403, { code: 'Forbidden' });
     const { searchParams } = new URL(request.url);
     const month = searchParams.get('month') ?? manualFinanceDateBounds().max.slice(0, 7);
@@ -22,11 +22,11 @@ export async function GET(request: Request) {
     const [rows, total] = await Promise.all([
       db.manualIncome.findMany({
         where, skip, take: limit, orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
-        select: { id: true, description: true, category: true, amount: true, occurredAt: true, createdAt: true, recordedBy: { select: { id: true, name: true } } },
+        select: { id: true, description: true, category: true, amount: true, occurredAt: true, createdAt: true, updatedAt: true, recordedBy: { select: { id: true, name: true } }, payments: { select: { method: true, amount: true } } },
       }),
       db.manualIncome.count({ where }),
     ]);
-    return apiList(rows.map(row => ({ ...row, amount: Number(row.amount) })), buildPaginationMeta(total, page, limit));
+    return apiList(rows.map(row => ({ ...row, amount: Number(row.amount), payments: (row.payments ?? []).map(payment => ({ ...payment, amount: Number(payment.amount) })) })), buildPaginationMeta(total, page, limit));
   } catch (error) {
     const auth = handleAuthError(error);
     if (auth) return auth;
@@ -37,16 +37,18 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requirePermission("income.manual", "create");
+    const user = await requirePermission('income.manual', 'create');
     if (!user.storeId) return apiError('Toko pengguna belum tersedia.', 403, { code: 'Forbidden' });
     const body: unknown = await request.json().catch(() => null);
     const result = validateManualIncome(body);
     if (!result.success) return apiError('Periksa isian pemasukan.', 422, { code: 'ValidationError', errors: result.errors });
+    if (!result.data.payments) return apiError('Periksa isian pemasukan.', 422, { code: 'ValidationError', errors: { payments: ['Pilih minimal satu metode pembayaran.'] } });
+    const { payments, ...income } = result.data;
     const row = await db.manualIncome.create({ data: {
-      ...result.data, occurredAt: new Date(`${result.data.occurredAt}T00:00:00+07:00`),
-      storeId: user.storeId, recordedById: user.id,
-    } });
-    return NextResponse.json({ data: { ...row, amount: Number(row.amount) } }, { status: 201 });
+      ...income, occurredAt: new Date(`${income.occurredAt}T00:00:00+07:00`),
+      storeId: user.storeId, recordedById: user.id, payments: { create: payments },
+    }, include: { payments: { select: { method: true, amount: true } } } });
+    return NextResponse.json({ data: { ...row, amount: Number(row.amount), payments: (row.payments ?? []).map(payment => ({ ...payment, amount: Number(payment.amount) })) } }, { status: 201 });
   } catch (error) {
     const auth = handleAuthError(error);
     if (auth) return auth;

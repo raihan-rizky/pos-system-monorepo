@@ -73,6 +73,18 @@ describe("database reset planner", () => {
     expect(plan.operations.map(item => item.model)).not.toContain("CashierShift");
   });
 
+  it("previews manual income payment details for the selected store before their parent", async () => {
+    const plan = await createDatabaseResetPlan({
+      db: createFakeDb({ counts: { manualIncome: 1, manualIncomePayment: 2 } }),
+      storeId: "store-a",
+      domains: ["salesFinance"],
+    });
+    const payment = plan.operations.find(item => item.model === "ManualIncomePayment");
+    expect(payment).toMatchObject({ mode: "cascade", count: 2, where: { manualIncome: { storeId: "store-a" } } });
+    expect(plan.cascades).toContainEqual(expect.objectContaining({ model: "ManualIncomePayment", count: 2 }));
+    expect(plan.operations.findIndex(item => item.model === "ManualIncomePayment")).toBeLessThan(plan.operations.findIndex(item => item.model === "ManualIncome"));
+  });
+
   it.each([{ models: ["ShoppingRequest"] as const }, { domains: ["supplierProcurement"] as const }])("includes store-scoped deletion audits before shopping requests (%j)", async selection => {
     const deleteOrder: string[] = [];
     const db = createFakeDb({ counts: { shoppingRequest: 1, shoppingRequestDeletion: 1 }, deleteOrder });

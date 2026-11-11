@@ -960,8 +960,8 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     requiredCapabilities: [{ resource: "income", action: "create" }],
     steps: [
       { title: "Tambah Pemasukan", description: "Di Keuangan, cari Pemasukan tanpa transaksi dan klik Tambah Pemasukan." },
-      { title: "Isi empat isian", description: "Isi tanggal WIB, keterangan / sumber, nominal, dan Kategori RC: ATK, Cetak, Spanduk, Print, Stempel. Klik Simpan." },
-      { title: "Periksa dan unduh ulang", description: "Catatan masuk ke ringkasan dan RC sesuai kategori. Gunakan Ubah atau Hapus sesuai izin untuk koreksi. Unduh ulang Excel bulanan setelah perubahan; file lama tidak berubah otomatis." },
+      { title: "Isi pemasukan", description: "Isi tanggal WIB, keterangan / sumber, nominal, dan Kategori RC: ATK, Cetak, Spanduk, Print, Stempel. Pilih satu atau beberapa metode pembayaran dan isi jumlah tiap metode hingga sama dengan nominal, lalu klik Simpan." },
+      { title: "Periksa dan unduh ulang", description: "Catatan masuk ke ringkasan dan RC sesuai kategori. Rincian metode tampil pada daftar dan laporan pemasukan harian sesuai izin. Gunakan Ubah atau Hapus untuk koreksi. Unduh ulang Excel bulanan setelah perubahan." },
     ],
   }),
   workflow({
