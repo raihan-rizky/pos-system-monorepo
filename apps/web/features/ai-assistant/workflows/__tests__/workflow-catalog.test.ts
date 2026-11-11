@@ -395,4 +395,16 @@ describe("FAQ workflow catalog", () => {
     expect(inbound).toContain("Transfer atau Giro");
     expect(inbound).toContain("total pembelian penuh");
   });
+
+  it("explains the Piutang KPI without combining DP", () => {
+    const report = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 52)!;
+    const text = JSON.stringify(report.steps);
+
+    expect(text).toContain("Piutang = sisa transaksi Tempo + sisa Piutang Manual");
+    expect(text).toContain("tanggal akhir rentang");
+    expect(text).toContain("tanggal pilihan");
+    expect(text).toContain("izin baca transaksi dan data Pelanggan");
+    expect(text).toContain("role yang digunakan");
+    expect(text).toContain("Sisa transaksi berstatus DP. Tidak termasuk Tempo atau Piutang Manual.");
+  });
 });

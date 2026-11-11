@@ -22,6 +22,17 @@ describe("daily receipt ranges", () => {
   });
 });
 
+describe("daily receivable access", () => {
+  it("requires both transaction and customer read permissions", async () => {
+    const dailyIncomeModule = await import("../daily-income") as Record<string, unknown>;
+    const hasDailyReceivableAccess = dailyIncomeModule.hasDailyReceivableAccess as ((canRead: (target: string) => boolean) => boolean) | undefined;
+    expect(hasDailyReceivableAccess).toBeTypeOf("function");
+    expect(hasDailyReceivableAccess?.(target => ["transaction", "customer"].includes(target))).toBe(true);
+    expect(hasDailyReceivableAccess?.(target => target === "transaction")).toBe(false);
+    expect(hasDailyReceivableAccess?.(target => target === "customer")).toBe(false);
+  });
+});
+
 describe("income categories", () => {
   it("uses canonical printing markers rather than product names", () => {
     expect(incomeClassification(transaction()).category).toBe("ATK");

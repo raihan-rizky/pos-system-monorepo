@@ -28,6 +28,18 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "kpi-piutang-dashboard-laporan", date: "2026-11-11", revision: 1,
+    highlight: { title: "Pantau saldo Piutang", summary: "Saldo Tempo dan Piutang Manual terlihat, dengan DP tetap terpisah." },
+    title: "Pantau Piutang di tiga tampilan laporan.",
+    summary: "Kartu Piutang merangkum sisa Tempo dan Piutang Manual di Dashboard dan laporan saat role memiliki izin baca transaksi serta data Pelanggan. Outstanding DP tetap terpisah.",
+    kind: "improvement", impact: "major", area: "Laporan Keuangan", href: "/financial-report", visual: "financial",
+    steps: [
+      { title: "Buka ringkasan", detail: "Buka Dashboard atau Laporan Keuangan untuk melihat kartu Piutang." },
+      { title: "Pilih tanggal laporan", detail: "Laporan Lengkap memakai tanggal akhir rentang; tampilan harian Sales memakai tanggal pilihan." },
+      { title: "Baca saldo Piutang", detail: "Piutang memuat sisa Tempo dan Piutang Manual. Outstanding DP tampil terpisah sesuai izin." },
+    ],
+  },
+  {
     id: "manual-income-split-payments", date: "2026-11-11", revision: 1,
     highlight: { title: "Metode pemasukan manual", summary: "Bagi satu pemasukan ke beberapa metode pembayaran." },
     title: "Catat beberapa metode pembayaran pemasukan.",

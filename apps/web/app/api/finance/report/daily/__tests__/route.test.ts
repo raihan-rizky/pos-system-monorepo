@@ -1,26 +1,33 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
-const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn() }));
+const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn(), customerReceivables: vi.fn() }));
 vi.mock(import("@/lib/rbac/guard"), async importOriginal => ({
   ...await importOriginal(),
   getCurrentUser: mocks.user,
 }));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
-vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual } } }));
+vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual }, customerReceivable: { findMany: mocks.customerReceivables } } }));
 import { GET } from "../route";
 
 const targets = ["financial-report.daily-income", "financial-report.daily-category", "financial-report.daily-subcategory", "financial-report.daily-payment-method", "financial-report.daily-outstanding-dp"];
 const sections = ["total", "categories", "subcategories", "paymentMethods", "outstandingDp"];
 const request = (query = "date=2026-11-05") => new Request(`http://localhost/api/finance/report/daily?${query}`);
+const permissionsWithoutReceivableRead = () => {
+  const permissions = buildDefaultRolePermissions();
+  permissions.SALES.resources.transaction.read = false;
+  permissions.SALES.resources.customer.read = false;
+  return permissions;
+};
 
 describe("daily finance API", () => {
   beforeEach(() => {
     vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date("2026-11-05T03:00:00Z"));
     mocks.user.mockResolvedValue({ id: "sales-1", role: "SALES", storeId: "store-1" });
-    mocks.permissions.mockResolvedValue(buildDefaultRolePermissions());
+    mocks.permissions.mockResolvedValue(permissionsWithoutReceivableRead());
     mocks.transactions.mockResolvedValue([{ id: "t1", createdAt: new Date("2026-10-01T03:00:00Z"), status: "DP", total: 100, amountPaid: 40, change: 0, paymentMethod: "TRANSFER", transactionCategory: "PERCETAKAN", printingSubcategory: "PLAT", items: [], payments: [{ id: "p1", method: "TRANSFER", amount: 40, createdAt: new Date() }], debtPaymentLogs: [] }]);
     mocks.manual.mockResolvedValue([]);
+    mocks.customerReceivables.mockResolvedValue([]);
   });
   afterEach(() => vi.useRealTimers());
 
@@ -68,8 +75,49 @@ describe("daily finance API", () => {
     });
   });
 
+  it("returns the selected-date receivable balance as the only granted daily metric", async () => {
+    const permissions = permissionsWithoutReceivableRead();
+    for (const target of targets) permissions.SALES.resources[target].read = false;
+    permissions.SALES.resources.transaction.read = true;
+    permissions.SALES.resources.customer.read = true;
+    mocks.permissions.mockResolvedValue(permissions);
+    mocks.transactions.mockResolvedValue([{ status: "COMPLETED", paymentMethod: "TEMPO", total: 1_000, amountPaid: 400 }]);
+    mocks.customerReceivables.mockResolvedValueOnce([{ amount: 500, amountPaid: 200 }]);
+
+    const response = await GET(request("date=2026-11-05"));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ date: "2026-11-05", receivableBalance: 900 });
+    expect(mocks.transactions).toHaveBeenCalledOnce();
+    expect(mocks.transactions.mock.calls[0][0].where).toMatchObject({
+      storeId: "store-1", status: "COMPLETED", paymentMethod: "TEMPO",
+      invoiceDate: { lt: new Date("2026-11-05T17:00:00.000Z") },
+    });
+    expect(mocks.customerReceivables).toHaveBeenCalledWith(expect.objectContaining({
+      where: { storeId: "store-1", debtDate: { lte: new Date("2026-11-05T00:00:00.000Z") } },
+    }));
+    expect(mocks.manual).not.toHaveBeenCalled();
+  });
+
+  it.each(["transaction", "customer"] as const)("omits the receivable balance when %s read is denied", async deniedTarget => {
+    const permissions = permissionsWithoutReceivableRead();
+    permissions.SALES.resources.transaction.read = true;
+    permissions.SALES.resources.customer.read = true;
+    permissions.SALES.resources[deniedTarget].read = false;
+    permissions.SALES.resources["financial-report.daily-outstanding-dp"].read = true;
+    mocks.permissions.mockResolvedValue(permissions);
+
+    const response = await GET(request());
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toHaveProperty("outstandingDp", 60);
+    expect(body).not.toHaveProperty("receivableBalance");
+    expect(mocks.customerReceivables).not.toHaveBeenCalled();
+  });
+
   it.each(targets.map((target, index) => [target, sections[index]]))("returns only the independently granted section %s", async (target, section) => {
-    const permissions = buildDefaultRolePermissions();
+    const permissions = permissionsWithoutReceivableRead();
     for (const key of targets) permissions.SALES.resources[key].read = key === target;
     mocks.permissions.mockResolvedValue(permissions);
     const response = await GET(request());
@@ -78,7 +126,7 @@ describe("daily finance API", () => {
   });
 
   it("denies access when all sections are revoked before querying financial rows", async () => {
-    const permissions = buildDefaultRolePermissions();
+    const permissions = permissionsWithoutReceivableRead();
     for (const target of targets) permissions.SALES.resources[target].read = false;
     mocks.permissions.mockResolvedValue(permissions);
     expect((await GET(request())).status).toBe(403);
@@ -86,7 +134,7 @@ describe("daily finance API", () => {
     expect(mocks.manual).not.toHaveBeenCalled();
   });
   it("requires page access in addition to section permissions", async () => {
-    const permissions = buildDefaultRolePermissions(); permissions.SALES.pages["/financial-report"] = false;
+    const permissions = permissionsWithoutReceivableRead(); permissions.SALES.pages["/financial-report"] = false;
     mocks.permissions.mockResolvedValue(permissions);
     expect((await GET(request())).status).toBe(403);
   });
@@ -111,16 +159,18 @@ describe("daily finance API", () => {
   });
   it("uses saved SALES section grants in the OWNER preview, not OWNER grants", async () => {
     mocks.user.mockResolvedValue({ id: "owner", role: "OWNER", storeId: "store-1" });
-    const permissions = buildDefaultRolePermissions();
+    const permissions = permissionsWithoutReceivableRead();
     for (const key of targets) permissions.SALES.resources[key] = { create: false, read: key === "financial-report.daily-outstanding-dp", update: false, delete: false };
     mocks.permissions.mockResolvedValue(permissions);
     const response = await GET(request("date=2026-11-05&view=sales"));
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ date: "2026-11-05", outstandingDp: 60 });
+    const body = await response.json();
+    expect(body).toMatchObject({ date: "2026-11-05", outstandingDp: 60 });
+    expect(body).not.toHaveProperty("receivableBalance");
   });
   it("reports saved Sales access to receipt history for Owner preview", async () => {
     mocks.user.mockResolvedValue({ id: "owner", role: "OWNER", storeId: "store-1" });
-    const permissions = buildDefaultRolePermissions();
+    const permissions = permissionsWithoutReceivableRead();
     permissions.SALES.pages["/history"] = false;
     mocks.permissions.mockResolvedValue(permissions);
     const body = await (await GET(request("date=2026-11-05&view=sales"))).json();
@@ -128,7 +178,7 @@ describe("daily finance API", () => {
   });
   it("reports the full SALES view when full access is granted without querying daily data", async () => {
     mocks.user.mockResolvedValue({ id: "owner", role: "OWNER", storeId: "store-1" });
-    const permissions = buildDefaultRolePermissions();
+    const permissions = permissionsWithoutReceivableRead();
     permissions.SALES.resources["financial-report"].read = true;
     for (const key of targets) permissions.SALES.resources[key].read = false;
     mocks.permissions.mockResolvedValue(permissions);
@@ -140,7 +190,7 @@ describe("daily finance API", () => {
   });
   it("does not let the OWNER preview bypass the SALES page grant", async () => {
     mocks.user.mockResolvedValue({ id: "owner", role: "OWNER", storeId: "store-1" });
-    const permissions = buildDefaultRolePermissions();
+    const permissions = permissionsWithoutReceivableRead();
     permissions.SALES.pages["/financial-report"] = false;
     mocks.permissions.mockResolvedValue(permissions);
     expect((await GET(request("date=2026-11-05&view=sales"))).status).toBe(403);

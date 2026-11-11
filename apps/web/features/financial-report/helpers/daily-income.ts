@@ -10,7 +10,10 @@ export const DAILY_INCOME_PERMISSIONS = {
   subcategories: "financial-report.daily-subcategory",
   paymentMethods: "financial-report.daily-payment-method",
 } as const;
-export type DailyIncomeAccess = Record<keyof typeof DAILY_INCOME_PERMISSIONS, boolean>;
+export type DailyIncomeAccess = Record<keyof typeof DAILY_INCOME_PERMISSIONS, boolean> & { receivableBalance: boolean };
+export function hasDailyReceivableAccess(canRead: (target: string) => boolean): boolean {
+  return ["transaction", "customer"].every(canRead);
+}
 type Payment = { id: string; method: string; amount: unknown; createdAt: Date };
 export type DailyIncomeTransaction = IncomeClassificationInput & {
   id: string; createdAt: Date; invoiceDate?: Date; status: string; paymentMethod: string; total: unknown; amountPaid: unknown; change?: unknown;
@@ -28,6 +31,7 @@ export type DailyIncomeReport = {
 };
 export type DailyIncomeResponse = Pick<DailyIncomeReport, "date"> & Partial<Omit<DailyIncomeReport, "date">> & {
   viewMode?: "full";
+  receivableBalance?: number;
   receiptHistoryAccess?: { total: boolean; category: boolean; subcategory: boolean; method: boolean; outstandingDp: boolean };
 };
 

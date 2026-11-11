@@ -16,6 +16,7 @@ vi.mock("@pos/db", () => {
     debtPaymentLog: { findMany: mocks.findDebtPayments },
     backdatedPurchase: { findMany: mocks.findBackdated },
     manualIncome: { findMany: async () => [] },
+    rolePermission: { findMany: async () => [] },
   };
   return { db: { ...tx, $transaction: (callback: (value: typeof tx) => unknown) => callback(tx) } };
 });

@@ -12,6 +12,22 @@ describe('HelpContent', () => {
     expect(text).toContain('tidak dapat dihapus');
     expect(text).toContain('termasuk yang sudah lunas');
   });
+  it('documents the Piutang KPI scope, dates, and separation from DP', () => {
+    const owner = HELP_ROLE_CONTENT.OWNER.find(item => item.id === 'owner-reports')!;
+    const sales = HELP_ROLE_CONTENT.SALES.find(item => item.id === 'sales-daily-income')!;
+    const ownerText = JSON.stringify(owner);
+    const salesText = JSON.stringify(sales);
+
+    expect(ownerText).toContain('Piutang = sisa transaksi Tempo + sisa Piutang Manual');
+    expect(ownerText).toContain('Dashboard memakai saldo sampai hari ini');
+    expect(ownerText).toContain('Laporan Lengkap memakai tanggal akhir rentang');
+    expect(salesText).toContain('Piutang = sisa transaksi Tempo + sisa Piutang Manual');
+    expect(salesText).toContain('tanggal pilihan');
+    expect(salesText).toContain('izin baca transaksi dan data Pelanggan');
+    for (const text of [ownerText, salesText]) {
+      expect(text).toContain('Sisa transaksi berstatus DP. Tidak termasuk Tempo atau Piutang Manual.');
+    }
+  });
   it('explains editable draft numbers and prefilled WIB dates', () => {
     const text = JSON.stringify(HELP_ROLE_CONTENT);
     expect(text).toContain('Gunakan otomatis');

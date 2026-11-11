@@ -12,6 +12,7 @@ const queryRawMock = vi.hoisted(() => vi.fn());
 const transactionItemGroupByMock = vi.hoisted(() => vi.fn());
 const manualIncomeFindManyMock = vi.hoisted(() => vi.fn());
 const getGlobalRolePermissionsMock = vi.hoisted(() => vi.fn());
+const loadReceivableBalanceMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
@@ -19,6 +20,7 @@ vi.mock("@/lib/rbac/guard", () => ({
 }));
 
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: getGlobalRolePermissionsMock }));
+vi.mock("@/features/customer-debt/services/receivable-balance", () => ({ loadReceivableBalance: loadReceivableBalanceMock }));
 
 vi.mock("@pos/db", () => ({
   db: {
@@ -38,6 +40,7 @@ describe("GET /api/dashboard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getGlobalRolePermissionsMock.mockResolvedValue(buildDefaultRolePermissions());
+    loadReceivableBalanceMock.mockResolvedValue(0);
     manualIncomeFindManyMock.mockResolvedValue([]);
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-09T04:00:00.000Z"));
@@ -231,5 +234,31 @@ describe("GET /api/dashboard", () => {
       "Toner HP",
       "Jasa",
     ]);
+  });
+
+  it("returns receivable balance for the current store as of today's Jakarta date", async () => {
+    loadReceivableBalanceMock.mockResolvedValue(125_000);
+
+    const { GET } = await import("../route");
+    const response = await GET();
+    const body = await response.json();
+
+    expect(body.receivableBalance).toBe(125_000);
+    expect(loadReceivableBalanceMock).toHaveBeenCalledWith("store-main", "2026-07-09");
+  });
+
+  it("returns a null receivable balance when the role lacks customer read access", async () => {
+    requirePermissionMock.mockResolvedValue({
+      id: "inventory-1",
+      role: "INVENTORY",
+      storeId: "store-main",
+    });
+
+    const { GET } = await import("../route");
+    const response = await GET();
+    const body = await response.json();
+
+    expect(body.receivableBalance).toBeNull();
+    expect(loadReceivableBalanceMock).not.toHaveBeenCalled();
   });
 });

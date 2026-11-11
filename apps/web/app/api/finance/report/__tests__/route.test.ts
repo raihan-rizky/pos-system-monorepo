@@ -4,6 +4,16 @@ import { GET } from "../route";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
+const globalRolePermissionsMock = vi.hoisted(() => vi.fn(async () => ({})));
+const canRolePerformActionMock = vi.hoisted(() =>
+  vi.fn(
+    (_role: string, _resource: string, _action: string, _permissions: unknown) =>
+      false,
+  ),
+);
+const loadReceivableBalanceMock = vi.hoisted(() =>
+  vi.fn(async (_storeId: string, _asOfDate: string) => 0),
+);
 const transactionFindManyMock = vi.hoisted(() => vi.fn());
 const debtPaymentLogFindManyMock = vi.hoisted(() => vi.fn());
 const cashierShiftFindManyMock = vi.hoisted(() => vi.fn());
@@ -14,6 +24,18 @@ const expenseCountMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
   handleAuthError: handleAuthErrorMock,
+}));
+
+vi.mock("@/features/rbac/helpers/rbac-server", () => ({
+  getGlobalRolePermissions: globalRolePermissionsMock,
+}));
+
+vi.mock("@/features/rbac/helpers/rbac-core", () => ({
+  canRolePerformAction: canRolePerformActionMock,
+}));
+
+vi.mock("@/features/customer-debt/services/receivable-balance", () => ({
+  loadReceivableBalance: loadReceivableBalanceMock,
 }));
 
 vi.mock("@pos/db", () => ({
@@ -54,6 +76,9 @@ describe("GET /api/finance/report", () => {
       _count: { _all: 0 },
     });
     expenseCountMock.mockResolvedValue(0);
+    globalRolePermissionsMock.mockResolvedValue({});
+    canRolePerformActionMock.mockImplementation(() => false);
+    loadReceivableBalanceMock.mockReset();
   });
 
   afterEach(() => {
@@ -323,5 +348,141 @@ describe("GET /api/finance/report", () => {
         }),
       }),
     );
+  });
+
+  it("includes Piutang as of dateTo for an Owner Sales preview with both read permissions", async () => {
+    const permissions = { catalog: "test" };
+    requirePermissionMock.mockResolvedValueOnce({
+      id: "owner-1",
+      role: "OWNER",
+      storeId: "store-main",
+    });
+    globalRolePermissionsMock.mockResolvedValueOnce(permissions);
+    canRolePerformActionMock.mockReturnValue(true);
+    loadReceivableBalanceMock.mockResolvedValueOnce(425000);
+
+    const response = await GET(
+      new NextRequest(
+        "http://localhost/api/finance/report?dateFrom=2026-05-01&dateTo=2026-05-31&view=sales",
+      ),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(canRolePerformActionMock).toHaveBeenCalledWith(
+      "SALES",
+      "transaction",
+      "read",
+      permissions,
+    );
+    expect(canRolePerformActionMock).toHaveBeenCalledWith(
+      "SALES",
+      "customer",
+      "read",
+      permissions,
+    );
+    expect(loadReceivableBalanceMock).toHaveBeenCalledWith(
+      "store-main",
+      "2026-05-31",
+    );
+    expect(body.summary.receivableBalance).toBe(425000);
+  });
+
+  it.each(["transaction", "customer"])(
+    "omits Piutang from the full report when the effective role lacks %s:read",
+    async (deniedResource) => {
+      const permissions = { catalog: "test" };
+      requirePermissionMock.mockResolvedValueOnce({
+        id: "owner-1",
+        role: "OWNER",
+        storeId: "store-main",
+      });
+      globalRolePermissionsMock.mockResolvedValueOnce(permissions);
+      canRolePerformActionMock.mockImplementation(
+        (role, resource, action) =>
+          role === "OWNER" && action === "read" && resource !== deniedResource,
+      );
+
+      const response = await GET(
+        new NextRequest(
+          "http://localhost/api/finance/report?dateFrom=2026-05-01&dateTo=2026-05-31",
+        ),
+      );
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(canRolePerformActionMock).toHaveBeenCalledWith(
+        "OWNER",
+        "transaction",
+        "read",
+        permissions,
+      );
+      expect(canRolePerformActionMock).toHaveBeenCalledWith(
+        "OWNER",
+        "customer",
+        "read",
+        permissions,
+      );
+      expect(loadReceivableBalanceMock).not.toHaveBeenCalled();
+      expect(body.summary).not.toHaveProperty("receivableBalance");
+    },
+  );
+
+  it.each(["transaction", "customer"])(
+    "omits Piutang when the effective role lacks %s:read",
+    async (deniedResource) => {
+      const permissions = { catalog: "test" };
+      requirePermissionMock.mockResolvedValueOnce({
+        id: "owner-1",
+        role: "OWNER",
+        storeId: "store-main",
+      });
+      globalRolePermissionsMock.mockResolvedValueOnce(permissions);
+      canRolePerformActionMock.mockImplementation(
+        (role, resource, action) =>
+          role === "SALES" && action === "read" && resource !== deniedResource,
+      );
+
+      const response = await GET(
+        new NextRequest(
+          "http://localhost/api/finance/report?dateFrom=2026-05-01&dateTo=2026-05-31&view=sales",
+        ),
+      );
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(canRolePerformActionMock).toHaveBeenCalledWith(
+        "SALES",
+        "transaction",
+        "read",
+        permissions,
+      );
+      expect(canRolePerformActionMock).toHaveBeenCalledWith(
+        "SALES",
+        "customer",
+        "read",
+        permissions,
+      );
+      expect(loadReceivableBalanceMock).not.toHaveBeenCalled();
+      expect(body.summary).not.toHaveProperty("receivableBalance");
+    },
+  );
+
+  it("rejects view=sales for non-Owners", async () => {
+    requirePermissionMock.mockResolvedValueOnce({
+      id: "sales-1",
+      role: "SALES",
+      storeId: "store-main",
+    });
+
+    const response = await GET(
+      new NextRequest(
+        "http://localhost/api/finance/report?dateFrom=2026-05-01&dateTo=2026-05-31&view=sales",
+      ),
+    );
+
+    expect(response.status).toBe(403);
+    expect(transactionFindManyMock).not.toHaveBeenCalled();
+    expect(loadReceivableBalanceMock).not.toHaveBeenCalled();
   });
 });

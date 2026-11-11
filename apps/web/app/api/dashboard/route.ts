@@ -5,8 +5,10 @@ import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
 import { apiError } from "@/lib/api/responses";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
+import { canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
 import { resolveIncomeAccess } from "@/features/financial-report/helpers/income-access";
 import { loadIncomePeriod } from "@/features/financial-report/services/daily-income";
+import { loadReceivableBalance } from "@/features/customer-debt/services/receivable-balance";
 import {
   SALES_GROUP_LABELS,
   type SalesGroup,
@@ -64,9 +66,13 @@ export async function GET() {
     const monthStartKey = `${todayKey.slice(0, 7)}-01`;
     const chartStartKey = jakartaDateKey(new Date(todayStartWib.getTime() - 6 * 86_400_000));
     const incomeStartKey = monthStartKey < chartStartKey ? monthStartKey : chartStartKey;
-    const incomeAccess = await getGlobalRolePermissions()
-      .then(permissions => resolveIncomeAccess(user.role, permissions))
-      .catch(() => null);
+    const rolePermissions = await getGlobalRolePermissions().catch(() => null);
+    const incomeAccess = rolePermissions
+      ? resolveIncomeAccess(user.role, rolePermissions)
+      : null;
+    const canReadReceivables = rolePermissions
+      ? canRolePerformAction(user.role, "customer", "read", rolePermissions)
+      : false;
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const firstChartDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
@@ -86,6 +92,7 @@ export async function GET() {
       productionStatusCountsRaw,
       dpTransactionsRaw,
       incomePeriod,
+      receivableBalance,
     ] = await Promise.all([
       // 1. Revenue, profit, chart, and payment mix share one transaction range.
       db.transaction.findMany({
@@ -177,6 +184,8 @@ export async function GET() {
       }),
       // 9. Shared receipts and current outstanding DP.
       incomeAccess ? loadIncomePeriod(storeId, incomeStartKey, todayKey) : Promise.resolve(null),
+      // 10. Outstanding Tempo and manual customer receivables for this store.
+      canReadReceivables ? loadReceivableBalance(storeId, todayKey) : Promise.resolve(null),
     ]);
 
     // Calculate exact profit helper
@@ -335,6 +344,7 @@ export async function GET() {
       })),
       dpTransactions: dpTransactionsRaw,
       totalOutstandingDP: incomePeriod?.outstandingDp.reduce((sum, row) => sum + row.remaining, 0) ?? null,
+      receivableBalance,
       paymentMixToday,
     });
   } catch (error) {
