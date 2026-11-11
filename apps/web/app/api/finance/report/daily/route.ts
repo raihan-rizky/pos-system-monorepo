@@ -6,6 +6,7 @@ import { canRoleAccessPage, canRolePerformAction } from "@/features/rbac/helpers
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
 import { buildDailyIncomeRange, DAILY_INCOME_PERMISSIONS, jakartaToday, type DailyIncomeResponse } from "@/features/financial-report/helpers/daily-income";
 import { loadDailyIncome } from "@/features/financial-report/services/daily-income";
+import { resolveReceiptHistoryAccess } from "@/features/financial-report/helpers/income-access";
 
 export const dynamic = "force-dynamic";
 const log = getLogger("api:finance:report:daily");
@@ -55,6 +56,7 @@ export async function GET(request: Request) {
     const report = await loadDailyIncome(user.storeId, date);
     const body: DailyIncomeResponse = { date: report.date };
     for (const key of allowed) Object.assign(body, { [key]: report[key] });
+    if (view === "sales") body.receiptHistoryAccess = resolveReceiptHistoryAccess(effectiveRole, permissions);
     return NextResponse.json(body, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     log.error("Gagal memuat pemasukan harian", error);

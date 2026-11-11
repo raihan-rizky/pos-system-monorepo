@@ -1015,8 +1015,8 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     requiredCapabilities: [{ resource: "financial-report.daily-income", action: "read" }],
     steps: [
       { title: "Buka Laporan Keuangan", description: "Masuk ke Laporan Keuangan untuk membuka tampilan Pemasukan Harian." },
-      { title: "Pilih tanggal", description: "Pilih hari ini atau tanggal sebelumnya dalam WIB. Pembayaran awal/DP mengikuti tanggal nota yang tersimpan. Jika tanggal nota diubah ke hari lain, pembayaran awalnya ikut berpindah; pelunasan nota lama tetap masuk pada hari pembayaran." },
-      { title: "Baca rincian", description: "Periksa pemasukan, Outstanding DP, kategori ATK dan Percetakan, subkategori, serta metode pembayaran. Outstanding DP memakai sisa DP terkini dari nota hingga tanggal pilihan, bukan saldo historis dan tidak termasuk Tempo. Kelima bagian mengikuti izin masing-masing. Owner memilih Lihat sebagai Sales untuk meninjau izin Sales yang tersimpan, termasuk laporan penuh jika diizinkan, lalu Laporan Lengkap untuk kembali." },
+      { title: "Pilih tanggal", description: "Pilih hari ini atau tanggal sebelumnya dalam WIB. Nilai memakai uang yang diterima pada tanggal itu, termasuk DP dan pelunasan. Pembayaran awal offline mengikuti waktu checkout asli setelah tersinkron." },
+      { title: "Baca rincian", description: "Periksa pemasukan, Outstanding DP, kategori ATK dan Percetakan, subkategori, serta metode pembayaran. Klik nominal yang tersedia untuk membuka Riwayat dengan filter Harian pada tanggal pilihan, termasuk pelunasan nota lama. Gunakan Mingguan atau Bulanan untuk memperluas rentang dan pilih nomor nota untuk mencarinya; rincian manual mengikuti izin pemasukan. Dalam pratinjau Sales, keluar dari pratinjau untuk membuka nota dengan hak akun Owner. Outstanding DP memakai sisa DP terkini dari nota hingga tanggal pilihan, bukan saldo historis dan tidak termasuk Tempo. Owner memilih Lihat sebagai Sales untuk meninjau izin Sales yang tersimpan, termasuk laporan penuh jika diizinkan, lalu Laporan Lengkap untuk kembali." },
     ],
   }),
   workflow({

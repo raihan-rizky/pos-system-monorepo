@@ -229,6 +229,7 @@ export async function GET(request: Request) {
     if (search) {
       andConditions.push({
         OR: [
+          { id: search },
           { invoiceNumber: { contains: search, mode: "insensitive" } },
           { printingReceipt: { is: { number: { contains: search, mode: "insensitive" } } } },
           { customerName: { contains: search, mode: "insensitive" } },

@@ -13,7 +13,7 @@ const expense={...payload,id:'expense-1',storeId:'store-1',occurredAt:new Date('
 const req=(method:string,data:unknown=payload)=>new Request('http://localhost',{method,body:JSON.stringify(data)});
 
 describe('belanja transfer dan ringkasan pemasukan manual',()=>{
-  beforeEach(()=>{vi.clearAllMocks();mocks.expenseCreate.mockResolvedValue(expense);mocks.expenseUpdate.mockResolvedValue(expense);mocks.expenseFind.mockResolvedValue(expense);mocks.expenseList.mockResolvedValue([expense]);mocks.expenseCount.mockResolvedValue(1);mocks.transaction.mockResolvedValue([{createdAt:new Date('2026-11-01T17:00:00Z'),total:50000}]);mocks.manual.mockResolvedValue([{id:'income-1',occurredAt:new Date('2026-11-01T17:00:00Z'),amount:100000}]);});
+  beforeEach(()=>{vi.clearAllMocks();mocks.expenseCreate.mockResolvedValue(expense);mocks.expenseUpdate.mockResolvedValue(expense);mocks.expenseFind.mockResolvedValue(expense);mocks.expenseList.mockResolvedValue([expense]);mocks.expenseCount.mockResolvedValue(1);mocks.transaction.mockResolvedValue([{id:'tx-1',createdAt:new Date('2026-11-01T17:00:00Z'),status:'COMPLETED',total:50000,amountPaid:50000,change:0,paymentMethod:'CASH',transactionCategory:'ATK',items:[],payments:[{id:'p1',method:'CASH',amount:50000,createdAt:new Date('2026-11-01T17:00:00Z')}],debtPaymentLogs:[]}]);mocks.manual.mockResolvedValue([{id:'income-1',occurredAt:new Date('2026-11-01T17:00:00Z'),category:'ATK',amount:100000}]);});
   it('menyimpan satu Expense dengan metode transfer',async()=>{
     expect((await POST(req('POST'))).status).toBe(201);
     expect(mocks.expenseCreate).toHaveBeenCalledTimes(1);

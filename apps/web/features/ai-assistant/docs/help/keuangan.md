@@ -20,9 +20,9 @@ Pada Excel bulanan yang diunduh ulang, pengeluaran masuk sheet **PENGELUARAN BEL
 
 Buka sidebar **Keuangan > Keuangan** (`/keuangan`) untuk memantau arus kas bulanan toko. Halaman ini menyediakan:
 
-- **Net Cash Flow:** Ringkasan bersih arus kas masuk dan keluar.
+- **Net Cash Flow:** Ringkasan bersih arus kas masuk dan keluar, termasuk pelunasan piutang manual.
 - **Grafik Pemasukan vs Pengeluaran:** Visualisasi harian untuk membandingkan uang masuk dan uang keluar.
-- **Pemasukan dari Transaksi:** Total nominal yang diterima dari transaksi penjualan yang terjadi.
+- **Pemasukan dari Transaksi:** Total mengikuti tanggal penerimaan seperti Sales. Pilih baris harian untuk melihat Riwayat penerimaan jika izin tersedia, termasuk pelunasan nota lama.
 - **Daftar Pengeluaran:** Catatan pengeluaran operasional toko yang dikelompokkan per kategori (misal: sewa, listrik, gaji, operasional, dll).
 - **Sumber Pengeluaran:** Badge **Manual** menandai entri dari form. Badge **Pembelian Barang** menandai entri otomatis baru, sedangkan **Daftar Belanja (Legacy)** hanya untuk data lama.
 - **Pengeluaran Otomatis:** Nominal memakai jumlah dan harga yang disetujui pada Pembelian Barang, berkategori Bahan, dan tercatat saat penerimaan pertama yang berisi barang disetujui. Entri ini tidak dapat diedit, dihapus, atau diubah lampirannya dari halaman Keuangan.

@@ -1166,7 +1166,7 @@ function TransactionCategoryLabel({ transaction }: { transaction: Transaction })
   );
 }
 
-export default function HistoryClientPage() {
+export default function HistoryClientPage({ initialSearch = "" }: { initialSearch?: string }) {
   const { role, canPerform } = useRole();
   const isSalesRole = role === "SALES";
   const canUpdateTransactions = shouldShowUpdateAction("transaction", canPerform);
@@ -1199,8 +1199,8 @@ export default function HistoryClientPage() {
   const canApproveDrafts = canPerform("transaction.draft", "update");
 
   // Filter state
-  const [searchInput, setSearchInput] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [searchInput, setSearchInput] = useState(initialSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [quickDateFilter, setQuickDateFilter] =

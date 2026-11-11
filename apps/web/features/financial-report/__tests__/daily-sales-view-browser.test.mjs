@@ -20,12 +20,14 @@ const bundle = await build({
   plugins: [{ name: 'daily-report-boundaries', setup(build) {
     build.onResolve({ filter: /providers\/RoleProvider$/ }, () => ({ path: 'role', namespace: 'fixture' }));
     build.onResolve({ filter: /next\/dynamic$/ }, () => ({ path: 'dynamic', namespace: 'fixture' }));
+    build.onResolve({ filter: /^next\/link$/ }, () => ({ path: 'link', namespace: 'fixture' }));
     build.onResolve({ filter: /\/(ReportExportMenu|TrendChart)$/ }, () => ({ path: 'dynamic-component', namespace: 'fixture' }));
     build.onLoad({ filter: /.*/, namespace: 'fixture' }, ({ path: name }) => ({ contents: name === 'role'
       ? `export function useRole(){const role=new URL(location.href).searchParams.get('role')||'OWNER';
         const limited=new URL(location.href).searchParams.has('limited');return {role,userId:'test-'+role,storeId:'store-example',authorizationFingerprint:role+'-'+limited,
-        canAccess:()=>true,canPerform:target=>role==='OWNER'||(limited?target==='financial-report.daily-outstanding-dp':target.startsWith('financial-report.daily-'))};}`
-      : name === 'dynamic' ? 'export default function dynamic(){return ()=>null}' : 'export const ReportExportMenu=()=>null;export const TrendChart=()=>null;' }));
+        canAccess:()=>true,canPerform:target=>role==='OWNER'||target==='transaction'||(limited?target==='financial-report.daily-outstanding-dp':target.startsWith('financial-report.daily-'))};}`
+      : name === 'link' ? 'import React from "react"; export default function Link({href,children,...props}){return React.createElement("a",{href,...props},children)}'
+      : name === 'dynamic' ? 'export default function dynamic(){return ()=>null}' : 'export const ReportExportMenu=()=>null;export const TrendChart=()=>null;', resolveDir: web }));
   } }],
 });
 const sourceFiles = ['app/(main)/financial-report/page.tsx', 'features/financial-report/components/DailyIncomeReport.tsx', 'features/financial-report/components/KpiCard.tsx', 'features/financial-report/components/PaymentBreakdownCard.tsx', 'features/financial-report/components/RankedListCard.tsx', 'features/financial-report/components/ShiftReconciliationCard.tsx', 'features/financial-report/components/LossStokBreakdownCard.tsx'];
@@ -33,7 +35,7 @@ const sources = await Promise.all(sourceFiles.map(file => readFile(path.join(web
 const theme = require('tailwindcss/loadConfig')(path.join(repo, 'packages/config/tailwind.config.ts'));
 const css = await require('postcss')([require('tailwindcss')({ ...theme, content: sources.map(raw => ({ raw, extension: 'tsx' })) })]).process('@tailwind base; @tailwind utilities;', { from: undefined });
 const html = `<!doctype html><html lang="id"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Contoh laporan harian</title><style>${css.css}body{font-family:system-ui,sans-serif;background:#f8fafc}</style><body><div id="root"></div></body></html>`;
-const output = path.join(repo, 'output/playwright/daily-sales-view');
+const output = path.join(repo, 'output/playwright/receipt-reconciliation-20261111');
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
@@ -44,7 +46,7 @@ try {
     let fail = false;
     let restrict = false;
     let salesFull = false;
-    page.on('pageerror', error => errors.push(error.message));
+    page.on('pageerror', error => { errors.push(error.message); process.stderr.write(`Browser error: ${error.message}\n`); });
     await page.clock.install({ time: new Date('2026-11-07T03:00:00Z') });
     await page.route('http://daily-sales.test/**', route => {
       const url = new URL(route.request().url());
@@ -55,6 +57,7 @@ try {
         const limited = restrict || new URL(page.url()).searchParams.has('limited');
         const json = { date: url.searchParams.get('date'), outstandingDp: 25000 };
         if (!limited) Object.assign(json, { total: 25000, categories: [{ category: 'Percetakan', amount: 25000 }], subcategories: [{ category: 'Percetakan', subcategory: 'Spanduk', amount: 25000 }], paymentMethods: [{ method: 'CASH', amount: 25000 }] });
+        if (url.searchParams.get('view') === 'sales') json.receiptHistoryAccess = { total: !limited, category: !limited, subcategory: !limited, method: !limited, outstandingDp: true };
         return route.fulfill({ json });
       }
       if (url.pathname === '/api/finance/report') {
@@ -84,6 +87,11 @@ try {
     if (width === 1280) await page.locator('#root').screenshot({ path: path.join(output, 'sales-crop.png') });
     await page.getByLabel('Tanggal pemasukan').fill('2026-11-06');
     await expect.poll(() => requests.at(-1).date).toBe('2026-11-06');
+    const totalLink = page.getByRole('link', { name: /Lihat rincian Total Pemasukan/ });
+    await expect(totalLink).toHaveAttribute('href', /mode=receipt.*date=2026-11-06.*view=sales/);
+    await totalLink.focus(); await expect(totalLink).toBeFocused();
+    await expect(page.getByRole('link', { name: /Lihat rincian Percetakan \/ Spanduk/ })).toHaveAttribute('href', /subcategory=Spanduk/);
+    await expect(page.getByRole('link', { name: /Lihat rincian Outstanding DP/ })).toHaveAttribute('href', /mode=outstanding-dp/);
     fail = true;
     await page.getByRole('button', { name: 'Muat ulang pemasukan harian' }).click();
     await expect(page.getByRole('alert')).toContainText('Laporan contoh belum dapat dimuat.');
@@ -113,6 +121,14 @@ try {
     await expect(page.getByRole('button', { name: 'Lihat sebagai Sales', exact: true })).toHaveCount(0);
     assert.equal(requests.filter(row => row.full).length, beforeSales);
     assert.equal(requests.at(-1).view, undefined);
+    restrict = false; salesFull = false;
+    await load('?role=SALES');
+    await page.getByLabel('Tanggal pemasukan').fill('2026-11-06');
+    const receiptLink = page.getByRole('link', { name: /Lihat rincian Total Pemasukan/ });
+    await expect(receiptLink).toHaveAttribute('href', /mode=receipt.*date=2026-11-06/);
+    await receiptLink.click();
+    assert.equal(new URL(page.url()).pathname, '/history');
+    assert.equal(new URL(page.url()).searchParams.get('date'), '2026-11-06');
     assert.deepEqual(errors, []);
     process.stdout.write(`PASS ${width}px: toggle, keyboard/focus, same daily API, dates, independent grants, error/retry, mobile overflow\n`);
     await page.close();

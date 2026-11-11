@@ -13,6 +13,8 @@ Buka sidebar **Keuangan > Laporan Keuangan** (`/financial-report`) untuk melihat
 ### Pemasukan Harian untuk Sales
 Sales dengan izin halaman dan izin harian dapat memilih satu tanggal WIB, termasuk tanggal sebelumnya. Tampilan ini hanya memuat uang yang diterima, kategori **ATK** dan **Percetakan**, subkategori, serta metode pembayaran. Laba, HPP, pengeluaran, peringkat produk atau sales, shift, dan ekspor laporan lengkap tidak dikirim ke tampilan Sales. Owner mengatur `financial-report.daily-income`, `financial-report.daily-category`, `financial-report.daily-subcategory`, dan `financial-report.daily-payment-method` secara terpisah.
 
+Nominal yang tersedia dapat dibuka ke Riwayat berdasarkan tanggal penerimaan, termasuk pelunasan nota lama. Filter Harian, Mingguan, dan Bulanan mengikuti tanggal pilihan. Outstanding DP memakai sisa terkini dari nota yang dibuat hingga tanggal pilihan, bukan saldo historis; detail pemasukan manual memerlukan izin pemasukan.
+
 ### Rentang Waktu (Periode)
 Anda dapat memilih rentang analisis menggunakan preset berikut:
 - **Hari ini**

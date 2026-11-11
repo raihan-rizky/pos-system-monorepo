@@ -14,7 +14,7 @@ const fullReport = { dateFrom: "2026-11-05", dateTo: "2026-11-05", summary: {}, 
 describe("daily financial report UI", () => {
   beforeEach(() => {
     vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date("2026-11-05T03:00:00Z"));
-    mocks.role.mockReturnValue({ role: "SALES", userId: "sales", storeId: "store-1", authorizationFingerprint: "v1", canAccess: () => true, canPerform: (target: string) => target.startsWith("financial-report.daily-") });
+    mocks.role.mockReturnValue({ role: "SALES", userId: "sales", storeId: "store-1", authorizationFingerprint: "v1", canAccess: () => true, canPerform: (target: string) => target === "transaction" || target.startsWith("financial-report.daily-") });
     mocks.daily.mockReturnValue({ data: { date: "2026-11-05", total: 100, outstandingDp: 25, categories: [{ category: "ATK", amount: 100 }], subcategories: [{ category: "ATK", subcategory: "Alat Tulis", amount: 100 }], paymentMethods: [{ method: "CASH", amount: 100 }] }, isLoading: false, isFetching: false, error: null, refetch: vi.fn() });
     mocks.full.mockReturnValue({ data: fullReport, isLoading: false, isFetching: false, error: null });
   });
@@ -27,6 +27,29 @@ describe("daily financial report UI", () => {
     expect(html).toContain('max="2026-11-05"');
     for (const forbidden of ["Laba", "HPP", "Pengeluaran", "Sales Teratas", "Produk Terlaris", "Ekspor", "Bulan ini"]) expect(html).not.toContain(forbidden);
     expect(mocks.full).not.toHaveBeenCalled();
+  });
+  it("shows fractional amounts in the daily total and payment breakdown", () => {
+    mocks.daily.mockReturnValue({ data: { date: "2026-11-05", total: 0.99, outstandingDp: 0.01, categories: [{ category: "ATK", amount: 0.99 }], subcategories: [], paymentMethods: [{ method: "CASH", amount: 0.5 }, { method: "TRANSFER", amount: 0.49 }] }, isLoading: false, isFetching: false, error: null, refetch: vi.fn() });
+    const html = renderToStaticMarkup(createElement(FinancialReportPage));
+    for (const amount of ["0,99", "0,01", "0,5", "0,49"]) expect(html).toContain(amount);
+  });
+  it("links each income amount to its selected receipt context", () => {
+    const html = renderToStaticMarkup(createElement(DailyIncomeReport));
+    for (const query of ["mode=receipt&amp;date=2026-11-05", "category=ATK", "subcategory=Alat+Tulis", "method=CASH", "mode=outstanding-dp&amp;date=2026-11-05"]) expect(html).toContain(query);
+    expect(html).toMatch(/<a[^>]+href="\/history\?mode=receipt[^>]*>Lihat rincian di Riwayat/);
+  });
+  it("does not link amounts when transaction history is unavailable", () => {
+    mocks.role.mockReturnValue({ canAccess: (path: string) => path !== "/history", canPerform: () => true });
+    const html = renderToStaticMarkup(createElement(DailyIncomeReport));
+    expect(html).not.toContain('href="/history?');
+    expect(html).toContain("Akses Riwayat belum diizinkan");
+  });
+  it("uses saved Sales receipt permissions in Owner preview", () => {
+    mocks.role.mockReturnValue({ role: "OWNER", canAccess: () => true, canPerform: () => true });
+    mocks.daily.mockReturnValue({ data: { date: "2026-11-05", total: 100, receiptHistoryAccess: { total: false } }, isLoading: false, isFetching: false, error: null, refetch: vi.fn() });
+    const html = renderToStaticMarkup(<DailyIncomeReport previewSales />);
+    expect(html).not.toContain('href="/history?');
+    expect(html).toContain("Akses Riwayat belum diizinkan");
   });
   it("does not display denied cached sections even if old query data contains them", () => {
     mocks.role.mockReturnValue({ canAccess: () => true, canPerform: (target: string) => target === "financial-report.daily-payment-method" });

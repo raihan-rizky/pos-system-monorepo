@@ -32,8 +32,9 @@ import type { ExpenseFormInitial } from "@/features/keuangan/components/ExpenseF
 import { DeferredCashFlowChart } from "@/features/keuangan/components/DeferredCashFlowChart";
 import { SupplierPayablesPanel } from "@/features/keuangan/components/SupplierPayablesPanel";
 import { ManualIncomePanel } from "@/features/keuangan/components/ManualIncomePanel";
+import { IncomeDayRow } from "@/features/keuangan/components/IncomeDayRow";
 import { ManualFinanceFormModal, type ManualFinanceInitial } from "@/features/keuangan/components/ManualFinanceFormModal";
-import { formatRupiah } from "@/lib/utils";
+import { formatRupiah, formatRupiahPrecise } from "@/lib/utils";
 
 const ExpenseFormModal = dynamic(
   () =>
@@ -95,7 +96,8 @@ export default function KeuanganDashboardPage() {
   const searchParams = useSearchParams();
   const month = searchParams.get("month") || currentJakartaMonth();
   const queryClient = useQueryClient();
-  const { canPerform } = useRole();
+  const { canPerform, canAccess } = useRole();
+  const canOpenIncomeHistory = canAccess("/history") && canAccess("/financial-report") && canPerform("transaction", "read") && (canPerform("financial-report", "read") || canPerform("financial-report.daily-income", "read"));
   const canReadIncome = canPerform("income", "read");
   const canReadExpense = canPerform("expense", "read");
   const canCreate = canPerform("expense", "create");
@@ -212,13 +214,13 @@ export default function KeuanganDashboardPage() {
                   isNegative ? "text-red-600" : "text-emerald-700"
                 }`}
               >
-                {net === null ? "Belum tersedia" : formatRupiah(net)}
+                {net === null ? "Belum tersedia" : formatRupiahPrecise(net)}
               </p>
             )}
             {!summaryLoading && (
               <p className="mt-1.5 text-[11px] sm:text-xs text-surface-500 tabular-nums">
                 <span className="block sm:inline">
-                  {!canReadIncome ? "Tidak memiliki akses pemasukan" : cashIncome == null ? "Pemasukan belum tersedia" : `${formatRupiah(cashIncome)} pemasukan`}
+                  {!canReadIncome ? "Tidak memiliki akses pemasukan" : cashIncome == null ? "Pemasukan belum tersedia" : `${formatRupiahPrecise(cashIncome)} pemasukan`}
                 </span>
                 <span className="hidden sm:inline"> · </span>
                 <span className="block sm:inline">
@@ -226,6 +228,7 @@ export default function KeuanganDashboardPage() {
                 </span>
               </p>
             )}
+            {!summaryLoading && canReadIncome && cashIncome != null && <p className="mt-1 text-xs text-surface-500">Arus kas termasuk pelunasan piutang manual.</p>}
             {!summaryLoading && cashIncomplete && (
               <p role="status" className="mt-1 text-xs text-amber-700">Riwayat giro atau belanja belum lengkap. Periksa riwayat giro untuk menghitung sisa kas.</p>
             )}
@@ -295,7 +298,7 @@ export default function KeuanganDashboardPage() {
               <div className="h-8 w-44 rounded-md bg-surface-100 animate-pulse" />
             ) : (
               <p className="text-xl sm:text-2xl font-bold text-emerald-700 tabular-nums break-words">
-                {!canReadIncome ? "Tidak memiliki akses pemasukan" : incomeData ? formatRupiah(incomeData.monthlyTotal) : "Pemasukan belum tersedia"}
+                {!canReadIncome ? "Tidak memiliki akses pemasukan" : incomeData ? formatRupiahPrecise(incomeData.monthlyTotal) : "Pemasukan belum tersedia"}
               </p>
             )}
           </div>
@@ -319,23 +322,7 @@ export default function KeuanganDashboardPage() {
                     containIntrinsicSize: "44px",
                   }}
                 >
-                  <Link
-                    href={row.count > 0 ? `/history?date=${row.date}` : '#manual-income'}
-                    className="flex items-center justify-between gap-3 px-3 sm:px-4 py-2.5 min-h-11 hover:bg-surface-50 transition-colors cursor-pointer group focus:outline-none focus-visible:bg-surface-50"
-                  >
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-sm font-semibold text-surface-900 truncate">
-                        {fullDay(row.date)}
-                      </span>
-                      <span className="text-xs text-surface-500">{row.count} transaksi · {row.manualCount ?? 0} manual</span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-sm font-semibold text-emerald-700 tabular-nums">
-                        {formatRupiah(row.total)}
-                      </span>
-                      <ChevronRight className="h-3.5 w-3.5 text-surface-300 transition-colors group-hover:text-emerald-600" aria-hidden="true" />
-                    </div>
-                  </Link>
+                  <IncomeDayRow date={row.date} label={fullDay(row.date)} total={row.total} count={row.count} manualCount={row.manualCount ?? 0} canOpenHistory={canOpenIncomeHistory} />
                 </li>
               ))}
             </ul>

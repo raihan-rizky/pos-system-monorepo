@@ -30,12 +30,8 @@ describe("daily finance API", () => {
     const query = mocks.transactions.mock.calls[0][0];
     expect(query.where.storeId).toBe("store-1");
     expect(JSON.stringify(query.where)).toContain("2026-11-04T17:00:00.000Z");
-    expect(query.where.OR).toEqual(expect.arrayContaining([
-      { invoiceDate: { gte: new Date("2026-11-04T17:00:00.000Z"), lt: new Date("2026-11-05T17:00:00.000Z") } },
-      expect.objectContaining({ status: "DP", invoiceDate: { lt: new Date("2026-11-05T17:00:00.000Z") } }),
-      { debtPaymentLogs: { some: { createdAt: { gte: new Date("2026-11-04T17:00:00.000Z"), lt: new Date("2026-11-05T17:00:00.000Z") } } } },
-    ]));
-    expect(query.select.invoiceDate).toBe(true);
+    expect(query.where.OR).toEqual(expect.arrayContaining([expect.objectContaining({ status: "DP", createdAt: { lt: new Date("2026-11-05T17:00:00.000Z") } })]));
+    expect(query.where).not.toHaveProperty("invoiceDate");
     for (const field of ["unitCost", "grossProfit", "customer", "cashier", "salesperson", "expense"]) {
       expect(JSON.stringify(query.select)).not.toContain(field);
       expect(JSON.stringify(body)).not.toContain(field);
@@ -43,7 +39,7 @@ describe("daily finance API", () => {
     expect(mocks.manual.mock.calls[0][0].where).toMatchObject({ storeId: "store-1", deletedAt: null });
   });
 
-  it("keeps only today's settlement when a newly created invoice is dated yesterday", async () => {
+  it("keeps the initial payment and settlement on their actual receipt date when the invoice date differs", async () => {
     const now = new Date();
     mocks.transactions.mockResolvedValueOnce([{
       id: "moved-invoice", createdAt: now, invoiceDate: new Date("2026-11-04T03:00:00Z"),
@@ -55,9 +51,9 @@ describe("daily finance API", () => {
     const response = await GET(request());
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      total: 25_000, outstandingDp: 0,
-      categories: [{ category: "ATK", amount: 25_000 }],
-      paymentMethods: [{ method: "TRANSFER", amount: 25_000 }],
+      total: 50_000, outstandingDp: 0,
+      categories: [{ category: "ATK", amount: 50_000 }],
+      paymentMethods: [{ method: "CASH", amount: 25_000 }, { method: "TRANSFER", amount: 25_000 }],
     });
   });
 
@@ -109,7 +105,15 @@ describe("daily finance API", () => {
     mocks.permissions.mockResolvedValue(permissions);
     const response = await GET(request("date=2026-11-05&view=sales"));
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ date: "2026-11-05", outstandingDp: 60 });
+    expect(await response.json()).toMatchObject({ date: "2026-11-05", outstandingDp: 60 });
+  });
+  it("reports saved Sales access to receipt history for Owner preview", async () => {
+    mocks.user.mockResolvedValue({ id: "owner", role: "OWNER", storeId: "store-1" });
+    const permissions = buildDefaultRolePermissions();
+    permissions.SALES.pages["/history"] = false;
+    mocks.permissions.mockResolvedValue(permissions);
+    const body = await (await GET(request("date=2026-11-05&view=sales"))).json();
+    expect(body.receiptHistoryAccess).toMatchObject({ total: false, category: false, subcategory: false, method: false, outstandingDp: false });
   });
   it("reports the full SALES view when full access is granted without querying daily data", async () => {
     mocks.user.mockResolvedValue({ id: "owner", role: "OWNER", storeId: "store-1" });

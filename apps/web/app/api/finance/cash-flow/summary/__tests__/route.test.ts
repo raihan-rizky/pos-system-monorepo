@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ permission: vi.fn(), authError: vi.fn(), report: vi.fn() }));
+const mocks = vi.hoisted(() => ({ permission: vi.fn(), authError: vi.fn(), report: vi.fn(), income: vi.fn() }));
 vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.permission, handleAuthError: mocks.authError }));
 vi.mock("@/features/financial-report/services/monthly-report", () => ({ getMonthlyFinancialReport: mocks.report }));
+vi.mock("@/features/financial-report/services/daily-income", () => ({ loadIncomePeriod: mocks.income }));
 vi.mock("@/lib/logger", () => ({ getLogger: () => ({ error: vi.fn() }) }));
 import { GET } from "../route";
 
@@ -15,6 +16,7 @@ describe("combined cash-flow summary", () => {
     vi.clearAllMocks();
     mocks.permission.mockResolvedValue({ id: "user-1", storeId: "store-1" });
     mocks.authError.mockReturnValue(null);
+    mocks.income.mockResolvedValue({ days: [{ date: "2026-11-02", total: 170_000 }, { date: "2026-11-03", total: 30_000 }] });
     mocks.report.mockResolvedValue({
       income: [
         { date: "2026-11-02", amounts: { CETAK: 120_000.25, ATK: 49_999.75 } },

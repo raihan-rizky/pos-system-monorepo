@@ -39,6 +39,13 @@ export function formatRupiah(amount: number | string): string {
   }).format(num);
 }
 
+export function formatRupiahPrecise(amount: number | string): string {
+  const num = typeof amount === "string" ? parseFloat(amount) : amount;
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency", currency: "IDR", minimumFractionDigits: 0, maximumFractionDigits: 2,
+  }).format(num);
+}
+
 // Compact Rupiah for chart axes / dense labels: "5jt", "500rb", "1,2M"
 export function formatRupiahCompact(value: number): string {
   if (!Number.isFinite(value)) return "0";

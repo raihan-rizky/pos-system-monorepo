@@ -67,16 +67,16 @@ export default function DashboardPage() {
   const todayLabel = useMemo(() => formatTodayLabel(), []);
 
   const todayMargin = useMemo(() => {
-    const revenue = dashboardData?.todayRevenue ?? 0;
+    const revenue = dashboardData?.todaySalesRevenue ?? dashboardData?.todayRevenue ?? 0;
     const profit = dashboardData?.todayProfit ?? 0;
     return revenue > 0 ? (profit / revenue) * 100 : 0;
-  }, [dashboardData?.todayRevenue, dashboardData?.todayProfit]);
+  }, [dashboardData?.todaySalesRevenue, dashboardData?.todayRevenue, dashboardData?.todayProfit]);
 
   const monthlyMargin = useMemo(() => {
-    const revenue = dashboardData?.monthlyRevenue ?? 0;
+    const revenue = dashboardData?.monthlySalesRevenue ?? dashboardData?.monthlyRevenue ?? 0;
     const profit = dashboardData?.monthlyProfit ?? 0;
     return revenue > 0 ? (profit / revenue) * 100 : 0;
-  }, [dashboardData?.monthlyRevenue, dashboardData?.monthlyProfit]);
+  }, [dashboardData?.monthlySalesRevenue, dashboardData?.monthlyRevenue, dashboardData?.monthlyProfit]);
 
   const lowStockCount = dashboardData?.lowStockProducts?.length ?? 0;
 
@@ -131,8 +131,8 @@ export default function DashboardPage() {
             className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
           >
             <StatTile
-              label="Revenue Hari Ini"
-              value={formatRupiah(dashboardData?.todayRevenue ?? 0)}
+              label="Pemasukan Hari Ini"
+              value={dashboardData?.todayRevenue === null ? "Tidak memiliki izin" : formatRupiah(dashboardData?.todayRevenue ?? 0)}
               hint={
                 <>
                   Profit{" "}
@@ -147,8 +147,8 @@ export default function DashboardPage() {
               icon={<Wallet className="h-4 w-4" aria-hidden="true" />}
             />
             <StatTile
-              label="Revenue Bulan Ini"
-              value={formatRupiah(dashboardData?.monthlyRevenue ?? 0)}
+              label="Pemasukan Bulan Ini"
+              value={dashboardData?.monthlyRevenue === null ? "Tidak memiliki izin" : formatRupiah(dashboardData?.monthlyRevenue ?? 0)}
               hint={
                 <>
                   Profit{" "}
@@ -164,7 +164,7 @@ export default function DashboardPage() {
             />
             <StatTile
               label="Outstanding DP"
-              value={formatRupiah(dashboardData?.totalOutstandingDP ?? 0)}
+              value={dashboardData?.totalOutstandingDP === null ? "Belum tersedia" : formatRupiah(dashboardData?.totalOutstandingDP ?? 0)}
               hint={`${dashboardData?.dpTransactions?.length ?? 0} transaksi belum lunas`}
               tone="warning"
               loading={dashLoading}
@@ -195,15 +195,15 @@ export default function DashboardPage() {
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
             <SectionCard
               className="xl:col-span-2"
-              title="Tren Profit & Loss"
-              subtitle="Performa 7 hari terakhir"
+              title="Tren Pemasukan & Profit"
+              subtitle="Pemasukan mengikuti pembayaran; profit mengikuti penjualan"
               accent="brand"
               icon={<BarChart3 className="h-4 w-4" aria-hidden="true" />}
               action={
                 <div className="flex gap-3 text-[10px] font-bold uppercase tracking-wider">
                   <span className="inline-flex items-center gap-1.5 text-brand-700">
                     <span className="h-2 w-2 rounded-full bg-brand-500" />
-                    Revenue
+                    Pemasukan
                   </span>
                   <span className="inline-flex items-center gap-1.5 text-emerald-700">
                     <span className="h-2 w-2 rounded-full bg-emerald-500" />
@@ -225,7 +225,7 @@ export default function DashboardPage() {
               icon={<CreditCard className="h-4 w-4" aria-hidden="true" />}
             >
               <PaymentMixCard
-                rows={dashboardData?.paymentMixToday ?? []}
+                rows={dashboardData?.paymentMixToday === null ? null : dashboardData?.paymentMixToday ?? []}
                 loading={dashLoading}
               />
             </SectionCard>

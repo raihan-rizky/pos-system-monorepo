@@ -31,7 +31,7 @@ export type ActiveDpTransaction = {
 export type RevenueChartPoint = {
   name: string;
   date: string;
-  revenue: number;
+  revenue: number | null;
   profit: number;
   cost: number;
 };
@@ -63,10 +63,12 @@ export type PaymentMixRow = {
 };
 
 export interface DashboardData {
-  todayRevenue: number;
+  todayRevenue: number | null;
+  todaySalesRevenue?: number;
   todayProfit: number;
   todayTransactionCount: number;
-  monthlyRevenue: number;
+  monthlyRevenue: number | null;
+  monthlySalesRevenue?: number;
   monthlyProfit: number;
   monthlyTransactionCount: number;
   topProducts: TopProduct[];
@@ -78,6 +80,6 @@ export interface DashboardData {
   topCustomers: TopCustomer[];
   productionStatusCounts: ProductionStatusCount[];
   dpTransactions: Transaction[];
-  totalOutstandingDP: number;
-  paymentMixToday: PaymentMixRow[];
+  totalOutstandingDP: number | null;
+  paymentMixToday: PaymentMixRow[] | null;
 }

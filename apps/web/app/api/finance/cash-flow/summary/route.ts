@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getMonthlyFinancialReport } from "@/features/financial-report/services/monthly-report";
+import { loadIncomePeriod } from "@/features/financial-report/services/daily-income";
+import { combineSalesAndManualReceivableIncome } from "@/features/keuangan/helpers/cash-income";
 import { apiError } from "@/lib/api/responses";
 import { getLogger } from "@/lib/logger";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
@@ -27,15 +29,15 @@ export async function GET(request: Request) {
       return apiError("Pilih bulan yang valid dan tidak melewati bulan ini.", 422, { code: "ValidationError" });
     }
     const [year, monthNumber] = month.split("-").map(Number);
-    const report = await getMonthlyFinancialReport(incomeUser.storeId, year, monthNumber);
-    const incomeDays = new Map<string, number>();
+    const lastDay = String(new Date(Date.UTC(year, monthNumber, 0)).getUTCDate()).padStart(2, "0");
+    const [report, incomePeriod] = await Promise.all([
+      getMonthlyFinancialReport(incomeUser.storeId, year, monthNumber),
+      loadIncomePeriod(incomeUser.storeId, `${month}-01`, `${month}-${lastDay}`),
+    ]);
     const expenseDays = new Map<string, number>();
     const add = (days: Map<string, number>, date: string, amount: number) => {
       days.set(date, (days.get(date) ?? 0) + Math.round(amount * 100));
     };
-    for (const row of report.income) {
-      for (const amount of Object.values(row.amounts)) add(incomeDays, row.date, amount);
-    }
     for (const row of report.expenses) add(expenseDays, row.date, row.amount);
     if (report.purchasePayments != null) {
       for (const row of report.purchasePayments) add(expenseDays, row.date, row.amount);
@@ -52,7 +54,7 @@ export async function GET(request: Request) {
     const incomplete = report.cashIncomplete === true;
     return NextResponse.json({
       month,
-      income: { total: total(incomeDays), daily: daily(incomeDays) },
+      income: combineSalesAndManualReceivableIncome(incomePeriod.days, report.income),
       expense: { total: incomplete ? null : total(expenseDays), incomplete, daily: daily(expenseDays) },
     });
   } catch (error) {

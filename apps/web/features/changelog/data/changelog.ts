@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "sales-penerimaan-riwayat-selaraskan", date: "2026-11-11", revision: 1,
+    highlight: { title: "Rincian penerimaan Sales", summary: "Buka rincian penerimaan langsung dari nominal Sales." },
+    title: "Telusuri pemasukan langsung dari Sales.",
+    summary: "Pemasukan di Dashboard dan Keuangan mengikuti perhitungan Sales. Klik nominal untuk memeriksa penerimaan pada tanggal pilihan, termasuk pelunasan nota lama.",
+    kind: "improvement", impact: "major", area: "Laporan Keuangan", href: "/financial-report", visual: "financial",
+    steps: [
+      { title: "Buka laporan", detail: "Masuk ke Laporan Keuangan; Owner dapat memilih Lihat sebagai Sales." },
+      { title: "Pilih tanggal", detail: "Pilih tanggal pemasukan yang ingin diperiksa dalam WIB." },
+      { title: "Buka rincian", detail: "Klik nominal yang tersedia untuk membuka Riwayat, lalu pilih Harian, Mingguan, atau Bulanan sesuai izin." },
+    ],
+  },
+  {
     id: "inbound-receipt-edit-products-multi-giro", date: "2026-11-07", revision: 1,
     highlight: { title: "Ubah penerimaan dan pakai multi-giro", summary: "Perbaiki barang dan jumlah, lalu bagi pembayaran ke beberapa giro." },
     title: "Koreksi barang dan bagi pembayaran giro.",

@@ -21,7 +21,7 @@ vi.mock("@tanstack/react-query", () => ({
     refetch: vi.fn(),
   }),
 }));
-vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({ canPerform: (resource: string, action: string) => action === "read" ? (resource === "income" ? state.incomePermission : state.expensePermission) : false }) }));
+vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({ canAccess: () => true, canPerform: (resource: string, action: string) => action === "read" ? (resource === "income" ? state.incomePermission : state.expensePermission) : false }) }));
 vi.mock("@/features/ai-assistant/hooks/useAssistantModalAction", () => ({ useAssistantModalAction: () => {} }));
 vi.mock("@/features/keuangan/components/SupplierPayablesPanel", () => ({ SupplierPayablesPanel: () => null }));
 vi.mock("@/features/keuangan/components/DeferredCashFlowChart", () => ({ DeferredCashFlowChart: (props: unknown) => { state.chart = props; return null; } }));
@@ -62,6 +62,7 @@ describe("ringkasan arus kas Keuangan", () => {
     expect(state.incomeMetricsOnly).toBe(true);
     expect(state.expenseMetricsOnly).toBe(true);
     expect(html).toContain("160.000");
+    expect(html).toContain("termasuk pelunasan piutang manual");
     expect(html).not.toContain("170.000");
     expect(state.chart).toMatchObject({ incomeDaily: [{ date: "2026-11-03", total: 190_000 }], expenseDaily: [{ date: "2026-11-10", total: 30_000 }] });
   });

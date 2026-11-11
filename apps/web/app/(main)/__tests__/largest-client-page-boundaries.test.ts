@@ -37,11 +37,9 @@ describe.each(ROUTES)(
       expect(pageSource).toContain(
         `import ${clientModule} from "./${clientModule}";`,
       );
-      expect(pageSource).toContain(`<${clientModule} />`);
+      expect(pageSource).toMatch(new RegExp(`<${clientModule}(?:\\s+[^>]+)?\\s*/>`));
       expect(clientSource).toMatch(/^\s*["']use client["'];?/);
-      expect(clientSource).toContain(
-        `export default function ${clientModule}()`,
-      );
+      expect(clientSource).toContain(`export default function ${clientModule}(`);
     });
   },
 );

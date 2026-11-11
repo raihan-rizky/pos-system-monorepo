@@ -35,4 +35,16 @@ describe("daily income guidance", () => {
     expect(entry!.highlight.title.length).toBeLessThanOrEqual(40);
     expect(entry!.highlight.summary.length).toBeLessThanOrEqual(85);
   });
+  it("explains the receipt-date drilldown and announces the reconciled views", () => {
+    const guide = HELP_ROLE_CONTENT.SALES.find(row => row.id === "sales-daily-income");
+    const workflow = FAQ_WORKFLOWS.find(row => row.id === "faq-q52-daily-income");
+    for (const text of [JSON.stringify(guide), JSON.stringify(workflow)]) {
+      expect(text).toContain("Harian");
+      expect(text).toContain("Riwayat");
+      expect(text).toContain("pelunasan nota lama");
+    }
+    const entry = CHANGELOG.find(row => row.id === "sales-penerimaan-riwayat-selaraskan");
+    expect(entry).toMatchObject({ date: "2026-11-11", revision: 1, href: "/financial-report", visual: "financial" });
+    expect(entry?.steps).toHaveLength(3);
+  });
 });

@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ permission: vi.fn(), authError: vi.fn(), transactions: vi.fn(), manualIncome: vi.fn(), report: vi.fn() }));
+const mocks = vi.hoisted(() => ({ permission: vi.fn(), authError: vi.fn(), transactions: vi.fn(), manualIncome: vi.fn(), report: vi.fn(), income: vi.fn() }));
 vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manualIncome } } }));
 vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.permission, handleAuthError: mocks.authError }));
 vi.mock("@/features/financial-report/services/monthly-report", () => ({ getMonthlyFinancialReport: mocks.report }));
+vi.mock("@/features/financial-report/services/daily-income", () => ({ loadIncomePeriod: mocks.income }));
 vi.mock("@/lib/logger", () => ({ getLogger: () => ({ error: vi.fn() }) }));
 import { GET } from "../summary/route";
 
@@ -14,6 +15,7 @@ describe("income cash summary permissions", () => {
     mocks.authError.mockReturnValue(null);
     mocks.transactions.mockResolvedValue([{ createdAt: new Date("2026-11-01T02:00:00Z"), total: 500_000 }]);
     mocks.manualIncome.mockResolvedValue([]);
+    mocks.income.mockResolvedValue({ days: [{ date: "2026-11-02", total: 170_000.25 }, { date: "2026-11-05", total: 30_000 }] });
     mocks.report.mockResolvedValue({ income: [
       { date: "2026-11-02", amounts: { CETAK: 100_000.25, ATK: 50_000 } },
       { date: "2026-11-02", amounts: { UNMAPPED: 20_000 } },
@@ -27,9 +29,9 @@ describe("income cash summary permissions", () => {
     expect(mocks.permission).toHaveBeenCalledExactlyOnceWith("income", "read");
     expect(mocks.report).toHaveBeenCalledWith("store-1", 2026, 11);
     const body = await response.json();
-    expect(body.monthlyTotal).toBe(500_000);
+    expect(body.monthlyTotal).toBe(200_000.25);
     expect(body.transactionCount).toBe(1);
-    expect(body.daily).toHaveLength(1);
+    expect(body.daily).toHaveLength(3);
     expect(body.cashTotal).toBe(200_000.25);
     expect(body.cashDaily).toEqual([{ date: "2026-11-02", total: 170_000.25 }, { date: "2026-11-05", total: 30_000 }]);
     expect(JSON.stringify(body)).not.toContain("2026-11-08");
@@ -43,7 +45,7 @@ describe("income cash summary permissions", () => {
     expect(mocks.transactions).toHaveBeenCalledOnce();
     expect(mocks.report).not.toHaveBeenCalled();
     const body = await response.json();
-    expect(body).toMatchObject({ month: "2026-11", monthlyTotal: 500_000, transactionCount: 1 });
+    expect(body).toMatchObject({ month: "2026-11", monthlyTotal: 200_000.25, transactionCount: 1 });
     expect(body).not.toHaveProperty("cashDaily");
     expect(body).not.toHaveProperty("cashTotal");
   });

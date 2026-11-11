@@ -126,4 +126,10 @@ describe("GET /api/transactions dependent category filters", { timeout: 30_000 }
     expect(json.data).toEqual([]);
     expect(json.pagination.total).toBe(0);
   });
+  it("finds an unnumbered receipt by its exact transaction ID within the current store", async () => {
+    state.records = [transaction("no-invoice", { invoiceNumber: null }), transaction("other-no-invoice", { invoiceNumber: null, storeId: "other" })];
+    expect((await history("search=no-invoice")).data.map((item: RecordValue) => item.id)).toEqual(["no-invoice"]);
+    expect((await history("search=other-no-invoice")).data).toEqual([]);
+  });
+
 });

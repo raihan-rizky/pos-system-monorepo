@@ -3,6 +3,10 @@ import { db } from "@pos/db";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
 
 import { getLogger } from "@/lib/logger";
+import { apiError } from "@/lib/api/responses";
+import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
+import { resolveIncomeAccess } from "@/features/financial-report/helpers/income-access";
+import { loadIncomePeriod } from "@/features/financial-report/services/daily-income";
 import {
   SALES_GROUP_LABELS,
   type SalesGroup,
@@ -50,9 +54,19 @@ function jakartaDateKey(date: Date) {
 export async function GET() {
   try {
     const user = await requirePermission("transaction", "read");
-    const storeId = user.storeId || "store-main";
+    if (!user.storeId) return apiError("Toko pengguna belum tersedia.", 403, { code: "Forbidden" });
+    const storeId = user.storeId;
 
     const now = new Date();
+    const todayKey = jakartaDateKey(now);
+    const todayStartWib = new Date(`${todayKey}T00:00:00+07:00`);
+    const todayEndWib = new Date(todayStartWib.getTime() + 86_400_000);
+    const monthStartKey = `${todayKey.slice(0, 7)}-01`;
+    const chartStartKey = jakartaDateKey(new Date(todayStartWib.getTime() - 6 * 86_400_000));
+    const incomeStartKey = monthStartKey < chartStartKey ? monthStartKey : chartStartKey;
+    const incomeAccess = await getGlobalRolePermissions()
+      .then(permissions => resolveIncomeAccess(user.role, permissions))
+      .catch(() => null);
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const firstChartDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
@@ -71,7 +85,7 @@ export async function GET() {
       topProductsRaw,
       productionStatusCountsRaw,
       dpTransactionsRaw,
-      totalOutstandingDPRaw,
+      incomePeriod,
     ] = await Promise.all([
       // 1. Revenue, profit, chart, and payment mix share one transaction range.
       db.transaction.findMany({
@@ -156,16 +170,13 @@ export async function GET() {
       }),
       // 8. Active DP (Include Items for Modal)
       db.transaction.findMany({
-        where: { storeId, status: "DP" },
+        where: { storeId, status: "DP", paymentMethod: { not: "TEMPO" }, createdAt: { lt: todayEndWib } },
         include: { items: true },
         take: 5,
         orderBy: { invoiceDate: "desc" },
       }),
-      // 9. Outstanding DP
-      db.transaction.aggregate({
-        where: { storeId, status: "DP" },
-        _sum: { total: true, amountPaid: true },
-      }),
+      // 9. Shared receipts and current outstanding DP.
+      incomeAccess ? loadIncomePeriod(storeId, incomeStartKey, todayKey) : Promise.resolve(null),
     ]);
 
     // Calculate exact profit helper
@@ -181,16 +192,16 @@ export async function GET() {
     };
 
     // Process all overlapping transaction buckets in one pass.
-    let todayRevenue = 0;
+    let todaySalesRevenue = 0;
     let todayProfit = 0;
-    let monthlyRevenue = 0;
+    let monthlySalesRevenue = 0;
     let monthlyProfit = 0;
-    const dailyData: Record<string, { revenue: number; profit: number }> = {};
+    const dailyData: Record<string, { revenue: number | null; profit: number }> = {};
     for (let i = 0; i < 7; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
+      const d = new Date(todayStartWib.getTime() - i * 86_400_000);
       const dateStr = jakartaDateKey(d);
-      dailyData[dateStr] = { revenue: 0, profit: 0 };
+      const day = incomePeriod?.days.find(row => row.date === dateStr);
+      dailyData[dateStr] = { revenue: incomeAccess?.periodTotals ? day?.total ?? 0 : null, profit: 0 };
     }
     const paymentMixMap = new Map<string, { revenue: number; txCount: number }>();
 
@@ -204,12 +215,12 @@ export async function GET() {
       const invoiceTime = transaction.invoiceDate.getTime();
 
       if (invoiceTime >= firstDayOfMonth.getTime()) {
-        monthlyRevenue += revenue;
+        monthlySalesRevenue += revenue;
         monthlyProfit += profit;
       }
 
       if (invoiceTime >= today.getTime()) {
-        todayRevenue += revenue;
+        todaySalesRevenue += revenue;
         todayProfit += profit;
 
         const payment = paymentMixMap.get(transaction.paymentMethod) || {
@@ -223,7 +234,6 @@ export async function GET() {
 
       const dateStr = jakartaDateKey(transaction.invoiceDate);
       if (dailyData[dateStr]) {
-        dailyData[dateStr].revenue += revenue;
         dailyData[dateStr].profit += profit;
       }
     });
@@ -238,13 +248,14 @@ export async function GET() {
         ...data,
       }))
       .reverse();
-    const paymentMixToday = Array.from(paymentMixMap.entries()).map(
-      ([method, data]) => ({
-        method,
-        revenue: data.revenue,
-        transactionCount: data.txCount,
-      }),
-    );
+    const todayIncome = incomePeriod?.days.find(row => row.date === todayKey);
+    const todayRevenue = incomeAccess?.dailyTotal && todayIncome ? todayIncome.total : null;
+    const monthlyRevenue = incomeAccess?.periodTotals && incomePeriod
+      ? incomePeriod.days.filter(row => row.date >= monthStartKey).reduce((sum, row) => sum + Math.round(row.total * 100), 0) / 100
+      : null;
+    const paymentMixToday = incomeAccess?.dailyMethods && todayIncome
+      ? todayIncome.paymentMethods.map(row => ({ method: row.method, revenue: row.amount, transactionCount: paymentMixMap.get(row.method)?.txCount ?? 0 }))
+      : null;
 
     const topProductIds = Array.from(
       new Set(
@@ -290,8 +301,10 @@ export async function GET() {
 
     return NextResponse.json({
       todayRevenue,
+      todaySalesRevenue,
       todayProfit,
       monthlyRevenue,
+      monthlySalesRevenue,
       monthlyProfit,
       totalProducts,
       topProducts: topProductsRaw.slice(0, 5).map((tp) => ({
@@ -321,7 +334,7 @@ export async function GET() {
         count: ps._count.id,
       })),
       dpTransactions: dpTransactionsRaw,
-      totalOutstandingDP: Number(totalOutstandingDPRaw._sum.total || 0) - Number(totalOutstandingDPRaw._sum.amountPaid || 0),
+      totalOutstandingDP: incomePeriod?.outstandingDp.reduce((sum, row) => sum + row.remaining, 0) ?? null,
       paymentMixToday,
     });
   } catch (error) {
