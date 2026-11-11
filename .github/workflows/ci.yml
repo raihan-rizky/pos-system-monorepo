@@ -58,10 +58,10 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Periksa TypeScript
         run: pnpm type-check
+      - name: Siapkan mirror Ubuntu
+        run: sudo python3 scripts/deploy/prepare_ubuntu_mirror.py
       - name: Instal Chromium untuk tes browser
-        run: |
-          sudo python3 scripts/deploy/prepare_ubuntu_mirror.py
-          pnpm --filter @pos/web exec playwright install --with-deps chromium
+        run: pnpm --filter @pos/web exec playwright install --with-deps chromium
       - name: Tes keamanan packaging dan database
         run: node --test scripts/tests/vps-artifact-package.test.mjs packages/db/tests/clear-locks-safety.test.cjs
       - name: Tes fingerprint pada PostgreSQL sementara
