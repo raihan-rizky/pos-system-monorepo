@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "sesi-multi-perangkat-20261111", date: "2026-11-11", revision: 1,
+    highlight: { title: "Masuk di banyak perangkat", summary: "Keluar di satu perangkat tidak mengganggu sesi pada perangkat lain." },
+    title: "Sesi kasir tetap aktif di perangkat lain",
+    summary: "Gunakan satu akun di beberapa perangkat sekaligus. Saat koneksi terganggu, pemeriksaan sesi berjalan kembali sambil mempertahankan isian di tab yang terbuka.",
+    kind: "fix", impact: "major", area: "Kasir", href: "/pos", visual: "rbac",
+    screenshot: { src: "/images/changelog/sesi-perangkat-2026-11-11.png", alt: "Pesan Sesi Anda berakhir dengan tombol Masuk lagi." },
+    steps: [
+      { title: "Masuk di perangkat tambahan", detail: "Gunakan akun Anda seperti biasa. Sesi di perangkat yang sudah dipakai tetap aktif." },
+      { title: "Tunggu koneksi pulih", detail: "Biarkan tab tetap terbuka saat pemeriksaan berlangsung agar isian tetap tersedia." },
+      { title: "Masuk lagi bila diminta", detail: "Gunakan akun dan toko yang sama di tab tersebut untuk melanjutkan keranjang yang tersimpan." },
+    ],
+  },
+  {
     id: "manual-income-split-payments", date: "2026-11-11", revision: 1,
     highlight: { title: "Metode pemasukan manual", summary: "Bagi satu pemasukan ke beberapa metode pembayaran." },
     title: "Catat beberapa metode pembayaran pemasukan.",

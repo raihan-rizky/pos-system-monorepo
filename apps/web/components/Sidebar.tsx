@@ -9,6 +9,7 @@ import { useRole } from "@/components/providers/RoleProvider";
 import { usePendingTransactionCount, useUnpaidDebtTransactionCount } from "@/hooks/useTransactions";
 import { useInventorySummary } from "@/features/inventory-management/hooks/useInventorySummary";
 import { clearClientAuthState } from "@/lib/auth/pos-session";
+import { signOutCurrentSession } from "@/lib/auth/local-sign-out";
 import { APP_SHELL_NAV_GROUPS } from "@/components/app-shell/app-shell-navigation";
 import {
   ChevronLeft,
@@ -142,7 +143,6 @@ function NavItem({
    ───────────────────────────────────────────── */
 export function Sidebar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { canAccess, role, isOfflineSession } = useRole();
   const isOwner = role === "OWNER";
   const roleLabel = role
@@ -161,6 +161,8 @@ export function Sidebar() {
   });
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(true);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState(false);
 
   // Sync state with localstorage safely to avoid SSR hydration issues
   useEffect(() => {
@@ -183,6 +185,19 @@ export function Sidebar() {
 
   const closeAll = () => setOpenGroup(null);
 
+  async function handleSignOut() {
+    setIsSigningOut(true);
+    setSignOutError(false);
+    try {
+      await signOutCurrentSession(createClient());
+      clearClientAuthState();
+      window.location.replace("/login");
+    } catch {
+      setSignOutError(true);
+      setIsSigningOut(false);
+    }
+  }
+
   const filteredNavGroups = navGroups
     .map((group) => {
       return {
@@ -198,6 +213,11 @@ export function Sidebar() {
 
   return (
     <>
+      {signOutError && (
+        <p role="alert" className="fixed bottom-20 left-4 right-4 z-[160] rounded-lg bg-surface-900 p-3 text-sm text-red-200 shadow-lg md:bottom-4 md:right-auto">
+          Belum dapat keluar. Periksa koneksi lalu coba lagi.
+        </p>
+      )}
       {/* Mobile backdrop overlay (dark blur when a group sheet is open) */}
       <div
         className={`
@@ -314,14 +334,8 @@ export function Sidebar() {
             id="sidebar-logout"
             title="Keluar"
             aria-label="Keluar"
-            onClick={async () => {
-              const supabase = createClient();
-              await supabase.auth.signOut();
-              clearClientAuthState();
-              await fetch("/api/auth/clear-session", { method: "POST" }).catch(() => undefined);
-              router.push("/login");
-              router.refresh();
-            }}
+            disabled={isSigningOut}
+            onClick={() => void handleSignOut()}
             className={`
               flex items-center transition-all duration-200 text-surface-400 hover:text-red-400 hover:bg-red-950/20 rounded-xl py-3 cursor-pointer
               ${isCollapsed ? "justify-center w-10 h-10 bg-surface-800" : "px-3.5 gap-3 w-full"}
@@ -441,15 +455,8 @@ export function Sidebar() {
           <div className="px-5 pb-8 pt-2 shrink-0 border-t border-surface-850">
             <button
               type="button"
-              onClick={async () => {
-                closeAll();
-                const supabase = createClient();
-                await supabase.auth.signOut();
-                clearClientAuthState();
-                await fetch("/api/auth/clear-session", { method: "POST" }).catch(() => undefined);
-                router.push("/login");
-                router.refresh();
-              }}
+              disabled={isSigningOut}
+              onClick={() => void handleSignOut()}
               className="w-full flex items-center justify-center gap-2 py-3.5 bg-red-950/20 hover:bg-red-900/30 active:bg-red-900/50 border border-red-900/40 text-red-400 text-sm font-bold rounded-2xl transition-all cursor-pointer"
             >
               <LogOut className="h-[18px] w-[18px]" aria-hidden="true" />

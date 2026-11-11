@@ -138,7 +138,10 @@ describe("offline POS authorization", () => {
       }
     }, options);
     await page.addScriptTag({ content: script });
-    await page.waitForFunction(() => (window as any).requestCount > 0);
+    // Offline startup verifies the local PIN handoff without sending a request.
+    await page.waitForFunction((waitForRequest) => waitForRequest
+      ? (window as any).requestCount > 0
+      : Boolean((window as any).firstProbe), (options.mode ?? "offline") !== "offline");
     return page;
   }
 
@@ -147,6 +150,7 @@ describe("offline POS authorization", () => {
     try {
       await expect.poll(() => page.locator("#protected").isVisible()).toBe(true);
       await expect.poll(() => page.locator("#protected").getAttribute("data-pos")).toBe("true");
+      expect(await page.evaluate(() => (window as any).requestCount)).toBe(0);
       expect(await page.locator("#protected").getAttribute("data-create")).toBe("true");
       expect(await page.locator("#protected").getAttribute("data-settings")).toBe("false");
       expect(await page.locator("#protected").getAttribute("data-edit")).toBe("false");
@@ -324,7 +328,7 @@ describe("offline POS authorization", () => {
       });
       await expect.poll(() => revoking.locator("#protected").isVisible()).toBe(false);
       await late.addScriptTag({ content: script });
-      await late.waitForFunction(() => (window as any).offlineRequests > 0);
+      await late.waitForFunction(() => Boolean((window as any).firstProbe));
       expect(await late.evaluate(() => (window as any).firstProbe)).toEqual({ pos: false, settings: false, edit: false });
       expect(await late.locator("#protected").isVisible()).toBe(false);
       await late.evaluate(() => (window as any).releaseStorageLock());
@@ -372,7 +376,7 @@ describe("offline POS authorization", () => {
       await revoking.waitForFunction(() => Boolean((window as any).releaseOpen));
       await new Promise(resolve => setTimeout(resolve, 100));
       await late.addScriptTag({ content: script });
-      await late.waitForFunction(() => (window as any).offlineRequests > 0);
+      await late.waitForFunction(() => Boolean((window as any).firstProbe));
       await new Promise(resolve => setTimeout(resolve, 500));
       expect(await late.evaluate(() => (window as any).renderedAccess.some((entry: any) => entry.visible || entry.create))).toBe(false);
       expect(await late.locator("#protected").getAttribute("data-create")).toBe("false");
