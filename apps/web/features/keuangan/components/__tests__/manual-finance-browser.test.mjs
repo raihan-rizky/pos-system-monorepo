@@ -15,7 +15,7 @@ const bundle = await build({
   plugins: [{ name: 'unrelated-page-boundaries', setup(builder) {
     builder.onResolve({ filter: /^(next\/(navigation|link|dynamic))$|\/(SupplierPayablesPanel|DeferredCashFlowChart)$/ }, ({ path: name }) => ({ path: name, namespace: 'fixture' }));
     builder.onLoad({ filter: /.*/, namespace: 'fixture' }, ({ path: name }) => ({ resolveDir: web, loader: 'tsx', contents:
-      name === 'next/navigation' ? `export const useSearchParams=()=>new URLSearchParams('month=2026-11');` :
+      name === 'next/navigation' ? `export const useSearchParams=()=>new URLSearchParams('month=2026-11');export const usePathname=()=>'/keuangan';` :
       name === 'next/link' ? `import React from 'react';export default function Link(props){return <a {...props}/>}` :
       name === 'next/dynamic' ? `export default function dynamic(){return ()=>null}` :
       name.endsWith('SupplierPayablesPanel') ? `export const SupplierPayablesPanel=()=>null;` : `export const DeferredCashFlowChart=()=>null;` }));
@@ -34,7 +34,8 @@ try {
     await page.clock.install({ time: new Date('2026-11-03T03:00:00Z') });
     page.setDefaultTimeout(7000);
     const errors = [], writes = [];
-    let incomes = [], expenses = [], failIncome = true;
+    const incomes = [], expenses = [];
+    let failIncome = true;
     page.on('pageerror', error => errors.push(error.message));
     page.on('dialog', dialog => dialog.accept());
     await page.route('http://finance.local/**', async route => {
@@ -73,9 +74,9 @@ try {
     await dialog.getByLabel('Keterangan / sumber').fill('Pemasukan ATK contoh');
     await dialog.getByLabel('Nominal (Rp)').fill('100000');
     await dialog.getByLabel('Kategori RC').selectOption('ATK');
+    await dialog.getByRole('button', { name: 'Tunai', exact: true }).click();
     assert.equal(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth), true, 'form fits viewport');
     await dialog.screenshot({ path: path.join(output, `income-${width}.png`) });
-    if (width === 1280) await dialog.screenshot({ path: path.join(web, 'public/images/changelog/pemasukan-manual-keuangan.png') });
     await dialog.getByRole('button', { name: 'Simpan', exact: true }).click();
     await expect(dialog.getByRole('alert')).toContainText('Contoh gagal simpan');
     await expect(dialog.getByLabel('Nominal (Rp)')).toHaveValue('100000');

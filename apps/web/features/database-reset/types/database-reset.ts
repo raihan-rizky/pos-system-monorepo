@@ -28,6 +28,7 @@ export type DatabaseResetModel =
   | "CashierShift"
   | "Expense"
   | "ManualIncome"
+  | "ManualIncomePayment"
   | "InvoiceDateChangeLog"
   | "ProductionActivityLog"
   | "TransactionLifecycleAudit"

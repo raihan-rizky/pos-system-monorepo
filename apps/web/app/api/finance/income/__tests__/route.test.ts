@@ -13,7 +13,7 @@ const context={params:Promise.resolve({id:'income-1'})};
 describe('CRUD pemasukan tanpa transaksi',()=>{
   beforeEach(()=>{vi.clearAllMocks(); mocks.guard.mockResolvedValue({id:'user-1',storeId:'store-1'});mocks.findMany.mockResolvedValue([row]);mocks.count.mockResolvedValue(1);mocks.create.mockResolvedValue(row);mocks.findFirst.mockResolvedValue(row);mocks.update.mockResolvedValue(row);});
   it('menyimpan toko/pencatat sesi dan tanggal WIB',async()=>{
-    const response=await POST(request('POST',{...data,storeId:'toko-lain',recordedById:'orang-lain'}));
+    const response=await POST(request('POST',{...data,payments:[{method:'CASH',amount:100000}],storeId:'toko-lain',recordedById:'orang-lain'}));
     expect(response.status).toBe(201);
     expect(mocks.guard).toHaveBeenCalledWith("income.manual", "create");
     expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({data:expect.objectContaining({...data,storeId:'store-1',recordedById:'user-1',occurredAt:new Date('2026-11-01T17:00:00Z')})}));

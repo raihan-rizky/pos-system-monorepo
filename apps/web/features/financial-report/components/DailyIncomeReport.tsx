@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { RefreshCw } from "lucide-react";
 import { useRole } from "@/components/providers/RoleProvider";
-import { formatRupiah } from "@/lib/utils";
+import { formatRupiahPrecise } from "@/lib/utils";
 import { DAILY_INCOME_PERMISSIONS, jakartaToday, type DailyIncomeAccess } from "../helpers/daily-income";
 import { useDailyIncome } from "../hooks/useDailyIncome";
 
@@ -13,7 +13,7 @@ function IncomeBreakdown({ title, rows }: { title: string; rows: Array<{ label: 
     {rows.length === 0 ? <p className="px-5 py-8 text-sm text-surface-500">Belum ada pemasukan pada tanggal ini.</p> :
       <dl className="divide-y divide-surface-100">{rows.map(row => <div key={row.label} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
         <dt className="min-w-0 break-words text-sm text-surface-700">{row.label}</dt>
-        <dd className="text-sm font-semibold tabular-nums text-surface-900">{formatRupiah(row.amount)}</dd>
+        <dd className="text-sm font-semibold tabular-nums text-surface-900">{formatRupiahPrecise(row.amount)}</dd>
       </div>)}</dl>}
   </section>;
 }
@@ -43,8 +43,8 @@ export function DailyIncomeReport({ previewSales = false, fullReportPreview }: {
         <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error.message} <button type="button" onClick={() => void refetch()} className="font-semibold underline">Coba lagi</button></div> : isLoading || !report ?
           <p role="status" className="text-sm text-surface-500">Memuat pemasukan harian...</p> : <>
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              {access.total && report.total !== undefined && <section className="rounded-2xl border border-surface-200 bg-white p-5 shadow-sm"><h2 className="text-sm font-medium text-surface-600">Total Pemasukan</h2><p className="mt-2 break-words text-3xl font-bold tabular-nums text-surface-900">{formatRupiah(report.total)}</p></section>}
-              {access.outstandingDp && report.outstandingDp !== undefined && <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5 shadow-sm"><h2 className="text-sm font-medium text-amber-800">Outstanding DP</h2><p className="mt-2 break-words text-3xl font-bold tabular-nums text-amber-900">{formatRupiah(report.outstandingDp)}</p><p className="mt-1 text-xs text-amber-800">Sisa DP saat ini dari nota hingga tanggal pilihan. Tidak termasuk Tempo.</p><p className="mt-1 text-xs text-amber-800">Mengikuti pembayaran terbaru, bukan saldo historis pada tanggal tersebut.</p></section>}
+              {access.total && report.total !== undefined && <section className="rounded-2xl border border-surface-200 bg-white p-5 shadow-sm"><h2 className="text-sm font-medium text-surface-600">Total Pemasukan</h2><p className="mt-2 break-words text-3xl font-bold tabular-nums text-surface-900">{formatRupiahPrecise(report.total)}</p></section>}
+              {access.outstandingDp && report.outstandingDp !== undefined && <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5 shadow-sm"><h2 className="text-sm font-medium text-amber-800">Outstanding DP</h2><p className="mt-2 break-words text-3xl font-bold tabular-nums text-amber-900">{formatRupiahPrecise(report.outstandingDp)}</p><p className="mt-1 text-xs text-amber-800">Sisa DP saat ini dari nota hingga tanggal pilihan. Tidak termasuk Tempo.</p><p className="mt-1 text-xs text-amber-800">Mengikuti pembayaran terbaru, bukan saldo historis pada tanggal tersebut.</p></section>}
             </div>
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               {access.categories && report.categories && <IncomeBreakdown title="Pemasukan per Kategori" rows={report.categories.map(row => ({ label: row.category, amount: row.amount }))} />}

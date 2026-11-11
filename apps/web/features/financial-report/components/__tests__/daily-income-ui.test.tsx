@@ -28,6 +28,11 @@ describe("daily financial report UI", () => {
     for (const forbidden of ["Laba", "HPP", "Pengeluaran", "Sales Teratas", "Produk Terlaris", "Ekspor", "Bulan ini"]) expect(html).not.toContain(forbidden);
     expect(mocks.full).not.toHaveBeenCalled();
   });
+  it("shows fractional amounts in the daily total and payment breakdown", () => {
+    mocks.daily.mockReturnValue({ data: { date: "2026-11-05", total: 0.99, outstandingDp: 0.01, categories: [{ category: "ATK", amount: 0.99 }], subcategories: [], paymentMethods: [{ method: "CASH", amount: 0.5 }, { method: "TRANSFER", amount: 0.49 }] }, isLoading: false, isFetching: false, error: null, refetch: vi.fn() });
+    const html = renderToStaticMarkup(createElement(FinancialReportPage));
+    for (const amount of ["0,99", "0,01", "0,5", "0,49"]) expect(html).toContain(amount);
+  });
   it("does not display denied cached sections even if old query data contains them", () => {
     mocks.role.mockReturnValue({ canAccess: () => true, canPerform: (target: string) => target === "financial-report.daily-payment-method" });
     const html = renderToStaticMarkup(createElement(FinancialReportPage));

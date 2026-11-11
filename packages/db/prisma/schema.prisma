@@ -1903,10 +1903,22 @@ model ManualIncome {
   deletedAt    DateTime?
   store        Store                @relation(fields: [storeId], references: [id], onDelete: Restrict)
   recordedBy   User                 @relation("recorded_manual_income", fields: [recordedById], references: [id], onDelete: Restrict)
+  payments     ManualIncomePayment[]
 
   @@index([storeId, deletedAt, occurredAt(sort: Desc)])
   @@index([recordedById])
   @@map("pos_manual_incomes")
+}
+
+model ManualIncomePayment {
+  id             String        @id @default(cuid())
+  manualIncomeId String
+  method         PaymentMethod
+  amount         Decimal       @db.Decimal(12, 2)
+  manualIncome   ManualIncome  @relation(fields: [manualIncomeId], references: [id], onDelete: Cascade)
+
+  @@unique([manualIncomeId, method])
+  @@map("pos_manual_income_payments")
 }
 
 model Expense {

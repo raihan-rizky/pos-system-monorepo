@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "manual-income-split-payments", date: "2026-11-11", revision: 1,
+    highlight: { title: "Metode pemasukan manual", summary: "Bagi satu pemasukan ke beberapa metode pembayaran." },
+    title: "Catat beberapa metode pembayaran pemasukan.",
+    summary: "Pilih satu atau beberapa metode saat mencatat pemasukan tanpa transaksi. Rincian nominal setiap metode juga tersedia pada laporan pemasukan harian sesuai izin.",
+    kind: "improvement", impact: "major", area: "Keuangan", href: "/keuangan", visual: "financial",
+    screenshot: { src: "/images/changelog/metode-pembayaran-pemasukan-2026-11-10.png", alt: "Contoh pemasukan dengan Tunai Rp40.000, Transfer Rp35.000, dan QRIS Rp25.000." },
+    steps: [
+      { title: "Buka pemasukan", detail: "Di Keuangan, klik Tambah Pemasukan dan isi tanggal, keterangan, nominal, serta kategori RC." },
+      { title: "Pilih metode", detail: "Pilih satu atau beberapa metode dan isi jumlah masing-masing hingga sama dengan nominal pemasukan." },
+      { title: "Simpan dan periksa", detail: "Klik Simpan, lalu lihat rincian pada daftar pemasukan atau laporan pemasukan harian sesuai izin." },
+    ],
+  },
+  {
     id: "inbound-receipt-edit-products-multi-giro", date: "2026-11-07", revision: 1,
     highlight: { title: "Ubah penerimaan dan pakai multi-giro", summary: "Perbaiki barang dan jumlah, lalu bagi pembayaran ke beberapa giro." },
     title: "Koreksi barang dan bagi pembayaran giro.",

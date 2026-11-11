@@ -3,7 +3,13 @@ export type ManualIncomeCategory = (typeof MANUAL_INCOME_CATEGORIES)[number];
 export const MANUAL_INCOME_LABELS: Record<ManualIncomeCategory, string> = {
   ATK: 'ATK', CETAK: 'Cetak', SPANDUK: 'Spanduk', PRINT: 'Print', STEMPEL: 'Stempel',
 };
-export type ManualIncomePayload = { description: string; category: ManualIncomeCategory; amount: number; occurredAt: string };
+export const MANUAL_INCOME_PAYMENT_METHODS = ['CASH', 'QRIS', 'DEBIT', 'CREDIT', 'TRANSFER'] as const;
+export type ManualIncomePaymentMethod = (typeof MANUAL_INCOME_PAYMENT_METHODS)[number];
+export const MANUAL_INCOME_PAYMENT_LABELS: Record<ManualIncomePaymentMethod, string> = {
+  CASH: 'Tunai', QRIS: 'QRIS', DEBIT: 'Debit', CREDIT: 'Kredit', TRANSFER: 'Transfer',
+};
+export type ManualIncomePayment = { method: ManualIncomePaymentMethod; amount: number };
+export type ManualIncomePayload = { description: string; category: ManualIncomeCategory; amount: number; occurredAt: string; payments?: ManualIncomePayment[] };
 export type ManualTransferPayload = { applicantName: string; description: string; amount: number; occurredAt: string; attachmentUrl?: string | null };
 type Result<T> = { success: true; data: T } | { success: false; errors: Record<string, string[]> };
 
@@ -38,7 +44,25 @@ function validateCommon(input: unknown, now: Date) {
 export function validateManualIncome(input: unknown, now = new Date()): Result<ManualIncomePayload> {
   const { data, errors, description, amount, occurredAt } = validateCommon(input, now);
   if (!MANUAL_INCOME_CATEGORIES.includes(data.category as ManualIncomeCategory)) errors.category = ['Pilih kategori RC yang tersedia.'];
-  return Object.keys(errors).length ? { success: false, errors } : { success: true, data: { description, amount, occurredAt, category: data.category as ManualIncomeCategory } };
+  let payments: ManualIncomePayment[] | undefined;
+  if (data.payments !== undefined) {
+    const rows = data.payments;
+    const valid = Array.isArray(rows) && rows.length > 0 && rows.length <= MANUAL_INCOME_PAYMENT_METHODS.length && rows.every(row => {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) return false;
+      const { method, amount: value } = row as Record<string, unknown>;
+      return MANUAL_INCOME_PAYMENT_METHODS.includes(method as ManualIncomePaymentMethod)
+        && typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= 9999999999.99
+        && Number(value.toFixed(2)) === value;
+    });
+    if (valid) {
+      payments = (rows as ManualIncomePayment[]).map(row => ({ method: row.method, amount: row.amount }));
+      const unique = new Set(payments.map(row => row.method));
+      const total = payments.reduce((sum, row) => sum + Math.round(row.amount * 100), 0);
+      if (unique.size !== payments.length || total !== Math.round(amount * 100)) payments = undefined;
+    }
+    if (!payments) errors.payments = ['Pilih metode dan pastikan jumlah pembayarannya sama dengan nominal pemasukan.'];
+  }
+  return Object.keys(errors).length ? { success: false, errors } : { success: true, data: { description, amount, occurredAt, category: data.category as ManualIncomeCategory, ...(payments ? { payments } : {}) } };
 }
 
 export function validateManualTransfer(input: unknown, now = new Date()): Result<ManualTransferPayload> {

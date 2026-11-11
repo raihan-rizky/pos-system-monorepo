@@ -15,7 +15,7 @@ export type DailyIncomeTransaction = IncomeClassificationInput & {
   payments: Payment[];
   debtPaymentLogs: Array<{ id: string; paymentMethod: string; amount: unknown; createdAt: Date }>;
 };
-export type DailyManualIncome = { id: string; occurredAt: Date; category: string; amount: unknown; deletedAt?: Date | null };
+export type DailyManualIncome = { id: string; occurredAt: Date; category: string; amount: unknown; deletedAt?: Date | null; payments?: Array<{ method: string; amount: unknown }> };
 export type DailyIncomeReport = {
   date: string; total: number;
   outstandingDp: number;
@@ -51,11 +51,11 @@ export function buildDailyIncome(input: { date: string; transactions: DailyIncom
   const methods = new Map<string, number>();
   let totalCents = 0;
   let outstandingDpCents = 0;
-  const add = (amount: number, method: string, breakdown: IncomeSubcategoryRow[]) => {
+  const add = (amount: number, method: string | null, breakdown: IncomeSubcategoryRow[]) => {
     const cents = Math.round(amount * 100);
     if (cents <= 0) return;
     totalCents += cents;
-    methods.set(method, (methods.get(method) ?? 0) + cents);
+    if (method !== null) methods.set(method, (methods.get(method) ?? 0) + cents);
     for (const row of breakdown) {
       const rowCents = Math.round(row.amount * 100);
       categories.set(row.category, (categories.get(row.category) ?? 0) + rowCents);
@@ -95,7 +95,16 @@ export function buildDailyIncome(input: { date: string; transactions: DailyIncom
     const classification = row.category === "ATK"
       ? { category: "ATK" as const, subcategory: "Pemasukan manual" }
       : incomeClassification({ transactionCategory: "PERCETAKAN", printingSubcategory: row.category, items: [] });
-    add(amount, "Belum dicatat", [{ ...classification, amount }]);
+    const payments = row.payments ?? [];
+    const paymentCents = payments.reduce((sum, payment) => sum + Math.round(money(payment.amount) * 100), 0);
+    const hasBalancedPayments = payments.length > 0 && paymentCents === Math.round(amount * 100);
+    add(amount, hasBalancedPayments ? null : "Belum dicatat", [{ ...classification, amount }]);
+    if (hasBalancedPayments) {
+      for (const payment of payments) {
+        const cents = Math.round(money(payment.amount) * 100);
+        if (cents > 0) methods.set(payment.method, (methods.get(payment.method) ?? 0) + cents);
+      }
+    }
   }
   return {
     date: input.date, total: totalCents / 100, outstandingDp: outstandingDpCents / 100,

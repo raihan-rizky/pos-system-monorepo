@@ -22,6 +22,7 @@ function ManualFinancePreview({ ctx }: { ctx: PreviewContext }) {
       <PreviewField label={income ? "Keterangan / sumber" : "Keterangan belanja"} value={income ? "Pemasukan ATK contoh" : "Belanja kertas contoh"} />
       <PreviewField label="Nominal (Rp)" value={income ? "100000" : "25000"} />
       <PreviewField label={income ? "Kategori RC" : "Bukti transfer (opsional)"} value={income ? "ATK Â· Cetak Â· Spanduk Â· Print Â· Stempel" : "Pilih gambar bukti"} />
+      {income && <><PreviewField label="Metode pembayaran" value="Tunai · Transfer" /><PreviewField label="Jumlah Tunai (Rp)" value="40000" /><PreviewField label="Jumlah Transfer (Rp)" value="60000" /></>}
       <div className="flex justify-end gap-2"><span className="px-4 py-2 text-sm">Batal</span><span className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white">Simpan</span></div>
     </div>
   </PreviewModal>;
