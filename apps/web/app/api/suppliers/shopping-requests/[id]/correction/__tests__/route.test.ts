@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildDefaultRolePermissions, normalizeRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
 const mocks = vi.hoisted(() => ({ currentUser: vi.fn(), permissions: vi.fn(), editor: vi.fn(), commit: vi.fn(), history: vi.fn() }));
-vi.mock("@/lib/rbac/guard", () => ({ getCurrentUser: mocks.currentUser }));
+vi.mock(import("@/lib/rbac/guard"), async importOriginal => ({
+  ...await importOriginal(),
+  getCurrentUser: mocks.currentUser,
+}));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
 vi.mock("@/features/suppliers/shopping-requests/services/shopping-request-correction-service", () => ({ getShoppingRequestCorrectionEditor: mocks.editor, commitShoppingRequestCorrection: mocks.commit, listShoppingRequestCorrectionHistory: mocks.history }));
 vi.mock("@/lib/logger", () => ({ getLogger: () => ({ error: vi.fn() }) }));
@@ -29,6 +32,13 @@ describe("akses data koreksi daftar belanja", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ data: { requestId: "request-1", version: "version-1" } });
     expect(mocks.editor).toHaveBeenCalledWith("request-1", { id: "owner-1", name: "Pemilik", storeId: "store-1" });
+  });
+
+  it("does not load corrections while auth verification is unavailable", async () => {
+    const { AuthError } = await import("@/lib/rbac/guard");
+    mocks.currentUser.mockRejectedValueOnce(new AuthError(503, "Sesi belum dapat diverifikasi"));
+    expect((await GET(request(), context)).status).toBe(503);
+    expect(mocks.editor).not.toHaveBeenCalled();
   });
 
   it("menolak role yang hanya diberi izin edit daftar awal", async () => {

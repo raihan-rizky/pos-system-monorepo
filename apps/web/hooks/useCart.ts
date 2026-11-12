@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, type SetStateAction } from "react";
 import type {
   CategoryCustomerPricingMode,
   CustomerType,
 } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { changeCartUnit } from "@/features/pos-checkout/helpers/cart-unit-change";
+import { cartStorageKey, clearOwnedCart, readOwnedCart, writeOwnedCart, type CartOwner } from "@/features/pos-checkout/helpers/cart-session-storage";
 import type { PriceRoundingResult } from "@/features/product-price-rounding/rounding";
 
 export interface ProductCartItem {
@@ -184,7 +185,7 @@ export function applyProductGroupMetadataUpdate(
   );
 }
 
-const CART_STORAGE_KEY = "pos_cart_v1";
+const EMPTY_CART: CartItem[] = [];
 
 export function normalizeStoredCartItems(items: CartItem[]): CartItem[] {
   return items.map((item) => {
@@ -252,23 +253,22 @@ export function applyProductUnitOptionUpdates(
   });
 }
 
-function loadCartFromStorage(): CartItem[] {
+function loadCartFromStorage(owner: CartOwner): CartItem[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = sessionStorage.getItem(CART_STORAGE_KEY);
-    const parsed = raw ? (JSON.parse(raw) as CartItem[]) : [];
-    return normalizeStoredCartItems(parsed);
+    return normalizeStoredCartItems(readOwnedCart(window.sessionStorage, owner));
   } catch {
     return [];
   }
 }
 
-function saveCartToStorage(items: CartItem[]) {
-  if (typeof window === "undefined") return;
+function saveCartToStorage(owner: CartOwner, items: CartItem[]): boolean {
   try {
-    sessionStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
+    if (items.length) return writeOwnedCart(window.sessionStorage, owner, items).ok;
+    clearOwnedCart(window.sessionStorage, owner);
+    return true;
   } catch {
-    // Storage quota exceeded or private mode — fail silently
+    return false;
   }
 }
 
@@ -280,20 +280,33 @@ function buildProductCartLineId(
   return `PRODUCT:${productId}:${size || ""}:${material || ""}`;
 }
 
-export function useCart() {
-  const [items, setItems] = useState<CartItem[]>([]);
-  const [hasLoadedStorage, setHasLoadedStorage] = useState(false);
+export function useCart(owner: CartOwner | null) {
+  const userId = owner?.userId;
+  const storeId = owner?.storeId ?? null;
+  const identity = useMemo(() => userId ? { userId, storeId } : null, [userId, storeId]);
+  const key = identity ? cartStorageKey(identity) : null;
+  const [cart, setCart] = useState<{ key: string | null; items: CartItem[] }>({ key: null, items: EMPTY_CART });
+  const [failedKey, setFailedKey] = useState<string | null>(null);
+  const hasLoadedStorage = cart.key === key;
+  const items = hasLoadedStorage ? cart.items : EMPTY_CART;
+  const persistenceError = key !== null && key === failedKey
+    ? "Keranjang belum dapat disimpan di browser. Selesaikan transaksi sebelum menutup halaman."
+    : null;
 
   useEffect(() => {
-    setItems(loadCartFromStorage());
-    setHasLoadedStorage(true);
-  }, []);
+    setCart({ key, items: identity ? loadCartFromStorage(identity) : EMPTY_CART });
+  }, [identity, key]);
 
-  // Persist to sessionStorage whenever items change
   useEffect(() => {
-    if (!hasLoadedStorage) return;
-    saveCartToStorage(items);
-  }, [hasLoadedStorage, items]);
+    if (!identity || !hasLoadedStorage) return;
+    setFailedKey(saveCartToStorage(identity, items) ? null : key);
+  }, [hasLoadedStorage, identity, items, key]);
+
+  const setItems = useCallback((update: SetStateAction<CartItem[]>) => {
+    setCart(current => current.key === key && key !== null
+      ? { key, items: typeof update === "function" ? update(current.items) : update }
+      : current);
+  }, [key]);
 
   const addItem = useCallback(
     (product: { id: string; name: string; description?: string | null; price: number; costPrice?: number | null; baseCostPrice?: number | null; baseCostUnit?: string | null; hargaDinas?: number | null; hargaAgen?: number | null; unit: string; stock: number; unitMultiplierToBase?: number | null; stockGroup?: { id?: string | null; baseUnit?: string | null } | null; brandId?: string | null; brandName?: string | null; categoryId: string; categoryName: string; size?: string; material?: string; unitOptions?: CartUnitOption[] }) => {
@@ -350,7 +363,7 @@ export function useCart() {
         ];
       });
     },
-    []
+    [setItems]
   );
 
   const addServiceItem = useCallback(
@@ -364,23 +377,23 @@ export function useCart() {
         },
       ]);
     },
-    [],
+    [setItems],
   );
 
   const removeItem = useCallback((cartLineId: string) => {
     setItems((prev) => prev.filter((item) => item.cartLineId !== cartLineId));
-  }, []);
+  }, [setItems]);
 
   const changeUnit = useCallback(
     (cartLineId: string, target: CartUnitOption) => {
       setItems((current) => changeCartUnit(current, cartLineId, target));
     },
-    [],
+    [setItems],
   );
 
   const syncUnitOptions = useCallback((groups: CartUnitOption[][]) => {
     setItems((current) => applyProductUnitOptionUpdates(current, groups));
-  }, []);
+  }, [setItems]);
 
   const updateQuantity = useCallback((cartLineId: string, quantity: number) => {
     if (!Number.isFinite(quantity)) return;
@@ -398,13 +411,13 @@ export function useCart() {
           : item
       )
     );
-  }, []);
+  }, [setItems]);
 
   const updateTransactionPrice = useCallback(
     (cartLineId: string, price: number | null) => {
       setItems((current) => applyTransactionPrice(current, cartLineId, price));
     },
-    [],
+    [setItems],
   );
 
   const syncProductPrices = useCallback(
@@ -418,7 +431,7 @@ export function useCart() {
     ) => {
       setItems((current) => applyProductPriceUpdate(current, productId, prices));
     },
-    [],
+    [setItems],
   );
 
   const syncProductGroupMetadata = useCallback(
@@ -437,15 +450,12 @@ export function useCart() {
         applyProductGroupMetadataUpdate(current, productIds, metadata),
       );
     },
-    [],
+    [setItems],
   );
 
   const clearCart = useCallback(() => {
     setItems([]);
-    if (typeof window !== "undefined") {
-      sessionStorage.removeItem(CART_STORAGE_KEY);
-    }
-  }, []);
+  }, [setItems]);
 
   const { subtotal, totalItems } = useMemo(() => {
     const sub = items.reduce(
@@ -459,6 +469,7 @@ export function useCart() {
   return {
     items,
     hasLoadedStorage,
+    persistenceError,
     addItem,
     addServiceItem,
     removeItem,

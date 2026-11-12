@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { clearClientAuthState } from "@/lib/auth/pos-session";
+import { signOutCurrentSession } from "@/lib/auth/local-sign-out";
 import { BeamsBackground } from "@/components/ui/beams-background";
 
 export default function LoginPage() {
@@ -26,12 +27,12 @@ export default function LoginPage() {
       // Supabase requires an email, so we append a dummy domain to the username
       const email = username.includes("@") ? username : `${username}@pos.local`;
 
-      clearClientAuthState();
-      await fetch("/api/auth/clear-session", {
-        method: "POST",
-        cache: "no-store",
-      }).catch(() => undefined);
-      await supabase.auth.signOut().catch(() => undefined);
+      try {
+        await signOutCurrentSession(supabase);
+      } catch {
+        setError("Sesi sebelumnya belum dapat ditutup. Periksa koneksi lalu coba lagi.");
+        return;
+      }
       clearClientAuthState();
 
       const { error: signInError } = await supabase.auth.signInWithPassword({

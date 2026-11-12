@@ -31,7 +31,8 @@ const openAIConstructorMock = vi.hoisted(() =>
   })
 );
 
-vi.mock("@/lib/rbac/guard", () => ({
+vi.mock(import("@/lib/rbac/guard"), async importOriginal => ({
+  ...await importOriginal(),
   getCurrentUser: getCurrentUserMock,
 }));
 
@@ -99,6 +100,15 @@ async function readFirstStreamChunk(response: Response) {
 }
 
 describe("POST /api/ai/chat", () => {
+  it("returns temporary unavailability before starting a stream when auth is unavailable", async () => {
+    const { AuthError } = await import("@/lib/rbac/guard");
+    const { POST } = await import("../route");
+    getCurrentUserMock.mockRejectedValueOnce(new AuthError(503, "Sesi belum dapat diverifikasi"));
+    const response = await POST(makeRequest({ message: "Periksa stok" }));
+    expect(response.status).toBe(503);
+    expect(openAIChatCreateMock).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();

@@ -1,6 +1,6 @@
 import { ZodError } from "zod";
 import { apiError } from "@/lib/api/responses";
-import { getCurrentUser } from "@/lib/rbac/guard";
+import { getCurrentUser, handleAuthError } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
 import { canRoleAccessPage, canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
@@ -48,6 +48,8 @@ export function correctionErrorResponse(error: unknown): Response {
     const code = error.status === 401 ? "Unauthorized" : error.status === 403 ? "Forbidden" : error.status === 404 ? "NotFound" : error.status === 503 ? "ServiceUnavailable" : "Conflict";
     return apiError(error.message, error.status, { code });
   }
+  const auth = handleAuthError(error);
+  if (auth) return auth;
   log.error("shopping_requests.correction.failed", { error });
   return apiError("Koreksi belum dapat diproses. Silakan coba lagi.", 500, { code: "InternalError" });
 }

@@ -1122,6 +1122,8 @@ function searchInContent(item: AccordionItem, query: string): boolean {
 
 export default function HelpContent({ targetRole, searchQuery = "" }: { targetRole: Role | "AI_ASSISTANT"; searchQuery?: string }) {
   const allContent = useMemo(() => HELP_ROLE_CONTENT[targetRole] || [], [targetRole]);
+  const showSessionHelp = targetRole !== "AI_ASSISTANT"
+    && (!searchQuery || /sesi|login|masuk|keluar|perangkat|koneksi|hak akses|keranjang/i.test(searchQuery));
   const content = useMemo(() => {
     if (!searchQuery) return allContent;
     return allContent.filter((item) => searchInContent(item, searchQuery));
@@ -1142,7 +1144,7 @@ export default function HelpContent({ targetRole, searchQuery = "" }: { targetRo
     );
   }
 
-  if (searchQuery && content.length === 0) {
+  if (searchQuery && content.length === 0 && !showSessionHelp) {
     return (
       <div className="p-8 text-center text-surface-500 bg-surface-50 rounded-2xl border border-surface-200">
         <Search className="w-12 h-12 mx-auto mb-3 text-surface-300" />
@@ -1154,6 +1156,13 @@ export default function HelpContent({ targetRole, searchQuery = "" }: { targetRo
 
   return (
     <div className="space-y-4">
+      {showSessionHelp && (
+        <section aria-labelledby="help-device-sessions" className="rounded-2xl border border-brand-100 bg-brand-50 p-5 text-sm text-brand-900">
+          <h2 id="help-device-sessions" className="font-bold">Masuk di banyak perangkat</h2>
+          <p className="mt-1">Satu akun bisa aktif di beberapa perangkat. Pilih Keluar untuk mengakhiri sesi pada perangkat ini.</p>
+          <p className="mt-2">Saat koneksi sedang dipulihkan, biarkan tab tetap terbuka. Jika sesi berakhir, pilih Masuk lagi dan gunakan akun serta toko yang sama untuk memulihkan item keranjang yang tersimpan di tab itu.</p>
+        </section>
+      )}
       {!searchQuery && (
         <Link href="/changelog" prefetch={false} className="flex items-center gap-4 rounded-2xl border border-brand-200 bg-brand-50 p-5 text-brand-900 transition-colors hover:bg-brand-100">
           <History className="h-7 w-7 shrink-0 text-brand-700" aria-hidden="true" />
