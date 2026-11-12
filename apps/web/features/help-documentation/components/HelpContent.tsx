@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
+  CheckCircle2,
   ChevronDown,
   Settings,
   ShoppingCart,
@@ -134,6 +135,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       steps: [
         { title: "Buka Laporan Keuangan", description: "Dari menu samping (sidebar) sebelah kiri layar, gulir ke bawah pada kategori 'Keuangan', lalu klik menu 'Laporan Keuangan' (ikon grafik batang).", icon: <DollarSign className="w-8 h-8" /> },
         { title: "Pilih Tampilan dan Tanggal", description: "Di Laporan Lengkap, pilih rentang tanggal yang ingin dipantau. Pilih Lihat sebagai Sales untuk meninjau pemasukan harian dan Outstanding DP sesuai izin Sales yang tersimpan di Hak Akses. Klik total pemasukan atau Lihat rincian pemasukan untuk membuka ringkasan dan daftar penerimaan tanggal pilihan; pilih Rincian pada baris untuk melihat alokasinya sesuai izin. Nominal kategori, subkategori, metode, dan Outstanding DP tetap membuka Riwayat sesuai izin. Dalam pratinjau Sales, catat nomor nota, pilih Laporan Lengkap, lalu cari nota di Riwayat dengan hak Owner. Jika Sales diberi akses laporan penuh, pratinjau juga menampilkan laporan penuh. Outstanding DP memakai sisa pembayaran terkini dari nota hingga tanggal pilihan, bukan saldo historis.", icon: <History className="w-8 h-8" /> },
+        { title: "Cocokkan penerimaan jika perlu", description: "Pilih Pemasukan Harian, tanggal, lalu buka total pemasukan. Pada Cocokkan penerimaan, isi nominal aktual per metode yang ingin dicek dan pilih Simpan pemeriksaan. Isian kosong berarti belum dicek; buka kembali tanggal yang sama untuk meninjau hasil sesuai izin. Pratinjau Sales tidak dapat menyimpan pemeriksaan.", icon: <CheckCircle2 className="w-8 h-8" /> },
         { title: "Cetak atau Ekspor", description: "Jika ingin menyimpan file laporan, klik tombol 'Ekspor' di pojok kanan atas layar, lalu pilih Excel atau PDF. File Excel menyertakan ringkasan revenue per kategori produk.", icon: <FileText className="w-8 h-8" /> },
       ]
     },
@@ -274,7 +276,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Pilih & Putar Gambar Bukti", description: "Klik 'Pilih gambar bukti', lalu gunakan 'Putar kiri' atau 'Putar kanan' sampai orientasinya benar. Klik 'Unggah foto' untuk menyimpan hasilnya ke R2.", icon: <FileText className="w-8 h-8" /> },
         { title: "Fallback & Simpan", description: "Jika penyimpanan R2 gagal, input prnt.sc akan muncul sebagai fallback. Setelah bukti siap, klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
         { title: "Kompresi & Hapus Foto", description: "Gambar otomatis dikompresi sebelum masuk R2. OWNER dapat memakai 'Hapus foto'; role lain memerlukan izin proof_upload:delete dari pengaturan RBAC. Foto R2 dihapus permanen, sedangkan prnt.sc hanya dikosongkan tautannya.", icon: <ShieldCheck className="w-8 h-8" /> },
-        { title: "Tambah Pemasukan", description: "Pada Pemasukan tanpa transaksi, klik Tambah Pemasukan. Isi tanggal, keterangan / sumber, nominal, dan kategori RC: ATK, Cetak, Spanduk, Print, Stempel. Pilih satu atau beberapa metode pembayaran; jika lebih dari satu, isi setiap jumlah hingga sama dengan nominal. Simpan, lalu gunakan Ubah atau Hapus sesuai izin. Unduh ulang Excel agar RC memuat perubahan.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Tambah Pemasukan", description: "Pada Pemasukan tanpa transaksi, klik Tambah Pemasukan. Isi tanggal, keterangan / sumber, nominal, dan kategori RC: ATK, Cetak, Spanduk, Print, Stempel. Pilih satu atau beberapa metode pembayaran; jika lebih dari satu, isi setiap jumlah hingga sama dengan nominal. Simpan, lalu gunakan Ubah atau Hapus sesuai izin. Pada Pemasukan, pilih tanggal untuk melihat rincian penerimaan sesuai izin, termasuk pelunasan nota lama. Unduh ulang Excel agar RC memuat perubahan.", icon: <DollarSign className="w-8 h-8" /> },
         { title: "Tambah Belanja Transfer", description: "Klik Tambah Belanja Transfer pada Pengeluaran. Isi tanggal transfer, penerima / supplier, keterangan, dan nominal; bukti opsional. Simpan untuk mencatat keuangan tanpa menambah stok. Badge Belanja Transfer Manual menyediakan Ubah/Hapus sesuai izin. Unduh ulang Excel: catatan masuk PENGELUARAN BELANJA pada VIA TRANSFER dan dihitung sekali dalam RP.", icon: <FileSpreadsheet className="w-8 h-8" /> },
       ]
     },
@@ -472,7 +474,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Pilih & Putar Gambar Bukti", description: "Klik 'Pilih gambar bukti', atur orientasi dengan 'Putar kiri' atau 'Putar kanan', lalu klik 'Unggah foto' untuk menyimpannya ke R2.", icon: <FileText className="w-8 h-8" /> },
         { title: "Fallback & Simpan", description: "Periksa pratinjau. Jika R2 gagal, gunakan input prnt.sc yang muncul, lalu klik 'Simpan'.", icon: <Settings className="w-8 h-8" /> },
         { title: "Kenali Badge Sumber", description: "Badge Manual berasal dari form pengeluaran. Badge Pembelian Barang dibuat otomatis setelah seluruh produknya disetujui dan tidak dapat diedit atau dihapus dari halaman Keuangan. Badge Daftar Belanja (Legacy) hanya menandai data lama.", icon: <ShieldCheck className="w-8 h-8" /> },
-        { title: "Tambah Pemasukan", description: "Pada Pemasukan tanpa transaksi, klik Tambah Pemasukan. Isi tanggal, keterangan / sumber, nominal, dan kategori RC. Pilih satu atau beberapa metode pembayaran dan pastikan jumlahnya sama dengan nominal. Simpan, lalu gunakan Ubah/Hapus sesuai izin. Unduh ulang Excel agar RC memuat data terbaru.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Tambah Pemasukan", description: "Pada Pemasukan tanpa transaksi, klik Tambah Pemasukan. Isi tanggal, keterangan / sumber, nominal, dan kategori RC. Pilih satu atau beberapa metode pembayaran dan pastikan jumlahnya sama dengan nominal. Simpan, lalu gunakan Ubah/Hapus sesuai izin. Pada Pemasukan, pilih tanggal untuk melihat rincian penerimaan sesuai izin, termasuk pelunasan nota lama. Unduh ulang Excel agar RC memuat data terbaru.", icon: <DollarSign className="w-8 h-8" /> },
         { title: "Tambah Belanja Transfer", description: "Klik Tambah Belanja Transfer pada Pengeluaran. Isi tanggal transfer, penerima / supplier, keterangan, nominal, serta bukti opsional. Simpan tanpa menambah stok. Catatan dapat dikoreksi sesuai izin. Unduh ulang Excel untuk melihat PENGELUARAN BELANJA pada VIA TRANSFER; RP menghitung pengeluaran sekali.", icon: <FileSpreadsheet className="w-8 h-8" /> },
       ]
     },
@@ -612,6 +614,17 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     }
   ],
   CASHIER: [
+    {
+      id: "cashier-daily-income-comparison",
+      title: "Memeriksa Penerimaan Harian",
+      description: "Periksa rincian penerimaan dan, bila perlu, cocokkan nominal aktual dengan perhitungan POS sesuai izin.",
+      icon: <TrendingUp className="w-5 h-5 text-brand-600" />,
+      steps: [
+        { title: "Pilih tanggal", description: "Buka Laporan Keuangan dan pilih tanggal pemasukan dalam WIB.", icon: <History className="w-8 h-8" /> },
+        { title: "Buka rincian", description: "Klik total pemasukan atau Lihat rincian pemasukan untuk melihat penerimaan dan metode pembayaran yang diizinkan.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Cocokkan jika perlu", description: "Buka Cocokkan penerimaan, isi nominal aktual untuk metode yang ingin diperiksa, lalu pilih Simpan pemeriksaan. Kosong berarti belum dicek; hasil tersimpan dapat dibuka lagi oleh pengguna berizin pada toko dan tanggal yang sama.", icon: <CheckCircle2 className="w-8 h-8" /> },
+      ],
+    },
     {
       id: "cashier-shift",
       title: "Memulai & Mengakhiri Shift",

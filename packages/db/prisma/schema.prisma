@@ -27,6 +27,7 @@ model User {
   updatedCategoryCustomerPricingRules CategoryCustomerPricingRule[]   @relation("updated_category_customer_pricing_rules")
   recordedExpenses                    Expense[]                       @relation("recorded_expenses")
   recordedManualIncome                ManualIncome[]                  @relation("recorded_manual_income")
+  savedDailyIncomeComparisons         DailyIncomeComparison[]        @relation("daily_income_comparison_actor")
   productImportJobs                   ProductImportJob[]              @relation("created_product_import_jobs")
   productionActivityLogs              ProductionActivityLog[]         @relation("production_activity_actor")
   invoiceDateChangeLogs               InvoiceDateChangeLog[]          @relation("invoice_date_change_actor")
@@ -103,6 +104,7 @@ model Store {
   goodsPurchases               GoodsPurchase[]
   expenses                     Expense[]
   manualIncome                 ManualIncome[]
+  dailyIncomeComparisons       DailyIncomeComparison[]
   expenseCategories            CustomExpenseCategory[]
   suratJalan                   SuratJalan[]
   transactions                 Transaction[]
@@ -1919,6 +1921,35 @@ model ManualIncomePayment {
 
   @@unique([manualIncomeId, method])
   @@map("pos_manual_income_payments")
+}
+
+model DailyIncomeComparison {
+  id           String                        @id @default(cuid())
+  storeId      String
+  date         DateTime                      @db.Date
+  revision     Int                           @default(1)
+  savedById    String?
+  savedByName  String
+  savedAt      DateTime                      @default(now())
+  updatedAt    DateTime                      @updatedAt
+  posSnapshot  Json
+  store        Store                         @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  savedBy      User?                         @relation("daily_income_comparison_actor", fields: [savedById], references: [id], onDelete: SetNull)
+  amounts      DailyIncomeComparisonAmount[]
+
+  @@unique([storeId, date])
+  @@map("pos_daily_income_comparisons")
+}
+
+model DailyIncomeComparisonAmount {
+  id           String                @id @default(cuid())
+  comparisonId String
+  method       PaymentMethod
+  amount       Decimal               @db.Decimal(12, 2)
+  comparison   DailyIncomeComparison @relation(fields: [comparisonId], references: [id], onDelete: Cascade)
+
+  @@unique([comparisonId, method])
+  @@map("pos_daily_income_comparison_amounts")
 }
 
 model Expense {

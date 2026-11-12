@@ -26,7 +26,8 @@ function IncomeBreakdown({ title, rows }: { title: string; rows: BreakdownRow[] 
 
 export function DailyIncomeReport({ previewSales = false, fullReportPreview }: { previewSales?: boolean; fullReportPreview?: ReactNode } = {}) {
   const { canPerform, canAccess, userId, storeId, authorizationFingerprint } = useRole();
-  const access = Object.fromEntries(Object.entries(DAILY_INCOME_PERMISSIONS).map(([key, target]) => [key, canPerform(target, "read")])) as DailyIncomeAccess;
+  const fullReportAccess = !previewSales && canPerform("financial-report", "read");
+  const access = Object.fromEntries(Object.entries(DAILY_INCOME_PERMISSIONS).map(([key, target]) => [key, fullReportAccess || canPerform(target, "read")])) as DailyIncomeAccess;
   const [date, setDate] = useState(jakartaToday);
   const [detailsOpen, setDetailsOpen] = useState(false);
   useEffect(() => setDetailsOpen(false), [date, previewSales, userId, storeId, authorizationFingerprint]);
@@ -74,6 +75,6 @@ export function DailyIncomeReport({ previewSales = false, fullReportPreview }: {
             {access.paymentMethods && report.paymentMethods?.some(row => row.method === "Belum dicatat") && <p className="text-xs text-[#587586]">Metode pembayaran pemasukan manual belum dicatat.</p>}
           </>}
     </div>
-    {detailsOpen && totalHref && report?.total !== undefined && <DailyIncomeReceiptDialog date={date} previewSales={previewSales} onClose={() => setDetailsOpen(false)} />}
+    {detailsOpen && totalHref && report?.total !== undefined && <DailyIncomeReceiptDialog date={date} previewSales={previewSales} allowComparison onClose={() => setDetailsOpen(false)} />}
   </main>;
 }

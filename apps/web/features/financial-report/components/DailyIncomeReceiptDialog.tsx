@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ChevronDown, X } from "lucide-react";
 import { formatRupiahPrecise } from "@/lib/utils";
 import { useReceiptHistory } from "@/features/transaction-history/hooks/useReceiptHistory";
+import { useRole } from "@/components/providers/RoleProvider";
+import { DailyIncomeComparison } from "./DailyIncomeComparison";
 
 type AmountBreakdown = {
   paymentBreakdown?: Array<{ method: string; amount: number }>;
@@ -21,6 +23,7 @@ type ReceiptRow = AmountBreakdown & {
 type Props = {
   date: string;
   previewSales?: boolean;
+  allowComparison?: boolean;
   onClose: () => void;
 };
 
@@ -29,8 +32,9 @@ const methodLabels: Record<string, string> = {
 };
 const methodLabel = (method: string) => methodLabels[method] ?? method;
 
-export function DailyIncomeReceiptDialog({ date, previewSales = false, onClose }: Props) {
+export function DailyIncomeReceiptDialog({ date, previewSales = false, allowComparison = false, onClose }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const { userId, storeId, authorizationFingerprint } = useRole();
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const { data, isLoading, error, refetch } = useReceiptHistory({ mode: "receipt", date, previewSales });
   const summary = !error ? data?.summary : undefined;
@@ -76,6 +80,7 @@ export function DailyIncomeReceiptDialog({ date, previewSales = false, onClose }
         <h3 className="text-sm font-bold">Metode pembayaran</h3>
         <div className="flex flex-wrap gap-2">{summary.paymentMethods.map(row => <div key={row.method} className="rounded-lg border border-[#dce9ed] bg-[#f6fafc] px-3 py-2 text-sm"><span className="text-[#587586]">{methodLabel(row.method)}</span><span className="ml-2 font-mono font-semibold tabular-nums">{formatRupiahPrecise(row.amount)}</span></div>)}</div>
       </section>}
+      {allowComparison && summary?.paymentMethods && data?.comparisonAccess?.read && <DailyIncomeComparison key={JSON.stringify([date, userId, storeId, authorizationFingerprint, previewSales])} date={date} methods={summary.paymentMethods} access={data.comparisonAccess} previewSales={previewSales} onSaved={() => void refetch()} />}
       {error ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error.message} <button type="button" onClick={() => void refetch()} className="min-h-11 font-semibold underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700">Coba lagi</button></div>
         : isLoading || !data ? <p role="status" className="text-sm text-[#587586]">Memuat rincian pemasukan...</p> : !summary ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">Ringkasan pemasukan belum dapat dimuat. <button type="button" onClick={() => void refetch()} className="min-h-11 font-semibold underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700">Coba lagi</button></div> : <>
           {!data.manualDetailsAvailable && <p className="rounded-lg border border-[#c9dce6] bg-[#f1f7fb] p-3 text-sm text-[#385e70]">Akses untuk sebagian rincian pemasukan belum tersedia. Hubungi Owner untuk melihat rincian lengkap.</p>}

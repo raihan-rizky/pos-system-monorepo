@@ -63,7 +63,9 @@ jobs:
       - name: Instal Chromium untuk tes browser
         run: pnpm --filter @pos/web exec playwright install --with-deps chromium
       - name: Tes keamanan packaging dan database
-        run: node --test scripts/tests/vps-artifact-package.test.mjs packages/db/tests/clear-locks-safety.test.cjs
+        env:
+          POS_COMPARISON_TEST_URL: postgresql://postgres:postgres@127.0.0.1:5432/pos_ci
+        run: node --test scripts/tests/vps-artifact-package.test.mjs packages/db/tests/clear-locks-safety.test.cjs packages/db/tests/daily-income-comparison-migration.test.cjs
       - name: Tes fingerprint pada PostgreSQL sementara
         env:
           POS_CI_DATABASE_TEST: '1'
@@ -72,6 +74,13 @@ jobs:
         run: python3 -m unittest discover -s scripts/tests -p 'test_vps_*.py'
       - name: Unit test
         run: pnpm test
+      - name: Tes penyimpanan pemeriksaan penerimaan
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pos_ci?schema=comparison_integration
+          DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/pos_ci?schema=comparison_integration
+          POS_COMPARISON_TEST_URL: postgresql://postgres:postgres@127.0.0.1:5432/pos_ci?schema=comparison_integration
+          POS_COMPARISON_TEST_BOOTSTRAP: '1'
+        run: pnpm --filter @pos/web exec vitest run app/api/finance/report/daily-comparison/__tests__/route.test.ts
       - name: E2E dengan data mock
         run: pnpm e2e
       - name: Build pemeriksaan PR

@@ -4,6 +4,7 @@ import { getCurrentUser, handleAuthError } from "@/lib/rbac/guard";
 import { apiError } from "@/lib/api/responses";
 import { getLogger } from "@/lib/logger";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
+import { canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
 import { resolveReceiptHistoryAccess } from "@/features/financial-report/helpers/income-access";
 import { buildDailyIncomeRange } from "@/features/financial-report/helpers/daily-income";
 import { loadIncomePeriod } from "@/features/financial-report/services/daily-income";
@@ -40,7 +41,8 @@ export async function GET(request: Request) {
     let permissions;
     try { permissions = await getGlobalRolePermissions(); }
     catch { return apiError("Hak akses belum dapat diperiksa.", 503, { code: "ServiceUnavailable" }); }
-    const access = resolveReceiptHistoryAccess(view === "sales" ? "SALES" : user.role, permissions);
+    const effectiveRole = view === "sales" ? "SALES" : user.role;
+    const access = resolveReceiptHistoryAccess(effectiveRole, permissions);
     const permitted = mode === "outstanding-dp" ? access.outstandingDp
       : (subcategory ? access.subcategory : category ? access.category : method ? access.method : access.total)
         && (!method || access.method);
@@ -111,9 +113,11 @@ export async function GET(request: Request) {
     })).sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
     const dailySummary = mode === "receipt" && fromDate === toDate && !category && !subcategory && !method && access.total
       ? period.days[0] : undefined;
+    const canCompare = Boolean(dailySummary && access.method && canRolePerformAction(effectiveRole, "financial-report.daily-comparison", "read", permissions));
     return NextResponse.json({ mode, dateFrom: fromDate, dateTo: toDate, items, manualDetailsAvailable: access.manualDetails,
       ...(access.manualDetails && mode === "receipt" ? { manualEntries } : {}),
       ...(dailySummary && { summary: { total: dailySummary.total, ...(access.method && { paymentMethods: dailySummary.paymentMethods }) } }),
+      ...(dailySummary && access.method && { comparisonAccess: { read: canCompare, create: canCompare && view !== "sales" && canRolePerformAction(effectiveRole, "financial-report.daily-comparison", "create", permissions), update: canCompare && view !== "sales" && canRolePerformAction(effectiveRole, "financial-report.daily-comparison", "update", permissions) } }),
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     const auth = handleAuthError(error);

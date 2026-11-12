@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
 const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn() }));
@@ -21,6 +21,7 @@ const oldInvoice = {
 const dp = { ...oldInvoice, id: "dp", status: "DP", total: 100_000, amountPaid: 25_000, payments: [], debtPaymentLogs: [] };
 
 describe("Riwayat penerimaan dan Outstanding DP", () => {
+  beforeAll(async () => { expect(await loadRoute()).not.toBeNull(); }, 30_000);
   beforeEach(() => {
     vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date("2026-11-11T03:00:00Z"));
     mocks.user.mockResolvedValue({ id: "sales", role: "SALES", storeId: "store-1" });
@@ -111,6 +112,23 @@ describe("Riwayat penerimaan dan Outstanding DP", () => {
     });
     const category = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&category=ATK"))).json();
     expect(category).not.toHaveProperty("summary");
+  });
+
+  it("menyertakan izin perbandingan sesuai role dan membuat pratinjau Sales hanya-baca", async () => {
+    const route = await loadRoute(); expect(route).not.toBeNull(); if (!route) return;
+    mocks.user.mockResolvedValue({ id: "owner", role: "OWNER", storeId: "store-1" });
+    const permissions = buildDefaultRolePermissions();
+    mocks.permissions.mockResolvedValue(permissions);
+    const owner = await (await route.GET(request())).json();
+    expect(owner.comparisonAccess).toEqual({ read: true, create: true, update: true });
+    permissions.SALES.resources["financial-report.daily-comparison"] = { read: true, create: true, update: true, delete: false };
+    const preview = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&view=sales"))).json();
+    expect(preview.comparisonAccess).toEqual({ read: true, create: false, update: false });
+    permissions.SALES.resources["financial-report.daily-payment-method"].read = false;
+    const limited = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&view=sales"))).json();
+    expect(limited.comparisonAccess).toBeUndefined();
+    const filtered = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&method=CASH"))).json();
+    expect(filtered.comparisonAccess).toBeUndefined();
   });
 
   it("hanya mengirim rincian yang diizinkan dalam pratinjau Sales", async () => {

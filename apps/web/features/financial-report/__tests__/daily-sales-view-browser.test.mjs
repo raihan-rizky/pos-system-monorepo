@@ -79,13 +79,15 @@ try {
         const items = receiptEmpty ? [] : [{ transactionId: 'old-invoice', invoiceNumber, date: url.searchParams.get('dateFrom'), amount: 16000, methods: ['CASH', 'TRANSFER'], paymentBreakdown: [{ method: 'CASH', amount: 6000 }, { method: 'TRANSFER', amount: 10000 }], categoryBreakdown: [{ category: 'Percetakan', amount: 16000 }] }];
         const manualEntries = receiptEmpty || !manualDetailsAvailable ? [] : [{ id: 'manual', description: 'Pemasukan contoh', date: url.searchParams.get('dateFrom'), amount: 10000, methods: ['CASH'], paymentBreakdown: [{ method: 'CASH', amount: 10000 }], categoryBreakdown: [{ category: 'Percetakan', amount: 10000 }] }];
         const summary = receiptEmpty ? { total: 0, paymentMethods: [] } : { total: 26000, paymentMethods: [{ method: 'CASH', amount: 16000 }, { method: 'TRANSFER', amount: 10000 }] };
-        const json = { mode: 'receipt', dateFrom: url.searchParams.get('dateFrom'), dateTo: url.searchParams.get('dateTo'), items, manualDetailsAvailable, summary, ...(manualDetailsAvailable ? { manualEntries } : {}) };
+        const ownerView = (new URL(page.url()).searchParams.get('role') || 'OWNER') === 'OWNER' && url.searchParams.get('view') !== 'sales';
+        const json = { mode: 'receipt', dateFrom: url.searchParams.get('dateFrom'), dateTo: url.searchParams.get('dateTo'), items, manualDetailsAvailable, summary, comparisonAccess: { read: ownerView, create: ownerView, update: ownerView }, ...(manualDetailsAvailable ? { manualEntries } : {}) };
         if (holdReceipt) {
           holdReceipt = false;
           return new Promise(resolve => { releaseHeldReceipt = async () => { try { await route.fulfill({ json }); } catch {} resolve(); }; });
         }
         return route.fulfill({ json });
       }
+      if (url.pathname === '/api/finance/report/daily-comparison') return route.fulfill({ json: { comparison: null } });
       return route.fulfill({ contentType: 'text/html', body: html });
     });
     const load = async (query = '') => { await page.goto(`http://daily-sales.test/${query}`); await page.addScriptTag({ content: bundle.outputFiles[0].text }); };
@@ -160,6 +162,14 @@ try {
     receiptEmpty = true;
     await totalButton.click();
     await expect(dialog).toContainText('Belum ada penerimaan yang dapat ditampilkan pada tanggal ini.');
+    await page.keyboard.press('Escape');
+    receiptEmpty = false;
+    await load();
+    await page.getByRole('button', { name: 'Pemasukan Harian', exact: true }).click();
+    await page.getByRole('button', { name: /Lihat rincian Total Pemasukan/ }).click();
+    dialog = page.getByRole('dialog', { name: 'Rincian pemasukan' });
+    await dialog.locator('summary').filter({ hasText: 'Cocokkan penerimaan' }).click();
+    await expect(dialog.getByLabel('Aktual Tunai (Rp)')).toBeVisible();
     await page.keyboard.press('Escape');
     receiptEmpty = false;
     await page.getByRole('button', { name: /Lihat rincian Total Pemasukan/ }).click();

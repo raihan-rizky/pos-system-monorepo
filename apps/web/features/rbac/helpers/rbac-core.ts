@@ -64,6 +64,7 @@ export const RESOURCE_TARGETS = [
   "financial-report.daily-category",
   "financial-report.daily-subcategory",
   "financial-report.daily-payment-method",
+  "financial-report.daily-comparison",
   "transaction.request",
   "transaction.auto_approve",
   "transaction.approve",
@@ -125,7 +126,7 @@ type LegacyAction = "read" | "write" | "delete";
 
 const LEGACY_PAGE_ACCESS: Record<string, Role[]> = {
   "/dashboard": ["OWNER", "ADMIN"],
-  "/financial-report": ["OWNER", "ADMIN", "SALES"],
+  "/financial-report": ["OWNER", "ADMIN", "CASHIER", "SALES"],
   "/pos": ["OWNER", "ADMIN", "CASHIER", "SALES"],
   "/history": ["OWNER", "ADMIN", "CASHIER", "SALES"],
   "/production": ["OWNER", "ADMIN", "CASHIER", "SALES"],
@@ -241,11 +242,12 @@ const LEGACY_ACTION_ACCESS: Record<string, Record<LegacyAction, Role[]>> = {
 const RESOURCE_GRANULAR_ACCESS: Partial<
   Record<string, Record<ResourceAction, Role[]>>
 > = {
-  "financial-report.daily-income": { read: ["ADMIN", "SALES"], create: [], update: [], delete: [] },
+  "financial-report.daily-income": { read: ["ADMIN", "CASHIER", "SALES"], create: [], update: [], delete: [] },
   "financial-report.daily-outstanding-dp": { read: ["ADMIN", "SALES"], create: [], update: [], delete: [] },
   "financial-report.daily-category": { read: ["ADMIN", "SALES"], create: [], update: [], delete: [] },
   "financial-report.daily-subcategory": { read: ["ADMIN", "SALES"], create: [], update: [], delete: [] },
-  "financial-report.daily-payment-method": { read: ["ADMIN", "SALES"], create: [], update: [], delete: [] },
+  "financial-report.daily-payment-method": { read: ["ADMIN", "CASHIER", "SALES"], create: [], update: [], delete: [] },
+  "financial-report.daily-comparison": { read: ["CASHIER"], create: ["CASHIER"], update: ["CASHIER"], delete: [] },
   "transaction.auto_approve": {
     read: [],
     create: ["ADMIN", "CASHIER"],

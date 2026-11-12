@@ -77,21 +77,26 @@ function formatRange(dateFrom: string, dateTo: string): string {
 
 export default function FinancialReportPage() {
   const { role, canAccess, canPerform } = useRole();
-  const [viewMode, setViewMode] = React.useState<"full" | "sales">("full");
+  const [viewMode, setViewMode] = React.useState<"full" | "daily" | "sales">("full");
   if (!canAccess("/financial-report")) return <p className="p-6 text-sm text-surface-600">Akses Laporan Keuangan belum diizinkan.</p>;
   const canReadFullReport = canPerform("financial-report", "read");
   if (!canReadFullReport) return <DailyIncomeReport />;
-  if (role !== "OWNER") return <FullFinancialReport />;
+  const canOpenDaily = canPerform("financial-report.daily-comparison", "read");
+  if (role !== "OWNER" && !canOpenDaily) return <FullFinancialReport />;
+  const currentView = viewMode === "daily" && !canOpenDaily || viewMode === "sales" && role !== "OWNER" ? "full" : viewMode;
+  const views: Array<["full" | "daily" | "sales", string]> = [["full", "Laporan Lengkap"]];
+  if (canOpenDaily) views.push(["daily", "Pemasukan Harian"]);
+  if (role === "OWNER") views.push(["sales", "Lihat sebagai Sales"]);
   return <div className="flex min-h-0 flex-1 flex-col">
     <div className="border-b border-surface-200 bg-white px-4 py-3 md:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div role="group" aria-label="Tampilan laporan" className="inline-flex flex-wrap gap-1 rounded-xl bg-surface-100 p-1">
-          {([ ["full", "Laporan Lengkap"], ["sales", "Lihat sebagai Sales"] ] as const).map(([mode, label]) => <button key={mode} type="button" aria-pressed={viewMode === mode} onClick={() => setViewMode(mode)} className={`min-h-10 rounded-lg px-3 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${viewMode === mode ? "bg-white text-brand-800 shadow-sm" : "text-surface-600 hover:bg-white hover:text-surface-900"}`}>{label}</button>)}
+          {views.map(([mode, label]) => <button key={mode} type="button" aria-pressed={currentView === mode} onClick={() => setViewMode(mode)} className={`min-h-10 rounded-lg px-3 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${currentView === mode ? "bg-white text-brand-800 shadow-sm" : "text-surface-600 hover:bg-white hover:text-surface-900"}`}>{label}</button>)}
         </div>
-        {viewMode === "sales" && <p className="text-xs text-surface-600">Tampilan Sales mengikuti izin Sales yang diatur di Hak Akses.</p>}
+        {currentView === "sales" && <p className="text-xs text-surface-600">Tampilan Sales mengikuti izin Sales yang diatur di Hak Akses.</p>}
       </div>
     </div>
-    {viewMode === "sales" ? <DailyIncomeReport previewSales fullReportPreview={<FullFinancialReport />} /> : <FullFinancialReport />}
+    {currentView === "sales" ? <DailyIncomeReport previewSales fullReportPreview={<FullFinancialReport />} /> : currentView === "daily" ? <DailyIncomeReport /> : <FullFinancialReport />}
   </div>;
 }
 

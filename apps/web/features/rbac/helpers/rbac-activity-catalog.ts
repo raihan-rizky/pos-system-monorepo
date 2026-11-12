@@ -32,6 +32,7 @@ export const RBAC_RESOURCE_METADATA: Record<string, ResourceEditorMetadata> = {
   "financial-report.daily-category": { label: "Pemasukan kategori harian", actions: ["read"], guidance: "Rincian ATK dan Percetakan pada satu tanggal, tanpa data laba atau HPP." },
   "financial-report.daily-subcategory": { label: "Pemasukan subkategori harian", actions: ["read"], guidance: "Rincian kategori produk ATK dan jenis layanan Percetakan pada satu tanggal." },
   "financial-report.daily-payment-method": { label: "Pemasukan metode pembayaran harian", actions: ["read"], guidance: "Uang diterima per metode pembayaran, termasuk DP dan pelunasan pada tanggal pilihan." },
+  "financial-report.daily-comparison": { label: "Perbandingan penerimaan harian", actions: ["read", "create", "update"], guidance: "Melihat dan menyimpan nominal aktual opsional per metode. Memerlukan akses pemasukan harian, metode pembayaran, dan Riwayat." },
   income: { label: "Pemasukan", actions: ["create", "read", "update", "delete"] },
   production: { label: "Pekerjaan produksi", actions: ["read", "update"] },
   customer: { label: "Data pelanggan", actions: ["create", "read", "update", "delete"] },

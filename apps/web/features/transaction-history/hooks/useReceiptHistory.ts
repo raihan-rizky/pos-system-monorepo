@@ -15,6 +15,7 @@ export type ReceiptHistoryData = {
   manualDetailsAvailable: boolean;
   manualEntries?: ManualEntry[];
   summary?: { total: number; paymentMethods?: Array<{ method: string; amount: number }> };
+  comparisonAccess?: { read: boolean; create: boolean; update: boolean };
 };
 
 export function useReceiptHistory(context: ReceiptHistoryContext) {

@@ -33,6 +33,7 @@ import { DeferredCashFlowChart } from "@/features/keuangan/components/DeferredCa
 import { SupplierPayablesPanel } from "@/features/keuangan/components/SupplierPayablesPanel";
 import { ManualIncomePanel } from "@/features/keuangan/components/ManualIncomePanel";
 import { IncomeDayRow } from "@/features/keuangan/components/IncomeDayRow";
+import { DailyIncomeReceiptDialog } from "@/features/financial-report/components/DailyIncomeReceiptDialog";
 import { ManualFinanceFormModal, type ManualFinanceInitial } from "@/features/keuangan/components/ManualFinanceFormModal";
 import { formatRupiah, formatRupiahPrecise } from "@/lib/utils";
 
@@ -79,6 +80,7 @@ function fullDay(date: string) {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    timeZone: "Asia/Jakarta",
   }).format(new Date(`${date}T00:00:00+07:00`));
 }
 
@@ -96,7 +98,7 @@ export default function KeuanganDashboardPage() {
   const searchParams = useSearchParams();
   const month = searchParams.get("month") || currentJakartaMonth();
   const queryClient = useQueryClient();
-  const { canPerform, canAccess } = useRole();
+  const { canPerform, canAccess, userId, storeId, authorizationFingerprint } = useRole();
   const canOpenIncomeHistory = canAccess("/history") && canAccess("/financial-report") && canPerform("transaction", "read") && (canPerform("financial-report", "read") || canPerform("financial-report.daily-income", "read"));
   const canReadIncome = canPerform("income", "read");
   const canReadExpense = canPerform("expense", "read");
@@ -119,6 +121,9 @@ export default function KeuanganDashboardPage() {
   const [page, setPage] = useState(1);
   const [filterCategory, setFilterCategory] = useState<ExpenseCategoryKey | null>(null);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
+  const [incomeDetail, setIncomeDetail] = useState<{ date: string; month: string; userId: string | null; storeId: string | null; authorizationFingerprint: string | null } | null>(null);
+  useEffect(() => setIncomeDetail(null), [month, userId, storeId, authorizationFingerprint, canOpenIncomeHistory, canReadIncome]);
+  const selectedIncomeDetail = incomeDetail && canReadIncome && canOpenIncomeHistory && incomeDetail.month === month && incomeDetail.userId === userId && incomeDetail.storeId === storeId && incomeDetail.authorizationFingerprint === authorizationFingerprint ? incomeDetail : null;
 
   const canReadCashFlow = canReadIncome && canReadExpense;
   const pemasukan = useIncomeSummary(month, canReadIncome, canReadCashFlow);
@@ -322,7 +327,7 @@ export default function KeuanganDashboardPage() {
                     containIntrinsicSize: "44px",
                   }}
                 >
-                  <IncomeDayRow date={row.date} label={fullDay(row.date)} total={row.total} count={row.count} manualCount={row.manualCount ?? 0} canOpenHistory={canOpenIncomeHistory} />
+                  <IncomeDayRow date={row.date} label={fullDay(row.date)} total={row.total} count={row.count} manualCount={row.manualCount ?? 0} canOpenHistory={canOpenIncomeHistory} onOpen={(date) => setIncomeDetail({ date, month, userId, storeId, authorizationFingerprint })} />
                 </li>
               ))}
             </ul>
@@ -609,6 +614,7 @@ export default function KeuanganDashboardPage() {
         </section>}
       </div>
 
+      {selectedIncomeDetail && <DailyIncomeReceiptDialog date={selectedIncomeDetail.date} allowComparison={false} onClose={() => setIncomeDetail(null)} />}
       {modalOpen && (
         <ExpenseFormModal
           open

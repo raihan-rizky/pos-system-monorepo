@@ -7,6 +7,12 @@ import {
 } from "../rbac-core";
 
 describe("RBAC settings UI helpers", () => {
+  it("exposes separate read and save permissions for the daily comparison", async () => {
+    const { RBAC_PERMISSION_MODULES, RBAC_RESOURCE_METADATA } = await import("../rbac-settings-ui");
+    const module = RBAC_PERMISSION_MODULES.find((item) => item.id === "finance-report");
+    expect(module?.resourceTargets).toContain("financial-report.daily-comparison");
+    expect(RBAC_RESOURCE_METADATA["financial-report.daily-comparison"]).toMatchObject({ actions: ["read", "create", "update"] });
+  });
   it("exposes price rounding delegation with its own Indonesian label", async () => {
     const { RBAC_PERMISSION_MODULES } = await import("../rbac-settings-ui");
     expect(RBAC_PERMISSION_MODULES.find((module) => module.id === "price-rounding")).toMatchObject({

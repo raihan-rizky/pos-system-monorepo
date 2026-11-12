@@ -421,7 +421,7 @@ Untuk menghubungkan giro yang sudah diperiksa dengan hutang manual yang benar-be
 
 1. Buka **Keuangan**, lalu klik **Tambah Pemasukan** di bagian **Pemasukan tanpa transaksi**.
 2. Isi tanggal, keterangan / sumber, nominal, dan kategori RC: **ATK, Cetak, Spanduk, Print, Stempel**. Pilih satu atau beberapa metode pembayaran; jumlah masing-masing metode harus sesuai total nominal. Klik **Simpan**.
-3. Gunakan **Ubah/Hapus** sesuai izin bila perlu. **Unduh ulang** Excel bulanan agar RC serta ringkasan memuat data terbaru. File lama tidak berubah otomatis.
+3. Gunakan **Ubah/Hapus** sesuai izin bila perlu. Pilih tanggal pada bagian **Pemasukan** untuk melihat rincian penerimaan hari itu sesuai izin, termasuk pelunasan nota lama. **Unduh ulang** Excel bulanan agar RC serta ringkasan memuat data terbaru. File lama tidak berubah otomatis.
 
 ### Q49: Bagaimana cara mencatat belanja manual via transfer?
 
@@ -450,6 +450,7 @@ Untuk menghubungkan giro yang sudah diperiksa dengan hutang manual yang benar-be
 3. Baca total, ATK/Percetakan, subkategori, dan metode pembayaran sesuai izin.
 4. Klik total atau **Lihat rincian pemasukan** untuk membuka ringkasan dan daftar penerimaan tanggal itu. Pilih **Rincian** pada baris untuk melihat nominal per metode dan kategori sesuai izin; pemasukan manual hanya ditampilkan jika diizinkan.
 5. Nominal kategori, subkategori, metode, dan Outstanding DP tetap membuka Riwayat sesuai izin. Dalam pratinjau Sales, catat nomor nota, pilih Laporan Lengkap, lalu cari nota di Riwayat dengan hak Owner.
+6. Bila perlu, buka **Cocokkan penerimaan**, isi nominal aktual untuk metode yang ingin diperiksa, lalu pilih **Simpan pemeriksaan**. Kosong berarti belum dicek; pengguna berizin di toko yang sama dapat membuka hasilnya kembali. Pratinjau Sales tidak dapat menyimpan.
 
 ### Q53: Bagaimana cara mengoreksi daftar belanja yang sudah diproses?
 

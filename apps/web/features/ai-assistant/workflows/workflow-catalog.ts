@@ -961,7 +961,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     steps: [
       { title: "Tambah Pemasukan", description: "Di Keuangan, cari Pemasukan tanpa transaksi dan klik Tambah Pemasukan." },
       { title: "Isi pemasukan", description: "Isi tanggal WIB, keterangan / sumber, nominal, dan Kategori RC: ATK, Cetak, Spanduk, Print, Stempel. Pilih satu atau beberapa metode pembayaran dan isi jumlah tiap metode hingga sama dengan nominal, lalu klik Simpan." },
-      { title: "Periksa dan unduh ulang", description: "Catatan masuk ke ringkasan dan RC sesuai kategori. Rincian metode tampil pada daftar dan laporan pemasukan harian sesuai izin. Gunakan Ubah atau Hapus untuk koreksi. Unduh ulang Excel bulanan setelah perubahan." },
+      { title: "Periksa dan unduh ulang", description: "Catatan masuk ke ringkasan dan RC sesuai kategori. Rincian metode tampil pada daftar dan laporan pemasukan harian sesuai izin. Di Keuangan, pilih tanggal pada Pemasukan untuk melihat rincian penerimaan dan pelunasan nota lama sesuai izin. Gunakan Ubah atau Hapus untuk koreksi. Unduh ulang Excel bulanan setelah perubahan." },
     ],
   }),
   workflow({
@@ -1014,9 +1014,10 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     iconKey: "trending-up",
     requiredCapabilities: [{ resource: "financial-report.daily-income", action: "read" }],
     steps: [
-      { title: "Buka Laporan Keuangan", description: "Masuk ke Laporan Keuangan. Owner dapat memilih Lihat sebagai Sales untuk meninjau izin Sales; jika Sales memiliki izin laporan penuh, pratinjau juga menampilkan laporan penuh." },
+      { title: "Buka Laporan Keuangan", description: "Masuk ke Laporan Keuangan dan pilih Pemasukan Harian jika tersedia. Owner dapat memilih Lihat sebagai Sales untuk meninjau izin Sales; jika Sales memiliki izin laporan penuh, pratinjau juga menampilkan laporan penuh." },
       { title: "Pilih tanggal", description: "Pilih hari ini atau tanggal sebelumnya dalam WIB. Nilai memakai uang yang diterima pada tanggal itu, termasuk DP dan pelunasan. Pembayaran awal offline mengikuti waktu checkout asli setelah tersinkron." },
-      { title: "Baca rincian", description: "Klik total pemasukan atau Lihat rincian pemasukan untuk membuka ringkasan dan daftar penerimaan tanggal pilihan, termasuk pelunasan nota lama. Pilih Rincian pada baris untuk melihat nominal per metode dan kategori sesuai izin; jumlah nota dan pemasukan manual hanya menghitung rincian yang terlihat. Nominal kategori, subkategori, metode, dan Outstanding DP tetap membuka Riwayat sesuai izin; pilih Mingguan atau Bulanan di Riwayat untuk memperluas rentang. Dalam pratinjau Sales, catat nomor nota, pilih Laporan Lengkap, lalu cari nota di Riwayat dengan hak Owner. Outstanding DP memakai sisa DP terkini dari nota hingga tanggal pilihan, bukan saldo historis dan tidak termasuk Tempo." },
+      { title: "Baca rincian", description: "Klik total pemasukan atau Lihat rincian pemasukan untuk membuka ringkasan dan daftar penerimaan tanggal pilihan, termasuk pelunasan nota lama. Pilih Rincian pada baris untuk melihat nominal per metode pembayaran dan kategori sesuai izin; jumlah nota dan pemasukan manual hanya menghitung rincian yang terlihat. Nominal kategori, subkategori, metode, dan Outstanding DP tetap membuka Riwayat sesuai izin; pilih Mingguan atau Bulanan di Riwayat untuk memperluas rentang. Dalam pratinjau Sales, catat nomor nota, pilih Laporan Lengkap, lalu cari nota di Riwayat dengan hak Owner. Outstanding DP memakai sisa DP terkini dari nota hingga tanggal pilihan, bukan saldo historis dan tidak termasuk Tempo." },
+      { title: "Cocokkan jika perlu", description: "Di Pemasukan Harian, buka Cocokkan penerimaan dan isi nominal aktual per metode yang ingin diperiksa. Kosong berarti belum dicek; pilih Simpan pemeriksaan agar pengguna berizin pada toko dan tanggal yang sama dapat meninjaunya kembali. Periksa lagi jika data POS berubah. Pratinjau Sales tidak dapat menyimpan." },
     ],
   }),
   workflow({

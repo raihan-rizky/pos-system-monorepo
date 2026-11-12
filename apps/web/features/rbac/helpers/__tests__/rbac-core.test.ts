@@ -11,6 +11,27 @@ import {
 } from "../rbac-core";
 
 describe("RBAC permission matrix", () => {
+  it("allows cashier and owner to compare daily receipts while keeping other report access separate", () => {
+    const defaults = buildDefaultRolePermissions();
+    expect(canRoleAccessPage("CASHIER", "/financial-report", defaults)).toBe(true);
+    for (const target of ["financial-report.daily-income", "financial-report.daily-payment-method"]) {
+      expect(canRolePerformAction("CASHIER", target, "read", defaults)).toBe(true);
+    }
+    expect(canRolePerformAction("CASHIER", "financial-report", "read", defaults)).toBe(false);
+    expect(canRolePerformAction("CASHIER", "financial-report.daily-category", "read", defaults)).toBe(false);
+    for (const action of ["read", "create", "update"] as const) {
+      expect(canRolePerformAction("OWNER", "financial-report.daily-comparison", action, defaults)).toBe(true);
+      expect(canRolePerformAction("CASHIER", "financial-report.daily-comparison", action, defaults)).toBe(true);
+      for (const role of ["ADMIN", "SALES", "INVENTORY"] as const) expect(canRolePerformAction(role, "financial-report.daily-comparison", action, defaults)).toBe(false);
+    }
+    expect(canRolePerformAction("CASHIER", "financial-report.daily-comparison", "delete", defaults)).toBe(false);
+    const configured = normalizeRolePermissions([
+      { role: "CASHIER", scope: "resource", target: "financial-report.daily-comparison", action: "update", allowed: false },
+      { role: "ADMIN", scope: "resource", target: "financial-report.daily-comparison", action: "read", allowed: true },
+    ]);
+    expect(canRolePerformAction("CASHIER", "financial-report.daily-comparison", "update", configured)).toBe(false);
+    expect(canRolePerformAction("ADMIN", "financial-report.daily-comparison", "read", configured)).toBe(true);
+  });
   it("keeps price rounding management owner-only by default and honors delegation", () => {
     const defaults = buildDefaultRolePermissions();
     expect(RESOURCE_TARGETS).toContain("settings.price_rounding");
@@ -143,7 +164,7 @@ describe("RBAC permission matrix", () => {
     expect(canRoleAccessPage("ADMIN", "/financial-report", defaults)).toBe(true);
     expect(canRoleAccessPage("CASHIER", "/products", defaults)).toBe(false);
     expect(canRoleAccessPage("CASHIER", "/suppliers", defaults)).toBe(false);
-    expect(canRoleAccessPage("CASHIER", "/financial-report", defaults)).toBe(false);
+    expect(canRoleAccessPage("CASHIER", "/financial-report", defaults)).toBe(true);
     expect(canRoleAccessPage("SALES", "/financial-report", defaults)).toBe(true);
     expect(canRoleAccessPage("SALES", "/pos", defaults)).toBe(true);
 

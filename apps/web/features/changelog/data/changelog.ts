@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "rincian-pemeriksaan-pemasukan-20261113", date: "2026-11-13", revision: 1,
+    highlight: { title: "Rincian dan cek pemasukan", summary: "Lihat penerimaan per hari dan cocokkan dengan nominal aktual." },
+    title: "Rincian dan pemeriksaan pemasukan harian",
+    summary: "Lihat rincian penerimaan pada tanggal pilihan dari Keuangan atau Laporan Keuangan. Cocokkan nominal aktual per metode secara opsional pada Pemasukan Harian.",
+    kind: "feature", impact: "major", area: "Laporan Keuangan", href: "/financial-report", visual: "financial",
+    steps: [
+      { title: "Pilih tanggal", detail: "Pada Keuangan, pilih tanggal di Pemasukan; atau buka Laporan Keuangan > Pemasukan Harian dan pilih tanggal." },
+      { title: "Lihat rincian", detail: "Periksa total, metode, dan nota; buka Rincian untuk melihat alokasinya sesuai izin." },
+      { title: "Cocokkan bila perlu", detail: "Dari Pemasukan Harian, buka Cocokkan penerimaan, isi nominal aktual yang tersedia, lalu simpan untuk ditinjau kembali." },
+    ],
+  },
+  {
     id: "sesi-multi-perangkat-20261111", date: "2026-11-12", revision: 1,
     highlight: { title: "Masuk di banyak perangkat", summary: "Keluar di satu perangkat tidak mengganggu sesi pada perangkat lain." },
     title: "Sesi kasir tetap aktif di perangkat lain",
