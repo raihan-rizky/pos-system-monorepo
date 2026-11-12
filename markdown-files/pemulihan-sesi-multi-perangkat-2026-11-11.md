@@ -28,6 +28,7 @@ Antrean POS offline tetap memakai pemilik dan toko asalnya. Sinkronisasi berjala
 - Test regresi Riwayat terlebih dahulu gagal karena menerima 500 ketika verifikasi sesi menghasilkan 503. Perbaikan memakai handler autentikasi bersama dan memastikan pembacaan izin maupun data penerimaan belum dijalankan dalam kondisi tersebut.
 - Setelah penyesuaian, 38 test API Riwayat dan pemasukan harian lulus. Harness browser pemulihan sesi lulus; ESLint semua 49 berkas JavaScript/TypeScript yang berubah lulus tanpa peringatan menggunakan dependency plugin Next yang sudah terpasang melalui `NODE_PATH` sementara. Pemeriksaan langsung `pnpm -r --if-present run type-check` lulus pada seluruh paket yang menyediakan perintah tersebut. Perintah root melalui Turbo sempat memicu dependensi build dan dihentikan; validasi langsung paket menghindari build lokal.
 - Proxy Headroom lokal tidak terhubung; MCP statistik dan kompresi masih dapat dipanggil, dan keluaran perintah dibatasi. Endpoint Riwayat development belum tercakup indeks GitNexus yang tersedia; analisis upstream `getCurrentUser` tetap menandai autentikasi sebagai risiko CRITICAL, sehingga seluruh pemanggil diperiksa dari source.
+- CI pertama PR #5 gagal saat instalasi Chromium: `ubuntu-latest` memakai Ubuntu 26.04 yang belum didukung Playwright 1.59.1 pada lockfile. Runner CI dipilih eksplisit sebagai `ubuntu-24.04`, mempertahankan langkah instalasi browser dan penyiapan mirror yang sudah ada. Kegagalan ini terjadi sebelum unit test aplikasi.
 
 ## Persiapan rilis
 
