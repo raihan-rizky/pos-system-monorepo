@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
 const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn() }));
-vi.mock("@/lib/rbac/guard", () => ({ getCurrentUser: mocks.user }));
+vi.mock(import("@/lib/rbac/guard"), async importOriginal => ({
+  ...await importOriginal(),
+  getCurrentUser: mocks.user,
+}));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
 vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual } } }));
 import { GET } from "../route";
@@ -20,6 +23,14 @@ describe("daily finance API", () => {
     mocks.manual.mockResolvedValue([]);
   });
   afterEach(() => vi.useRealTimers());
+
+  it("returns temporary unavailability when the current session cannot be verified", async () => {
+    const { AuthError } = await import("@/lib/rbac/guard");
+    mocks.user.mockRejectedValueOnce(new AuthError(503, "Sesi belum dapat diverifikasi"));
+    const response = await GET(request());
+    expect(response.status).toBe(503);
+    expect(mocks.transactions).not.toHaveBeenCalled();
+  });
 
   it("scopes database queries to authenticated store and payment dates, never selects cost or customer data", async () => {
     const response = await GET(request("date=2026-11-05&storeId=other"));

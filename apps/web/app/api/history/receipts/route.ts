@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
-import { getCurrentUser } from "@/lib/rbac/guard";
+import { getCurrentUser, handleAuthError } from "@/lib/rbac/guard";
 import { apiError } from "@/lib/api/responses";
 import { getLogger } from "@/lib/logger";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
@@ -112,6 +112,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ mode, dateFrom: fromDate, dateTo: toDate, items, manualDetailsAvailable: access.manualDetails,
       ...(access.manualDetails && mode === "receipt" ? { manualEntries } : {}) }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
+    const auth = handleAuthError(error);
+    if (auth) return auth;
     log.error("Gagal memuat penerimaan Riwayat", error);
     return apiError("Penerimaan belum dapat dimuat. Silakan coba lagi.", 500, { code: "InternalError" });
   }

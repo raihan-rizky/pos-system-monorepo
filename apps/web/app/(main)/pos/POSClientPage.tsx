@@ -61,6 +61,7 @@ import { mapCheckoutPricingRule, priceCartItemsForCheckout } from "@/features/po
 import { useCartCatalogPrices } from "@/features/pos-checkout/hooks/useCartCatalogPrices";
 import type { CheckoutCustomerSelection } from "@/features/pos-checkout/customer-selection";
 import { useCreateTransaction, type Transaction } from "@/hooks/useTransactions";
+import { WAIT_FOR_SESSION_RECOVERY } from "@/lib/auth/session-failure";
 import { buildClientMutationId } from "@/lib/offline/offline-core";
 import { OfflinePreparationBeacon } from "@/lib/offline/OfflinePreparationBeacon";
 import { useCreateDraft } from "@/features/transactions-draft";
@@ -201,7 +202,7 @@ export default function POSClientPage({
     initialData.activeShift ?? undefined,
   );
   const { data: shiftSettings } = useShiftSettings(initialData.shiftEnabled);
-  const { role, userId, storeId, canPerform, isOfflineSession } = useRole();
+  const { role, userId, storeId, canPerform, isOfflineSession, isSessionRecovering } = useRole();
   const offlineIdentity = useMemo(
     () => userId ? { cashierId: userId, storeId: storeId || "store-main" } : undefined,
     [userId, storeId],
@@ -241,7 +242,7 @@ export default function POSClientPage({
   const { data: brands = [] } = useBrands({
     enabled: Boolean(productEditItem),
   });
-  const cart = useCart();
+  const cart = useCart(userId ? { userId, storeId } : null);
   const [pricingCustomer, setPricingCustomer] = useState<CheckoutCustomerSelection>({ kind: "general" });
   const resetPricingCustomer = useCallback(() => setPricingCustomer({ kind: "general" }), []);
   const customerType = pricingCustomer.kind === "existing" ? pricingCustomer.customer.type ?? "UMUM" : "UMUM";
@@ -489,6 +490,10 @@ export default function POSClientPage({
     invoiceDateReason?: string | null;
     items: typeof cart.items;
   }) => {
+    if (isSessionRecovering) {
+      setCheckoutNotice({ tone: "warning", message: WAIT_FOR_SESSION_RECOVERY });
+      return;
+    }
     if (!canCreateTransaction) {
       setCheckoutNotice({ tone: "danger", message: "Anda belum memiliki izin untuk membuat transaksi." });
       return;
@@ -591,6 +596,10 @@ export default function POSClientPage({
     invoiceDateReason?: string | null;
     items: typeof cart.items;
   }) => {
+    if (isSessionRecovering) {
+      setDraftError(WAIT_FOR_SESSION_RECOVERY);
+      return;
+    }
     setDraftError(null);
     try {
       const draft = await createDraft.mutateAsync({
@@ -631,6 +640,10 @@ export default function POSClientPage({
     input: DraftCreateInput,
     printDivision: string,
   ) => {
+    if (isSessionRecovering) {
+      setDraftError(WAIT_FOR_SESSION_RECOVERY);
+      return;
+    }
     setDraftError(null);
     try {
       const draft = await createDraft.mutateAsync(input);
@@ -673,6 +686,11 @@ export default function POSClientPage({
         {/* Layout fix: remove fixed width, hide overflow, and keep min-w-0 */}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           <PosTopPanel>
+            {cart.persistenceError && (
+              <p role="alert" className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                {cart.persistenceError}
+              </p>
+            )}
             {shiftRequired && !shiftLoading && activeShift && (
               <ShiftStatusBanner
                 shift={activeShift}

@@ -21,7 +21,7 @@ const EMPTY_SUMMARY: OfflineSyncSummary = {
 };
 
 export function useOfflineSync() {
-  const { userId, storeId } = useRole();
+  const { userId, storeId, isOfflineSession, isSessionRecovering } = useRole();
   const [summary, setSummary] = useState<OfflineSyncSummary>(EMPTY_SUMMARY);
   const [isOnline, setIsOnline] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -51,6 +51,7 @@ export function useOfflineSync() {
       setError("Identitas kasir belum tersedia. Masuk kembali untuk sinkronisasi.");
       return null;
     }
+    if (isOfflineSession || isSessionRecovering) return null;
 
     setIsSyncing(true);
     setError(null);
@@ -70,18 +71,19 @@ export function useOfflineSync() {
     } finally {
       setIsSyncing(false);
     }
-  }, [refresh, userId, storeId]);
+  }, [refresh, userId, storeId, isOfflineSession, isSessionRecovering]);
 
   const clearSynced = useCallback(async () => {
-    if (!userId) return;
+    if (!userId || isSessionRecovering) return;
     const { clearSyncedOfflineTransactions } = await import(
       "@/lib/offline/offline-db"
     );
     await clearSyncedOfflineTransactions(storeId || "store-main");
     await refresh();
-  }, [refresh, storeId, userId]);
+  }, [refresh, storeId, userId, isSessionRecovering]);
 
   const retryRecord = useCallback(async (clientMutationId: string) => {
+    if (isSessionRecovering) return;
     if (!userId) {
       setError("Identitas kasir belum tersedia. Masuk kembali untuk mencoba lagi.");
       return;
@@ -94,7 +96,7 @@ export function useOfflineSync() {
     } catch (retryError) {
       setError(retryError instanceof Error ? retryError.message : "Transaksi belum dapat dicoba lagi.");
     }
-  }, [refresh, storeId, syncNow, userId]);
+  }, [refresh, storeId, syncNow, userId, isSessionRecovering]);
 
   useEffect(() => {
     refresh();

@@ -9,6 +9,9 @@ import {
   PAGE_TARGETS,
 } from "@/features/rbac/helpers/rbac-core";
 import { getLogger } from "@/lib/logger";
+import { signOutCurrentSession } from "@/lib/auth/local-sign-out";
+import { createRecoverableAuthFetch } from "@/lib/auth/recoverable-auth-fetch";
+import { isTransientAuthFailure, SESSION_VERIFICATION_UNAVAILABLE } from "@/lib/auth/session-failure";
 
 const log = getLogger("supabase-middleware");
 
@@ -51,36 +54,38 @@ function isProtectedPageRequest(pathname: string) {
   );
 }
 
-function isRetryableAuthFailure(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
-
-  const authError = error as { name?: unknown };
-  return authError.name === "AuthRetryableFetchError";
+function withSessionCookies(response: NextResponse, authResponse: NextResponse) {
+  for (const cookie of authResponse.cookies.getAll()) {
+    response.cookies.set(cookie);
+  }
+  return response;
 }
 
 function authVerificationUnavailable(
   request: NextRequest,
-  error: unknown,
   authResponse: NextResponse,
+  retryAt = 0,
 ) {
   log.warn("auth.verification.unavailable", {
-    error,
     path: request.nextUrl.pathname,
   });
 
-  const message = "Sesi belum dapat diverifikasi. Silakan coba lagi.";
+  const message = SESSION_VERIFICATION_UNAVAILABLE;
+  const headers = {
+    "Cache-Control": "no-store",
+    "Retry-After": String(Math.max(2, Math.ceil((retryAt - Date.now()) / 1_000))),
+  };
   const response = request.nextUrl.pathname.startsWith("/api/")
-    ? NextResponse.json({ error: message }, { status: 503 })
-    : new NextResponse(message, { status: 503 });
+    ? NextResponse.json({ error: message, code: "ServiceUnavailable" }, { status: 503, headers })
+    : new NextResponse(
+        '<!doctype html><html lang="id"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Akses belum dapat diperiksa</title><body style="font-family:system-ui;max-width:32rem;margin:12vh auto;padding:1.5rem"><h1>Hak akses belum dapat diverifikasi</h1><p>Koneksi sedang bermasalah. Hak akses Anda belum dapat diperiksa. Silakan coba lagi.</p><p><a href="">Coba lagi</a> · <a href="/access-denied">Bantuan akses dan keluar</a></p></body></html>',
+        { status: 503, headers: { ...headers, "Content-Type": "text/html; charset=utf-8" } },
+      );
 
   // A refresh may already have rotated cookies before the subsequent user
   // verification request fails. Preserve those cookies on the 503 response so
   // the next request can recover with the newest session credentials.
-  for (const cookie of authResponse.cookies.getAll()) {
-    response.cookies.set(cookie);
-  }
-
-  return response;
+  return withSessionCookies(response, authResponse);
 }
 
 export async function updateSession(request: NextRequest) {
@@ -129,16 +134,25 @@ export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   });
+  let authRetryAt = 0;
+  let preserveAuthCookies = false;
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      global: {
+        fetch: createRecoverableAuthFetch(fetch, {
+          onRetryAfter: deadline => { authRetryAt = deadline; },
+          onServerRefreshFailure: () => { preserveAuthCookies = true; },
+        }),
+      },
       cookies: {
         getAll() {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
+          if (preserveAuthCookies) return;
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
@@ -165,8 +179,8 @@ export async function updateSession(request: NextRequest) {
   // Supabase keeps the refresh token when a request fails transiently. Do not
   // turn that recoverable state into a logout/redirect by treating user=null
   // as a missing session. A later request can verify the same session again.
-  if (!user && isRetryableAuthFailure(authError)) {
-    return authVerificationUnavailable(request, authError, supabaseResponse);
+  if (isTransientAuthFailure(authError)) {
+    return authVerificationUnavailable(request, supabaseResponse, authRetryAt);
   }
 
   // Not authenticated
@@ -177,6 +191,7 @@ export async function updateSession(request: NextRequest) {
   ) {
     if (request.nextUrl.pathname.startsWith("/api/")) {
       log.debug("unauthenticated.api", { path: request.nextUrl.pathname });
+      // A delayed request may refer to the session that preceded a new login.
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -194,13 +209,15 @@ export async function updateSession(request: NextRequest) {
 
     try {
       const username = user.email?.split("@")[0];
-      const { data: posUser } = username
+      const { data: posUser, error: identityError } = username
         ? await supabase
             .from("pos_users")
             .select("id, name, role, storeId, isActive")
             .eq("username", username)
             .maybeSingle()
-        : { data: null };
+        : { data: null, error: null };
+
+      if (identityError) return authVerificationUnavailable(request, supabaseResponse);
 
       if (posUser && posUser.isActive && isValidRole(posUser.role)) {
         role = posUser.role as Role;
@@ -237,21 +254,11 @@ export async function updateSession(request: NextRequest) {
             const url = request.nextUrl.clone();
             url.pathname = destination;
             url.search = "";
-            const redirectResponse = NextResponse.redirect(url);
-            setPosIdentityCookies(redirectResponse, role, posUser.id, posUser.name, posUser.storeId ?? null);
-            return redirectResponse;
+            return withSessionCookies(NextResponse.redirect(url), supabaseResponse);
           }
 
           if (!hadFreshIdentityCookies) {
-            const redirectResponse = NextResponse.redirect(request.nextUrl);
-            setPosIdentityCookies(
-              redirectResponse,
-              role,
-              posUser.id,
-              posUser.name,
-              posUser.storeId ?? null,
-            );
-            return redirectResponse;
+            return withSessionCookies(NextResponse.redirect(request.nextUrl), supabaseResponse);
           }
 
           // Cookies are already fresh on this request, so no redirect is
@@ -264,7 +271,7 @@ export async function updateSession(request: NextRequest) {
         }
 
         if (request.nextUrl.pathname === "/login") {
-          await supabase.auth.signOut();
+          await signOutCurrentSession(supabase);
           return supabaseResponse;
         }
 
@@ -273,16 +280,8 @@ export async function updateSession(request: NextRequest) {
         url.searchParams.set("error", "Account not found or deactivated");
         return NextResponse.redirect(url);
       }
-    } catch (error) {
-      if (request.nextUrl.pathname.startsWith("/api/")) {
-        log.error("role.resolve.failed.api", { error, path: request.nextUrl.pathname });
-        return NextResponse.json({ error: "Hak akses belum dapat diverifikasi. Silakan coba lagi." }, { status: 503 });
-      }
-      log.error("role.resolve.failed", { error, path: request.nextUrl.pathname });
-      return new NextResponse(
-        '<!doctype html><html lang="id"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Akses belum dapat diperiksa</title><body style="font-family:system-ui;max-width:32rem;margin:12vh auto;padding:1.5rem"><h1>Hak akses belum dapat diverifikasi</h1><p>Koneksi sedang bermasalah. Hak akses Anda belum dapat diperiksa. Silakan coba lagi.</p><p><a href="">Coba lagi</a> · <a href="/access-denied">Bantuan akses dan keluar</a></p></body></html>',
-        { status: 503, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } },
-      );
+    } catch {
+      return authVerificationUnavailable(request, supabaseResponse, authRetryAt);
     }
 
   }

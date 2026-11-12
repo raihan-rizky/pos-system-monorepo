@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
 const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn() }));
-vi.mock("@/lib/rbac/guard", () => ({ getCurrentUser: mocks.user }));
+vi.mock(import("@/lib/rbac/guard"), async importOriginal => ({
+  ...await importOriginal(),
+  getCurrentUser: mocks.user,
+}));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
 vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual } } }));
 type Route = { GET: (request: Request) => Promise<Response> };
@@ -28,6 +31,20 @@ describe("Riwayat penerimaan dan Outstanding DP", () => {
       : [{ id: "manual", description: "Pemasukan contoh", occurredAt: new Date("2026-11-11T04:00:00Z") }]);
   });
   afterEach(() => vi.useRealTimers());
+
+  it("mengembalikan 503 tanpa membaca penerimaan saat sesi belum dapat diverifikasi", async () => {
+    const route = await loadRoute(); expect(route).not.toBeNull(); if (!route) return;
+    const { AuthError } = await import("@/lib/rbac/guard");
+    mocks.user.mockRejectedValueOnce(new AuthError(503, "Sesi belum dapat diverifikasi"));
+
+    const response = await route.GET(request());
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ code: "ServiceUnavailable" });
+    expect(mocks.permissions).not.toHaveBeenCalled();
+    expect(mocks.transactions).not.toHaveBeenCalled();
+    expect(mocks.manual).not.toHaveBeenCalled();
+  });
 
   it("menampilkan pelunasan nota lama pada tanggal penerimaan tanpa detail manual yang tidak diizinkan", async () => {
     const route = await loadRoute(); expect(route).not.toBeNull(); if (!route) return;

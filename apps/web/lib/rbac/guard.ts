@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
+import { isTransientAuthFailure, SESSION_VERIFICATION_UNAVAILABLE } from "@/lib/auth/session-failure";
 import { db } from "@pos/db";
 import type { Role } from "./permissions";
 import type { Action } from "./permissions";
@@ -97,8 +98,10 @@ export async function requireRole(...allowedRoles: Role[]) {
   const supabase = await createClient();
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
 
+  if (isTransientAuthFailure(error)) throw new AuthError(503, SESSION_VERIFICATION_UNAVAILABLE);
   if (!user) {
     throw new AuthError(401, "Unauthorized");
   }
@@ -172,8 +175,10 @@ export async function getCurrentUser() {
   const supabase = await createClient();
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
 
+  if (isTransientAuthFailure(error)) throw new AuthError(503, SESSION_VERIFICATION_UNAVAILABLE);
   if (!user) return null;
 
   const username = user.email?.split("@")[0];
