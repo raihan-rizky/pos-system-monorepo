@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildDefaultRolePermissions, normalizeRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
 const mocks = vi.hoisted(() => ({ currentUser: vi.fn(), permissions: vi.fn(), history: vi.fn() }));
-vi.mock("@/lib/rbac/guard", () => ({ getCurrentUser: mocks.currentUser }));
+vi.mock(import("@/lib/rbac/guard"), async importOriginal => ({
+  ...await importOriginal(),
+  getCurrentUser: mocks.currentUser,
+}));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
 vi.mock("@/features/suppliers/shopping-requests/services/shopping-request-correction-service", () => ({ listShoppingRequestCorrectionHistory: mocks.history }));
 vi.mock("@/lib/logger", () => ({ getLogger: () => ({ error: vi.fn() }) }));

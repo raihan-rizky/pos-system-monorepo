@@ -3,7 +3,7 @@ import { z } from "zod";
 import { AssistantService } from "@/features/ai-assistant/services/assistant-service";
 import { parseFastPathIntentAllowlist } from "@/features/ai-assistant/services/assistant-intent-router";
 import type { UserRole } from "@/features/ai-assistant/types/assistant";
-import { getCurrentUser } from "@/lib/rbac/guard";
+import { getCurrentUser, handleAuthError } from "@/lib/rbac/guard";
 import { getFreshGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
 import { getLogger } from "@/lib/logger";
 import { captureException } from "@/lib/error-boundary";
@@ -191,6 +191,8 @@ export async function POST(req: NextRequest) {
     });
     return response;
   } catch (error) {
+    const auth = handleAuthError(error);
+    if (auth) return auth;
     if (error instanceof ChatRequestError) {
       requestLog.info("assistant.http.rejected", {
         status: error.status,

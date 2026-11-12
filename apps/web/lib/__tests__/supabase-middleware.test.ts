@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { updateSession } from "@/utils/supabase/middleware";
 
 const getUserMock = vi.hoisted(() => vi.fn());
+const signOutMock = vi.hoisted(() => vi.fn().mockResolvedValue({ error: null }));
 const cookieAdapterMock = vi.hoisted(() => ({
   setAll: undefined as
     | undefined
@@ -30,7 +31,7 @@ vi.mock("@supabase/ssr", () => ({
       return {
         auth: {
           getUser: getUserMock,
-          signOut: vi.fn(),
+          signOut: signOutMock,
         },
         from: fromMock,
       };
@@ -67,6 +68,47 @@ describe("updateSession", () => {
     vi.unstubAllEnvs();
   });
 
+  it("clears only the current session for an inactive user on the login page", async () => {
+    maybeSingleMock.mockResolvedValueOnce({ data: { isActive: false }, error: null });
+
+    const response = await updateSession(new NextRequest("http://localhost/login"));
+
+    expect(response.status).toBe(200);
+    expect(signOutMock).toHaveBeenCalledExactlyOnceWith({ scope: "local" });
+  });
+
+  it("preserves rotated cookies and reports a temporary refresh conflict as 503", async () => {
+    getUserMock.mockImplementationOnce(async () => {
+      cookieAdapterMock.setAll?.([{ name: "sb-example-auth-token", value: "rotated" }]);
+      return { data: { user: null }, error: { name: "AuthApiError", status: 409, code: "conflict" } };
+    });
+    const response = await updateSession(new NextRequest("http://localhost/api/auth/permissions"));
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(response.headers.get("Retry-After")).toBe("2");
+    expect(response.cookies.get("sb-example-auth-token")?.value).toBe("rotated");
+    expect(await response.json()).toMatchObject({ code: "ServiceUnavailable" });
+  });
+
+  it("preserves rotated cookies when POS identity lookup fails temporarily", async () => {
+    getUserMock.mockImplementationOnce(async () => {
+      cookieAdapterMock.setAll?.([{ name: "sb-example-auth-token", value: "rotated" }]);
+      return { data: { user: { email: "admin@pos.local" } }, error: null };
+    });
+    maybeSingleMock.mockResolvedValueOnce({
+      data: null,
+      error: { code: "08006", message: "temporary connection failure" },
+    });
+
+    const response = await updateSession(new NextRequest("http://localhost/api/auth/permissions"));
+
+    expect(response.status).toBe(503);
+    expect(response.cookies.get("sb-example-auth-token")?.value).toBe("rotated");
+    expect(await response.json()).toMatchObject({ code: "ServiceUnavailable" });
+    expect(signOutMock).not.toHaveBeenCalled();
+  });
+
   it("refreshes POS identity cookies for the current Supabase user even when stale owner cookies exist", async () => {
     const request = new NextRequest("http://localhost/api/inventory", {
       headers: {
@@ -84,6 +126,10 @@ describe("updateSession", () => {
   });
 
   it("redirects page requests once when POS identity cookies are missing on first login", async () => {
+    getUserMock.mockImplementationOnce(async () => {
+      cookieAdapterMock.setAll?.([{ name: "sb-example-auth-token", value: "rotated" }]);
+      return { data: { user: { email: "admin@pos.local" } }, error: null };
+    });
     const request = new NextRequest("http://localhost/pos");
 
     const response = await updateSession(request);
@@ -93,6 +139,7 @@ describe("updateSession", () => {
     expect(response.cookies.get("x-pos-role")?.value).toBe("ADMIN");
     expect(response.cookies.get("x-pos-user-id")?.value).toBe("admin-1");
     expect(response.cookies.get("x-pos-store-id")?.value).toBe("store-1");
+    expect(response.cookies.get("sb-example-auth-token")?.value).toBe("rotated");
   });
 
   it("fails closed for page requests when POS identity cannot be verified", async () => {

@@ -6,6 +6,7 @@ export const POS_IDENTITY_COOKIE_NAMES = [
   "x-pos-user-name",
   "x-pos-store-id",
 ] as const;
+export const POS_SESSION_ENDED_EVENT = "pos:session-ended";
 
 export function isSupabaseAuthCookieName(name: string): boolean {
   return (
@@ -40,10 +41,10 @@ export function clearClientSupabaseAuthArtifacts() {
     }
   }
 
-  for (const storage of [globalThis.localStorage, globalThis.sessionStorage]) {
-    if (!storage) continue;
-
+  for (const key of ["localStorage", "sessionStorage"] as const) {
     try {
+      const storage = globalThis[key];
+      if (!storage) continue;
       for (let index = storage.length - 1; index >= 0; index -= 1) {
         const key = storage.key(index);
         if (key && isSupabaseAuthStorageKey(key)) {
@@ -72,4 +73,11 @@ export function clearClientAuthState() {
   }
   clearClientPosIdentityCookies();
   clearClientSupabaseAuthArtifacts();
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(POS_SESSION_ENDED_EVENT));
+    try {
+      // Tabs on this origin share the same cookie session.
+      window.localStorage.setItem(POS_SESSION_ENDED_EVENT, String(Date.now()));
+    } catch { /* The current tab was already notified. */ }
+  }
 }

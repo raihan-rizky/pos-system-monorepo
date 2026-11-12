@@ -26,7 +26,7 @@ const productItem: ProductCartItem = {
 describe("cart quick edit state", () => {
   it("exposes controlled quick edit mutations from the cart hook", () => {
     function CartApiSurface() {
-      const cart = useCart() as ReturnType<typeof useCart> & {
+      const cart = useCart({ userId: "sales-1", storeId: "store-1" }) as ReturnType<typeof useCart> & {
         updateTransactionPrice?: unknown;
         syncProductPrices?: unknown;
         syncProductGroupMetadata?: unknown;

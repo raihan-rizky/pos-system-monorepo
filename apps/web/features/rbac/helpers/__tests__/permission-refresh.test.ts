@@ -3,7 +3,7 @@ import { buildDefaultRolePermissions } from "../rbac-core";
 import { loadCurrentRoleAccess, PermissionRefreshError, startPermissionRefresh } from "../permission-refresh";
 
 describe("live permission verification", () => {
-  afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
   it("always requests current permissions without using a browser cache", async () => {
     const snapshot = { permissions: buildDefaultRolePermissions(), authorizationFingerprint: "new-version", user: { id: "sales-1", name: "Sales", role: "SALES", storeId: "store-1" } };
@@ -26,9 +26,14 @@ describe("live permission verification", () => {
       name: "PermissionRefreshError", reason: "http", status: 403,
     });
 
-    const networkError = new TypeError("network unavailable");
-    vi.stubGlobal("fetch", vi.fn(async () => { throw networkError; }));
-    await expect(loadCurrentRoleAccess(new AbortController().signal)).rejects.toBe(networkError);
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const fetcher = vi.fn(async () => { throw new TypeError("network unavailable"); });
+    vi.stubGlobal("fetch", fetcher);
+    const failure = loadCurrentRoleAccess(new AbortController().signal).catch(error => error);
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(await failure).toMatchObject({ kind: "transient" });
+    expect(fetcher).toHaveBeenCalledTimes(3);
   });
 
   it("classifies malformed successful responses as invalid authorization data", async () => {
@@ -45,10 +50,69 @@ describe("live permission verification", () => {
       requestSignal = init.signal as AbortSignal;
       requestSignal.addEventListener("abort", () => reject(new Error("verification timeout")));
     })));
-    const request = loadCurrentRoleAccess(new AbortController().signal).catch(error => error);
+    const controller = new AbortController();
+    const request = loadCurrentRoleAccess(controller.signal).catch(error => error);
     await vi.advanceTimersByTimeAsync(10_001);
     expect(requestSignal?.aborted).toBe(true);
+    controller.abort();
     expect(await request).toBeInstanceOf(Error);
+  });
+
+  it("recovers after two temporary failures with 1 and 2 second delays", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const snapshot = { permissions: buildDefaultRolePermissions(), authorizationFingerprint: "restored", user: { id: "sales-1", name: "Sales", role: "SALES", storeId: "store-1" } };
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(new Response(null, { status: 502 }))
+      .mockResolvedValueOnce(Response.json(snapshot));
+    vi.stubGlobal("fetch", fetcher);
+    const result = loadCurrentRoleAccess(new AbortController().signal).catch(error => error);
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(await result).toEqual(snapshot);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not retry an expired session", async () => {
+    const fetcher = vi.fn(async () => new Response(null, { status: 401 }));
+    vi.stubGlobal("fetch", fetcher);
+    await expect(loadCurrentRoleAccess(new AbortController().signal)).rejects.toMatchObject({ kind: "unauthenticated" });
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
+  it("does not send a new request on focus before the server cooldown or while offline", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const windowEvents = new EventTarget();
+    const documentEvents = Object.assign(new EventTarget(), { visibilityState: "visible" });
+    const network = { onLine: true };
+    vi.stubGlobal("window", windowEvents);
+    vi.stubGlobal("document", documentEvents);
+    vi.stubGlobal("navigator", network);
+    const fetcher = vi.fn(async () => new Response(null, { status: 503, headers: { "Retry-After": "60" } }));
+    vi.stubGlobal("fetch", fetcher);
+    const stop = startPermissionRefresh(async signal => { await loadCurrentRoleAccess(signal); });
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      windowEvents.dispatchEvent(new Event("focus"));
+      windowEvents.dispatchEvent(new Event("focus"));
+      await vi.advanceTimersByTimeAsync(59_999);
+      expect(fetcher).toHaveBeenCalledOnce();
+      network.onLine = false;
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fetcher).toHaveBeenCalledOnce();
+      network.onLine = true;
+      windowEvents.dispatchEvent(new Event("online"));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    } finally {
+      stop();
+    }
   });
 
   it("refreshes on focus, save notification and visible polling, and cancels work on unmount", async () => {
