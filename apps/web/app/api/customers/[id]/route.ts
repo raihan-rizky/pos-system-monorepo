@@ -96,7 +96,7 @@ export async function GET(
       [customer],
       debtByCustomerId,
     )[0];
-    const receivableTransactions = (customerResponse.transactions ?? [])
+    const receivableTransactions = (customer.transactions ?? [])
       .filter((transaction) => isActiveDebt({
         status: transaction.status,
         paymentMethod: transaction.paymentMethod,
@@ -112,7 +112,7 @@ export async function GET(
         createdAt,
       }));
     const responseCustomer = canReadTransactions
-      ? customerResponse
+      ? { ...customerResponse, transactions: customer.transactions }
       : canViewReceivables
         ? { ...customerResponse, transactions: receivableTransactions }
         : { ...customerResponse, transactions: undefined };
