@@ -119,7 +119,18 @@ it("omits transaction history and piutang balances when the user only has custom
     "read",
   );
   expect(mocks.loadDebt).not.toHaveBeenCalled();
-  expect(mocks.findFirst.mock.calls[0][0].include).toBeUndefined();
+  expect(mocks.findFirst.mock.calls[0][0].include.transactions).toMatchObject({
+    take: 0,
+    select: {
+      id: true,
+      invoiceNumber: true,
+      total: true,
+      amountPaid: true,
+      paymentMethod: true,
+      status: true,
+      createdAt: true,
+    },
+  });
 });
 
 it("returns piutang balances without transaction history when only piutang read is granted", async () => {
@@ -138,9 +149,21 @@ it("returns piutang balances without transaction history when only piutang read 
 
   expect(result.totalDebt).toBe(75_000);
   expect(result.debtOutstanding).toBe(75_000);
-  expect(result).not.toHaveProperty("transactions");
+  expect(result.transactions).toEqual([]);
   expect(mocks.loadDebt).toHaveBeenCalledOnce();
-  expect(mocks.findFirst.mock.calls[0][0].include).toBeUndefined();
+  expect(mocks.findFirst.mock.calls[0][0].include.transactions).toEqual({
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: {
+      id: true,
+      invoiceNumber: true,
+      total: true,
+      amountPaid: true,
+      paymentMethod: true,
+      status: true,
+      createdAt: true,
+    },
+  });
 });
 
 it("returns transaction history without piutang balances when only transaction read is granted", async () => {

@@ -4,6 +4,7 @@ const afterMock = vi.hoisted(() => vi.fn());
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const transactionFindFirstMock = vi.hoisted(() => vi.fn());
+const transactionFindFirstOrThrowMock = vi.hoisted(() => vi.fn());
 const transactionFindUniqueMock = vi.hoisted(() => vi.fn());
 const transactionUpdateMock = vi.hoisted(() => vi.fn());
 const transactionItemDeleteManyMock = vi.hoisted(() => vi.fn());
@@ -183,6 +184,27 @@ describe("PATCH /api/transactions/[id]", () => {
       items: [],
       cashier: { name: "Owner One" },
     });
+    transactionFindFirstOrThrowMock
+      .mockResolvedValueOnce({ customerId: null })
+      .mockResolvedValueOnce({
+        customerId: null,
+        customerName: null,
+        total: 100_000,
+        amountPaid: 100_000,
+        paymentMethod: "CASH",
+        status: "COMPLETED",
+        note: null,
+        printingSubcategory: null,
+        printingReceipt: null,
+        suratJalan: [],
+      });
+    dbTransactionMock.mockImplementation((callback) => callback({
+      $queryRaw: stockRowLockMock,
+      transaction: {
+        findFirstOrThrow: transactionFindFirstOrThrowMock,
+        update: transactionUpdateMock,
+      },
+    }));
 
     const response = await PATCH(
       new Request("http://localhost/api/transactions/tx-1", {

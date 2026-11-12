@@ -5,6 +5,7 @@ import { GET as getCustomer, PATCH as updateCustomer } from "@/app/api/customers
 
 const mocks = vi.hoisted(() => ({
   permission: vi.fn(), canPerform: vi.fn(), canAccessPage: vi.fn(),
+  identityPermission: vi.fn(),
   customerCount: vi.fn(), customerList: vi.fn(), customer: vi.fn(), customerUpdate: vi.fn(), transaction: vi.fn(),
   receivableCount: vi.fn(), receivableList: vi.fn(), loadDebt: vi.fn(),
 }));
@@ -23,6 +24,9 @@ vi.mock("@pos/db", () => ({
   },
   Prisma: {},
 }));
+vi.mock("@/features/customer-debt/server/customer-identity-authorization", () => ({
+  requireCustomerDebtIdentityPermission: mocks.identityPermission,
+}));
 vi.mock("@/features/customer-debt/helpers/customer-debt-summary", () => ({
   loadCustomerDebtByActiveDp: mocks.loadDebt,
   applyComputedCustomerDebt: (customers: unknown[]) => customers,
@@ -40,6 +44,7 @@ describe("receivable read authorization", () => {
     vi.clearAllMocks();
     mocks.canAccessPage.mockResolvedValue(true);
     mocks.canPerform.mockResolvedValue(false);
+    mocks.identityPermission.mockResolvedValue(undefined);
     mocks.customerCount.mockResolvedValue(1);
     mocks.customerList.mockResolvedValue([profile]);
     mocks.customer.mockResolvedValue({ ...profile, transactions: [{ id: "invoice-1", total: 8000, amountPaid: 4000, paymentMethod: "CASH", status: "DP" }] });
