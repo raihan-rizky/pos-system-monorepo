@@ -11,7 +11,7 @@ export const CHANGELOG: ChangeEntry[] = [
     steps: [
       { title: "Buka laporan", detail: "Masuk ke Laporan Keuangan; Owner dapat memilih Lihat sebagai Sales." },
       { title: "Pilih tanggal", detail: "Pilih tanggal pemasukan yang ingin diperiksa dalam WIB." },
-      { title: "Buka rincian", detail: "Klik nominal yang tersedia untuk membuka Riwayat, lalu pilih Harian, Mingguan, atau Bulanan sesuai izin." },
+      { title: "Buka rincian", detail: "Klik total untuk melihat daftar penerimaan; nominal kategori dan metode membuka Riwayat sesuai izin." },
     ],
   },
   {

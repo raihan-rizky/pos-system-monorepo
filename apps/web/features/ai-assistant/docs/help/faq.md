@@ -448,6 +448,8 @@ Untuk menghubungkan giro yang sudah diperiksa dengan hutang manual yang benar-be
 1. Buka Laporan Keuangan.
 2. Pilih hari ini atau tanggal sebelumnya dalam WIB.
 3. Baca total, ATK/Percetakan, subkategori, dan metode pembayaran sesuai izin.
+4. Klik total atau **Lihat rincian pemasukan** untuk membuka ringkasan dan daftar penerimaan tanggal itu. Pilih **Rincian** pada baris untuk melihat nominal per metode dan kategori sesuai izin; pemasukan manual hanya ditampilkan jika diizinkan.
+5. Nominal kategori, subkategori, metode, dan Outstanding DP tetap membuka Riwayat sesuai izin. Dalam pratinjau Sales, catat nomor nota, pilih Laporan Lengkap, lalu cari nota di Riwayat dengan hak Owner.
 
 ### Q53: Bagaimana cara mengoreksi daftar belanja yang sudah diproses?
 

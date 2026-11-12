@@ -1014,9 +1014,9 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     iconKey: "trending-up",
     requiredCapabilities: [{ resource: "financial-report.daily-income", action: "read" }],
     steps: [
-      { title: "Buka Laporan Keuangan", description: "Masuk ke Laporan Keuangan untuk membuka tampilan Pemasukan Harian." },
+      { title: "Buka Laporan Keuangan", description: "Masuk ke Laporan Keuangan. Owner dapat memilih Lihat sebagai Sales untuk meninjau izin Sales; jika Sales memiliki izin laporan penuh, pratinjau juga menampilkan laporan penuh." },
       { title: "Pilih tanggal", description: "Pilih hari ini atau tanggal sebelumnya dalam WIB. Nilai memakai uang yang diterima pada tanggal itu, termasuk DP dan pelunasan. Pembayaran awal offline mengikuti waktu checkout asli setelah tersinkron." },
-      { title: "Baca rincian", description: "Periksa pemasukan, Outstanding DP, kategori ATK dan Percetakan, subkategori, serta metode pembayaran. Klik nominal yang tersedia untuk membuka Riwayat dengan filter Harian pada tanggal pilihan, termasuk pelunasan nota lama. Gunakan Mingguan atau Bulanan untuk memperluas rentang dan pilih nomor nota untuk mencarinya; rincian manual mengikuti izin pemasukan. Dalam pratinjau Sales, keluar dari pratinjau untuk membuka nota dengan hak akun Owner. Outstanding DP memakai sisa DP terkini dari nota hingga tanggal pilihan, bukan saldo historis dan tidak termasuk Tempo. Owner memilih Lihat sebagai Sales untuk meninjau izin Sales yang tersimpan, termasuk laporan penuh jika diizinkan, lalu Laporan Lengkap untuk kembali." },
+      { title: "Baca rincian", description: "Klik total pemasukan atau Lihat rincian pemasukan untuk membuka ringkasan dan daftar penerimaan tanggal pilihan, termasuk pelunasan nota lama. Pilih Rincian pada baris untuk melihat nominal per metode dan kategori sesuai izin; jumlah nota dan pemasukan manual hanya menghitung rincian yang terlihat. Nominal kategori, subkategori, metode, dan Outstanding DP tetap membuka Riwayat sesuai izin; pilih Mingguan atau Bulanan di Riwayat untuk memperluas rentang. Dalam pratinjau Sales, catat nomor nota, pilih Laporan Lengkap, lalu cari nota di Riwayat dengan hak Owner. Outstanding DP memakai sisa DP terkini dari nota hingga tanggal pilihan, bukan saldo historis dan tidak termasuk Tempo." },
     ],
   }),
   workflow({
