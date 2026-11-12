@@ -454,3 +454,9 @@ Untuk menghubungkan giro yang sudah diperiksa dengan hutang manual yang benar-be
 1. Di **Supplier > Daftar Belanja**, buka **Tindakan lainnya > Edit daftar**. Izin `supplier.shopping_request.correct_processed:update` tersedia untuk Owner secara bawaan dan dapat diberikan kepada role lain.
 2. Ubah data yang diperlukan, isi alasan, dan tinjau dampak terhadap barang diterima, stok, pembayaran, serta tanggal laporan. Bila harga beli berubah, pilih secara terpisah apakah HPP dan harga jual katalog perlu diperbarui.
 3. Simpan setelah memeriksa ringkasan. **Kelebihan pembayaran** ditampilkan sebagai peringatan, bukan pengembalian uang otomatis. Badge **Diubah** atau **Stok berubah** membuka riwayat perubahan.
+
+### Q54: Bagaimana cara melanjutkan saat sesi perangkat berakhir?
+
+1. Masuk seperti biasa di perangkat tambahan. Tombol **Keluar** mengakhiri sesi pada perangkat yang digunakan.
+2. Saat koneksi sedang dipulihkan, biarkan tab tetap terbuka. Pemeriksaan izin akan diulang dan isian dapat dilanjutkan setelah berhasil.
+3. Jika sesi berakhir, pilih **Masuk lagi**. Gunakan akun dan toko yang sama pada tab tersebut untuk melanjutkan item keranjang yang tersimpan.

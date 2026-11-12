@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/rbac/guard";
+import { getCurrentUser, handleAuthError } from "@/lib/rbac/guard";
 import { apiError } from "@/lib/api/responses";
 import { getLogger } from "@/lib/logger";
 import { canRoleAccessPage, canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
@@ -57,6 +57,8 @@ export async function GET(request: Request) {
     for (const key of allowed) Object.assign(body, { [key]: report[key] });
     return NextResponse.json(body, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
+    const auth = handleAuthError(error);
+    if (auth) return auth;
     log.error("Gagal memuat pemasukan harian", error);
     return apiError("Pemasukan harian belum dapat dimuat. Silakan coba lagi.", 500, { code: "InternalError" });
   }

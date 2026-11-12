@@ -5,7 +5,10 @@ const harness = vi.hoisted(() => ({
   cleanups: [] as Array<() => void>,
   userId: "cashier-1" as string | null,
   storeId: "store-1" as string | null,
+  isSessionRecovering: false,
   sync: vi.fn(),
+  clear: vi.fn(),
+  retry: vi.fn(),
 }));
 
 vi.mock("react", () => ({
@@ -14,10 +17,12 @@ vi.mock("react", () => ({
   useEffect: (effect: () => void | (() => void)) => harness.effects.push(effect),
 }));
 vi.mock("@/components/providers/RoleProvider", () => ({
-  useRole: () => ({ userId: harness.userId, storeId: harness.storeId }),
+  useRole: () => ({ userId: harness.userId, storeId: harness.storeId, isSessionRecovering: harness.isSessionRecovering }),
 }));
 vi.mock("@/lib/offline/offline-work-sync", () => ({ syncOfflineWork: harness.sync }));
 vi.mock("@/lib/offline/offline-db", () => ({
+  clearSyncedOfflineTransactions: harness.clear,
+  retryOfflineTransaction: harness.retry,
   getOfflineQueueSummary: vi.fn().mockResolvedValue({ pending: 0, syncing: 0, failed: 0, pendingApproval: 0, lastSyncAt: null }),
   getOfflineQueueRecords: vi.fn().mockResolvedValue([]),
   offlineDb: { offlineShifts: { orderBy: () => ({ reverse: () => ({ toArray: async () => [] }) }) } },
@@ -30,7 +35,10 @@ beforeEach(() => {
   harness.cleanups = [];
   harness.userId = "cashier-1";
   harness.storeId = "store-1";
+  harness.isSessionRecovering = false;
   harness.sync.mockReset().mockResolvedValue({ synced: 0, pendingApproval: 0, failed: 0 });
+  harness.clear.mockReset();
+  harness.retry.mockReset();
   vi.stubGlobal("navigator", { onLine: true });
   vi.stubGlobal("window", { addEventListener: vi.fn(), removeEventListener: vi.fn(), setInterval: vi.fn().mockReturnValue(1), clearInterval: vi.fn() });
 });
@@ -57,6 +65,21 @@ it("does not synchronize when cashier identity is unavailable", async () => {
   harness.userId = null;
   await useOfflineSync().syncNow();
   expect(harness.sync).not.toHaveBeenCalled();
+});
+
+it("waits for session verification before sending queued work", async () => {
+  harness.isSessionRecovering = true;
+  await useOfflineSync().syncNow();
+  expect(harness.sync).not.toHaveBeenCalled();
+});
+
+it("preserves local records during session verification", async () => {
+  harness.isSessionRecovering = true;
+  const queue = useOfflineSync();
+  await queue.clearSynced();
+  await queue.retryRecord("txn-1");
+  expect(harness.clear).not.toHaveBeenCalled();
+  expect(harness.retry).not.toHaveBeenCalled();
 });
 
 it("periodically retries online so expired claims can recover without a reconnect", async () => {

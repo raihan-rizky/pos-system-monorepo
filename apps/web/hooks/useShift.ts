@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRole } from "@/components/providers/RoleProvider";
+import { WAIT_FOR_SESSION_RECOVERY } from "@/lib/auth/session-failure";
 import { buildClientMutationId } from "@/lib/offline/offline-core";
 
 // Type definitions
@@ -114,10 +115,11 @@ export function useShiftHistory(
 
 export function useOpenShift() {
   const queryClient = useQueryClient();
-  const { userId, userName, storeId, canPerform, isOfflineSession } = useRole();
+  const { userId, userName, storeId, canPerform, isOfflineSession, isSessionRecovering } = useRole();
   return useMutation({
     networkMode: "always",
     mutationFn: async (vars: { openingBalance: number; note?: string }) => {
+      if (isSessionRecovering) throw new Error(WAIT_FOR_SESSION_RECOVERY);
       const { createOfflineShift } = await import("@/lib/offline/offline-db");
       const clientShiftId = `shift-${buildClientMutationId()}`;
       const openLocalShift = () => {
@@ -186,10 +188,11 @@ export function useCloseShiftSummary(
 
 export function useCloseShift() {
   const queryClient = useQueryClient();
-  const { userId, storeId, canPerform, isOfflineSession } = useRole();
+  const { userId, storeId, canPerform, isOfflineSession, isSessionRecovering } = useRole();
   return useMutation({
     networkMode: "always",
     mutationFn: async (vars: { shiftId: string; closingBalance: number; note?: string }) => {
+      if (isSessionRecovering) throw new Error(WAIT_FOR_SESSION_RECOVERY);
       const { offlineDb, closeOfflineShift } = await import("@/lib/offline/offline-db");
       const local = await offlineDb.offlineShifts.get(vars.shiftId);
       if (local && userId && local.cashierId === userId && local.storeId === (storeId || "store-main")) {

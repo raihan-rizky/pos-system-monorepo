@@ -1,9 +1,9 @@
 import { afterEach, expect, it, vi } from "vitest";
 
-const harness = vi.hoisted(() => ({ client: null as unknown, createShift: vi.fn(), closeShift: vi.fn(), getActiveShift: vi.fn(), getShift: vi.fn(), shiftCreateAllowed: true, shiftUpdateAllowed: true, isOfflineSession: false }));
+const harness = vi.hoisted(() => ({ client: null as unknown, createShift: vi.fn(), closeShift: vi.fn(), getActiveShift: vi.fn(), getShift: vi.fn(), shiftCreateAllowed: true, shiftUpdateAllowed: true, isOfflineSession: false, isSessionRecovering: false }));
 
 vi.mock("@/components/providers/RoleProvider", () => ({
-  useRole: () => ({ userId: "cashier-1", userName: "Kasir", storeId: "store-1", isOfflineSession: harness.isOfflineSession, canPerform: (resource: string, action: string) => resource === "shift" && (action === "create" ? harness.shiftCreateAllowed : harness.shiftUpdateAllowed) }),
+  useRole: () => ({ userId: "cashier-1", userName: "Kasir", storeId: "store-1", isOfflineSession: harness.isOfflineSession, isSessionRecovering: harness.isSessionRecovering, canPerform: (resource: string, action: string) => resource === "shift" && (action === "create" ? harness.shiftCreateAllowed : harness.shiftUpdateAllowed) }),
 }));
 vi.mock("@/lib/offline/offline-db", () => ({
   createOfflineShift: harness.createShift,
@@ -33,7 +33,28 @@ afterEach(() => {
   harness.shiftCreateAllowed = true;
   harness.shiftUpdateAllowed = true;
   harness.isOfflineSession = false;
+  harness.isSessionRecovering = false;
   vi.unstubAllGlobals();
+});
+
+it("preserves the open shift while authorization is being recovered", async () => {
+  const client = new QueryClient();
+  client.mount();
+  harness.client = client;
+  harness.isSessionRecovering = true;
+  harness.getShift.mockReset().mockResolvedValue({ id: "shift-1", cashierId: "cashier-1", storeId: "store-1" });
+  harness.closeShift.mockReset();
+  harness.createShift.mockReset().mockResolvedValue({ id: "local-shift", isLocalOnly: true });
+  vi.stubGlobal("window", { dispatchEvent: vi.fn() });
+  vi.stubGlobal("navigator", { onLine: false });
+  try {
+    const open = useOpenShift() as unknown as MutationObserver<unknown, Error, { openingBalance: number }>;
+    const close = useCloseShift() as unknown as MutationObserver<unknown, Error, { shiftId: string; closingBalance: number }>;
+    await expect(open.mutate({ openingBalance: 1000 })).rejects.toThrow(/pulih/i);
+    await expect(close.mutate({ shiftId: "shift-1", closingBalance: 0 })).rejects.toThrow(/pulih/i);
+    expect(harness.createShift).not.toHaveBeenCalled();
+    expect(harness.closeShift).not.toHaveBeenCalled();
+  } finally { client.unmount(); }
 });
 
 it("does not create a local shift without shift creation permission", async () => {

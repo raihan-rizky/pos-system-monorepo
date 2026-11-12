@@ -1034,6 +1034,21 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Simpan perubahan", description: "Periksa ringkasan lalu pilih Simpan perubahan. Badge Diubah atau Stok berubah membuka riwayat koreksi." },
     ],
   }),
+  workflow({
+    faqNumber: 54,
+    slug: "recover-device-session",
+    title: "Bagaimana cara melanjutkan saat sesi perangkat berakhir?",
+    aliases: ["sesi anda berakhir", "hak akses belum dapat diperiksa", "koneksi sedang dipulihkan", "masuk di banyak perangkat", "keluar satu perangkat"],
+    route: "/help",
+    actionLabel: "Buka Bantuan",
+    iconKey: "shield-check",
+    requiredCapabilities: [],
+    steps: [
+      { title: "Gunakan akun di perangkat lain", description: "Masuk seperti biasa di perangkat tambahan. Tombol Keluar mengakhiri sesi pada perangkat yang digunakan." },
+      { title: "Tunggu pemeriksaan kembali", description: "Saat koneksi sedang dipulihkan, biarkan tab tetap terbuka agar isian dapat dilanjutkan setelah pemeriksaan berhasil." },
+      { title: "Masuk lagi jika sesi berakhir", description: "Pilih Masuk lagi. Gunakan akun dan toko yang sama pada tab tersebut untuk melanjutkan item keranjang yang tersimpan." },
+    ],
+  }),
 ];
 
 export function getWorkflowPayload(workflow: AssistantWorkflowDefinition): AssistantWorkflowPayload {
