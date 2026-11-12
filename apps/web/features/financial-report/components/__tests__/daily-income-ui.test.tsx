@@ -33,10 +33,11 @@ describe("daily financial report UI", () => {
     const html = renderToStaticMarkup(createElement(FinancialReportPage));
     for (const amount of ["0,99", "0,01", "0,5", "0,49"]) expect(html).toContain(amount);
   });
-  it("links each income amount to its selected receipt context", () => {
+  it("opens receipt details from the total while keeping other receipt links", () => {
     const html = renderToStaticMarkup(createElement(DailyIncomeReport));
     for (const query of ["mode=receipt&amp;date=2026-11-05", "category=ATK", "subcategory=Alat+Tulis", "method=CASH", "mode=outstanding-dp&amp;date=2026-11-05"]) expect(html).toContain(query);
-    expect(html).toMatch(/<a[^>]+href="\/history\?mode=receipt[^>]*>Lihat rincian di Riwayat/);
+    expect(html).toMatch(/<button[^>]+aria-label="Lihat rincian Total Pemasukan:/);
+    expect(html).toMatch(/<button[^>]*>Lihat rincian pemasukan/);
   });
   it("does not link amounts when transaction history is unavailable", () => {
     mocks.role.mockReturnValue({ canAccess: (path: string) => path !== "/history", canPerform: () => true });

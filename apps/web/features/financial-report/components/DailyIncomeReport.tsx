@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, RefreshCw } from "lucide-react";
 import { useRole } from "@/components/providers/RoleProvider";
@@ -8,6 +8,7 @@ import { formatRupiahPrecise } from "@/lib/utils";
 import { buildReceiptHistoryUrl, type ReceiptHistoryContext } from "@/features/transaction-history/helpers/receipt-history";
 import { DAILY_INCOME_PERMISSIONS, jakartaToday, type DailyIncomeAccess } from "../helpers/daily-income";
 import { useDailyIncome } from "../hooks/useDailyIncome";
+import { DailyIncomeReceiptDialog } from "./DailyIncomeReceiptDialog";
 
 type BreakdownRow = { label: string; amount: number; href?: string };
 function IncomeBreakdown({ title, rows }: { title: string; rows: BreakdownRow[] }) {
@@ -24,9 +25,11 @@ function IncomeBreakdown({ title, rows }: { title: string; rows: BreakdownRow[] 
 }
 
 export function DailyIncomeReport({ previewSales = false, fullReportPreview }: { previewSales?: boolean; fullReportPreview?: ReactNode } = {}) {
-  const { canPerform, canAccess } = useRole();
+  const { canPerform, canAccess, userId, storeId, authorizationFingerprint } = useRole();
   const access = Object.fromEntries(Object.entries(DAILY_INCOME_PERMISSIONS).map(([key, target]) => [key, canPerform(target, "read")])) as DailyIncomeAccess;
   const [date, setDate] = useState(jakartaToday);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  useEffect(() => setDetailsOpen(false), [date, previewSales, userId, storeId, authorizationFingerprint]);
   const { data, isLoading, isFetching, error, refetch } = useDailyIncome(date, access, previewSales);
   const hasAccess = Object.values(access).some(Boolean);
   const report = !error && !isLoading && data?.date === date ? data : undefined;
@@ -57,8 +60,8 @@ export function DailyIncomeReport({ previewSales = false, fullReportPreview }: {
             {anyHistoryUnavailable && <p className="rounded-lg border border-[#c9dce6] bg-white p-3 text-sm text-[#385e70]">Akses Riwayat belum diizinkan untuk sebagian rincian. Hubungi Owner untuk mengatur hak akses.</p>}
             <div className="grid gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
               {access.total && report.total !== undefined && <section className="min-w-0 rounded-2xl bg-[#073149] p-5 text-white sm:p-6"><div className="flex flex-wrap items-center justify-between gap-2 text-sm text-[#c1dce9]"><h2 className="font-medium">Total Pemasukan</h2><span>Harian · WIB</span></div>
-                {totalHref ? <Link href={totalHref} aria-label={`Lihat rincian Total Pemasukan: ${formatRupiahPrecise(report.total)}`} className="mt-4 inline-flex min-h-11 max-w-full items-center break-all rounded text-3xl font-bold tabular-nums tracking-tight underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white sm:text-4xl">{formatRupiahPrecise(report.total)}</Link> : <p className="mt-4 break-all text-3xl font-bold tabular-nums tracking-tight sm:text-4xl">{formatRupiahPrecise(report.total)}</p>}
-                <p className="mt-2 text-sm text-[#c1dce9]">Uang diterima pada tanggal pilihan</p>{totalHref && <div className="mt-5 border-t border-white/20 pt-1"><Link href={totalHref} className="inline-flex min-h-11 items-center gap-2 rounded text-sm font-medium text-[#b8ebff] underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Lihat rincian di Riwayat <ArrowRight size={16} aria-hidden="true" /></Link></div>}</section>}
+                {totalHref ? <button type="button" onClick={() => setDetailsOpen(true)} aria-label={`Lihat rincian Total Pemasukan: ${formatRupiahPrecise(report.total)}`} className="mt-4 inline-flex min-h-11 max-w-full items-center break-all rounded text-left text-3xl font-bold tabular-nums tracking-tight underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white sm:text-4xl">{formatRupiahPrecise(report.total)}</button> : <p className="mt-4 break-all text-3xl font-bold tabular-nums tracking-tight sm:text-4xl">{formatRupiahPrecise(report.total)}</p>}
+                <p className="mt-2 text-sm text-[#c1dce9]">Uang diterima pada tanggal pilihan</p>{totalHref && <div className="mt-5 border-t border-white/20 pt-1"><button type="button" onClick={() => setDetailsOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded text-sm font-medium text-[#b8ebff] underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Lihat rincian pemasukan <ArrowRight size={16} aria-hidden="true" /></button></div>}</section>}
               {access.outstandingDp && report.outstandingDp !== undefined && <section className="min-w-0 rounded-2xl border border-[#dce9ed] bg-white p-5"><p className="text-xs font-medium text-[#587586]">Sisa yang belum lunas</p><h2 className="mt-1 text-sm font-bold text-[#17384a]">Outstanding DP</h2>
                 {dpHref ? <Link href={dpHref} aria-label={`Lihat rincian Outstanding DP: ${formatRupiahPrecise(report.outstandingDp)}`} className="mt-2 inline-flex min-h-11 max-w-full items-center gap-2 break-all rounded text-2xl font-bold tabular-nums text-blue-800 underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700">{formatRupiahPrecise(report.outstandingDp)}<ArrowRight size={16} aria-hidden="true" /></Link> : <p className="mt-2 break-all text-2xl font-bold tabular-nums text-[#17384a]">{formatRupiahPrecise(report.outstandingDp)}</p>}
                 <p className="mt-2 text-xs leading-relaxed text-[#587586]">Sisa DP saat ini dari nota hingga tanggal pilihan. Tidak termasuk Tempo. Mengikuti pembayaran terbaru, bukan saldo historis.</p></section>}
@@ -71,5 +74,6 @@ export function DailyIncomeReport({ previewSales = false, fullReportPreview }: {
             {access.paymentMethods && report.paymentMethods?.some(row => row.method === "Belum dicatat") && <p className="text-xs text-[#587586]">Metode pembayaran pemasukan manual belum dicatat.</p>}
           </>}
     </div>
+    {detailsOpen && totalHref && report?.total !== undefined && <DailyIncomeReceiptDialog date={date} total={report.total} paymentMethods={access.paymentMethods ? report.paymentMethods : undefined} previewSales={previewSales} onClose={() => setDetailsOpen(false)} />}
   </main>;
 }
