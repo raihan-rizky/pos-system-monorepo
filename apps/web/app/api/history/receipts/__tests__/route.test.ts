@@ -61,6 +61,72 @@ describe("Riwayat penerimaan dan Outstanding DP", () => {
     expect(filtered.manualEntries).toEqual([expect.objectContaining({ id: "manual", amount: 12_000, methods: ["TRANSFER"] })]);
   });
 
+  it("merinci metode dan kategori untuk penerimaan pada tanggal pilihan", async () => {
+    const route = await loadRoute(); expect(route).not.toBeNull(); if (!route) return;
+    mocks.user.mockResolvedValue({ id: "owner", role: "OWNER", storeId: "store-1" });
+    const income = { id: "manual", occurredAt: new Date("2026-11-11T04:00:00Z"), category: "ATK", amount: 20_000 };
+    mocks.manual.mockImplementation(async query => query.select?.category
+      ? [{ ...income, payments: [{ method: "CASH", amount: 8_000 }, { method: "TRANSFER", amount: 12_000 }] }]
+      : [{ id: "manual", description: "Pemasukan contoh" }]);
+
+    const body = await (await route.GET(request())).json();
+    expect(body.items.find((row: { transactionId: string }) => row.transactionId === "old-invoice")).toMatchObject({
+      amount: 60_000,
+      paymentBreakdown: [{ method: "TRANSFER", amount: 60_000 }],
+      categoryBreakdown: [{ category: "ATK", amount: 60_000 }],
+    });
+    expect(body.manualEntries).toEqual([expect.objectContaining({
+      id: "manual", amount: 20_000,
+      paymentBreakdown: [{ method: "CASH", amount: 8_000 }, { method: "TRANSFER", amount: 12_000 }],
+      categoryBreakdown: [{ category: "ATK", amount: 20_000 }],
+    })]);
+
+    const filtered = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&method=TRANSFER"))).json();
+    expect(filtered.manualEntries[0]).toMatchObject({
+      amount: 12_000,
+      paymentBreakdown: [{ method: "TRANSFER", amount: 12_000 }],
+      categoryBreakdown: [{ category: "ATK", amount: 12_000 }],
+    });
+  });
+
+  it("hanya mengirim rincian yang diizinkan dalam pratinjau Sales", async () => {
+    const route = await loadRoute(); expect(route).not.toBeNull(); if (!route) return;
+    mocks.user.mockResolvedValue({ id: "owner", role: "OWNER", storeId: "store-1" });
+    const permissions = buildDefaultRolePermissions();
+    permissions.SALES.resources["financial-report.daily-payment-method"].read = false;
+    permissions.SALES.resources["financial-report.daily-category"].read = true;
+    permissions.SALES.resources.income.read = true;
+    mocks.permissions.mockResolvedValue(permissions);
+    const body = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&view=sales"))).json();
+    const receipt = body.items.find((row: { transactionId: string }) => row.transactionId === "old-invoice");
+    expect(receipt.categoryBreakdown).toEqual([{ category: "ATK", amount: 60_000 }]);
+    expect(receipt).not.toHaveProperty("paymentBreakdown");
+    expect(body.manualEntries[0]).not.toHaveProperty("paymentBreakdown");
+
+    permissions.SALES.resources["financial-report.daily-category"].read = false;
+    permissions.SALES.resources["financial-report.daily-payment-method"].read = true;
+    const restricted = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&view=sales"))).json();
+    expect(restricted.items[0].paymentBreakdown).toEqual([{ method: "TRANSFER", amount: 60_000 }]);
+    expect(restricted.items[0]).not.toHaveProperty("categoryBreakdown");
+    expect(restricted.manualEntries[0]).not.toHaveProperty("categoryBreakdown");
+  });
+
+  it("menjaga presisi pecahan pada rincian metode dan kategori", async () => {
+    const route = await loadRoute(); expect(route).not.toBeNull(); if (!route) return;
+    mocks.user.mockResolvedValue({ id: "owner", role: "OWNER", storeId: "store-1" });
+    const fractional = { ...oldInvoice, id: "fractional", total: 0.99, amountPaid: 0.99, debtPaymentLogs: [],
+      payments: [{ id: "cash", method: "CASH", amount: 0.5, createdAt: new Date("2026-11-11T03:00:00Z") },
+        { id: "transfer", method: "TRANSFER", amount: 0.49, createdAt: new Date("2026-11-11T04:00:00Z") }] };
+    mocks.transactions.mockImplementation(async query => query.select?.payments ? [fractional] : [{ id: "fractional", invoiceNumber: "INV-FRAC" }]);
+    mocks.manual.mockResolvedValue([]);
+    const body = await (await route.GET(request())).json();
+    expect(body.items).toEqual([expect.objectContaining({
+      amount: 0.99,
+      paymentBreakdown: [{ method: "CASH", amount: 0.5 }, { method: "TRANSFER", amount: 0.49 }],
+      categoryBreakdown: [{ category: "ATK", amount: 0.99 }],
+    })]);
+  });
+
   it("memfilter subkategori sesuai alokasi penerimaan", async () => {
     const route = await loadRoute(); expect(route).not.toBeNull(); if (!route) return;
     const body = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&category=ATK&subcategory=Kertas"))).json();

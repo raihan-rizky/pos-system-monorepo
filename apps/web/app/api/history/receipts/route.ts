@@ -57,12 +57,26 @@ export async function GET(request: Request) {
     }
 
     const period = await loadIncomePeriod(user.storeId, mode === "outstanding-dp" ? toDate : fromDate, toDate);
-    const groups = new Map<string, { transactionId: string; date: string; cents: number; methods: Set<string> }>();
-    const manualGroups = new Map<string, { id: string; date: string; cents: number; methods: Set<string> }>();
+    type Amounts = { cents: number; methods: Set<string>; payments: Map<string, number>; categories: Map<string, number> };
+    const emptyAmounts = (): Amounts => ({ cents: 0, methods: new Set(), payments: new Map(), categories: new Map() });
+    const addAmounts = (group: Amounts, paymentMethod: string, cents: number, allocations: Array<{ category: string; amount: number }>) => {
+      group.cents += cents;
+      group.methods.add(paymentMethod);
+      group.payments.set(paymentMethod, (group.payments.get(paymentMethod) ?? 0) + cents);
+      for (const allocation of allocations) {
+        group.categories.set(allocation.category, (group.categories.get(allocation.category) ?? 0) + Math.round(allocation.amount * 100));
+      }
+    };
+    const breakdown = (group: Amounts) => mode === "receipt" ? {
+      ...(access.method && { paymentBreakdown: [...group.payments].sort(([a], [b]) => a.localeCompare(b)).map(([method, cents]) => ({ method, amount: cents / 100 })) }),
+      ...(access.category && { categoryBreakdown: [...group.categories].sort(([a], [b]) => a.localeCompare(b)).map(([category, cents]) => ({ category, amount: cents / 100 })) }),
+    } : {};
+    const groups = new Map<string, Amounts & { transactionId: string; date: string }>();
+    const manualGroups = new Map<string, Amounts & { id: string; date: string }>();
     if (mode === "outstanding-dp") {
       for (const row of period.outstandingDp) {
         if (row.remaining <= 0) continue;
-        groups.set(row.transactionId, { transactionId: row.transactionId, date: toDate, cents: Math.round(row.remaining * 100), methods: new Set() });
+        groups.set(row.transactionId, { ...emptyAmounts(), transactionId: row.transactionId, date: toDate, cents: Math.round(row.remaining * 100) });
       }
     } else {
       for (const row of period.contributions) {
@@ -72,11 +86,11 @@ export async function GET(request: Request) {
         if (cents <= 0) continue;
         if (row.source === "transaction" && row.transactionId) {
           const key = `${row.transactionId}:${row.date}`;
-          const group = groups.get(key) ?? { transactionId: row.transactionId, date: row.date, cents: 0, methods: new Set<string>() };
-          group.cents += cents; group.methods.add(row.method); groups.set(key, group);
+          const group = groups.get(key) ?? { ...emptyAmounts(), transactionId: row.transactionId, date: row.date };
+          addAmounts(group, row.method, cents, allocations); groups.set(key, group);
         } else if (access.manualDetails && row.manualIncomeId) {
-          const group = manualGroups.get(row.manualIncomeId) ?? { id: row.manualIncomeId, date: row.date, cents: 0, methods: new Set<string>() };
-          group.cents += cents; group.methods.add(row.method); manualGroups.set(row.manualIncomeId, group);
+          const group = manualGroups.get(row.manualIncomeId) ?? { ...emptyAmounts(), id: row.manualIncomeId, date: row.date };
+          addAmounts(group, row.method, cents, allocations); manualGroups.set(row.manualIncomeId, group);
         }
       }
     }
@@ -90,10 +104,10 @@ export async function GET(request: Request) {
     const invoiceNumbers = new Map(transactions.map(row => [row.id, row.invoiceNumber]));
     const descriptions = new Map(manual.map(row => [row.id, row.description]));
     const items = [...groups.values()].filter(row => invoiceNumbers.has(row.transactionId)).map(row => ({
-      transactionId: row.transactionId, invoiceNumber: invoiceNumbers.get(row.transactionId), date: row.date, amount: row.cents / 100, methods: access.method ? [...row.methods] : [],
+      transactionId: row.transactionId, invoiceNumber: invoiceNumbers.get(row.transactionId), date: row.date, amount: row.cents / 100, methods: access.method ? [...row.methods] : [], ...breakdown(row),
     })).sort((a, b) => b.date.localeCompare(a.date) || a.transactionId.localeCompare(b.transactionId));
     const manualEntries = [...manualGroups.values()].filter(row => descriptions.has(row.id)).map(row => ({
-      id: row.id, description: descriptions.get(row.id), date: row.date, amount: row.cents / 100, methods: access.method ? [...row.methods] : [],
+      id: row.id, description: descriptions.get(row.id), date: row.date, amount: row.cents / 100, methods: access.method ? [...row.methods] : [], ...breakdown(row),
     })).sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
     return NextResponse.json({ mode, dateFrom: fromDate, dateTo: toDate, items, manualDetailsAvailable: access.manualDetails,
       ...(access.manualDetails && mode === "receipt" ? { manualEntries } : {}) }, { headers: { "Cache-Control": "private, no-store" } });

@@ -4,8 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useRole } from "@/components/providers/RoleProvider";
 import { receiptHistoryRange, type ReceiptHistoryContext } from "../helpers/receipt-history";
 
-type ReceiptItem = { transactionId: string; invoiceNumber: string | null; date: string; amount: number; methods: string[] };
-type ManualEntry = { id: string; description: string | null; date: string; amount: number; methods: string[] };
+type ReceiptBreakdown = {
+  paymentBreakdown?: Array<{ method: string; amount: number }>;
+  categoryBreakdown?: Array<{ category: string; amount: number }>;
+};
+type ReceiptItem = ReceiptBreakdown & { transactionId: string; invoiceNumber: string | null; date: string; amount: number; methods: string[] };
+type ManualEntry = ReceiptBreakdown & { id: string; description: string | null; date: string; amount: number; methods: string[] };
 export type ReceiptHistoryData = { items: ReceiptItem[]; manualDetailsAvailable: boolean; manualEntries?: ManualEntry[] };
 
 export function useReceiptHistory(context: ReceiptHistoryContext) {
