@@ -20,8 +20,6 @@ type ReceiptRow = AmountBreakdown & {
 };
 type Props = {
   date: string;
-  total: number;
-  paymentMethods?: Array<{ method: string; amount: number }>;
   previewSales?: boolean;
   onClose: () => void;
 };
@@ -31,10 +29,11 @@ const methodLabels: Record<string, string> = {
 };
 const methodLabel = (method: string) => methodLabels[method] ?? method;
 
-export function DailyIncomeReceiptDialog({ date, total, paymentMethods, previewSales = false, onClose }: Props) {
+export function DailyIncomeReceiptDialog({ date, previewSales = false, onClose }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const { data, isLoading, error, refetch } = useReceiptHistory({ mode: "receipt", date, previewSales });
+  const summary = !error ? data?.summary : undefined;
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -67,18 +66,18 @@ export function DailyIncomeReceiptDialog({ date, total, paymentMethods, previewS
       <section aria-label="Ringkasan pemasukan" className="rounded-xl bg-[#073149] p-5 text-white">
         <p className="text-sm text-[#c1dce9]">{displayDate} · WIB</p>
         <p className="mt-2 text-xs font-medium text-[#c1dce9]">Total pemasukan</p>
-        <p className="mt-1 break-all font-mono text-2xl font-bold tabular-nums sm:text-3xl">{formatRupiahPrecise(total)}</p>
-        {data && <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 border-t border-white/20 pt-3 text-sm text-[#d7edf5]">
+        <p className="mt-1 break-all font-mono text-2xl font-bold tabular-nums sm:text-3xl">{summary ? formatRupiahPrecise(summary.total) : "—"}</p>
+        {data && summary && <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 border-t border-white/20 pt-3 text-sm text-[#d7edf5]">
           <span>{data.items.length} nota terlihat</span>
           {data.manualDetailsAvailable && <span>{data.manualEntries?.length ?? 0} pemasukan manual terlihat</span>}
         </div>}
       </section>
-      {paymentMethods && paymentMethods.length > 0 && <section aria-label="Ringkasan metode pembayaran" className="space-y-2">
+      {summary?.paymentMethods && summary.paymentMethods.length > 0 && <section aria-label="Ringkasan metode pembayaran" className="space-y-2">
         <h3 className="text-sm font-bold">Metode pembayaran</h3>
-        <div className="flex flex-wrap gap-2">{paymentMethods.map(row => <div key={row.method} className="rounded-lg border border-[#dce9ed] bg-[#f6fafc] px-3 py-2 text-sm"><span className="text-[#587586]">{methodLabel(row.method)}</span><span className="ml-2 font-mono font-semibold tabular-nums">{formatRupiahPrecise(row.amount)}</span></div>)}</div>
+        <div className="flex flex-wrap gap-2">{summary.paymentMethods.map(row => <div key={row.method} className="rounded-lg border border-[#dce9ed] bg-[#f6fafc] px-3 py-2 text-sm"><span className="text-[#587586]">{methodLabel(row.method)}</span><span className="ml-2 font-mono font-semibold tabular-nums">{formatRupiahPrecise(row.amount)}</span></div>)}</div>
       </section>}
       {error ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error.message} <button type="button" onClick={() => void refetch()} className="min-h-11 font-semibold underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700">Coba lagi</button></div>
-        : isLoading || !data ? <p role="status" className="text-sm text-[#587586]">Memuat rincian pemasukan...</p> : <>
+        : isLoading || !data ? <p role="status" className="text-sm text-[#587586]">Memuat rincian pemasukan...</p> : !summary ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">Ringkasan pemasukan belum dapat dimuat. <button type="button" onClick={() => void refetch()} className="min-h-11 font-semibold underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700">Coba lagi</button></div> : <>
           {!data.manualDetailsAvailable && <p className="rounded-lg border border-[#c9dce6] bg-[#f1f7fb] p-3 text-sm text-[#385e70]">Akses untuk sebagian rincian pemasukan belum tersedia. Hubungi Owner untuk melihat rincian lengkap.</p>}
           {rows.length === 0 ? <p className="rounded-xl border border-[#dce9ed] p-5 text-sm text-[#587586]">Belum ada penerimaan yang dapat ditampilkan pada tanggal ini.</p> : <section aria-label="Daftar penerimaan">
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2"><h3 className="text-sm font-bold">Penerimaan yang terlihat</h3><p className="text-xs text-[#587586]">Nominal yang diterima pada tanggal pilihan</p></div>

@@ -23,8 +23,10 @@ const bundle = await build({
     build.onResolve({ filter: /^next\/link$/ }, () => ({ path: 'link', namespace: 'fixture' }));
     build.onResolve({ filter: /\/(ReportExportMenu|TrendChart)$/ }, () => ({ path: 'dynamic-component', namespace: 'fixture' }));
     build.onLoad({ filter: /.*/, namespace: 'fixture' }, ({ path: name }) => ({ contents: name === 'role'
-      ? `export function useRole(){const role=new URL(location.href).searchParams.get('role')||'OWNER';
-        const limited=new URL(location.href).searchParams.has('limited');return {role,userId:'test-'+role,storeId:'store-example',authorizationFingerprint:role+'-'+limited,
+      ? `import {useEffect,useState} from 'react';export function useRole(){const [identity,setIdentity]=useState(window.__receiptTestIdentity||'A');
+        useEffect(()=>{const update=()=>setIdentity(window.__receiptTestIdentity||'A');window.addEventListener('receipt-test-identity-change',update);return()=>window.removeEventListener('receipt-test-identity-change',update)},[]);
+        const role=new URL(location.href).searchParams.get('role')||'OWNER';
+        const limited=new URL(location.href).searchParams.has('limited');return {role,userId:'test-'+role+'-'+identity,storeId:'store-'+identity,authorizationFingerprint:role+'-'+limited+'-'+identity,
         canAccess:()=>true,canPerform:target=>role==='OWNER'||target==='transaction'||(limited?target==='financial-report.daily-outstanding-dp':target.startsWith('financial-report.daily-'))};}`
       : name === 'link' ? 'import React from "react"; export default function Link({href,children,...props}){return React.createElement("a",{href,...props},children)}'
       : name === 'dynamic' ? 'export default function dynamic(){return ()=>null}' : 'export const ReportExportMenu=()=>null;export const TrendChart=()=>null;', resolveDir: web }));
@@ -48,6 +50,9 @@ try {
     let salesFull = false;
     let receiptFail = false;
     let receiptEmpty = false;
+    let holdReceipt = false;
+    let releaseHeldReceipt;
+    let identity = 'A';
     page.on('pageerror', error => { errors.push(error.message); process.stderr.write(`Browser error: ${error.message}\n`); });
     await page.clock.install({ time: new Date('2026-11-07T03:00:00Z') });
     await page.route('http://daily-sales.test/**', route => {
@@ -70,9 +75,16 @@ try {
         requests.push({ receipt: true, ...Object.fromEntries(url.searchParams) });
         if (receiptFail) return route.fulfill({ status: 503, json: { message: 'Rincian contoh belum dapat dimuat.' } });
         const manualDetailsAvailable = new URL(page.url()).searchParams.has('manual');
-        const items = receiptEmpty ? [] : [{ transactionId: 'old-invoice', invoiceNumber: 'INV-OLD', date: url.searchParams.get('dateFrom'), amount: 15000, methods: ['CASH', 'TRANSFER'], paymentBreakdown: [{ method: 'CASH', amount: 5000 }, { method: 'TRANSFER', amount: 10000 }], categoryBreakdown: [{ category: 'Percetakan', amount: 15000 }] }];
+        const invoiceNumber = identity === 'B' ? 'INV-B' : url.searchParams.get('dateFrom') === '2026-11-05' ? 'INV-NEW' : 'INV-OLD';
+        const items = receiptEmpty ? [] : [{ transactionId: 'old-invoice', invoiceNumber, date: url.searchParams.get('dateFrom'), amount: 16000, methods: ['CASH', 'TRANSFER'], paymentBreakdown: [{ method: 'CASH', amount: 6000 }, { method: 'TRANSFER', amount: 10000 }], categoryBreakdown: [{ category: 'Percetakan', amount: 16000 }] }];
         const manualEntries = receiptEmpty || !manualDetailsAvailable ? [] : [{ id: 'manual', description: 'Pemasukan contoh', date: url.searchParams.get('dateFrom'), amount: 10000, methods: ['CASH'], paymentBreakdown: [{ method: 'CASH', amount: 10000 }], categoryBreakdown: [{ category: 'Percetakan', amount: 10000 }] }];
-        return route.fulfill({ json: { mode: 'receipt', dateFrom: url.searchParams.get('dateFrom'), dateTo: url.searchParams.get('dateTo'), items, manualDetailsAvailable, ...(manualDetailsAvailable ? { manualEntries } : {}) } });
+        const summary = receiptEmpty ? { total: 0, paymentMethods: [] } : { total: 26000, paymentMethods: [{ method: 'CASH', amount: 16000 }, { method: 'TRANSFER', amount: 10000 }] };
+        const json = { mode: 'receipt', dateFrom: url.searchParams.get('dateFrom'), dateTo: url.searchParams.get('dateTo'), items, manualDetailsAvailable, summary, ...(manualDetailsAvailable ? { manualEntries } : {}) };
+        if (holdReceipt) {
+          holdReceipt = false;
+          return new Promise(resolve => { releaseHeldReceipt = async () => { try { await route.fulfill({ json }); } catch {} resolve(); }; });
+        }
+        return route.fulfill({ json });
       }
       return route.fulfill({ contentType: 'text/html', body: html });
     });
@@ -103,13 +115,15 @@ try {
     let dialog = page.getByRole('dialog', { name: 'Rincian pemasukan' });
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText('INV-OLD');
+    await expect(dialog).toContainText('Rp 26.000');
+    await expect(dialog).not.toContainText('Rp 25.000');
     await expect(dialog).toContainText('1 nota terlihat');
     await expect(dialog).toContainText(/sebagian rincian pemasukan belum tersedia/i);
     assert.deepEqual(Object.fromEntries(Object.entries(requests.filter(row => row.receipt).at(-1)).filter(([key]) => ['dateFrom', 'dateTo', 'view'].includes(key))), { dateFrom: '2026-11-06', dateTo: '2026-11-06', view: 'sales' });
     await expect(dialog.getByRole('link', { name: 'INV-OLD' })).toHaveCount(0);
     const expand = dialog.getByRole('button', { name: 'Rincian INV-OLD' });
     await expand.click(); await expect(expand).toHaveAttribute('aria-expanded', 'true');
-    await expect(dialog).toContainText('Rp 5.000');
+    await expect(dialog).toContainText('Rp 6.000');
     await expect(dialog).toContainText('Rp 10.000');
     await expect(dialog).toContainText('Percetakan');
     assert.equal(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth), true);
@@ -119,6 +133,21 @@ try {
     }
     await dialog.screenshot({ path: path.join(output, `receipt-dialog-${width}.png`) });
     await page.keyboard.press('Escape'); await expect(dialog).toHaveCount(0); await expect(totalButton).toBeFocused();
+
+    holdReceipt = true;
+    await totalButton.click();
+    await expect(dialog.getByRole('status')).toContainText('Memuat rincian pemasukan');
+    await expect.poll(() => typeof releaseHeldReceipt).toBe('function');
+    await page.keyboard.press('Escape');
+    await page.getByLabel('Tanggal pemasukan').fill('2026-11-05');
+    await expect.poll(() => requests.at(-1).date).toBe('2026-11-05');
+    await totalButton.click();
+    await expect(dialog).toContainText('INV-NEW');
+    await releaseHeldReceipt();
+    await expect(dialog).not.toContainText('INV-OLD');
+    await page.keyboard.press('Escape');
+    await page.getByLabel('Tanggal pemasukan').fill('2026-11-06');
+    await expect.poll(() => requests.at(-1).date).toBe('2026-11-06');
 
     receiptFail = true;
     await page.getByRole('button', { name: 'Lihat rincian pemasukan', exact: true }).click();
@@ -132,6 +161,22 @@ try {
     await totalButton.click();
     await expect(dialog).toContainText('Belum ada penerimaan yang dapat ditampilkan pada tanggal ini.');
     await page.keyboard.press('Escape');
+    receiptEmpty = false;
+    await page.getByRole('button', { name: /Lihat rincian Total Pemasukan/ }).click();
+    await expect(dialog).toContainText('INV-OLD');
+    identity = 'B';
+    const dailyRequestsBeforeIdentityChange = requests.filter(row => !row.receipt && !row.full).length;
+    await page.evaluate(() => { window.__receiptTestIdentity = 'B'; window.dispatchEvent(new Event('receipt-test-identity-change')); });
+    await expect(dialog).toHaveCount(0);
+    await expect.poll(() => requests.filter(row => !row.receipt && !row.full).length).toBeGreaterThan(dailyRequestsBeforeIdentityChange);
+    await page.getByRole('button', { name: /Lihat rincian Total Pemasukan/ }).click();
+    await expect(dialog).toContainText('INV-B');
+    await expect(dialog).not.toContainText('INV-OLD');
+    await page.keyboard.press('Escape');
+    identity = 'A';
+    const dailyRequestsBeforeReset = requests.filter(row => !row.receipt && !row.full).length;
+    await page.evaluate(() => { window.__receiptTestIdentity = 'A'; window.dispatchEvent(new Event('receipt-test-identity-change')); });
+    await expect.poll(() => requests.filter(row => !row.receipt && !row.full).length).toBeGreaterThan(dailyRequestsBeforeReset);
     receiptEmpty = false;
     await expect(page.getByRole('link', { name: /Lihat rincian Percetakan \/ Spanduk/ })).toHaveAttribute('href', /subcategory=Spanduk/);
     await expect(page.getByRole('link', { name: /Lihat rincian Outstanding DP/ })).toHaveAttribute('href', /mode=outstanding-dp/);
@@ -174,6 +219,7 @@ try {
     await expect(dialog.getByRole('link', { name: 'INV-OLD' })).toHaveAttribute('href', /\/history\?search=INV-OLD/);
     await dialog.getByRole('button', { name: 'Rincian Pemasukan contoh' }).click();
     await expect(dialog).toContainText('Rp 10.000');
+    if (width === 1280) await dialog.screenshot({ path: path.join(output, 'receipt-dialog-complete.png') });
     assert.equal(new URL(page.url()).pathname, '/');
     await page.keyboard.press('Escape');
     receiptEmpty = true;

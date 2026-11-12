@@ -87,6 +87,10 @@ describe("Riwayat penerimaan dan Outstanding DP", () => {
       : [{ id: "manual", description: "Pemasukan contoh" }]);
 
     const body = await (await route.GET(request())).json();
+    expect(body.summary).toEqual({
+      total: 80_000,
+      paymentMethods: [{ method: "CASH", amount: 8_000 }, { method: "TRANSFER", amount: 72_000 }],
+    });
     expect(body.items.find((row: { transactionId: string }) => row.transactionId === "old-invoice")).toMatchObject({
       amount: 60_000,
       paymentBreakdown: [{ method: "TRANSFER", amount: 60_000 }],
@@ -99,11 +103,14 @@ describe("Riwayat penerimaan dan Outstanding DP", () => {
     })]);
 
     const filtered = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&method=TRANSFER"))).json();
+    expect(filtered).not.toHaveProperty("summary");
     expect(filtered.manualEntries[0]).toMatchObject({
       amount: 12_000,
       paymentBreakdown: [{ method: "TRANSFER", amount: 12_000 }],
       categoryBreakdown: [{ category: "ATK", amount: 12_000 }],
     });
+    const category = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&category=ATK"))).json();
+    expect(category).not.toHaveProperty("summary");
   });
 
   it("hanya mengirim rincian yang diizinkan dalam pratinjau Sales", async () => {
@@ -116,16 +123,20 @@ describe("Riwayat penerimaan dan Outstanding DP", () => {
     mocks.permissions.mockResolvedValue(permissions);
     const body = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&view=sales"))).json();
     const receipt = body.items.find((row: { transactionId: string }) => row.transactionId === "old-invoice");
+    expect(body.summary).toEqual({ total: 80_000 });
     expect(receipt.categoryBreakdown).toEqual([{ category: "ATK", amount: 60_000 }]);
     expect(receipt).not.toHaveProperty("paymentBreakdown");
     expect(body.manualEntries[0]).not.toHaveProperty("paymentBreakdown");
 
     permissions.SALES.resources["financial-report.daily-category"].read = false;
     permissions.SALES.resources["financial-report.daily-payment-method"].read = true;
+    permissions.SALES.resources.income.read = false;
     const restricted = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&view=sales"))).json();
     expect(restricted.items[0].paymentBreakdown).toEqual([{ method: "TRANSFER", amount: 60_000 }]);
     expect(restricted.items[0]).not.toHaveProperty("categoryBreakdown");
-    expect(restricted.manualEntries[0]).not.toHaveProperty("categoryBreakdown");
+    expect(restricted.manualEntries).toBeUndefined();
+    expect(restricted.summary).toEqual({ total: 80_000, paymentMethods: [{ method: "Belum dicatat", amount: 20_000 }, { method: "TRANSFER", amount: 60_000 }] });
+    expect(JSON.stringify(restricted.summary)).not.toContain("Pemasukan contoh");
   });
 
   it("menjaga presisi pecahan pada rincian metode dan kategori", async () => {
@@ -159,6 +170,13 @@ describe("Riwayat penerimaan dan Outstanding DP", () => {
     const route = await loadRoute(); expect(route).not.toBeNull(); if (!route) return;
     const body = await (await route.GET(request("mode=outstanding-dp&dateFrom=2026-11-11&dateTo=2026-11-11"))).json();
     expect(body.items).toEqual([expect.objectContaining({ transactionId: "dp", amount: 75_000 })]);
+    expect(body).not.toHaveProperty("summary");
+  });
+
+  it("tidak menambahkan ringkasan harian pada rentang beberapa hari", async () => {
+    const route = await loadRoute(); expect(route).not.toBeNull(); if (!route) return;
+    const body = await (await route.GET(request("mode=receipt&dateFrom=2026-11-10&dateTo=2026-11-11"))).json();
+    expect(body).not.toHaveProperty("summary");
   });
 
   it("menolak rincian kategori jika izinnya dicabut", async () => {

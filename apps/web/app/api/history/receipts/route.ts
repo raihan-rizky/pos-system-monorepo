@@ -109,8 +109,12 @@ export async function GET(request: Request) {
     const manualEntries = [...manualGroups.values()].filter(row => descriptions.has(row.id)).map(row => ({
       id: row.id, description: descriptions.get(row.id), date: row.date, amount: row.cents / 100, methods: access.method ? [...row.methods] : [], ...breakdown(row),
     })).sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
+    const dailySummary = mode === "receipt" && fromDate === toDate && !category && !subcategory && !method && access.total
+      ? period.days[0] : undefined;
     return NextResponse.json({ mode, dateFrom: fromDate, dateTo: toDate, items, manualDetailsAvailable: access.manualDetails,
-      ...(access.manualDetails && mode === "receipt" ? { manualEntries } : {}) }, { headers: { "Cache-Control": "private, no-store" } });
+      ...(access.manualDetails && mode === "receipt" ? { manualEntries } : {}),
+      ...(dailySummary && { summary: { total: dailySummary.total, ...(access.method && { paymentMethods: dailySummary.paymentMethods }) } }),
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     const auth = handleAuthError(error);
     if (auth) return auth;

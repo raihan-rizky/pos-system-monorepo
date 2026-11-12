@@ -10,7 +10,12 @@ type ReceiptBreakdown = {
 };
 type ReceiptItem = ReceiptBreakdown & { transactionId: string; invoiceNumber: string | null; date: string; amount: number; methods: string[] };
 type ManualEntry = ReceiptBreakdown & { id: string; description: string | null; date: string; amount: number; methods: string[] };
-export type ReceiptHistoryData = { items: ReceiptItem[]; manualDetailsAvailable: boolean; manualEntries?: ManualEntry[] };
+export type ReceiptHistoryData = {
+  items: ReceiptItem[];
+  manualDetailsAvailable: boolean;
+  manualEntries?: ManualEntry[];
+  summary?: { total: number; paymentMethods?: Array<{ method: string; amount: number }> };
+};
 
 export function useReceiptHistory(context: ReceiptHistoryContext) {
   const { userId, storeId, authorizationFingerprint } = useRole();

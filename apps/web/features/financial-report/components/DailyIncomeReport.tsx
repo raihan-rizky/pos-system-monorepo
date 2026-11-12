@@ -74,6 +74,6 @@ export function DailyIncomeReport({ previewSales = false, fullReportPreview }: {
             {access.paymentMethods && report.paymentMethods?.some(row => row.method === "Belum dicatat") && <p className="text-xs text-[#587586]">Metode pembayaran pemasukan manual belum dicatat.</p>}
           </>}
     </div>
-    {detailsOpen && totalHref && report?.total !== undefined && <DailyIncomeReceiptDialog date={date} total={report.total} paymentMethods={access.paymentMethods ? report.paymentMethods : undefined} previewSales={previewSales} onClose={() => setDetailsOpen(false)} />}
+    {detailsOpen && totalHref && report?.total !== undefined && <DailyIncomeReceiptDialog date={date} previewSales={previewSales} onClose={() => setDetailsOpen(false)} />}
   </main>;
 }
