@@ -1,6 +1,6 @@
 # Pemulihan sesi multi perangkat
 
-Dokumen ini menyertai kandidat rilis pada branch `codex/multi-device-session-recovery`, berbasis `origin/main` pada `27987af3`. Catatan perubahan memakai tanggal sementara 11 November 2026. Sesuaikan dengan tanggal publikasi pertama dalam WIB saat rilis.
+Dokumen ini menyertai kandidat rilis pada branch `codex/multi-device-session-recovery`, berbasis `origin/main` pada `27987af3`. Catatan perubahan untuk publikasi pertama bertanggal 12 November 2026 dalam WIB.
 
 Satu akun dapat masuk pada beberapa browser atau perangkat tanpa batas jumlah dari aplikasi. Tombol Keluar mengakhiri sesi browser tersebut. Tab yang berbagi cookie pada browser yang sama mengikuti logout lokal. Perangkat lain dengan sesi sendiri tetap dapat bekerja.
 

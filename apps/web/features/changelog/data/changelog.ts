@@ -3,7 +3,7 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
-    id: "sesi-multi-perangkat-20261111", date: "2026-11-11", revision: 1,
+    id: "sesi-multi-perangkat-20261111", date: "2026-11-12", revision: 1,
     highlight: { title: "Masuk di banyak perangkat", summary: "Keluar di satu perangkat tidak mengganggu sesi pada perangkat lain." },
     title: "Sesi kasir tetap aktif di perangkat lain",
     summary: "Gunakan satu akun di beberapa perangkat sekaligus. Saat koneksi terganggu, pemeriksaan sesi berjalan kembali sambil mempertahankan isian di tab yang terbuka.",
