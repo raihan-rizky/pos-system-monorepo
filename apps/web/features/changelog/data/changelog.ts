@@ -40,7 +40,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    id: "kpi-piutang-dashboard-laporan", date: "2026-11-11", revision: 1,
+    id: "kpi-piutang-dashboard-laporan", date: "2026-11-13", revision: 1,
     highlight: { title: "Pantau saldo Piutang", summary: "Saldo Tempo dan Piutang Manual terlihat, dengan DP tetap terpisah." },
     title: "Pantau Piutang di tiga tampilan laporan.",
     summary: "Kartu Piutang merangkum sisa Tempo dan Piutang Manual di Dashboard dan laporan saat role memiliki izin baca transaksi serta data Pelanggan. Outstanding DP tetap terpisah.",

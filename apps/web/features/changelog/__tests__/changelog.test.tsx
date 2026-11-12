@@ -40,7 +40,7 @@ describe("manual changelog", () => {
   it("announces the Dashboard and report Piutang KPI with three usage steps", () => {
     const receivable = CHANGELOG.find(change => change.id === "kpi-piutang-dashboard-laporan");
     expect(receivable).toMatchObject({
-      date: "2026-11-11",
+      date: "2026-11-13",
       revision: 1,
       title: "Pantau Piutang di tiga tampilan laporan.",
       href: "/financial-report",
