@@ -87,7 +87,7 @@ beforeEach(() => {
     transaction: { updateMany: mocks.unlink },
   }));
   mocks.loadDebt.mockResolvedValue(new Map());
-  mocks.applyDebt.mockImplementation((customers) =>
+  mocks.applyDebt.mockImplementation((customers: Array<Record<string, unknown>>) =>
     customers.map((value) => ({
       ...value,
       totalDebt: 75_000,
