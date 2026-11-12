@@ -236,7 +236,9 @@ test("sales role sees daily income without full financial reports", async ({
   await expect(page.getByRole("heading", { name: "Total Pemasukan" })).toBeVisible();
   const outstanding = page.locator("section").filter({ has: page.getByRole("heading", { name: "Outstanding DP", exact: true }) });
   await expect(outstanding.getByText("Rp 25.000", { exact: true })).toBeVisible();
-  await expect(outstanding).toContainText("bukan saldo historis");
+  await expect(outstanding).toContainText(
+    "Sisa transaksi berstatus DP. Tidak termasuk Tempo atau Piutang Manual.",
+  );
   await expect(page.getByRole("heading", { name: "Pemasukan per Kategori" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Pemasukan per Subkategori" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Pemasukan per Metode Pembayaran" })).toBeVisible();
