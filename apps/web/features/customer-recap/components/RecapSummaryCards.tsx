@@ -33,6 +33,8 @@ const toneMap = {
 } as const;
 
 export function RecapSummaryCards({ summary }: RecapSummaryCardsProps) {
+  const { totalDebtOutstanding, debtCollectedInPeriod } = summary;
+  const showReceivables = totalDebtOutstanding !== undefined && debtCollectedInPeriod !== undefined;
   const cards = [
     {
       label: "Pelanggan Baru",
@@ -55,20 +57,19 @@ export function RecapSummaryCards({ summary }: RecapSummaryCardsProps) {
       tone: "danger" as const,
       info: "Jumlah pelanggan lama yang sudah tidak melakukan transaksi dalam 60 hari terakhir sebelum akhir periode ini.",
     },
-    {
+    ...(showReceivables ? [{
       label: "Piutang Total",
-      value: formatCurrency(summary.totalDebtOutstanding),
+      value: formatCurrency(totalDebtOutstanding),
       icon: <Wallet className="h-5 w-5" />,
       tone: "warning" as const,
       info: "Total sisa piutang dari semua pelanggan pada periode ini.",
-    },
-    {
+    }, {
       label: "Piutang Terbayar",
-      value: formatCurrency(summary.debtCollectedInPeriod),
+      value: formatCurrency(debtCollectedInPeriod),
       icon: <CheckCircle className="h-5 w-5" />,
       tone: "success" as const,
       info: "Total nominal piutang yang berhasil ditagih atau dibayarkan pada periode ini.",
-    },
+    }] : []),
     {
       label: "Rata-rata Belanja",
       value: formatCurrency(summary.avgOrderValue),

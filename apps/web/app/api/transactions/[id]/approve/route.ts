@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { z } from "zod";
 import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import { requireReceivableChangePermission } from "@/features/customer-debt/server/receivable-permission";
 import { buildDefaultRolePermissions, canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
 import {
@@ -256,6 +257,15 @@ export async function POST(
 
     // Stock mutations and their reversal evidence must commit together.
     const updatedTransaction = await db.$transaction(async (tx) => {
+      if (transaction.status !== "PENDING_APPROVAL") {
+        const before = { ...transaction, total: Number(transaction.total), amountPaid: Number(transaction.amountPaid) };
+        await requireReceivableChangePermission(before, { ...before, total, amountPaid: finalAmountPaid, status: newStatus, paymentMethod });
+        const priorPayments = (transaction.payments ?? []).map(row => ({ method: row.method, amount: Number(row.amount) }));
+        if (JSON.stringify(priorPayments) !== JSON.stringify(paymentRows)) {
+          await requirePermission("customer.receivable", "read");
+          await requirePermission("customer.receivable.payment", "create");
+        }
+      }
       const customerArgs = buildCustomerUpdateArgs({
         customerId: transaction.customerId || null, isDP: isDP || isTempo,
         total, amountPaid: finalAmountPaid,
@@ -281,13 +291,17 @@ export async function POST(
         where: {
           id,
           storeId,
+          status: transaction.status,
+          amountPaid: transaction.amountPaid,
+          customerId: transaction.customerId,
+          paymentMethod: transaction.paymentMethod,
           total: transaction.total,
           tax: transaction.tax,
           taxRate: transaction.taxRate,
           taxMethod: transaction.taxMethod,
-          ...(transaction.status === "PENDING_APPROVAL"
-            ? { status: "PENDING_APPROVAL" as const }
-            : { requestedById: { not: null }, cashierId: null }),
+          ...(transaction.status !== "PENDING_APPROVAL"
+            ? { requestedById: { not: null }, cashierId: null }
+            : {}),
         },
         data: {
           status: newStatus,

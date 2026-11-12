@@ -5,6 +5,7 @@ import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
 import type { Role } from "@/lib/rbac/permissions";
 import { PrintingReceiptValidationError } from "../domain";
 import { PrintingReceiptStorageError } from "./receipt-store";
+import { ReceivableAuthorizationError } from "@/features/customer-debt/helpers/receivable-authorization";
 
 export async function requirePrintingReceiptWritePermission(action: "create" | "update" | "delete" = "create") {
   const user = await requireRole("OWNER", "ADMIN", "CASHIER", "SALES");
@@ -38,6 +39,7 @@ export function parsePrintingReceiptRevision(input: unknown): number {
 export function printingReceiptErrorResponse(error: unknown): Response {
   const auth = handleAuthError(error);
   if (auth) return auth;
+  if (error instanceof ReceivableAuthorizationError) return NextResponse.json({ message: error.message }, { status: 403 });
   if (error instanceof PrintingReceiptValidationError) return NextResponse.json({ message: error.message }, { status: 422 });
   if (error instanceof PrintingReceiptStorageError) return NextResponse.json({ message: error.message }, { status: error.status });
   console.error("Gagal menyimpan atau membaca nota percetakan", error);

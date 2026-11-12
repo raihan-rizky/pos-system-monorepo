@@ -3,6 +3,7 @@ import { db } from "@pos/db";
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
 import { calculateTaxPaymentState, calculateTransactionTax, getTransactionTaxMethod, getTransactionTaxRate } from "@/features/transaction-tax/helpers/tax-calculation";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
+import { requireReceivableChangePermission } from "@/features/customer-debt/server/receivable-permission";
 import { z } from "zod";
 import {
   applyProductStockDeltas,
@@ -171,7 +172,7 @@ export async function PATCH(
       `;
       const current = await tx.transaction.findFirst({
         where: { id, storeId },
-        select: { status: true, customerId: true, paymentMethod: true, total: true, amountPaid: true, change: true, discount: true, tax: true, taxRate: true, taxMethod: true, stockDeductionSource: true, items: true },
+        select: { status: true, customerId: true, customerName: true, paymentMethod: true, total: true, amountPaid: true, change: true, discount: true, tax: true, taxRate: true, taxMethod: true, stockDeductionSource: true, items: true },
       });
       const previousIds = new Set(existingTx.items.map(item => item.id));
       if (!current || current.status !== existingTx.status || current.customerId !== existingTx.customerId ||
@@ -202,6 +203,10 @@ export async function PATCH(
       if (!existingTx.customerId && payment.remaining > 0 && total > Number(existingTx.total)) {
         throw new Error("ITEM_CUSTOMER_REQUIRED");
       }
+      await requireReceivableChangePermission(
+        { ...current, total: Number(current.total), amountPaid: Number(current.amountPaid) },
+        { ...current, total, amountPaid: payment.amountPaid, status: payment.status },
+      );
       const unitChanges = normalizedItems.flatMap(item => {
         const source = existingTx.items.find(old => old.id === item.sourceItemId);
         return source?.productId && item.productId && source.productId !== item.productId

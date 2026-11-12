@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { db, type Prisma } from "@pos/db";
 import { z } from "zod";
-import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError, canAuthenticatedUserAccessPage, AuthError } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
-import { createReceivable, createReceivableSchema, ReceivableError, receivableInclude } from "@/features/customer-debt/helpers/manual-receivables";
+import { createReceivable, createReceivableSchema, ReceivableError } from "@/features/customer-debt/helpers/manual-receivables";
 
 export const dynamic = "force-dynamic";
 const log = getLogger("api:customer-receivables");
@@ -14,7 +14,8 @@ const querySchema = z.object({
 
 export async function GET(request: Request) {
   try {
-    const user = await requirePermission("customer", "read");
+    const user = await requirePermission("customer.receivable", "read");
+    if (!await canAuthenticatedUserAccessPage(user, "/customers")) throw new AuthError(403, "Akses halaman Pelanggan diperlukan.");
     const storeId = user.storeId || "store-main";
     const parsed = querySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
     if (!parsed.success) return NextResponse.json({ message: "Filter piutang tidak valid.", errors: parsed.error.flatten() }, { status: 422 });
@@ -32,9 +33,23 @@ export async function GET(request: Request) {
     };
     const [total, data] = await Promise.all([
       db.customerReceivable.count({ where }),
-      db.customerReceivable.findMany({ where, include: receivableInclude, orderBy: [{ dueDate: "asc" }, { id: "asc" }], skip: (page - 1) * 20, take: 20 }),
+      db.customerReceivable.findMany({
+        where,
+        select: {
+          id: true, customerId: true, customer: { select: { id: true, name: true } },
+          amount: true, amountPaid: true, debtDate: true, dueDate: true, note: true, createdAt: true,
+          payments: { select: { id: true, amount: true, method: true, note: true, createdAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+        },
+        orderBy: [{ dueDate: "asc" }, { id: "asc" }], skip: (page - 1) * 20, take: 20,
+      }),
     ]);
-    return NextResponse.json({ data, pagination: { page, total, totalPages: Math.ceil(total / 20) } });
+    const entries = data.map((entry) => ({
+      id: entry.id, customerId: entry.customerId, customer: { id: entry.customer.id, name: entry.customer.name },
+      amount: entry.amount, amountPaid: entry.amountPaid, debtDate: entry.debtDate, dueDate: entry.dueDate,
+      note: entry.note, createdAt: entry.createdAt,
+      payments: entry.payments.map((payment) => ({ id: payment.id, amount: payment.amount, method: payment.method, note: payment.note, createdAt: payment.createdAt })),
+    }));
+    return NextResponse.json({ data: entries, pagination: { page, total, totalPages: Math.ceil(total / 20) } });
   } catch (error) {
     const authError = handleAuthError(error); if (authError) return authError;
     log.error("Gagal memuat piutang manual", error);
@@ -44,7 +59,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requirePermission("customer", "update");
+    const user = await requirePermission("customer.receivable", "read");
+    await requirePermission("customer.receivable", "create");
+    if (!await canAuthenticatedUserAccessPage(user, "/customers")) throw new AuthError(403, "Akses halaman Pelanggan diperlukan.");
     const parsed = createReceivableSchema.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ message: parsed.error.issues[0]?.message ?? "Periksa data piutang.", errors: parsed.error.flatten() }, { status: 422 });
     const receivable = await db.$transaction((tx) => createReceivable(tx, parsed.data, { id: user.id, storeId: user.storeId || "store-main" }));

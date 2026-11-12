@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "../route";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
+const canPerformMock = vi.hoisted(() => vi.fn());
+const pageAccessMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const customerFindFirstMock = vi.hoisted(() => vi.fn());
 const customerUpdateMock = vi.hoisted(() => vi.fn());
@@ -16,7 +18,10 @@ const dbTransactionMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
+  canAuthenticatedUserPerform: canPerformMock,
+  canAuthenticatedUserAccessPage: pageAccessMock,
   handleAuthError: handleAuthErrorMock,
+  AuthError: class AuthError extends Error { constructor(public statusCode: number, message: string) { super(message); this.name = "AuthError"; } },
 }));
 
 vi.mock("@pos/db", () => ({
@@ -37,6 +42,8 @@ describe("POST /api/customers/[id]/pay-debt", () => {
       storeId: "store-main",
     });
     handleAuthErrorMock.mockReturnValue(null);
+    canPerformMock.mockResolvedValue(true);
+    pageAccessMock.mockResolvedValue(true);
     customerFindFirstMock.mockResolvedValue({
       id: "customer-1",
       name: "Customer One",
@@ -93,6 +100,21 @@ describe("POST /api/customers/[id]/pay-debt", () => {
     );
   });
 
+  it("denies invoice payment without Pelanggan page access", async () => {
+    pageAccessMock.mockResolvedValue(false);
+    handleAuthErrorMock.mockImplementation((error: unknown) => error instanceof Error && error.name === "AuthError" ? new Response(null, { status: 403 }) : null);
+    const response = await POST(
+      new Request("http://localhost/api/customers/customer-1/pay-debt", {
+        method: "POST",
+        body: JSON.stringify({ amount: 50000, paymentMethod: "CASH" }),
+      }),
+      { params: Promise.resolve({ id: "customer-1" }) },
+    );
+    expect(response.status).toBe(403);
+    expect(customerFindFirstMock).not.toHaveBeenCalled();
+    expect(dbTransactionMock).not.toHaveBeenCalled();
+  });
+
   it("logs customer debt payments against the DP transaction inside the transaction", async () => {
     const response = await POST(
       new Request("http://localhost/api/customers/customer-1/pay-debt", {
@@ -117,6 +139,19 @@ describe("POST /api/customers/[id]/pay-debt", () => {
         note: "Pelunasan sebagian",
       },
     });
+  });
+
+  it("does not expose total spent to a payment role without customer-read access", async () => {
+    canPerformMock.mockResolvedValueOnce(false);
+    const response = await POST(
+      new Request("http://localhost/api/customers/customer-1/pay-debt", {
+        method: "POST",
+        body: JSON.stringify({ amount: 50000, paymentMethod: "CASH" }),
+      }),
+      { params: Promise.resolve({ id: "customer-1" }) },
+    );
+    expect(response.status).toBe(200);
+    expect((await response.json()).customer).not.toHaveProperty("totalSpent");
   });
 
   it("allocates a customer payment across DP and Tempo invoices without changing Tempo status", async () => {

@@ -12,11 +12,30 @@ Buka sidebar **Pelanggan > Pelanggan** (`/customers`). Halaman ini menyediakan:
 
 Gunakan **Tambah Pelanggan** atau **Import Excel** bila role memiliki permission `customer.create`. Nama pelanggan wajib diisi. Tipe pelanggan default adalah UMUM dan dapat diganti; nomor HP/WhatsApp, email, perusahaan/instansi, alamat, dan catatan bersifat opsional.
 
-Klik kartu pelanggan untuk membuka detail. Detail berisi total belanja, jumlah transaksi, piutang, rekap 7/14/30 hari, produk teratas, riwayat transaksi, dan **Piutang Manual**. Tombol **Ubah Profil** dan pembayaran memerlukan permission `customer.update`. **Bayar Piutang** pada transaksi mencatat pembayaran invoice DP/Tempo; **Bayar Piutang Manual** mencatat pembayaran catatan manual yang dipilih.
+Klik kartu pelanggan untuk membuka detail dengan izin `customer.read`. Tombol **Ubah Profil** memerlukan `customer.update`, sedangkan hapus memerlukan `customer.delete`. Import yang memperbarui pelanggan memerlukan `customer.create` dan `customer.update`. Piutang dan tombol pembayarannya mengikuti izin tersendiri.
+
+## Hak akses profil dan piutang
+
+Owner mengatur izin role di **Pengaturan > RBAC > Pelanggan**. Owner selalu memiliki akses penuh. Secara default Admin mendapat semua aksi piutang, Sales dan Kasir hanya dapat melihat piutang, dan Inventaris tidak mendapat akses piutang. Izin mengubah profil yang sudah ada tetap terpisah.
+
+| Aksi | Izin |
+| --- | --- |
+| Melihat profil dan rekap pelanggan | `customer.read` |
+| Membuat atau mengimpor profil | `customer.create` |
+| Mengubah profil | `customer.update` |
+| Menghapus profil | `customer.delete` |
+| Melihat invoice dan piutang manual | `customer.receivable.read` |
+| Menambah piutang manual | `customer.receivable.read` + `customer.receivable.create` |
+| Koreksi yang mengubah saldo atau atribusi piutang | `customer.receivable.read` + `customer.receivable.update` |
+| Mencatat cicilan atau pelunasan | `customer.receivable.read` + `customer.receivable.payment.create` |
+
+Semua memerlukan akses halaman terkait. Role yang hanya dapat melihat piutang langsung masuk ke tab **Piutang**, dengan nama pelanggan dan rincian invoice seperlunya, tanpa kontak, rekap profil, atau isi struk lengkap. Tombol **Lihat** untuk struk lengkap memerlukan `transaction.read`. Tanpa izin melihat piutang, saldo, bagian manual, dan tab Piutang disembunyikan pada Pelanggan, rekap, ekspor, serta hasil Assistant pelanggan.
+
+Izin ini mengatur piutang pada Pelanggan. Akses Riwayat, Dashboard, laporan, atau Keuangan yang diberikan secara terpisah tetap dapat menampilkan informasi keuangan sesuai izin masing-masing. Hutang kepada supplier mengikuti izin modul Supplier/Keuangan.
 
 ## Piutang manual
 
-Gunakan **Piutang Manual** untuk utang lama atau tagihan di luar kasir. Pencatatan ini tidak membuat transaksi penjualan, order, atau mengubah stok. Melihat catatan memerlukan `customer.read`; menambah dan membayar memerlukan `customer.update`.
+Gunakan **Piutang Manual** untuk utang lama atau tagihan di luar kasir. Pencatatan ini tidak membuat transaksi penjualan, order, atau mengubah stok. Melihat memerlukan izin lihat piutang; menambah dan membayar menggunakan izin piutang tersendiri pada tabel di atas. Membuka detail untuk memilih pelanggan juga memerlukan izin melihat profil.
 
 Pelanggan yang memiliki riwayat piutang manual tidak dapat dihapus, termasuk yang sudah lunas. Riwayat piutang dan pembayaran tetap tersimpan.
 
@@ -34,7 +53,7 @@ Tab **Piutang** pada menu Pelanggan menampilkan daftar invoice/transaksi penjual
 
 ### Informasi yang Ditampilkan:
 - **Pelanggan:** Nama pelanggan terkait (bisa diklik untuk memfilter daftar hanya untuk pelanggan tersebut).
-- **Invoice & Waktu:** Nomor invoice transaksi beserta tanggal transaksi dibuat. Anda juga bisa menekan tombol **Lihat** untuk memunculkan struk belanja secara lengkap.
+- **Invoice & Waktu:** Nomor invoice transaksi beserta tanggal transaksi dibuat. Tombol **Lihat** untuk membuka struk lengkap tersedia bila role memiliki `transaction.read`.
 - **Tagihan & Sisa:** Total nominal transaksi, sisa tagihan yang harus dibayar, serta jumlah yang telah dibayarkan (DP).
 - **Status & Usia Tagihan:** Status pembayaran (Belum Lunas / Lunas) dan berapa hari tagihan tersebut berjalan (Usia Tagihan).
 

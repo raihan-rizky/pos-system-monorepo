@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { canAuthenticatedUserPerform } from "@/lib/rbac/guard";
 import { PrintingReceiptValidationError } from "@/features/printing-receipts/domain";
 import type { ProcessedPrintingReceiptInput } from "@/features/printing-receipts/processed-edit";
 import { requireProcessedPrintingReceiptPermission } from "@/features/printing-receipts/server/processed-permission";
@@ -24,7 +25,11 @@ export async function PATCH(request: Request, context: Context): Promise<Respons
     const { id } = await context.params;
     const body = await readPrintingReceiptJson(request);
     if (body.acknowledged !== true || typeof body.reviewToken !== "string" || !body.reviewToken) throw new PrintingReceiptValidationError("Setujui dampak perubahan dan tinjau nota sebelum menyimpan.");
-    const data = await saveProcessedPrintingReceipt(user.storeId || "store-main", id, body as unknown as ProcessedPrintingReceiptInput & { acknowledged: boolean; reviewToken: string }, { id: user.id, name: user.name, role: user.role });
+    const receivableAccess = {
+      canView: await canAuthenticatedUserPerform(user, "customer.receivable", "read"),
+      canEdit: await canAuthenticatedUserPerform(user, "customer.receivable", "update"),
+    };
+    const data = await saveProcessedPrintingReceipt(user.storeId || "store-main", id, body as unknown as ProcessedPrintingReceiptInput & { acknowledged: boolean; reviewToken: string }, { id: user.id, name: user.name, role: user.role }, receivableAccess);
     return NextResponse.json({ data });
   } catch (error) { return printingReceiptErrorResponse(error); }
 }

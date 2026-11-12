@@ -73,6 +73,8 @@ export const RESOURCE_TARGETS = [
   "surat_jalan.auto_approve",
   "production",
   "customer",
+  "customer.receivable",
+  "customer.receivable.payment",
   "product",
   "product.price_log",
   "supplier",
@@ -241,6 +243,18 @@ const LEGACY_ACTION_ACCESS: Record<string, Record<LegacyAction, Role[]>> = {
 const RESOURCE_GRANULAR_ACCESS: Partial<
   Record<string, Record<ResourceAction, Role[]>>
 > = {
+  "customer.receivable": {
+    read: ["ADMIN", "CASHIER", "SALES"],
+    create: ["ADMIN"],
+    update: ["ADMIN"],
+    delete: [],
+  },
+  "customer.receivable.payment": {
+    read: [],
+    create: ["ADMIN"],
+    update: [],
+    delete: [],
+  },
   "financial-report.daily-income": { read: ["ADMIN", "SALES"], create: [], update: [], delete: [] },
   "financial-report.daily-outstanding-dp": { read: ["ADMIN", "SALES"], create: [], update: [], delete: [] },
   "financial-report.daily-category": { read: ["ADMIN", "SALES"], create: [], update: [], delete: [] },
@@ -377,6 +391,7 @@ export function buildDeniedRolePermissions(): RolePermissions {
 export function normalizeRolePermissions(entries: PermissionEntry[] | null): RolePermissions {
   const permissions = buildDefaultRolePermissions();
   const explicitTransitions = new Set<string>();
+  const configuredResources = new Set<string>();
 
   for (const entry of entries ?? []) {
     if (!isEditableRole(entry.role)) continue;
@@ -398,6 +413,7 @@ export function normalizeRolePermissions(entries: PermissionEntry[] | null): Rol
       isKnownResourceTarget(entry.target) &&
       !isOwnerLockedResource(entry.target)
     ) {
+      configuredResources.add(`${entry.role}:${entry.target}:${entry.action}`);
       const transition = TRANSITION_RESOURCE_PERMISSIONS[entry.target];
       if (transition && !transition.actions.includes(entry.action)) continue;
       if (transition) explicitTransitions.add(`${entry.role}:${entry.target}:${entry.action}`);
@@ -417,6 +433,25 @@ export function normalizeRolePermissions(entries: PermissionEntry[] | null): Rol
         if (!explicitTransitions.has(`${role}:${target}:${action}`)) {
           permissions[role].resources[target][action] = permissions[role].resources[transition.legacyTarget][action];
         }
+      }
+    }
+  }
+
+  // Before the receivable migration runs, inherit old customer/transaction
+  // grants only for missing rows. Explicit legacy denies and new overrides win.
+  if (entries?.length) {
+    for (const role of EDITABLE_ROLES) {
+      const customer = permissions[role].resources.customer;
+      const transaction = permissions[role].resources.transaction;
+      const receivable = permissions[role].resources["customer.receivable"];
+      const payment = permissions[role].resources["customer.receivable.payment"];
+      if (!configuredResources.has(`${role}:customer.receivable:read`)) {
+        receivable.read = customer.read;
+      }
+      if (role === "ADMIN") {
+        if (!configuredResources.has(`${role}:customer.receivable:create`)) receivable.create = customer.update;
+        if (!configuredResources.has(`${role}:customer.receivable:update`)) receivable.update = customer.update;
+        if (!configuredResources.has(`${role}:customer.receivable.payment:create`)) payment.create = customer.update && transaction.update;
       }
     }
   }

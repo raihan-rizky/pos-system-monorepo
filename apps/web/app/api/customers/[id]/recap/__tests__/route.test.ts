@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GET } from "../route";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
+const canPerformMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const customerFindFirstMock = vi.hoisted(() => vi.fn());
 const transactionFindManyMock = vi.hoisted(() => vi.fn());
@@ -10,6 +11,7 @@ const customerReceivableFindManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
+  canAuthenticatedUserPerform: canPerformMock,
   handleAuthError: handleAuthErrorMock,
 }));
 
@@ -25,6 +27,7 @@ vi.mock("@pos/db", () => ({
 describe("GET /api/customers/[id]/recap", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    canPerformMock.mockResolvedValue(true);
     customerReceivableFindManyMock.mockResolvedValue([]);
     requirePermissionMock.mockResolvedValue({
       id: "owner-1",
@@ -126,6 +129,20 @@ describe("GET /api/customers/[id]/recap", () => {
     expect(body.data.summary).toMatchObject({ debtPaidInPeriod: 35000, totalSpent: 125000, totalOrders: 1 });
     expect(body.data.trend.points[0]).toMatchObject({ runningDebtRemaining: 30000, debtUnpaidAmount: 30000, dpTransactionCount: 0 });
     expect(customerReceivableFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ storeId: "store-main", customerId: "customer-1" }) }));
+  });
+
+  it("retains purchase metrics while hiding detail piutang and its trend", async () => {
+    canPerformMock.mockResolvedValue(false);
+    const response = await GET(new Request("http://localhost/api/customers/customer-1/recap?dateFrom=2026-05-01&dateTo=2026-05-02"), { params: Promise.resolve({ id: "customer-1" }) });
+    const { data } = await response.json();
+    expect(response.status).toBe(200);
+    expect(data.summary.totalSpent).toBe(125000);
+    expect(data.summary).not.toHaveProperty("debtRemaining");
+    expect(data.summary).not.toHaveProperty("debtPaidInPeriod");
+    expect(data.trend.points[0]).not.toHaveProperty("runningDebtRemaining");
+    expect(data.trend.points[0]).not.toHaveProperty("dpTransactionCount");
+    expect(debtPaymentLogFindManyMock).not.toHaveBeenCalled();
+    expect(customerReceivableFindManyMock).not.toHaveBeenCalled();
   });
 
 });

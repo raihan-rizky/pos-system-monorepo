@@ -1,22 +1,20 @@
 "use client";
 
-import React, { useState, useDeferredValue, useCallback, useMemo } from "react";
+import React, { useState, useDeferredValue, useCallback } from "react";
 import {
   Search,
-  Wallet,
   FileSpreadsheet,
   Loader2,
-  Calendar,
-  Phone,
   X,
   CreditCard,
-  Building2,
   ArrowRight,
   User,
   CheckCircle2,
   Clock
 } from "lucide-react";
-import { useTransactionHistory, Transaction } from "@/hooks/useTransactions";
+import { useTransaction } from "@/hooks/useTransactions";
+import { useReceivableInvoices, type ReceivableInvoice } from "../hooks/useReceivableInvoices";
+import type { CustomerType } from "@/lib/customers";
 import { usePayTransactionDebt } from "@/hooks/useCustomers";
 import { useDebounce } from "@/hooks/useDebounce";
 import { ReceiptModal } from "@/components/ReceiptModal";
@@ -72,7 +70,7 @@ function SingleTransactionPayModal({
   transaction,
   onClose,
 }: {
-  transaction: Transaction;
+  transaction: ReceivableInvoice;
   onClose: () => void;
 }) {
   const payTx = usePayTransactionDebt();
@@ -258,7 +256,7 @@ function SingleTransactionPayModal({
   );
 }
 
-export function DebtTransactionsList() {
+export function DebtTransactionsList({canPay = false, canReadTransactions = false}: {canPay?: boolean; canReadTransactions?: boolean}) {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const debouncedSearch = useDebounce(deferredSearch, 250);
@@ -268,13 +266,14 @@ export function DebtTransactionsList() {
   const [page, setPage] = useState(1);
 
   const [paymentStatus, setPaymentStatus] = useState<"ALL" | "DP" | "COMPLETED">("ALL");
-  const [customerType, setCustomerType] = useState<string>("");
+  const [customerType, setCustomerType] = useState<CustomerType | "">("");
 
-  const [payingTx, setPayingTx] = useState<Transaction | null>(null);
-  const [viewingTx, setViewingTx] = useState<Transaction | null>(null);
+  const [payingTx, setPayingTx] = useState<ReceivableInvoice | null>(null);
+  const [viewingTx, setViewingTx] = useState<ReceivableInvoice | null>(null);
+  const receiptQuery = useTransaction(canReadTransactions ? viewingTx?.id ?? null : null);
 
-  const { data, isLoading, isFetching } = useTransactionHistory({
-    status: paymentStatus === "ALL" ? "DEBT_HISTORY" : paymentStatus === "DP" ? "DEBT_HISTORY_ACTIVE" : "DEBT_HISTORY_COMPLETED",
+  const { data, isLoading, isFetching, isError, error } = useReceivableInvoices({
+    status: paymentStatus === "ALL" ? "all" : paymentStatus === "DP" ? "open" : "settled",
     search: debouncedSearch,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
@@ -501,7 +500,7 @@ export function DebtTransactionsList() {
               Sistem sedang mengambil daftar invoice dan histori pembayaran.
             </p>
           </div>
-        ) : transactions.length === 0 ? (
+        ) : isError ? <p role="alert" className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error?.message || "Piutang belum bisa dimuat. Silakan coba kembali."}</p> : transactions.length === 0 ? (
           <div className="rounded-[32px] border border-dashed border-slate-300 bg-white/80 px-6 py-14 text-center shadow-sm">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[24px] bg-slate-100 text-slate-500">
               <FileSpreadsheet className="h-7 w-7" />
@@ -572,12 +571,12 @@ export function DebtTransactionsList() {
                                 amountPaid={Number(tx.amountPaid)}
                               />
                             </div>
-                            <button
+                            {canReadTransactions && <button
                               onClick={() => setViewingTx(tx)}
                               className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-brand-600 hover:underline"
                             >
                               Lihat <ArrowRight className="h-3 w-3" />
-                            </button>
+                            </button>}
                           </td>
                           <td className="px-6 py-4">
                             <div className="font-bold text-slate-900">{formatCurrency(Number(tx.total))}</div>
@@ -618,7 +617,7 @@ export function DebtTransactionsList() {
                             )}
                           </td>
                           <td className="px-6 py-4 text-right">
-                            {!isCompleted ? (
+                            {canPay && !isCompleted ? (
                               <button
                                 onClick={() => setPayingTx(tx)}
                                 className="inline-flex items-center justify-center rounded-xl bg-red-50 px-4 py-2 text-xs font-bold text-red-600 transition hover:bg-red-600 hover:text-white"
@@ -626,7 +625,7 @@ export function DebtTransactionsList() {
                                 Bayar Piutang
                               </button>
                             ) : (
-                              <span className="text-xs font-bold text-slate-400">Selesai</span>
+                              <span className="text-xs font-bold text-slate-400">{isCompleted ? "Selesai" : "Hanya lihat"}</span>
                             )}
                           </td>
                         </tr>
@@ -705,12 +704,12 @@ export function DebtTransactionsList() {
                             />
                           </div>
                         </div>
-                        <button 
+                        {canReadTransactions && <button
                           onClick={() => setViewingTx(tx)}
                           className="text-[11px] font-bold text-brand-600 hover:underline flex items-center gap-1"
                         >
                           Lihat <ArrowRight className="h-3 w-3" />
-                        </button>
+                        </button>}
                       </div>
 
                       <div className="flex justify-between text-sm mt-2">
@@ -752,7 +751,7 @@ export function DebtTransactionsList() {
                       )}
                     </div>
 
-                    {!isCompleted && (
+                    {canPay && !isCompleted && (
                       <button
                         onClick={() => setPayingTx(tx)}
                         className="w-full rounded-xl bg-red-50 py-2.5 text-sm font-bold text-red-600 transition hover:bg-red-600 hover:text-white"
@@ -792,18 +791,18 @@ export function DebtTransactionsList() {
         )}
       </div>
 
-      {payingTx && (
+      {payingTx && canPay && (
         <SingleTransactionPayModal
           transaction={payingTx}
           onClose={() => setPayingTx(null)}
         />
       )}
 
-      {viewingTx && (
+      {viewingTx && canReadTransactions && receiptQuery.data && (
         <ReceiptModal
           open={!!viewingTx}
           onClose={() => setViewingTx(null)}
-          transaction={viewingTx}
+          transaction={receiptQuery.data}
         />
       )}
     </div>

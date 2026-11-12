@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { exportCustomerRecapXlsx } from "../export-files";
 import type { CustomerRecapExportData } from "../export-core";
+import { redactReceivableMetrics } from "../redact-receivables";
 
 const writeFileMock = vi.hoisted(() => vi.fn());
 
@@ -98,5 +99,19 @@ describe("exportCustomerRecapXlsx", () => {
     expect(workbook.Sheets.Ringkasan.A1.v).toBe("Ringkasan Semua Tipe Pelanggan");
     expect(workbook.Sheets.Ringkasan.A21.v).toBe("Analisis AI");
     expect(filename).toBe("rekap-pelanggan-2026-05-01-2026-05-31.xlsx");
+  });
+
+  it("omits piutang columns and metrics when the response is redacted", async () => {
+    writeFileMock.mockClear();
+    const redacted = redactReceivableMetrics(exportData) as CustomerRecapExportData;
+    await exportCustomerRecapXlsx(redacted, []);
+    const [workbook] = writeFileMock.mock.calls[0] as [
+      { Sheets: Record<string, Record<string, { v?: unknown }>> }, string,
+    ];
+    const values = Object.values(workbook.Sheets).flatMap((sheet) => Object.values(sheet).map((cell) => cell?.v));
+    expect(values).not.toContain("Piutang Tersisa");
+    expect(values).not.toContain("Piutang Total");
+    expect(values).not.toContain("Piutang Terbayar");
+    expect(values).toContain("Total Belanja");
   });
 });

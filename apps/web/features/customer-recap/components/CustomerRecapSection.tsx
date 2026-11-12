@@ -59,7 +59,7 @@ export function CustomerRecapSection({
             Rekap Pelanggan
           </p>
           <h2 className="mt-1 text-lg font-black text-slate-950">
-            Ringkasan aktivitas dan piutang
+            {data.summary.totalDebtOutstanding === undefined ? "Ringkasan aktivitas pelanggan" : "Ringkasan aktivitas dan piutang"}
           </h2>
         </div>
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">

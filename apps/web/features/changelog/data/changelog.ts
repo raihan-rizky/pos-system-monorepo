@@ -16,6 +16,18 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "customer-receivable-independent-rbac", date: "2026-11-13", revision: 1,
+    highlight: { title: "Atur izin piutang pelanggan", summary: "Sales dan Kasir dapat melihat piutang tanpa izin tambah, ubah, atau bayar." },
+    title: "Pisahkan izin profil dan piutang pelanggan.",
+    summary: "Atur izin melihat, menambah, mengubah, dan membayar piutang secara terpisah dari profil pelanggan. Sales dan Kasir mendapat akses lihat piutang secara default.",
+    kind: "improvement", impact: "major", area: "Pelanggan", href: "/customers", visual: "rbac",
+    steps: [
+      { title: "Atur izin role", detail: "Owner membuka Pengaturan > RBAC > Pelanggan untuk mengatur profil, piutang, dan pembayaran." },
+      { title: "Buka Piutang", detail: "Role dengan izin lihat piutang dapat membuka tab Piutang meski tidak memiliki akses profil atau Riwayat." },
+      { title: "Gunakan aksi yang diizinkan", detail: "Tambah dan bayar tampil sesuai izin; koreksi transaksi yang mengubah piutang juga memerlukan izin mengubah piutang." },
+    ],
+  },
+  {
     id: "sales-penerimaan-riwayat-selaraskan", date: "2026-11-11", revision: 1,
     highlight: { title: "Rincian penerimaan Sales", summary: "Buka rincian penerimaan langsung dari nominal Sales." },
     title: "Telusuri pemasukan langsung dari Sales.",

@@ -35,6 +35,8 @@ export const RBAC_RESOURCE_METADATA: Record<string, ResourceEditorMetadata> = {
   income: { label: "Pemasukan", actions: ["create", "read", "update", "delete"] },
   production: { label: "Pekerjaan produksi", actions: ["read", "update"] },
   customer: { label: "Data pelanggan", actions: ["create", "read", "update", "delete"] },
+  "customer.receivable": { label: "Piutang pelanggan", actions: ["read", "create", "update"], actionLabels: { read: "Lihat piutang", create: "Tambah piutang manual", update: "Ubah piutang" }, guidance: "Ubah diperlukan untuk koreksi atau pembatalan yang mengubah saldo piutang. Melihat piutang diatur terpisah dari profil pelanggan." },
+  "customer.receivable.payment": { label: "Pembayaran piutang", actions: ["create"], actionLabels: { create: "Catat pembayaran piutang" }, guidance: "Memerlukan izin Lihat piutang. Berlaku untuk piutang invoice dan piutang manual." },
   product: { label: "Produk dan kategori", actions: ["create", "read", "update", "delete"] },
   "product.price_log": { label: "Riwayat harga dan HPP", actions: ["read"], guidance: "Buka halaman Produk dan aktifkan Lihat produk untuk menemukan riwayat harga." },
   supplier: { label: "Data supplier", actions: ["create", "read", "update"] },

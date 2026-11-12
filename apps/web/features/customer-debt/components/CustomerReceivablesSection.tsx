@@ -284,7 +284,7 @@ function ReceivableCard({ entry, canPay }: { entry: CustomerReceivable; canPay: 
   </article>;
 }
 
-export function CustomerReceivablesSection({ customerId, customerName, canAdd = true, canPay = true }: { customerId?: string; customerName?: string; canAdd?: boolean; canPay?: boolean }) {
+export function CustomerReceivablesSection({ customerId, customerName, canAdd = false, canPay = false }: { customerId?: string; customerName?: string; canAdd?: boolean; canPay?: boolean }) {
   const titleId = useId();
   const [adding, setAdding] = useState(false);
   const [page, setPage] = useState(1);

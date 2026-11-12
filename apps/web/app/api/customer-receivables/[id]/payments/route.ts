@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
-import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import { AuthError, canAuthenticatedUserAccessPage, requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
 import { payReceivable, receivablePaymentSchema, ReceivableError } from "@/features/customer-debt/helpers/manual-receivables";
 
@@ -9,7 +9,9 @@ const log = getLogger("api:customer-receivables:payments");
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await requirePermission("customer", "update");
+    const user = await requirePermission("customer.receivable", "read");
+    await requirePermission("customer.receivable.payment", "create");
+    if (!await canAuthenticatedUserAccessPage(user, "/customers")) throw new AuthError(403, "Akses halaman Pelanggan diperlukan.");
     const { id } = await params;
     const parsed = receivablePaymentSchema.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ message: parsed.error.issues[0]?.message ?? "Periksa data pembayaran.", errors: parsed.error.flatten() }, { status: 422 });

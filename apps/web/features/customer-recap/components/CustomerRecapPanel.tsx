@@ -67,17 +67,19 @@ export function CustomerRecapPanel({ customerId, range }: CustomerRecapPanelProp
     setDetailRangePreset(next);
   }, []);
   const { summary } = data;
-  const cards = [
+  const { debtUnpaidInPeriod, debtPaidOffInPeriod } = summary;
+  const showReceivables = debtUnpaidInPeriod !== undefined && debtPaidOffInPeriod !== undefined;
+  const cards = showReceivables ? [
     {
       label: "Piutang Belum Lunas",
-      value: formatCurrency(summary.debtUnpaidInPeriod),
+      value: formatCurrency(debtUnpaidInPeriod),
       description: "Sisa piutang dari transaksi dan piutang manual yang dibuat pada periode ini.",
       icon: Wallet,
       tone: "border-amber-200 bg-amber-50 text-amber-950",
     },
     {
       label: "Piutang Dilunasi",
-      value: formatCurrency(summary.debtPaidOffInPeriod),
+      value: formatCurrency(debtPaidOffInPeriod),
       description: "Nilai piutang yang lunas pada periode ini, termasuk piutang dari periode sebelumnya.",
       icon: CheckCircle,
       tone: "border-emerald-200 bg-emerald-50 text-emerald-950",
@@ -91,7 +93,7 @@ export function CustomerRecapPanel({ customerId, range }: CustomerRecapPanelProp
       icon: Clock3,
       tone: "border-slate-200 bg-slate-50 text-slate-950",
     },
-  ];
+  ] : [];
 
   return (
     <div className="mt-5 space-y-4 sm:mt-6">
@@ -121,7 +123,7 @@ export function CustomerRecapPanel({ customerId, range }: CustomerRecapPanelProp
         </div>
       </div>
 
-      <section aria-label="Ringkasan piutang periode" className="space-y-3">
+      {showReceivables ? <section aria-label="Ringkasan piutang periode" className="space-y-3">
         <h3 className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
           Ringkasan Piutang
         </h3>
@@ -143,7 +145,7 @@ export function CustomerRecapPanel({ customerId, range }: CustomerRecapPanelProp
             </div>
           ))}
         </dl>
-      </section>
+      </section> : null}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <div className="flex items-center gap-2">

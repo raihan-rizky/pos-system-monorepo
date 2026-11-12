@@ -368,54 +368,59 @@ function customerWhere(storeId: string, query: string) {
   };
 }
 
-const customerSelect = {
+const customerProfileSelect = {
   id: true,
   name: true,
   phone: true,
   company: true,
   type: true,
-  totalDebt: true,
   totalSpent: true,
   totalOrders: true,
   lastVisitAt: true,
 };
 
-function mapCustomer(customer: any) {
+const customerSelect = {
+  ...customerProfileSelect,
+  totalDebt: true,
+};
+
+function mapCustomer(customer: any, canViewReceivables: boolean) {
   return {
     id: customer.id,
     name: customer.name,
     phone: customer.phone,
     company: customer.company,
     type: customer.type,
-    totalDebt: toNumber(customer.totalDebt),
+    ...(canViewReceivables ? { totalDebt: toNumber(customer.totalDebt) } : {}),
     totalSpent: toNumber(customer.totalSpent),
     totalOrders: customer.totalOrders,
     lastVisitAt: customer.lastVisitAt,
   };
 }
 
-async function findCustomerMatches(storeId: string, query: string, limit = 10) {
+async function findCustomerMatches(storeId: string, query: string, limit = 10, canViewReceivables = false) {
   const customers = await db.customer.findMany({
     where: customerWhere(storeId, query),
-    select: customerSelect,
+    select: canViewReceivables ? customerSelect : customerProfileSelect,
     orderBy: { lastVisitAt: { sort: "desc", nulls: "last" } },
     take: limit,
   });
-  return customers.map(mapCustomer);
+  return customers.map((customer) => mapCustomer(customer, canViewReceivables));
 }
 
-export async function getCustomerSearch({ storeId, query, limit = 10 }: { storeId: string; query: string; limit?: number }) {
-  const items = await findCustomerMatches(storeId, query, limit);
+export async function getCustomerSearch({ storeId, query, limit = 10, canViewReceivables = false }: { storeId: string; query: string; limit?: number; canViewReceivables?: boolean }) {
+  const items = await findCustomerMatches(storeId, query, limit, canViewReceivables);
   return { items, total: items.length, generatedAt: new Date().toISOString() };
 }
 
-export async function getCustomerDebtSummary({ storeId, query }: { storeId: string; query: string }) {
-  const items = await findCustomerMatches(storeId, query, 10);
+export async function getCustomerDebtSummary({ storeId, query, canViewReceivables = false }: { storeId: string; query: string; canViewReceivables?: boolean }) {
+  if (!canViewReceivables) return { match: null, candidates: [], generatedAt: new Date().toISOString() };
+  const items = await findCustomerMatches(storeId, query, 10, canViewReceivables);
   return { match: items.length === 1 ? items[0] : null, candidates: items.length === 1 ? [] : items, generatedAt: new Date().toISOString() };
 }
 
-export async function getCustomerRecapSummary({ storeId, query, now = new Date() }: { storeId: string; query: string; now?: Date }) {
-  const items = await findCustomerMatches(storeId, query, 10);
+export async function getCustomerRecapSummary({ storeId, query, now = new Date(), canViewReceivables = false }: { storeId: string; query: string; now?: Date; canViewReceivables?: boolean }) {
+  const items = await findCustomerMatches(storeId, query, 10, canViewReceivables);
   if (items.length !== 1) return { match: null, candidates: items, generatedAt: new Date().toISOString() };
   const customer = items[0];
   const to = now.toISOString().slice(0, 10);
@@ -423,9 +428,12 @@ export async function getCustomerRecapSummary({ storeId, query, now = new Date()
   fromDate.setUTCDate(fromDate.getUTCDate() - 29);
   const from = fromDate.toISOString().slice(0, 10);
   const bounds = { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) };
+  const paymentsQuery = canViewReceivables
+    ? db.debtPaymentLog.findMany({ where: { storeId, customerId: customer.id, createdAt: bounds }, select: { amount: true, createdAt: true } })
+    : Promise.resolve([]);
   const [transactions, payments] = await Promise.all([
     db.transaction.findMany({ where: { storeId, customerId: customer.id, status: { in: ["COMPLETED", "DP"] }, createdAt: bounds }, select: { id: true, total: true, createdAt: true, status: true } }),
-    db.debtPaymentLog.findMany({ where: { storeId, customerId: customer.id, createdAt: bounds }, select: { amount: true, createdAt: true } }),
+    paymentsQuery,
   ]);
   return {
     match: {
@@ -434,7 +442,7 @@ export async function getCustomerRecapSummary({ storeId, query, now = new Date()
       dateTo: to,
       transactionCount: transactions.length,
       revenue: transactions.reduce((sum, transaction) => sum + toNumber(transaction.total as DecimalLike), 0),
-      debtPaid: payments.reduce((sum, payment) => sum + toNumber(payment.amount as DecimalLike), 0),
+      ...(canViewReceivables ? { debtPaid: payments.reduce((sum, payment) => sum + toNumber(payment.amount as DecimalLike), 0) } : {}),
     },
     generatedAt: new Date().toISOString(),
   };
