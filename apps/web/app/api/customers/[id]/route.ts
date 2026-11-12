@@ -8,6 +8,7 @@ import {
 } from "@/lib/rbac/guard";
 import { CUSTOMER_TYPES, toDbCustomerType } from "@/lib/customers";
 import { redactReceivableMetrics } from "@/features/customer-recap/helpers/redact-receivables";
+import { isActiveDebt } from "@/features/customer-debt/helpers/payment-terms";
 import {
   applyComputedCustomerDebt,
   loadCustomerDebtByActiveDp,
@@ -95,10 +96,30 @@ export async function GET(
       [customer],
       debtByCustomerId,
     )[0];
+    const receivableTransactions = (customerResponse.transactions ?? [])
+      .filter((transaction) => isActiveDebt({
+        status: transaction.status,
+        paymentMethod: transaction.paymentMethod,
+        total: Number(transaction.total),
+        amountPaid: Number(transaction.amountPaid),
+      }))
+      .map(({ id, invoiceNumber, total, amountPaid, status, createdAt }) => ({
+        id,
+        invoiceNumber,
+        total,
+        amountPaid,
+        status,
+        createdAt,
+      }));
+    const responseCustomer = canReadTransactions
+      ? customerResponse
+      : canViewReceivables
+        ? { ...customerResponse, transactions: receivableTransactions }
+        : { ...customerResponse, transactions: undefined };
     return NextResponse.json(
       canViewReceivables
-        ? customerResponse
-        : redactReceivableMetrics(customerResponse),
+        ? responseCustomer
+        : redactReceivableMetrics(responseCustomer),
     );
   } catch (error) {
     const authErr = handleAuthError(error);

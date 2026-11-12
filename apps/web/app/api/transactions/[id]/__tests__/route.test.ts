@@ -33,6 +33,7 @@ vi.mock("next/server", async () => {
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
   handleAuthError: handleAuthErrorMock,
+  canAuthenticatedUserPerform: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock("@/features/product-stock-groups/stock-mutations", () => ({

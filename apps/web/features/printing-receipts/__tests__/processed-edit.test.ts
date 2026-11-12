@@ -1,8 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createEmptyPrintingReceiptDocument } from "../domain";
 import { planProcessedPrintingReceiptEdit } from "../processed-edit";
-import { reviewProcessedPrintingReceipt, saveProcessedPrintingReceipt } from "../server/processed-edit-service";
+import { reviewProcessedPrintingReceipt, saveProcessedPrintingReceipt as saveProcessedPrintingReceiptWithAccess } from "../server/processed-edit-service";
 import { planOutstandingReturns } from "@/features/transactions-stock/helpers/stock-lifecycle";
+
+const ownerReceivableAccess = { canView: true, canEdit: true };
+const saveProcessedPrintingReceipt = (
+  storeId: Parameters<typeof saveProcessedPrintingReceiptWithAccess>[0],
+  id: Parameters<typeof saveProcessedPrintingReceiptWithAccess>[1],
+  raw: Parameters<typeof saveProcessedPrintingReceiptWithAccess>[2],
+  actor: Parameters<typeof saveProcessedPrintingReceiptWithAccess>[3],
+) => saveProcessedPrintingReceiptWithAccess(storeId, id, raw, actor, ownerReceivableAccess);
 
 const mocks = vi.hoisted(() => ({ transaction: vi.fn(), stock: vi.fn(), get: vi.fn() }));
 vi.mock("@pos/db", () => ({ db: { $transaction: mocks.transaction } }));

@@ -9,6 +9,7 @@ vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: mocks.permission,
   handleAuthError: (error: unknown) => error instanceof Error && error.message === "Forbidden" ? new Response(null, { status: 403 }) : null,
   canAuthenticatedUserPerform: vi.fn().mockResolvedValue(false),
+  canAuthenticatedUserAccessPage: vi.fn().mockResolvedValue(true),
 }));
 vi.mock("@pos/db", () => ({ db: { $transaction: mocks.transaction, customer: { findFirst: mocks.customer }, transaction: { findFirst: mocks.invoice } }, Prisma: {} }));
 vi.mock("@/lib/logger", () => ({ getLogger: () => ({ error: vi.fn() }) }));

@@ -44,7 +44,16 @@ describe("receivable read authorization", () => {
     mocks.customerList.mockResolvedValue([profile]);
     mocks.customer.mockResolvedValue({ ...profile, transactions: [{ id: "invoice-1", total: 8000, amountPaid: 4000, paymentMethod: "CASH", status: "DP" }] });
     mocks.customerUpdate.mockResolvedValue(profile);
-    mocks.transaction.mockImplementation((operations: Promise<unknown>[]) => Promise.all(operations));
+    mocks.transaction.mockImplementation((operation: unknown) => {
+      if (Array.isArray(operation)) return Promise.all(operation);
+      if (typeof operation === "function") {
+        return (operation as (tx: Record<string, unknown>) => unknown)({
+          $queryRaw: vi.fn(),
+          customer: { findFirst: mocks.customer, update: mocks.customerUpdate },
+        });
+      }
+      return Promise.resolve(operation);
+    });
     mocks.receivableCount.mockResolvedValue(0);
     mocks.receivableList.mockResolvedValue([]);
     mocks.loadDebt.mockResolvedValue(new Map());
@@ -88,9 +97,21 @@ describe("receivable read authorization", () => {
     const customer = await response.json();
     expect(response.status).toBe(200);
     expect(customer).not.toHaveProperty("totalDebt");
-    expect(customer.transactions[0]).not.toHaveProperty("amountPaid");
+    expect(customer).not.toHaveProperty("transactions");
+  });
+
+  it("shows only active invoice details when receivables are visible without transaction history", async () => {
+    mocks.permission.mockResolvedValue({ id: "user-1", role: "SALES", storeId: "store-1" });
+    mocks.canPerform.mockImplementation(async (_user: unknown, target: string, action: string) =>
+      target === "customer.receivable" && action === "read",
+    );
+
+    const response = await getCustomer(new Request("http://localhost/api/customers/customer-1"), { params: Promise.resolve({ id: "customer-1" }) });
+    const customer = await response.json();
+    expect(response.status).toBe(200);
+    expect(customer.transactions).toMatchObject([{ id: "invoice-1", total: 8000, amountPaid: 4000, status: "DP" }]);
     expect(customer.transactions[0]).not.toHaveProperty("paymentMethod");
-    expect(customer.transactions[0]).not.toHaveProperty("status");
+    expect(customer.transactions[0]).not.toHaveProperty("items");
   });
 
   it("does not reveal a balance in a profile-update response", async () => {
