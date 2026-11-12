@@ -51,31 +51,37 @@ export async function GET(
     const { id } = await params;
     const customer = await db.customer.findFirst({
       where: { id, storeId },
-      ...(canReadTransactions
-        ? {
-            include: {
-              transactions: {
-                orderBy: { createdAt: "desc" },
-                take: 20,
-                select: {
-                  id: true,
-                  invoiceNumber: true,
-                  total: true,
-                  amountPaid: true,
-                  paymentMethod: true,
-                  status: true,
-                  isJobOrder: true,
-                  productionStatus: true,
-                  estimatedDoneAt: true,
-                  createdAt: true,
-                  items: {
-                    select: { productName: true, quantity: true, subtotal: true },
-                  },
+      include: {
+        transactions: {
+          orderBy: { createdAt: "desc" },
+          take: canReadTransactions || canViewReceivables ? 20 : 0,
+          select: canReadTransactions
+            ? {
+                id: true,
+                invoiceNumber: true,
+                total: true,
+                amountPaid: true,
+                paymentMethod: true,
+                status: true,
+                isJobOrder: true,
+                productionStatus: true,
+                estimatedDoneAt: true,
+                createdAt: true,
+                items: {
+                  select: { productName: true, quantity: true, subtotal: true },
                 },
+              }
+            : {
+                id: true,
+                invoiceNumber: true,
+                total: true,
+                amountPaid: true,
+                paymentMethod: true,
+                status: true,
+                createdAt: true,
               },
-            },
-          }
-        : {}),
+        },
+      },
     });
 
     if (!customer) {
