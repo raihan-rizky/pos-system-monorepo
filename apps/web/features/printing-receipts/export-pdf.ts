@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import { getPrintingReceiptLayout, getPrintingReceiptWatermark, RECEIPT_TEXT_LINE_HEIGHT, RECEIPT_TEXT_PADDING_X, RECEIPT_TEXT_PADDING_Y, type PrintingReceiptPayment, type ReceiptHeader } from "./layout";
 import { buildPrintingReceiptPresentation, type PrintingReceiptPresentedField } from "./presentation";
+import { assertPrintingReceiptCanExport } from "./pdf-eligibility";
 import type { PrintingReceipt } from "./types";
 
 type ReceiptPayment = PrintingReceiptPayment | null;
@@ -81,6 +82,7 @@ function drawHeader(pdf: jsPDF, header: ReceiptHeader) {
 }
 
 export async function createPrintingReceiptPdf(receipt: PrintingReceipt, transaction?: ReceiptPayment, artworkDataUrl?: string): Promise<jsPDF> {
+  assertPrintingReceiptCanExport(receipt, transaction);
   const layout = getPrintingReceiptLayout(receipt.subcategory, receipt.document.columnWidths);
   const artwork = artworkDataUrl ?? await loadArtwork(layout.artwork);
   const orientation = layout.width > layout.height ? "landscape" : "portrait";
@@ -124,6 +126,7 @@ export async function downloadPrintingReceiptPdf(receipt: PrintingReceipt, trans
 }
 
 export async function printPrintingReceiptPdf(receipt: PrintingReceipt, transaction?: ReceiptPayment) {
+  assertPrintingReceiptCanExport(receipt, transaction);
   const preview = window.open("", "_blank");
   if (!preview) throw new Error("Izinkan popup untuk membuka dan mencetak PDF nota.");
   preview.document.title = "Menyiapkan nota...";

@@ -17,6 +17,7 @@ const permissionsWithoutReceivableRead = () => {
   const permissions = buildDefaultRolePermissions();
   permissions.SALES.resources.transaction.read = false;
   permissions.SALES.resources.customer.read = false;
+  permissions.SALES.resources["customer.receivable"].read = false;
   return permissions;
 };
 
@@ -79,7 +80,8 @@ describe("daily finance API", () => {
     const permissions = permissionsWithoutReceivableRead();
     for (const target of targets) permissions.SALES.resources[target].read = false;
     permissions.SALES.resources.transaction.read = true;
-    permissions.SALES.resources.customer.read = true;
+    permissions.SALES.resources.customer.read = false;
+    permissions.SALES.resources["customer.receivable"].read = true;
     mocks.permissions.mockResolvedValue(permissions);
     mocks.transactions.mockResolvedValue([{ status: "COMPLETED", paymentMethod: "TEMPO", total: 1_000, amountPaid: 400 }]);
     mocks.customerReceivables.mockResolvedValueOnce([{ amount: 500, amountPaid: 200 }]);
@@ -99,10 +101,11 @@ describe("daily finance API", () => {
     expect(mocks.manual).not.toHaveBeenCalled();
   });
 
-  it.each(["transaction", "customer"] as const)("omits the receivable balance when %s read is denied", async deniedTarget => {
+  it.each(["transaction", "customer.receivable"] as const)("omits the receivable balance when %s read is denied", async deniedTarget => {
     const permissions = permissionsWithoutReceivableRead();
     permissions.SALES.resources.transaction.read = true;
     permissions.SALES.resources.customer.read = true;
+    permissions.SALES.resources["customer.receivable"].read = true;
     permissions.SALES.resources[deniedTarget].read = false;
     permissions.SALES.resources["financial-report.daily-outstanding-dp"].read = true;
     mocks.permissions.mockResolvedValue(permissions);

@@ -32,9 +32,9 @@ describe("pembayaran nota Percetakan", () => {
     try {
       const html = renderToStaticMarkup(<PaymentModal open onClose={()=>{}} items={[item]} subtotal={100000} onConfirm={()=>{}} receiptInvoiceDate="2026-10-19" />);
       expect(html).toContain('value="2026-10-19"');
-      expect(html).toContain("Tanggal mengikuti nota");
+      expect(html).toContain("Tanggal pilihan disimpan ke nota dan dipakai untuk invoice saat pembayaran.");
       expect(html).toContain("Alasan perubahan tanggal");
-      expect(html).toMatch(/id="payment-invoice-date"[^>]*disabled=""/);
+      expect(html).not.toMatch(/id="payment-invoice-date"[^>]*disabled=""/);
     } finally { roleState.role = "CASHIER"; }
   });
   it("menampilkan item manual dan pembayaran tanpa editor diskon baris yang tidak ada di nota", () => {

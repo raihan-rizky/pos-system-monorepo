@@ -5,6 +5,7 @@ import { getPriceRoundingSettings } from "@/features/product-price-rounding/serv
 import { getSpecialPricingEnabled } from "@/features/customer-category-pricing/server/special-pricing-settings";
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
 import { PRINTING_SUBCATEGORIES } from "@/features/printing-receipts/types";
+import { applyPrintingReceiptCheckoutNames } from "@/features/printing-receipts/checkout";
 import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
 import { calculateTransactionTax } from "@/features/transaction-tax/helpers/tax-calculation";
 import { getInvoiceNow } from "@/features/invoice-date/services/internet-clock";
@@ -53,6 +54,7 @@ import {
   getPrintingReceiptCheckoutLines,
   MAX_PRINTING_RECEIPT_AMOUNT,
   parsePrintingReceiptDocument,
+  parsePrintingSubcategory,
   PrintingReceiptValidationError,
 } from "@/features/printing-receipts/domain";
 import {
@@ -538,6 +540,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Kasir atau toko berubah. Masuk kembali sebagai kasir asal untuk memproses transaksi." }, { status: 403 });
     }
     let printingReceipt: Awaited<ReturnType<typeof db.printingReceipt.findFirst>> = null;
+    let printingReceiptDocument: ReturnType<typeof parsePrintingReceiptDocument> | null = null;
+    let hasPrintingReceiptCheckout = false;
     let receiptInvoiceDate: string | null = null;
     if (body.printingReceiptId !== undefined || body.printingReceiptRevision !== undefined) {
       const context = z.object({
@@ -566,6 +570,7 @@ export async function POST(request: Request) {
         throw new PrintingReceiptCheckoutConflict("Nota sudah berubah. Muat ulang sebelum memproses pembayaran.");
       }
       const document = parsePrintingReceiptDocument(printingReceipt.document);
+      printingReceiptDocument = document;
       receiptInvoiceDate = document.date;
       body.items = getPrintingReceiptCheckoutLines(document).map((line) => ({
         lineType: "PRINTING_SERVICE", printingServiceId: null,
@@ -573,8 +578,20 @@ export async function POST(request: Request) {
         needsMaterial: Boolean(line.stockLink), rawMaterialProductId: line.stockLink?.productId ?? null,
         rawMaterialQuantity: line.stockLink?.quantity ?? null, rawMaterialUnit: line.stockLink?.unit ?? null,
       }));
-      body.customerName = document.customerName;
-      body.customerId = document.customerId;
+      if (body.printingReceiptCheckout !== undefined) {
+        const selection = z.object({
+          customerName: z.string().trim().min(1).max(200),
+          customerId: z.string().trim().min(1).max(128).nullable(),
+        }).strict().safeParse(body.printingReceiptCheckout);
+        if (!selection.success) throw new PrintingReceiptValidationError("Pilihan pelanggan pada nota tidak valid. Pilih ulang pelanggan.");
+        hasPrintingReceiptCheckout = true;
+        body.customerName = selection.data.customerName;
+        body.customerId = selection.data.customerId;
+        if (typeof body.invoiceDate === "string") receiptInvoiceDate = body.invoiceDate;
+      } else {
+        body.customerName = document.customerName;
+        body.customerId = document.customerId;
+      }
       body.isJobOrder = true;
       body.note = body.note || document.note;
       if (document.completionDate) {
@@ -772,7 +789,7 @@ export async function POST(request: Request) {
       salespersonId
         ? db.salesperson.findFirst({
             where: { id: salespersonId, storeId },
-            select: { id: true },
+            select: { id: true, name: true },
           })
         : Promise.resolve(true), // no salesperson to validate
       db.product.findMany({
@@ -828,6 +845,13 @@ export async function POST(request: Request) {
     if (salespersonId && !salespersonCheck) {
       return NextResponse.json({ message: "Salesperson not found" }, { status: 404 });
     }
+    const selectedSalesName = salespersonId && salespersonCheck && salespersonCheck !== true ? salespersonCheck.name : null;
+    const recordedSalesName = printingReceipt ? selectedSalesName ?? (hasPrintingReceiptCheckout ? null : salesName) : salesName;
+    const checkoutDocument = printingReceipt && printingReceiptDocument
+      ? parsePrintingReceiptDocument(applyPrintingReceiptCheckoutNames({ ...printingReceiptDocument, date: receiptInvoiceDate ?? printingReceiptDocument.date }, parsePrintingSubcategory(printingReceipt.subcategory), {
+          customerName: customerName ?? "", customerId: customerId || null, salesName: selectedSalesName,
+        }))
+      : null;
 
     const baseCosts = await loadProductBaseCosts(db, products);
     const productById = new Map(products.map((product) => [product.id, product]));
@@ -1148,7 +1172,7 @@ export async function POST(request: Request) {
               status: finalStatus,
               note: note || null,
               customerName: customerName || null,
-              salesName: salesName || null,
+              salesName: recordedSalesName || null,
               salespersonId: salespersonId || null,
               isJobOrder,
               productionStatus: isJobOrder ? "PRINTING" : null,
@@ -1260,7 +1284,16 @@ export async function POST(request: Request) {
 
           if (printingReceipt) {
             await assertPrintingReceiptStockUnits(tx, { storeId, items: serverItems });
-            await tx.printingReceipt.update({ where: { id: printingReceipt.id }, data: { transactionId: txn.id } });
+            const updatedDocument = checkoutDocument!;
+            const namesChanged = updatedDocument.customerName !== printingReceiptDocument!.customerName ||
+              updatedDocument.customerId !== printingReceiptDocument!.customerId ||
+              updatedDocument.date !== printingReceiptDocument!.date ||
+              updatedDocument.receiver !== printingReceiptDocument!.receiver ||
+              updatedDocument.signatory !== printingReceiptDocument!.signatory;
+            await tx.printingReceipt.update({ where: { id: printingReceipt.id }, data: {
+              transactionId: txn.id,
+              ...(namesChanged ? { document: updatedDocument as unknown as Prisma.InputJsonObject } : {}),
+            } });
           }
 
           // Batched stock decrement: a single UPDATE ... FROM (VALUES ...)

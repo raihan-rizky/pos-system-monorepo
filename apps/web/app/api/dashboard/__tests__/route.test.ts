@@ -236,7 +236,13 @@ describe("GET /api/dashboard", () => {
     ]);
   });
 
-  it("returns receivable balance for the current store as of today's Jakarta date", async () => {
+  it("uses transaction and receivable access without requiring customer profile access", async () => {
+    const permissions = buildDefaultRolePermissions();
+    permissions.SALES.resources.transaction.read = true;
+    permissions.SALES.resources.customer.read = false;
+    permissions.SALES.resources["customer.receivable"].read = true;
+    getGlobalRolePermissionsMock.mockResolvedValueOnce(permissions);
+    requirePermissionMock.mockResolvedValueOnce({ id: "sales-1", role: "SALES", storeId: "store-main" });
     loadReceivableBalanceMock.mockResolvedValue(125_000);
 
     const { GET } = await import("../route");
@@ -247,12 +253,13 @@ describe("GET /api/dashboard", () => {
     expect(loadReceivableBalanceMock).toHaveBeenCalledWith("store-main", "2026-07-09");
   });
 
-  it("returns a null receivable balance when the role lacks customer read access", async () => {
-    requirePermissionMock.mockResolvedValue({
-      id: "inventory-1",
-      role: "INVENTORY",
-      storeId: "store-main",
-    });
+  it("returns null when the role lacks customer receivable read access", async () => {
+    const permissions = buildDefaultRolePermissions();
+    permissions.SALES.resources.transaction.read = true;
+    permissions.SALES.resources.customer.read = true;
+    permissions.SALES.resources["customer.receivable"].read = false;
+    getGlobalRolePermissionsMock.mockResolvedValueOnce(permissions);
+    requirePermissionMock.mockResolvedValueOnce({ id: "sales-1", role: "SALES", storeId: "store-main" });
 
     const { GET } = await import("../route");
     const response = await GET();

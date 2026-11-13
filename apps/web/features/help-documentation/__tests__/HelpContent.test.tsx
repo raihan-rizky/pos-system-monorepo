@@ -21,9 +21,10 @@ describe('HelpContent', () => {
     expect(ownerText).toContain('Piutang = sisa transaksi Tempo + sisa Piutang Manual');
     expect(ownerText).toContain('Dashboard memakai saldo sampai hari ini');
     expect(ownerText).toContain('Laporan Lengkap memakai tanggal akhir rentang');
+    expect(ownerText).toContain('Lihat piutang (customer.receivable:read)');
     expect(salesText).toContain('Piutang = sisa transaksi Tempo + sisa Piutang Manual');
     expect(salesText).toContain('tanggal pilihan');
-    expect(salesText).toContain('izin baca transaksi dan data Pelanggan');
+    expect(salesText).toContain('Lihat piutang (customer.receivable:read)');
     for (const text of [ownerText, salesText]) {
       expect(text).toContain('Sisa transaksi berstatus DP. Tidak termasuk Tempo atau Piutang Manual.');
     }

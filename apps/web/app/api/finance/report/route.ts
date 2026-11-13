@@ -93,13 +93,13 @@ export async function GET(request: Request) {
       "read",
       permissions,
     );
-    const canReadCustomers = canRolePerformAction(
+    const canReadCustomerReceivables = canRolePerformAction(
       effectiveRole,
-      "customer",
+      "customer.receivable",
       "read",
       permissions,
     );
-    const canReadReceivableBalance = canReadTransactions && canReadCustomers;
+    const canReadReceivableBalance = canReadTransactions && canReadCustomerReceivables;
     const requestedPreset = searchParams.get("preset");
     const preset = isPreset(requestedPreset) ? requestedPreset : "month";
     const fallbackRange = buildFinancialReportRange(preset);

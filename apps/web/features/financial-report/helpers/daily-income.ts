@@ -12,7 +12,7 @@ export const DAILY_INCOME_PERMISSIONS = {
 } as const;
 export type DailyIncomeAccess = Record<keyof typeof DAILY_INCOME_PERMISSIONS, boolean> & { receivableBalance: boolean };
 export function hasDailyReceivableAccess(canRead: (target: string) => boolean): boolean {
-  return ["transaction", "customer"].every(canRead);
+  return ["transaction", "customer.receivable"].every(canRead);
 }
 type Payment = { id: string; method: string; amount: unknown; createdAt: Date };
 export type DailyIncomeTransaction = IncomeClassificationInput & {
