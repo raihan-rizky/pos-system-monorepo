@@ -26,7 +26,9 @@ describe("daily finance permissions", () => {
     for (const target of targets) {
       expect(canRolePerformAction("SALES", target, "read", defaults)).toBe(true);
       expect(canRolePerformAction("ADMIN", target, "read", defaults)).toBe(true);
-      expect(canRolePerformAction("CASHIER", target, "read", defaults)).toBe(false);
+      expect(canRolePerformAction("CASHIER", target, "read", defaults)).toBe(
+        target === "financial-report.daily-income" || target === "financial-report.daily-payment-method",
+      );
       expect(canRolePerformAction("INVENTORY", target, "read", defaults)).toBe(false);
       expect(canRolePerformAction("SALES", target, "update", defaults)).toBe(false);
     }
