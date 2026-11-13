@@ -72,6 +72,11 @@ try {
       releaseSave();
       await expect(dialog.getByRole('button', { name: 'Simpan pemeriksaan' })).toBeEnabled();
       await expect(dialog.getByLabel('Aktual Tunai (Rp)')).toHaveValue('25');
+      conflict = true;
+      await dialog.getByRole('button', { name: 'Simpan pemeriksaan' }).click();
+      await dialog.getByRole('button', { name: 'Muat versi terbaru' }).click();
+      await expect(dialog).toContainText('Versi terbaru dimuat');
+      await expect(dialog.getByLabel('Aktual Tunai (Rp)')).toHaveValue('25');
       failReceipt = true;
       await dialog.getByRole('button', { name: 'Simpan pemeriksaan' }).click();
       await expect(dialog.getByRole('alert')).toContainText('Rincian contoh belum dapat dimuat.');
