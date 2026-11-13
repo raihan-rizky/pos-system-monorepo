@@ -82,11 +82,11 @@ describe("daily financial report UI", () => {
     expect(mocks.full).toHaveBeenCalledOnce();
     expect(mocks.daily).not.toHaveBeenCalled();
   });
-  it("offers the normal daily view to full-report roles only when comparison access is granted", () => {
+  it("offers the normal daily view to full-report roles even when comparison access is denied", () => {
     mocks.role.mockReturnValue({ role: "ADMIN", canAccess: () => true, canPerform: (target: string) => target === "financial-report" || target === "financial-report.daily-comparison" });
     expect(renderToStaticMarkup(createElement(FinancialReportPage))).toMatch(/<button[^>]*>Pemasukan Harian<\/button>/);
     mocks.role.mockReturnValue({ role: "ADMIN", canAccess: () => true, canPerform: (target: string) => target === "financial-report" });
-    expect(renderToStaticMarkup(createElement(FinancialReportPage))).not.toMatch(/<button[^>]*>Pemasukan Harian<\/button>/);
+    expect(renderToStaticMarkup(createElement(FinancialReportPage))).toMatch(/<button[^>]*>Pemasukan Harian<\/button>/);
   });
   it("allows reading only outstanding DP without a total-income grant", () => {
     mocks.role.mockReturnValue({ role: "SALES", canAccess: () => true, canPerform: (target: string) => target === "financial-report.daily-outstanding-dp" });

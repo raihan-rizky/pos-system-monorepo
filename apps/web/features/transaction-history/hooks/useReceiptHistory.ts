@@ -18,6 +18,10 @@ export type ReceiptHistoryData = {
   comparisonAccess?: { read: boolean; create: boolean; update: boolean };
 };
 
+export class ReceiptHistoryError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
+
 export function useReceiptHistory(context: ReceiptHistoryContext) {
   const { userId, storeId, authorizationFingerprint } = useRole();
   const range = receiptHistoryRange(context.date, context.mode === "outstanding-dp" ? "daily" : context.period ?? "daily");
@@ -33,7 +37,7 @@ export function useReceiptHistory(context: ReceiptHistoryContext) {
       const response = await fetch(`/api/history/receipts?${params}`, { signal, cache: "no-store" });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
-        throw new Error(body?.message || "Riwayat penerimaan belum dapat dimuat.");
+        throw new ReceiptHistoryError(body?.message || "Riwayat penerimaan belum dapat dimuat.", response.status);
       }
       return response.json() as Promise<ReceiptHistoryData>;
     },

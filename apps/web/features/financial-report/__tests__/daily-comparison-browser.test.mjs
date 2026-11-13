@@ -25,7 +25,7 @@ try {
   for (const width of [1280, 390, 320]) {
     const page = await browser.newPage({ viewport: { width, height: 900 } });
     const errors = [], requests = [], writes = [];
-    let saved = null, cashPos = 100.25, conflict = false, failSave = false;
+    let saved = null, cashPos = 100.25, conflict = false, failSave = false, holdSave = false, releaseSave, failReceipt = false, denyReceipt = false, holdLatest = false, releaseLatest;
     page.on('pageerror', error => errors.push(error.message));
     await page.route('http://comparison.local/**', async route => {
       const req = route.request(), url = new URL(req.url());
@@ -33,10 +33,18 @@ try {
       requests.push({ path: url.pathname, params: Object.fromEntries(url.searchParams) });
       const preview = url.searchParams.get('view') === 'sales';
       const methods = [{ method: 'CASH', amount: cashPos }, { method: 'TRANSFER', amount: 0.1 }, { method: 'Belum dicatat', amount: 0.1 }];
-      if (url.pathname === '/api/history/receipts') return route.fulfill({ json: { items: [{ transactionId: 'old', invoiceNumber: 'INV-OLD', date: '2026-11-08', amount: cashPos, methods: ['CASH'] }], manualDetailsAvailable: false, summary: { total: cashPos + 0.2, paymentMethods: methods }, comparisonAccess: { read: true, create: !preview, update: !preview } } });
+      if (url.pathname === '/api/history/receipts') {
+        if (denyReceipt) { denyReceipt = false; return route.fulfill({ status: 403, json: { message: 'Akses rincian belum diizinkan.' } }); }
+        if (failReceipt) { failReceipt = false; return route.fulfill({ status: 503, json: { message: 'Rincian contoh belum dapat dimuat.' } }); }
+        return route.fulfill({ json: { items: [{ transactionId: 'old', invoiceNumber: 'INV-OLD', date: '2026-11-08', amount: cashPos, methods: ['CASH'] }], manualDetailsAvailable: false, summary: { total: cashPos + 0.2, paymentMethods: methods }, comparisonAccess: { read: true, create: !preview, update: !preview } } });
+      }
       if (url.pathname.endsWith('/daily-comparison')) {
-        if (req.method() === 'GET') return route.fulfill({ json: { comparison: saved } });
+        if (req.method() === 'GET') {
+          if (holdLatest) { holdLatest = false; await new Promise(resolve => { releaseLatest = resolve; }); }
+          return route.fulfill({ json: { comparison: saved } });
+        }
         const payload = req.postDataJSON(); writes.push(payload);
+        if (holdSave) { holdSave = false; await new Promise(resolve => { releaseSave = resolve; }); }
         if (failSave) return route.fulfill({ status: 503, json: { message: 'Contoh simpan gagal.' } });
         if (conflict) { conflict = false; saved = { date: '2026-11-08', revision: 2, amounts: [{ method: 'CASH', amount: '123.00' }], posAtSave: [{ method: 'Belum dicatat', amount: '0.10' }, { method: 'CASH', amount: '100.25' }, { method: 'TRANSFER', amount: '0.10' }], savedAt: '2026-11-08T03:00:00.000Z', savedBy: 'Kasir lain' }; return route.fulfill({ status: 409, json: { message: 'Pemeriksaan sudah berubah.' } }); }
         saved = { date: payload.date, revision: (payload.revision ?? 0) + 1, amounts: payload.amounts, posAtSave: methods.map(row => ({ method: row.method, amount: row.amount.toFixed(2) })).sort((a, b) => a.method.localeCompare(b.method)), savedAt: '2026-11-08T04:00:00.000Z', savedBy: 'Kasir contoh' };
@@ -55,6 +63,53 @@ try {
     await expect(dialog.getByLabel('Aktual Tunai (Rp)')).toBeVisible();
     await expect(dialog).toContainText('Belum dicatat');
     await expect(dialog).toContainText('Belum dicek');
+    if (width === 390) {
+      await dialog.getByLabel('Aktual Tunai (Rp)').fill('0');
+      holdSave = true;
+      await dialog.getByRole('button', { name: 'Simpan pemeriksaan' }).click();
+      await expect.poll(() => typeof releaseSave).toBe('function');
+      await dialog.getByLabel('Aktual Tunai (Rp)').fill('25');
+      releaseSave();
+      await expect(dialog.getByRole('button', { name: 'Simpan pemeriksaan' })).toBeEnabled();
+      await expect(dialog.getByLabel('Aktual Tunai (Rp)')).toHaveValue('25');
+      failReceipt = true;
+      await dialog.getByRole('button', { name: 'Simpan pemeriksaan' }).click();
+      await expect(dialog.getByRole('alert')).toContainText('Rincian contoh belum dapat dimuat.');
+      await dialog.getByRole('button', { name: 'Coba lagi' }).click();
+      await expect(dialog.getByLabel('Aktual Tunai (Rp)')).toHaveValue('25.00');
+      await dialog.getByLabel('Aktual Tunai (Rp)').fill('30');
+      failReceipt = true;
+      await dialog.getByRole('button', { name: 'Simpan pemeriksaan' }).click();
+      await expect(dialog.getByRole('alert')).toContainText('Rincian contoh belum dapat dimuat.');
+      denyReceipt = true;
+      await dialog.getByRole('button', { name: 'Coba lagi' }).click();
+      await expect(dialog.getByRole('alert')).toContainText('Akses rincian belum diizinkan.');
+      await dialog.getByRole('button', { name: 'Coba lagi' }).click();
+      await dialog.locator('summary').filter({ hasText: 'Cocokkan penerimaan' }).click();
+      await expect(dialog.getByLabel('Aktual Tunai (Rp)')).toHaveValue('30.00');
+      conflict = true;
+      await dialog.getByLabel('Aktual Tunai (Rp)').fill('31');
+      await dialog.getByRole('button', { name: 'Simpan pemeriksaan' }).click();
+      await expect(dialog.getByRole('button', { name: 'Muat versi terbaru' })).toBeVisible();
+      holdLatest = true;
+      await dialog.getByRole('button', { name: 'Muat versi terbaru' }).click();
+      await expect.poll(() => typeof releaseLatest).toBe('function');
+      await dialog.getByLabel('Aktual Transfer (Rp)').fill('55');
+      releaseLatest();
+      await expect(dialog).toContainText('Versi terbaru dimuat');
+      await expect(dialog.getByLabel('Aktual Transfer (Rp)')).toHaveValue('55');
+      conflict = true;
+      await dialog.getByRole('button', { name: 'Simpan pemeriksaan' }).click();
+      await dialog.getByRole('button', { name: 'Muat versi terbaru' }).click();
+      await expect(dialog).toContainText('Versi terbaru dimuat');
+      await expect(dialog.getByLabel('Aktual Transfer (Rp)')).toHaveValue('55');
+      await expect(dialog.getByLabel('Aktual Tunai (Rp)')).toHaveValue('31');
+      await page.keyboard.press('Escape');
+      saved = null; writes.length = 0;
+      await opener.click(); dialog = page.getByRole('dialog', { name: 'Rincian pemasukan' });
+      await dialog.locator('summary').filter({ hasText: 'Cocokkan penerimaan' }).click();
+      await expect(dialog.getByLabel('Aktual Tunai (Rp)')).toBeVisible();
+    }
     await dialog.getByLabel('Aktual Tunai (Rp)').fill('0');
     await expect(dialog).toContainText('Kurang Rp');
     await dialog.getByLabel('Tambah metode pembayaran').selectOption('QRIS');

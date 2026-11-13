@@ -81,11 +81,8 @@ export default function FinancialReportPage() {
   if (!canAccess("/financial-report")) return <p className="p-6 text-sm text-surface-600">Akses Laporan Keuangan belum diizinkan.</p>;
   const canReadFullReport = canPerform("financial-report", "read");
   if (!canReadFullReport) return <DailyIncomeReport />;
-  const canOpenDaily = canPerform("financial-report.daily-comparison", "read");
-  if (role !== "OWNER" && !canOpenDaily) return <FullFinancialReport />;
-  const currentView = viewMode === "daily" && !canOpenDaily || viewMode === "sales" && role !== "OWNER" ? "full" : viewMode;
-  const views: Array<["full" | "daily" | "sales", string]> = [["full", "Laporan Lengkap"]];
-  if (canOpenDaily) views.push(["daily", "Pemasukan Harian"]);
+  const currentView = viewMode === "sales" && role !== "OWNER" ? "full" : viewMode;
+  const views: Array<["full" | "daily" | "sales", string]> = [["full", "Laporan Lengkap"], ["daily", "Pemasukan Harian"]];
   if (role === "OWNER") views.push(["sales", "Lihat sebagai Sales"]);
   return <div className="flex min-h-0 flex-1 flex-col">
     <div className="border-b border-surface-200 bg-white px-4 py-3 md:px-6">

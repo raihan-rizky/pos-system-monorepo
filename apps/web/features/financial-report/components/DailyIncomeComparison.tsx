@@ -45,10 +45,18 @@ export function DailyIncomeComparison({ date, methods, access, previewSales, onS
     const amounts = parseComparisonAmounts(shown.flatMap(method => (draft[method] ?? "").trim() ? [{ method, amount: draft[method]!.trim() }] : []));
     if (!amounts) { setSaveError("Periksa nominal aktual: gunakan angka nol atau lebih dengan maksimal dua angka desimal."); return; }
     setSaveError("");
+    const submittedDraft = { ...draft };
     try {
       const result = await save.mutateAsync({ date, revision: saved?.revision ?? null, amounts });
       setSaved(result.comparison);
-      setDraft(asDraft(result.comparison.amounts));
+      const savedDraft = asDraft(result.comparison.amounts);
+      setDraft(current => {
+        const next = { ...savedDraft };
+        for (const method of METHODS) {
+          if (current[method] !== submittedDraft[method]) next[method] = current[method];
+        }
+        return next;
+      });
       setDirty(new Set()); setConflict(false); setReviewLatest(false);
       onSaved();
     } catch (error) {
@@ -58,12 +66,16 @@ export function DailyIncomeComparison({ date, methods, access, previewSales, onS
   }
 
   async function loadLatest() {
+    const startingDraft = { ...draft };
+    const dirtyAtStart = new Set(dirty);
     const result = await query.refetch();
     if (!result.data) { setSaveError("Versi terbaru belum dapat dimuat. Coba lagi."); return; }
     const latest = result.data.comparison;
     setDraft(current => {
       const merged = asDraft(latest?.amounts ?? []);
-      for (const method of dirty) merged[method] = current[method] ?? "";
+      for (const method of METHODS) {
+        if (dirtyAtStart.has(method) || current[method] !== startingDraft[method]) merged[method] = current[method] ?? "";
+      }
       return merged;
     });
     setSaved(latest); setConflict(false); setSaveError(""); setReviewLatest(true);

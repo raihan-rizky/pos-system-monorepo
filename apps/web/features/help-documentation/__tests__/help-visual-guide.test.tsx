@@ -777,6 +777,7 @@ describe("visual help guides", () => {
       "owner-reports": [
         "finance.finance-primary",
         "finance.finance-date-filter",
+        "finance.finance-summary",
         "finance.finance-export",
       ],
       "owner-performance": [
