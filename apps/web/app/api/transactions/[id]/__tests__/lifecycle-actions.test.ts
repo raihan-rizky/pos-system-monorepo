@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: mocks.requirePermission,
   handleAuthError: mocks.handleAuthError,
+  canAuthenticatedUserPerform: async () => true,
 }));
 vi.mock("@pos/db", () => ({
   db: {

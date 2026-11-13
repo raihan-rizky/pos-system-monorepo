@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@pos/db";
 import { apiError, apiValidationError } from "@/lib/api/responses";
-import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
+import { canAuthenticatedUserPerform, handleAuthError, requirePermission } from "@/lib/rbac/guard";
+import { redactReceivableMetrics } from "@/features/customer-recap/helpers/redact-receivables";
 import { getLogger } from "@/lib/logger";
 import { buildCustomerRecapExport } from "@/features/customer-recap/helpers/export-core";
 
@@ -48,6 +49,7 @@ export async function GET(request: Request) {
 
   try {
     const user = await requirePermission("customer", "read");
+    const canViewReceivables = await canAuthenticatedUserPerform(user, "customer.receivable", "read");
     const storeId = user.storeId || "store-main";
     const { searchParams } = new URL(request.url);
     const parsed = dateRangeSchema.safeParse({
@@ -72,7 +74,7 @@ export async function GET(request: Request) {
           id: true,
           name: true,
           type: true,
-          totalDebt: true,
+          totalDebt: canViewReceivables,
           createdAt: true,
           lastVisitAt: true,
         },
@@ -100,15 +102,15 @@ export async function GET(request: Request) {
           },
         },
       }),
-      db.debtPaymentLog.findMany({
+      canViewReceivables ? db.debtPaymentLog.findMany({
         where: { storeId, createdAt: bounds },
         select: {
           customerId: true,
           amount: true,
           createdAt: true,
         },
-      }),
-      db.customerReceivable.findMany({
+      }) : Promise.resolve([]),
+      canViewReceivables ? db.customerReceivable.findMany({
         where: { storeId, payments: { some: { createdAt: bounds } } },
         select: {
           customerId: true,
@@ -117,13 +119,13 @@ export async function GET(request: Request) {
             select: { amount: true, createdAt: true },
           },
         },
-      }),
+      }) : Promise.resolve([]),
     ]);
 
     const data = buildCustomerRecapExport({
       dateFrom,
       dateTo,
-      customers,
+      customers: customers.map((customer) => ({ ...customer, totalDebt: canViewReceivables && "totalDebt" in customer ? customer.totalDebt : null })),
       transactions,
       debtPaymentLogs: [...debtPaymentLogs, ...manualReceivables.flatMap(
         (receivable) => receivable.payments.map((payment) => ({
@@ -141,7 +143,7 @@ export async function GET(request: Request) {
       durationMs: Math.round(performance.now() - startedAt),
     });
 
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: canViewReceivables ? data : redactReceivableMetrics(data) });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

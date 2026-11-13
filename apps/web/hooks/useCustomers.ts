@@ -7,6 +7,7 @@ import {
   keepPreviousData,
 } from "@tanstack/react-query";
 import type { CustomerType } from "@/lib/customers";
+import { notifyPermissionDenied } from "@/features/rbac/helpers/permission-denied";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -23,7 +24,7 @@ export interface Customer {
   notes: string | null;
   totalSpent: number;
   totalOrders: number;
-  totalDebt: number;
+  totalDebt?: number;
   loyaltyPoint: number;
   lastVisitAt: string | null;
   createdAt: string;
@@ -34,9 +35,9 @@ export interface CustomerDetail extends Customer {
     id: string;
     invoiceNumber: string;
     total: number;
-    amountPaid: number;
-    paymentMethod: string;
-    status: string;
+    amountPaid?: number;
+    paymentMethod?: string;
+    status?: string;
     isJobOrder: boolean;
     productionStatus: string | null;
     estimatedDoneAt: string | null;
@@ -109,6 +110,7 @@ async function createCustomer(input: CreateCustomerInput): Promise<Customer> {
   });
   if (!res.ok) {
     const err = await res.json();
+    notifyPermissionDenied(res.status);
     throw Object.assign(new Error(err.message ?? "Failed to create customer"), {
       status: res.status,
       data: err,
@@ -292,6 +294,8 @@ export function usePayTransactionDebt() {
         qc.invalidateQueries({ queryKey: ["customers", variables.customerId, "dp-transactions"] });
       }
       qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["receivable-invoices"] });
+      qc.invalidateQueries({ queryKey: ["customer-recap"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });

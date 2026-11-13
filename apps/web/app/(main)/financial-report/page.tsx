@@ -96,11 +96,11 @@ export default function FinancialReportPage() {
         {currentView === "sales" && <p className="text-xs text-surface-600">Tampilan Sales mengikuti izin Sales yang diatur di Hak Akses.</p>}
       </div>
     </div>
-    {currentView === "sales" ? <DailyIncomeReport previewSales fullReportPreview={<FullFinancialReport />} /> : currentView === "daily" ? <DailyIncomeReport /> : <FullFinancialReport />}
+    {currentView === "sales" ? <DailyIncomeReport previewSales fullReportPreview={<FullFinancialReport previewSales />} /> : currentView === "daily" ? <DailyIncomeReport /> : <FullFinancialReport />}
   </div>;
 }
 
-function FullFinancialReport() {
+function FullFinancialReport({ previewSales = false }: { previewSales?: boolean }) {
   const initialRange = React.useMemo(
     () => buildFinancialReportRange("month"),
     [],
@@ -113,6 +113,7 @@ function FullFinancialReport() {
   const { data: report, isLoading, isFetching, error } = useFinancialReport({
     dateFrom,
     dateTo,
+    ...(previewSales ? { view: "sales" as const } : {}),
   });
 
   const selectPreset = React.useCallback((nextPreset: FinancialReportPreset) => {
@@ -416,10 +417,27 @@ function FullFinancialReport() {
             icon={<Hourglass className="h-4 w-4" aria-hidden="true" />}
             infoText={{
               title: "Sisa DP Belum Lunas",
-              description: "Uang yang masih harus ditagih dari transaksi DP.",
+              description:
+                "Sisa transaksi berstatus DP. Tidak termasuk Tempo atau Piutang Manual.",
               formula: "total − dibayar (untuk transaksi DP)",
             }}
           />
+          {report?.summary.receivableBalance !== undefined && (
+            <KpiCard
+              label="Piutang"
+              value={formatRupiah(report.summary.receivableBalance)}
+              hint={`Saldo sampai ${dateTo}`}
+              tone="warning"
+              loading={isLoading}
+              icon={<Wallet className="h-4 w-4" aria-hidden="true" />}
+              infoText={{
+                title: "Piutang Tempo dan Manual",
+                description:
+                  "Sisa tagihan transaksi Tempo dan Piutang Manual sampai tanggal laporan. Tidak termasuk DP.",
+                formula: "sisa Tempo + sisa Piutang Manual",
+              }}
+            />
+          )}
           <KpiCard
             label="Loss Stok"
             value={formatRupiah(lossStokNet)}

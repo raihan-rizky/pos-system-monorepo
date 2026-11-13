@@ -4,7 +4,8 @@ import { z } from "zod";
 import { apiError, apiValidationError } from "@/lib/api/responses";
 import { buildCustomerDetailRecap } from "@/features/customer-recap/helpers/recap-core";
 import { getLogger } from "@/lib/logger";
-import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
+import { canAuthenticatedUserPerform, handleAuthError, requirePermission } from "@/lib/rbac/guard";
+import { redactReceivableMetrics } from "@/features/customer-recap/helpers/redact-receivables";
 
 const log = getLogger("api:customers:id:recap");
 export const dynamic = "force-dynamic";
@@ -51,6 +52,7 @@ export async function GET(
   const startedAt = performance.now();
   try {
     const user = await requirePermission("customer", "read");
+    const canViewReceivables = await canAuthenticatedUserPerform(user, "customer.receivable", "read");
     const storeId = user.storeId || "store-main";
     const { id } = await params;
     const { searchParams } = new URL(request.url);
@@ -76,7 +78,7 @@ export async function GET(
         id: true,
         name: true,
         type: true,
-        totalDebt: true,
+        totalDebt: canViewReceivables,
         createdAt: true,
         lastVisitAt: true,
       },
@@ -107,7 +109,7 @@ export async function GET(
           createdAt: true,
           status: true,
           total: true,
-          amountPaid: true,
+          amountPaid: canViewReceivables,
           items: {
             select: {
               productId: true,
@@ -118,7 +120,7 @@ export async function GET(
           },
         },
       }),
-      db.debtPaymentLog.findMany({
+      canViewReceivables ? db.debtPaymentLog.findMany({
         where: {
           storeId,
           customerId: id,
@@ -138,8 +140,8 @@ export async function GET(
             },
           },
         },
-      }),
-      db.customerReceivable.findMany({
+      }) : Promise.resolve([]),
+      canViewReceivables ? db.customerReceivable.findMany({
         where: { storeId, customerId: id },
         select: {
           id: true,
@@ -149,11 +151,11 @@ export async function GET(
           debtDate: true,
           payments: { select: { amount: true, createdAt: true } },
         },
-      }),
+      }) : Promise.resolve([]),
     ]);
 
     const data = buildCustomerDetailRecap({
-      customer,
+      customer: { ...customer, totalDebt: canViewReceivables && "totalDebt" in customer ? customer.totalDebt : null },
       dateFrom,
       dateTo,
       transactions,
@@ -169,7 +171,7 @@ export async function GET(
       durationMs: Math.round(performance.now() - startedAt),
     });
 
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: canViewReceivables ? data : redactReceivableMetrics(data) });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

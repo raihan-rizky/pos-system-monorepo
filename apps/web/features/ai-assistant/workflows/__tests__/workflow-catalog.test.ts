@@ -38,7 +38,11 @@ describe("FAQ workflow catalog", () => {
 
   it("guides manual receivables separately from invoice payments", () => {
     const manual = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 41);
-    expect(manual).toMatchObject({ route: "/customers", requiredCapabilities: [{ resource: "customer", action: "update" }] });
+    expect(manual).toMatchObject({ route: "/customers", requiredCapabilities: [
+      { resource: "customer", action: "read" },
+      { resource: "customer.receivable", action: "read" },
+      { resource: "customer.receivable", action: "create" },
+    ] });
     const text = JSON.stringify(manual);
     for (const phrase of ["Piutang manual", "Tambah Piutang", "WIB", "jatuh tempo", "tanpa membuat transaksi", "stok"]) expect(text).toContain(phrase);
     const payment = JSON.stringify(FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 15));
@@ -394,5 +398,17 @@ describe("FAQ workflow catalog", () => {
     expect(inbound).toContain("jumlah 0");
     expect(inbound).toContain("Transfer atau Giro");
     expect(inbound).toContain("total pembelian penuh");
+  });
+
+  it("explains the Piutang KPI without combining DP", () => {
+    const report = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 52)!;
+    const text = JSON.stringify(report.steps);
+
+    expect(text).toContain("Piutang = sisa transaksi Tempo + sisa Piutang Manual");
+    expect(text).toContain("tanggal akhir rentang");
+    expect(text).toContain("tanggal pilihan");
+    expect(text).toContain("izin baca transaksi dan data Pelanggan");
+    expect(text).toContain("role yang digunakan");
+    expect(text).toContain("Sisa transaksi berstatus DP. Tidak termasuk Tempo atau Piutang Manual.");
   });
 });

@@ -4,12 +4,13 @@ import { z } from "zod";
 import { getCurrentUser, requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { calculateTransactionTax, calculateTaxPaymentState, getTransactionTaxMethod } from "@/features/transaction-tax/helpers/tax-calculation";
 import { getLogger } from "@/lib/logger";
+import { requireReceivableChangePermission } from "@/features/customer-debt/server/receivable-permission";
 import { captureReceiptSnapshot, recordReceiptChange, shouldRecordReceiptChange } from "@/features/receipt-changes/server/receipt-change-audit";
 
 export const dynamic = "force-dynamic";
 const log = getLogger("api:transactions:tax");
 type Context = { params: Promise<{ id: string }> };
-const select = { id: true, storeId: true, customerId: true, subtotal: true, discount: true, tax: true, taxRate: true, taxMethod: true, total: true, amountPaid: true, change: true, status: true, paymentMethod: true, printingSubcategory: true } as const;
+const select = { id: true, storeId: true, customerId: true, customerName: true, subtotal: true, discount: true, tax: true, taxRate: true, taxMethod: true, total: true, amountPaid: true, change: true, status: true, paymentMethod: true, printingSubcategory: true } as const;
 type TaxRecord = Prisma.TransactionGetPayload<{ select: typeof select }>;
 type TaxView = Omit<TaxRecord, "tax" | "taxRate" | "total" | "amountPaid" | "change"> & {
   tax: Prisma.Decimal | number; taxRate: Prisma.Decimal | number | null; total: Prisma.Decimal | number;
@@ -78,6 +79,10 @@ export async function PATCH(request: Request, { params }: Context) {
       const payment = calculateTaxPaymentState({ status: fresh.status, paymentMethod: fresh.paymentMethod, amountPaid: Number(fresh.amountPaid), change: Number(fresh.change), total: totals.total, previousTotal: Number(fresh.total) });
       if (!fresh.customerId && payment.remaining > 0 && totals.total > Number(fresh.total)) throw new TaxCustomerRequired();
       const data = { taxRate: parsed.data.taxRate, taxMethod, tax: totals.tax, total: totals.total, amountPaid: payment.amountPaid, change: payment.change, status: payment.status as TaxRecord["status"] };
+      await requireReceivableChangePermission(
+        { ...fresh, total: Number(fresh.total), amountPaid: Number(fresh.amountPaid) },
+        { ...fresh, ...data },
+      );
       const result = await tx.transaction.updateMany({
         where: { id, storeId, customerId: fresh.customerId, status: fresh.status, subtotal: fresh.subtotal, discount: fresh.discount, total: fresh.total, tax: fresh.tax, taxRate: fresh.taxRate, taxMethod: fresh.taxMethod, amountPaid: fresh.amountPaid, change: fresh.change }, data,
       });

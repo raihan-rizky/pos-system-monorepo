@@ -81,5 +81,6 @@ export interface DashboardData {
   productionStatusCounts: ProductionStatusCount[];
   dpTransactions: Transaction[];
   totalOutstandingDP: number | null;
+  receivableBalance: number | null;
   paymentMixToday: PaymentMixRow[] | null;
 }

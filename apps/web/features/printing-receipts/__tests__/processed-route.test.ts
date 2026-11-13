@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createEmptyPrintingReceiptDocument } from "../domain";
 const mocks = vi.hoisted(() => ({ permission: vi.fn(), review: vi.fn(), save: vi.fn() }));
+vi.mock("@/lib/rbac/guard", () => ({ canAuthenticatedUserPerform: vi.fn().mockResolvedValue(true) }));
 vi.mock("../server/processed-permission", () => ({ requireProcessedPrintingReceiptPermission: mocks.permission }));
 vi.mock("../server/processed-edit-service", () => ({ reviewProcessedPrintingReceipt: mocks.review, saveProcessedPrintingReceipt: mocks.save }));
 vi.mock("../server/route-support", () => ({ readPrintingReceiptJson: (request: Request) => request.json(), printingReceiptErrorResponse: (error: any) => Response.json({ message: error.message }, { status: error.status ?? 422 }) }));
@@ -21,7 +22,7 @@ describe("processed receipt API permission boundary", () => {
     expect(await (await POST(request({ ...input, storeId: "other" }), context)).json()).toEqual({ data: { reviewToken: "token" } });
     expect(mocks.review).toHaveBeenCalledWith("store", "receipt", expect.objectContaining(input));
     expect(await (await PATCH(request({ ...input, acknowledged: true, reviewToken: "token" }), context)).json()).toEqual({ data: { id: "receipt" } });
-    expect(mocks.save).toHaveBeenCalledWith("store", "receipt", expect.objectContaining({ acknowledged: true, reviewToken: "token" }), { id: "owner", name: "Owner", role: "OWNER" });
+    expect(mocks.save).toHaveBeenCalledWith("store", "receipt", expect.objectContaining({ acknowledged: true, reviewToken: "token" }), { id: "owner", name: "Owner", role: "OWNER" }, { canView: true, canEdit: true });
   });
   it("rejects unacknowledged commits before starting service work", async () => {
     const response = await PATCH(request(input), context);

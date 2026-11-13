@@ -310,6 +310,7 @@ export function buildFinancialReport({
   expenseSummary,
   debtPayments = [],
   collectionTransactions,
+  receivableBalance,
 }: {
   dateFrom: string;
   dateTo: string;
@@ -320,6 +321,7 @@ export function buildFinancialReport({
   expenseSummary?: FinancialReportExpenseSummary;
   debtPayments?: FinancialReportDebtPayment[];
   collectionTransactions?: FinancialReportCollection[];
+  receivableBalance?: number;
 }) {
   const paymentMap = new Map<
     string,
@@ -659,6 +661,7 @@ export function buildFinancialReport({
       discount,
       outstandingDp,
       outstandingTempo,
+      ...(receivableBalance === undefined ? {} : { receivableBalance }),
       shiftDiscrepancy: reportShifts.reduce(
         (sum, shift) => sum + shift.discrepancy,
         0,

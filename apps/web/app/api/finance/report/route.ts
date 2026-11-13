@@ -1,7 +1,10 @@
 import { db } from "@pos/db";
 import { recognizedExpenseFilter } from "@/features/keuangan/helpers/recognized-expense-filter";
 import { findInitialCollections } from "@/features/financial-report/services/initial-collections";
+import { loadReceivableBalance } from "@/features/customer-debt/services/receivable-balance";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
+import { canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
+import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
 import {
   buildFinancialReport,
   buildFinancialReportRange,
@@ -70,6 +73,33 @@ export async function GET(request: Request) {
     if (!user.storeId) return apiError("Toko pengguna belum tersedia.", 403, { code: "Forbidden" });
     const storeId = user.storeId;
     const { searchParams } = new URL(request.url);
+    const requestedViews = searchParams.getAll("view");
+    if (requestedViews.length > 1 || (requestedViews.length === 1 && requestedViews[0] !== "sales")) {
+      return apiError("Tampilan laporan keuangan tidak valid.", 422, {
+        code: "ValidationError",
+      });
+    }
+    const salesPreview = requestedViews[0] === "sales";
+    if (salesPreview && user.role !== "OWNER") {
+      return apiError("Tampilan Sales hanya tersedia untuk Owner.", 403, {
+        code: "Forbidden",
+      });
+    }
+    const effectiveRole = salesPreview ? "SALES" : user.role;
+    const permissions = await getGlobalRolePermissions();
+    const canReadTransactions = canRolePerformAction(
+      effectiveRole,
+      "transaction",
+      "read",
+      permissions,
+    );
+    const canReadCustomers = canRolePerformAction(
+      effectiveRole,
+      "customer",
+      "read",
+      permissions,
+    );
+    const canReadReceivableBalance = canReadTransactions && canReadCustomers;
     const requestedPreset = searchParams.get("preset");
     const preset = isPreset(requestedPreset) ? requestedPreset : "month";
     const fallbackRange = buildFinancialReportRange(preset);
@@ -95,6 +125,9 @@ export async function GET(request: Request) {
     }
 
     const dateBounds = toDateBounds(dateFrom, dateTo);
+    const receivableBalancePromise = canReadReceivableBalance
+      ? loadReceivableBalance(storeId, dateTo)
+      : Promise.resolve(undefined);
 
     const [
       transactions,
@@ -104,6 +137,7 @@ export async function GET(request: Request) {
       incompleteExpenseCount,
       debtPayments,
       collectionTransactions,
+      receivableBalance,
     ] = await Promise.all([
       db.transaction.findMany({
         where: {
@@ -223,6 +257,7 @@ export async function GET(request: Request) {
         },
       }),
       findInitialCollections(db, storeId, dateBounds),
+      receivableBalancePromise,
     ]);
 
     return NextResponse.json(
@@ -230,6 +265,7 @@ export async function GET(request: Request) {
         dateFrom,
         dateTo,
         collectionTransactions,
+        receivableBalance,
         transactions: transactions.map((transaction) => ({
           ...transaction,
           createdAt: transaction.invoiceDate,

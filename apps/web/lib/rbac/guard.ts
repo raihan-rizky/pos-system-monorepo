@@ -11,6 +11,7 @@ import type { Role } from "./permissions";
 import type { Action } from "./permissions";
 import {
   buildDefaultRolePermissions,
+  canRoleAccessPage,
   canRolePerformAction,
 } from "@/features/rbac/helpers/rbac-core";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
@@ -160,6 +161,34 @@ export async function requirePermission(resource: string, action: Action) {
   }
 
   return user;
+}
+
+/** Check an authenticated user's resource grant without restoring defaults on failure. */
+export async function canAuthenticatedUserPerform(
+  user: { role: Role },
+  resource: string,
+  action: Action,
+): Promise<boolean> {
+  try {
+    const permissions = isE2EAuthBypassEnabled()
+      ? buildDefaultRolePermissions()
+      : await getGlobalRolePermissions();
+    return canRolePerformAction(user.role, resource, action, permissions);
+  } catch {
+    throw new AuthError(503, "Hak akses belum dapat diverifikasi. Silakan coba lagi.");
+  }
+}
+
+/** Check page access using the same current permission source as resource checks. */
+export async function canAuthenticatedUserAccessPage(user: { role: Role }, path: string): Promise<boolean> {
+  try {
+    const permissions = isE2EAuthBypassEnabled()
+      ? buildDefaultRolePermissions()
+      : await getGlobalRolePermissions();
+    return canRoleAccessPage(user.role, path, permissions);
+  } catch {
+    throw new AuthError(503, "Hak akses belum dapat diverifikasi. Silakan coba lagi.");
+  }
 }
 
 /**

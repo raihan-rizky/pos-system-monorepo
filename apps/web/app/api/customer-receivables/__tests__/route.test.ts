@@ -3,8 +3,13 @@ import { GET, POST } from "../route";
 import { POST as PAY } from "../[id]/payments/route";
 import { ReceivableError } from "@/features/customer-debt/helpers/manual-receivables";
 
-const mocks = vi.hoisted(() => ({ permission: vi.fn(), authError: vi.fn(), customer: vi.fn(), findMany: vi.fn(), count: vi.fn(), transaction: vi.fn(), create: vi.fn(), pay: vi.fn() }));
-vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.permission, handleAuthError: mocks.authError }));
+const mocks = vi.hoisted(() => ({ permission: vi.fn(), authError: vi.fn(), pageAccess: vi.fn(), customer: vi.fn(), findMany: vi.fn(), count: vi.fn(), transaction: vi.fn(), create: vi.fn(), pay: vi.fn() }));
+vi.mock("@/lib/rbac/guard", () => ({
+  requirePermission: mocks.permission,
+  handleAuthError: mocks.authError,
+  canAuthenticatedUserAccessPage: mocks.pageAccess,
+  AuthError: class AuthError extends Error { constructor(public statusCode: number, message: string) { super(message); this.name = "AuthError"; } },
+}));
 vi.mock("@pos/db", () => ({ db: { customer: { findFirst: mocks.customer }, customerReceivable: { findMany: mocks.findMany, count: mocks.count, fields: { amount: "AMOUNT_FIELD" } }, $transaction: mocks.transaction } }));
 vi.mock("@/features/customer-debt/helpers/manual-receivables", async (original) => ({ ...await original<object>(), createReceivable: mocks.create, payReceivable: mocks.pay }));
 vi.mock("@/lib/logger", () => ({ getLogger: () => ({ error: vi.fn() }) }));
@@ -14,14 +19,24 @@ function request(payload: unknown) { return new Request("http://localhost/api/cu
 describe("customer receivables API", () => {
   beforeEach(() => {
     vi.clearAllMocks(); mocks.permission.mockResolvedValue({ id: "user-1", storeId: "store-1" }); mocks.authError.mockReturnValue(null);
+    mocks.pageAccess.mockResolvedValue(true);
     mocks.customer.mockResolvedValue({ id: "customer-1" }); mocks.findMany.mockResolvedValue([]); mocks.count.mockResolvedValue(0);
     mocks.transaction.mockImplementation((callback) => callback("transaction-client")); mocks.create.mockResolvedValue({ id: "debt-1" }); mocks.pay.mockResolvedValue({ id: "debt-1", amountPaid: "50000" });
   });
   it("creates manual debt in an atomic transaction with customer update permission", async () => {
     const response = await POST(request(body));
     expect(response.status).toBe(201);
-    expect(mocks.permission).toHaveBeenCalledWith("customer", "update");
+    expect(mocks.permission).toHaveBeenCalledWith("customer.receivable", "read");
+    expect(mocks.permission).toHaveBeenCalledWith("customer.receivable", "create");
     expect(mocks.create).toHaveBeenCalledWith("transaction-client", body, { id: "user-1", storeId: "store-1" });
+  });
+  it("denies manual debt creation without Pelanggan page access", async () => {
+    mocks.pageAccess.mockResolvedValue(false);
+    mocks.authError.mockImplementation((error: unknown) => error instanceof Error && error.name === "AuthError" ? new Response(null, { status: 403 }) : null);
+    const response = await POST(request(body));
+    expect(response.status).toBe(403);
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
   });
   it("rejects impossible dates before opening a transaction", async () => {
     expect((await POST(request({ ...body, dueDate: "2026-02-30" }))).status).toBe(422);
@@ -33,7 +48,7 @@ describe("customer receivables API", () => {
   it("lists open manual debts only within the current store and with bounded pages", async () => {
     const response = await GET(new Request("http://localhost/api/customer-receivables?page=2&status=open&search=Budi"));
     expect(response.status).toBe(200);
-    expect(mocks.permission).toHaveBeenCalledWith("customer", "read");
+    expect(mocks.permission).toHaveBeenCalledWith("customer.receivable", "read");
     expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { storeId: "store-1", amountPaid: { lt: "AMOUNT_FIELD" }, OR: [{ customer: { name: { contains: "Budi", mode: "insensitive" } } }, { note: { contains: "Budi", mode: "insensitive" } }] }, skip: 20, take: 20 }));
     expect(await response.json()).toMatchObject({ data: [], pagination: { page: 2, total: 0, totalPages: 0 } });
   });
@@ -52,6 +67,14 @@ describe("customer receivables API", () => {
     const response = await PAY(request(payment), { params: Promise.resolve({ id: "debt-1" }) });
     expect(response.status).toBe(200);
     expect(mocks.pay).toHaveBeenCalledWith("transaction-client", "debt-1", payment, { id: "user-1", storeId: "store-1" });
+  });
+  it("denies manual debt payment without Pelanggan page access", async () => {
+    mocks.pageAccess.mockResolvedValue(false);
+    mocks.authError.mockImplementation((error: unknown) => error instanceof Error && error.name === "AuthError" ? new Response(null, { status: 403 }) : null);
+    const response = await PAY(request({ amount: 50000, method: "CASH", clientMutationId: body.clientMutationId }), { params: Promise.resolve({ id: "debt-1" }) });
+    expect(response.status).toBe(403);
+    expect(mocks.pay).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
   });
   it("returns auth denial without writing or listing data", async () => {
     mocks.permission.mockRejectedValue(new Error("Forbidden")); mocks.authError.mockReturnValue(new Response(null, { status: 403 }));

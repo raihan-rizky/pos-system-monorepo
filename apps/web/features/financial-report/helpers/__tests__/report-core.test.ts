@@ -605,6 +605,29 @@ describe("bucketKeyForDate", () => {
   });
 });
 
+describe("buildFinancialReport receivable balance", () => {
+  it("includes the optional Piutang balance in summary only when supplied", () => {
+    const withReceivableBalance = buildFinancialReport({
+      dateFrom: "2026-05-01",
+      dateTo: "2026-05-31",
+      transactions: [],
+      shifts: [],
+      receivableBalance: 125000,
+    });
+    const withoutReceivableBalance = buildFinancialReport({
+      dateFrom: "2026-05-01",
+      dateTo: "2026-05-31",
+      transactions: [],
+      shifts: [],
+    });
+
+    expect(withReceivableBalance.summary.receivableBalance).toBe(125000);
+    expect(withoutReceivableBalance.summary).not.toHaveProperty(
+      "receivableBalance",
+    );
+  });
+});
+
 describe("buildFinancialReport — trend", () => {
   it("returns a daily trend with one zero-filled point per day for short ranges", () => {
     const report = buildFinancialReport({

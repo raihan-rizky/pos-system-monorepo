@@ -37,6 +37,20 @@ describe("manual changelog", () => {
     expect(JSON.stringify(manual)).toContain("Tambah Piutang");
     expect(JSON.stringify(manual)).toContain("Bayar Piutang");
   });
+  it("announces the Dashboard and report Piutang KPI with three usage steps", () => {
+    const receivable = CHANGELOG.find(change => change.id === "kpi-piutang-dashboard-laporan");
+    expect(receivable).toMatchObject({
+      date: "2026-11-11",
+      revision: 1,
+      title: "Pantau Piutang di tiga tampilan laporan.",
+      href: "/financial-report",
+      kind: "improvement",
+      area: "Laporan Keuangan",
+    });
+    expect(receivable?.steps).toHaveLength(3);
+    expect(JSON.stringify(receivable)).toContain("sisa Tempo dan Piutang Manual");
+    expect(JSON.stringify(receivable)).toContain("Outstanding DP");
+  });
   it("uses seven WIB calendar days including today and excludes future and invalid dates", () => {
     const changes = [entry("old", "2026-10-11"), entry("boundary", "2026-10-12"), entry("today", "2026-10-18"), entry("future", "2026-10-19"), entry("invalid", "2026-02-30")];
     expect(getRecentChanges(changes, now).map(item => item.id)).toEqual(["today", "boundary"]);

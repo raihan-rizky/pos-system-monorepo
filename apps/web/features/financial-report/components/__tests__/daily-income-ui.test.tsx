@@ -14,15 +14,16 @@ const fullReport = { dateFrom: "2026-11-05", dateTo: "2026-11-05", summary: {}, 
 describe("daily financial report UI", () => {
   beforeEach(() => {
     vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date("2026-11-05T03:00:00Z"));
-    mocks.role.mockReturnValue({ role: "SALES", userId: "sales", storeId: "store-1", authorizationFingerprint: "v1", canAccess: () => true, canPerform: (target: string) => target === "transaction" || target.startsWith("financial-report.daily-") });
-    mocks.daily.mockReturnValue({ data: { date: "2026-11-05", total: 100, outstandingDp: 25, categories: [{ category: "ATK", amount: 100 }], subcategories: [{ category: "ATK", subcategory: "Alat Tulis", amount: 100 }], paymentMethods: [{ method: "CASH", amount: 100 }] }, isLoading: false, isFetching: false, error: null, refetch: vi.fn() });
+    mocks.role.mockReturnValue({ role: "SALES", userId: "sales", storeId: "store-1", authorizationFingerprint: "v1", canAccess: () => true, canPerform: (target: string) => target === "transaction" || target === "customer" || target.startsWith("financial-report.daily-") });
+    mocks.daily.mockReturnValue({ data: { date: "2026-11-05", total: 100, outstandingDp: 25, receivableBalance: 45, categories: [{ category: "ATK", amount: 100 }], subcategories: [{ category: "ATK", subcategory: "Alat Tulis", amount: 100 }], paymentMethods: [{ method: "CASH", amount: 100 }] }, isLoading: false, isFetching: false, error: null, refetch: vi.fn() });
     mocks.full.mockReturnValue({ data: fullReport, isLoading: false, isFetching: false, error: null });
   });
   afterEach(() => vi.useRealTimers());
 
   it("shows all daily sections and a single date picker without invoking full-report fetching", () => {
     const html = renderToStaticMarkup(createElement(FinancialReportPage));
-    for (const label of ["Pemasukan Harian", "Total Pemasukan", "Outstanding DP", "Pemasukan per Kategori", "Pemasukan per Subkategori", "Pemasukan per Metode Pembayaran", "Alat Tulis"]) expect(html).toContain(label);
+    for (const label of ["Pemasukan Harian", "Total Pemasukan", "Outstanding DP", "Piutang", "Pemasukan per Kategori", "Pemasukan per Subkategori", "Pemasukan per Metode Pembayaran", "Alat Tulis"]) expect(html).toContain(label);
+    expect(html).toContain("Sisa transaksi berstatus DP. Tidak termasuk Tempo atau Piutang Manual.");
     expect(html).toContain('type="date"');
     expect(html).toContain('max="2026-11-05"');
     for (const forbidden of ["Laba", "HPP", "Pengeluaran", "Sales Teratas", "Produk Terlaris", "Ekspor", "Bulan ini"]) expect(html).not.toContain(forbidden);
@@ -93,6 +94,26 @@ describe("daily financial report UI", () => {
     expect(html).toContain("Outstanding DP");
     expect(html).toMatch(/Rp\s*25/);
     expect(html).not.toContain("Total Pemasukan");
+  });
+  it("allows the receivable KPI as the only daily metric when both read permissions are granted", () => {
+    mocks.role.mockReturnValue({ role: "SALES", canAccess: () => true, canPerform: (target: string) => target === "transaction" || target === "customer" });
+    mocks.daily.mockReturnValue({ data: { date: "2026-11-05", receivableBalance: 500 }, isLoading: false, isFetching: false, error: null, refetch: vi.fn() });
+
+    const html = renderToStaticMarkup(createElement(FinancialReportPage));
+
+    expect(html).toMatch(/<h2[^>]*>Piutang<\/h2>/);
+    expect(html).toMatch(/Rp\s*500/);
+    expect(html).not.toContain("Total Pemasukan");
+    expect(mocks.daily).toHaveBeenCalledWith("2026-11-05", expect.objectContaining({ receivableBalance: true }), false);
+  });
+  it.each([["transaction", "customer"], ["customer", "transaction"]] as const)("hides a cached Piutang card when %s read is denied", (deniedTarget, grantedTarget) => {
+    mocks.role.mockReturnValue({ role: "SALES", canAccess: () => true, canPerform: (target: string) => target === grantedTarget || target === "financial-report.daily-outstanding-dp" });
+    mocks.daily.mockReturnValue({ data: { date: "2026-11-05", outstandingDp: 25, receivableBalance: 500 }, isLoading: false, isFetching: false, error: null, refetch: vi.fn() });
+
+    const html = renderToStaticMarkup(createElement(FinancialReportPage));
+
+    expect(html).toContain("Outstanding DP");
+    expect(html).not.toMatch(/<h2[^>]*>Piutang<\/h2>/);
   });
   it("does not offer OWNER preview to ADMIN with full report access", () => {
     mocks.role.mockReturnValue({ role: "ADMIN", canAccess: () => true, canPerform: () => true });

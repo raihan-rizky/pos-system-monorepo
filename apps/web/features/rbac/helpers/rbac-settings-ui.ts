@@ -128,7 +128,7 @@ export const RBAC_PERMISSION_MODULES: RbacPermissionModule[] = [
     label: "Pelanggan",
     description: "Data pelanggan dan piutang.",
     pageTargets: ["/customers"],
-    resourceTargets: ["customer"],
+    resourceTargets: ["customer", "customer.receivable", "customer.receivable.payment"],
     sensitivity: "normal",
   },
   {

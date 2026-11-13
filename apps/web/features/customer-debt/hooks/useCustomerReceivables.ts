@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { notifyPermissionDenied } from "@/features/rbac/helpers/permission-denied";
 
 export type ReceivablePaymentMethod = "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER";
 export interface CustomerReceivable {
@@ -27,6 +28,7 @@ export interface ReceivableListParams {
 async function readResponse<T>(response: Response): Promise<T> {
   const body = await response.json().catch(() => null);
   if (!response.ok) {
+    notifyPermissionDenied(response.status);
     const message = body?.message ?? body?.error;
     throw new Error(typeof message === "string" ? message : "Piutang belum berhasil disimpan. Silakan coba lagi.");
   }

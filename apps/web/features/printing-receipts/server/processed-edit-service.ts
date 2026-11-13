@@ -8,6 +8,7 @@ import { getPrintingReceiptCheckoutLines, parsePrintingReceiptDocument, parsePri
 import { planProcessedPrintingReceiptEdit, type ProcessedPrintingReceiptInput, type ProcessedPrintingReceiptReview } from "../processed-edit";
 import { getPrintingReceipt, PrintingReceiptStorageError } from "./receipt-store";
 import { parsePrintingReceiptRevision } from "./route-support";
+import { assertReceivableChangeAllowed, type ReceivableAccess } from "@/features/customer-debt/helpers/receivable-authorization";
 import { captureReceiptSnapshot, recordReceiptChange, shouldRecordReceiptChange } from "@/features/receipt-changes/server/receipt-change-audit";
 
 type Tx = Prisma.TransactionClient;
@@ -76,12 +77,18 @@ export async function reviewProcessedPrintingReceipt(storeId: string, id: string
   catch (error) { return normalizeDatabaseError(error); }
 }
 
-export async function saveProcessedPrintingReceipt(storeId: string, id: string, raw: ProcessedPrintingReceiptInput & { acknowledged: boolean; reviewToken: string }, actor: Actor) {
+export async function saveProcessedPrintingReceipt(storeId: string, id: string, raw: ProcessedPrintingReceiptInput & { acknowledged: boolean; reviewToken: string }, actor: Actor, receivableAccess?: ReceivableAccess) {
   if (raw.acknowledged !== true || typeof raw.reviewToken !== "string" || !raw.reviewToken) throw new PrintingReceiptValidationError("Setujui dampak perubahan dan tinjau nota sebelum menyimpan.");
   try {
     await db.$transaction(async tx => {
       const { input, current, transaction, products, plan, review } = await prepare(tx, storeId, id, raw);
       if (review.reviewToken !== raw.reviewToken) throw conflict();
+      const before = { ...transaction, total: Number(transaction.total), amountPaid: Number(transaction.amountPaid) };
+      assertReceivableChangeAllowed(before, {
+        ...before, total: plan.after.total, status: plan.after.status,
+        amountPaid: plan.after.total !== plan.before.total ? plan.after.paid : before.amountPaid,
+        customerName: input.document.customerName || null,
+      }, receivableAccess?.canView === true, receivableAccess?.canEdit === true);
       const receiptBefore = shouldRecordReceiptChange(actor, transaction.status)
         ? await captureReceiptSnapshot(tx, storeId, transaction.id)
         : null;

@@ -128,7 +128,7 @@ export default function DashboardPage() {
         <div className="space-y-6 px-4 py-6 md:px-8">
           <section
             aria-label="Ringkasan KPI"
-            className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+            className={`grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 ${dashboardData?.receivableBalance === null ? "xl:grid-cols-5" : "xl:grid-cols-6"}`}
           >
             <StatTile
               label="Pemasukan Hari Ini"
@@ -165,11 +165,21 @@ export default function DashboardPage() {
             <StatTile
               label="Outstanding DP"
               value={dashboardData?.totalOutstandingDP === null ? "Belum tersedia" : formatRupiah(dashboardData?.totalOutstandingDP ?? 0)}
-              hint={`${dashboardData?.dpTransactions?.length ?? 0} transaksi belum lunas`}
+              hint="Sisa transaksi berstatus DP. Tidak termasuk Tempo atau Piutang Manual."
               tone="warning"
               loading={dashLoading}
               icon={<Hourglass className="h-4 w-4" aria-hidden="true" />}
             />
+            {dashboardData && dashboardData.receivableBalance !== null && (
+              <StatTile
+                label="Piutang"
+                value={formatRupiah(dashboardData?.receivableBalance ?? 0)}
+                hint="Tempo dan Piutang Manual"
+                tone="warning"
+                loading={dashLoading}
+                icon={<Receipt className="h-4 w-4" aria-hidden="true" />}
+              />
+            )}
             <StatTile
               label="Total Produk"
               value={dashboardData?.totalProducts ?? 0}

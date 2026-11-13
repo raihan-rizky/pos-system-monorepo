@@ -325,9 +325,9 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     route: "/customers",
     actionLabel: "Buka Piutang Pelanggan",
     iconKey: "receipt",
-    requiredCapabilities: [{ resource: "customer", action: "update" }],
+    requiredCapabilities: [{ resource: "customer.receivable", action: "read" }, { resource: "customer.receivable.payment", action: "create" }],
     steps: [
-      { title: "Buka tab Piutang", description: "Di halaman Pelanggan, pilih tab Piutang." },
+      { title: "Buka tab Piutang", description: "Di halaman Pelanggan, pilih tab Piutang. Melihat piutang dan mencatat pembayaran memakai izin terpisah. Default Sales dan Kasir hanya dapat melihat; Owner dapat memberi izin pembayaran melalui Hak Akses." },
       { title: "Pilih piutang", description: "Untuk invoice DP atau Tempo, cari invoice lalu klik Bayar Piutang. Invoice DP Umum tanpa pelanggan terdaftar dapat langsung dicicil atau dilunasi tanpa memilih pelanggan; riwayat pembayaran tetap mengikuti invoice. Untuk Piutang manual, buka bagian Piutang Manual di tab Piutang atau detail pelanggan, lalu klik Bayar Piutang Manual pada catatan yang dituju." },
       { title: "Isi pembayaran", description: "Invoice menerima satu atau beberapa metode pembayaran dengan nominal masing-masing. Piutang manual memakai satu metode per pembayaran: Tunai, Debit, Kartu Kredit, QRIS, atau Transfer. Isi nominal lebih dari nol, maksimal sisa piutang; pembayaran boleh sebagian atau lunas." },
       { title: "Simpan dan cek riwayat", description: "Tambahkan catatan bila perlu. Untuk invoice klik Proses Pembayaran; untuk piutang manual klik Simpan Pembayaran lalu buka Riwayat pembayaran. Catatan manual yang lunas tetap tersimpan dan dapat dilihat melalui filter Semua piutang." },
@@ -848,10 +848,10 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     route: "/customers",
     actionLabel: "Buka Pelanggan",
     iconKey: "receipt",
-    requiredCapabilities: [{ resource: "customer", action: "update" }],
+    requiredCapabilities: [{ resource: "customer", action: "read" }, { resource: "customer.receivable", action: "read" }, { resource: "customer.receivable", action: "create" }],
     steps: [
       { title: "Buka detail pelanggan", description: "Masuk ke Pelanggan, pilih pelanggan yang sudah terdaftar, lalu temukan bagian Piutang Manual. Piutang manual mencatat utang lama atau tagihan di luar kasir tanpa membuat transaksi penjualan, order, atau mengubah stok." },
-      { title: "Klik Tambah Piutang", description: "Klik Tambah Piutang pada detail pelanggan; pelanggan mengikuti profil yang sedang dibuka. Aksi ini memerlukan izin customer.update, sedangkan melihat catatan memerlukan customer.read. Pelanggan yang memiliki riwayat piutang manual tidak dapat dihapus, termasuk yang sudah lunas, agar catatan pembayaran tetap tersimpan." },
+      { title: "Klik Tambah Piutang", description: "Klik Tambah Piutang pada detail pelanggan; pelanggan mengikuti profil yang sedang dibuka. Aksi ini memerlukan izin Lihat piutang dan Tambah piutang manual, terpisah dari Ubah profil pelanggan dan Catat pembayaran piutang. Pelanggan yang memiliki riwayat piutang manual tidak dapat dihapus, termasuk yang sudah lunas, agar catatan pembayaran tetap tersimpan." },
       { title: "Isi nominal dan tanggal", description: "Isi nominal lebih dari nol dan tanggal utang paling lambat hari ini dalam WIB. Isi tanggal jatuh tempo sama dengan atau setelah tanggal utang, lalu tambahkan catatan bila perlu." },
       { title: "Simpan dan periksa", description: "Klik Simpan Piutang. Periksa catatan di detail pelanggan atau tab Piutang, bagian Piutang Manual. Gunakan Bayar Piutang Manual untuk mencatat cicilan atau pelunasan; Riwayat pembayaran menyimpan pembayaran yang sudah diterima." },
     ],
@@ -1016,7 +1016,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     steps: [
       { title: "Buka Laporan Keuangan", description: "Masuk ke Laporan Keuangan dan pilih Pemasukan Harian jika tersedia. Owner dapat memilih Lihat sebagai Sales untuk meninjau izin Sales; jika Sales memiliki izin laporan penuh, pratinjau juga menampilkan laporan penuh." },
       { title: "Pilih tanggal", description: "Pilih hari ini atau tanggal sebelumnya dalam WIB. Nilai memakai uang yang diterima pada tanggal itu, termasuk DP dan pelunasan. Pembayaran awal offline mengikuti waktu checkout asli setelah tersinkron." },
-      { title: "Baca rincian", description: "Klik total pemasukan atau Lihat rincian pemasukan untuk membuka ringkasan dan daftar penerimaan tanggal pilihan, termasuk pelunasan nota lama. Pilih Rincian pada baris untuk melihat nominal per metode pembayaran dan kategori sesuai izin; jumlah nota dan pemasukan manual hanya menghitung rincian yang terlihat. Nominal kategori, subkategori, metode, dan Outstanding DP tetap membuka Riwayat sesuai izin; pilih Mingguan atau Bulanan di Riwayat untuk memperluas rentang. Dalam pratinjau Sales, catat nomor nota, pilih Laporan Lengkap, lalu cari nota di Riwayat dengan hak Owner. Outstanding DP memakai sisa DP terkini dari nota hingga tanggal pilihan, bukan saldo historis dan tidak termasuk Tempo." },
+      { title: "Baca rincian", description: "Klik total pemasukan atau Lihat rincian pemasukan untuk membuka ringkasan dan daftar penerimaan tanggal pilihan, termasuk pelunasan nota lama. Pilih Rincian pada baris untuk melihat metode pembayaran dan kategori sesuai izin; pemasukan manual mengikuti izin pemasukan. Nominal kategori, subkategori, metode, dan Outstanding DP membuka Riwayat sesuai izin. Piutang = sisa transaksi Tempo + sisa Piutang Manual; transaksi DP tidak termasuk Piutang. Kartu Piutang hanya muncul jika role yang digunakan memiliki izin baca transaksi dan data Pelanggan; tampilan harian Sales memakai tanggal pilihan, sedangkan Laporan Lengkap memakai tanggal akhir rentang. Saldo mengikuti pembayaran terbaru yang tercatat, bukan saldo historis jika pembayaran dicatat setelah tanggal acuan. Outstanding DP: Sisa transaksi berstatus DP. Tidak termasuk Tempo atau Piutang Manual. Dalam pratinjau Sales, pilih Laporan Lengkap untuk kembali dan membuka Riwayat dengan hak Owner." },
       { title: "Cocokkan jika perlu", description: "Di Pemasukan Harian, buka Cocokkan penerimaan dan isi nominal aktual per metode yang ingin diperiksa. Kosong berarti belum dicek; pilih Simpan pemeriksaan agar pengguna berizin pada toko dan tanggal yang sama dapat meninjaunya kembali. Periksa lagi jika data POS berubah. Pratinjau Sales tidak dapat menyimpan." },
     ],
   }),

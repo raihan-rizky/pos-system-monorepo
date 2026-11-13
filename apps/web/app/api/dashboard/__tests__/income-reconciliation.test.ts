@@ -4,6 +4,7 @@ import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn() }));
 vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.user, handleAuthError: () => null }));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
+vi.mock("@/features/customer-debt/services/receivable-balance", () => ({ loadReceivableBalance: async () => 0 }));
 vi.mock("@pos/db", () => ({ db: {
   transaction: { findMany: mocks.transactions, groupBy: async () => [], aggregate: async () => ({ _sum: { total: 100_000, amountPaid: 25_000 } }) },
   manualIncome: { findMany: mocks.manual }, transactionItem: { groupBy: async () => [] },

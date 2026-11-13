@@ -28,6 +28,18 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "customer-receivable-independent-rbac", date: "2026-11-13", revision: 1,
+    highlight: { title: "Atur izin piutang pelanggan", summary: "Sales dan Kasir dapat melihat piutang tanpa izin tambah, ubah, atau bayar." },
+    title: "Pisahkan izin profil dan piutang pelanggan.",
+    summary: "Atur izin melihat, menambah, mengubah, dan membayar piutang secara terpisah dari profil pelanggan. Sales dan Kasir mendapat akses lihat piutang secara default.",
+    kind: "improvement", impact: "major", area: "Pelanggan", href: "/customers", visual: "rbac",
+    steps: [
+      { title: "Atur izin role", detail: "Owner membuka Pengaturan > RBAC > Pelanggan untuk mengatur profil, piutang, dan pembayaran." },
+      { title: "Buka Piutang", detail: "Role dengan izin lihat piutang dapat membuka tab Piutang meski tidak memiliki akses profil atau Riwayat." },
+      { title: "Gunakan aksi yang diizinkan", detail: "Tambah dan bayar tampil sesuai izin; koreksi transaksi yang mengubah piutang juga memerlukan izin mengubah piutang." },
+    ],
+  },
+  {
     id: "sales-penerimaan-riwayat-selaraskan", date: "2026-11-11", revision: 1,
     highlight: { title: "Rincian penerimaan Sales", summary: "Buka rincian penerimaan langsung dari nominal Sales." },
     title: "Telusuri pemasukan langsung dari Sales.",
@@ -37,6 +49,18 @@ export const CHANGELOG: ChangeEntry[] = [
       { title: "Buka laporan", detail: "Masuk ke Laporan Keuangan; Owner dapat memilih Lihat sebagai Sales." },
       { title: "Pilih tanggal", detail: "Pilih tanggal pemasukan yang ingin diperiksa dalam WIB." },
       { title: "Buka rincian", detail: "Klik total untuk melihat daftar penerimaan; nominal kategori dan metode membuka Riwayat sesuai izin." },
+    ],
+  },
+  {
+    id: "kpi-piutang-dashboard-laporan", date: "2026-11-11", revision: 1,
+    highlight: { title: "Pantau saldo Piutang", summary: "Saldo Tempo dan Piutang Manual terlihat, dengan DP tetap terpisah." },
+    title: "Pantau Piutang di tiga tampilan laporan.",
+    summary: "Kartu Piutang merangkum sisa Tempo dan Piutang Manual di Dashboard dan laporan saat role memiliki izin baca transaksi serta data Pelanggan. Outstanding DP tetap terpisah.",
+    kind: "improvement", impact: "major", area: "Laporan Keuangan", href: "/financial-report", visual: "financial",
+    steps: [
+      { title: "Buka ringkasan", detail: "Buka Dashboard atau Laporan Keuangan untuk melihat kartu Piutang." },
+      { title: "Pilih tanggal laporan", detail: "Laporan Lengkap memakai tanggal akhir rentang; tampilan harian Sales memakai tanggal pilihan." },
+      { title: "Baca saldo Piutang", detail: "Piutang memuat sisa Tempo dan Piutang Manual. Outstanding DP tampil terpisah sesuai izin." },
     ],
   },
   {

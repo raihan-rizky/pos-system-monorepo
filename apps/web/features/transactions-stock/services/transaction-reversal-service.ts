@@ -2,6 +2,7 @@ import type { Prisma } from "@pos/db";
 import { lockStockMutationRows } from "@/features/product-stock-groups/stock-group-lock";
 import { collectStockItems, planOutstandingReturns } from "../helpers/stock-lifecycle";
 import { canVoidTransaction, isUnconvertedQuotation } from "../helpers/transaction-lifecycle-policy";
+import { assertReceivableChangeAllowed, type ReceivableAccess } from "@/features/customer-debt/helpers/receivable-authorization";
 
 export type TransactionReversalAction = "VOID" | "DELETE";
 export type TransactionReversalOutcome =
@@ -30,6 +31,7 @@ export interface ReverseTransactionInput {
   transactionId: string;
   action: TransactionReversalAction;
   actor: { id: string; name: string | null; role: string };
+  receivableAccess?: ReceivableAccess;
   onWarning?: (warning: TransactionReversalWarning) => void;
   beforeApply?: (lockedStatus: string) => Promise<void>;
 }
@@ -598,6 +600,8 @@ export async function reverseTransaction(
   });
   if (!transaction) return "NOT_FOUND";
   if (transaction.status !== lockedStatus) throw new TransactionReversalConflictError();
+  const before = { ...transaction, total: Number(transaction.total), amountPaid: Number(transaction.amountPaid) };
+  assertReceivableChangeAllowed(before, { ...before, status: "VOIDED" }, input.receivableAccess?.canView === true, input.receivableAccess?.canEdit === true);
 
   const existingAudit = await tx.transactionLifecycleAudit.findFirst({
     where: {

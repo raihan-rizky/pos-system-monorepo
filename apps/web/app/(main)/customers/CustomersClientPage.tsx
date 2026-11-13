@@ -428,6 +428,7 @@ function PayDebtModal({ customer, onClose }: PayDebtModalProps) {
               customerId={customer.id}
               customerName={customer.name}
               canAdd={false}
+              canPay={true}
             />
 
             <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -888,6 +889,8 @@ interface CustomerListCardProps {
   isSelected: boolean;
   canUpdate: boolean;
   canDelete: boolean;
+  canViewReceivables: boolean;
+  canPayReceivables: boolean;
   onSelect: (customerId: string) => void;
   onEdit: (customer: Customer) => void;
   onDelete: (customer: Customer) => void;
@@ -899,6 +902,8 @@ function CustomerListCard({
   isSelected,
   canUpdate,
   canDelete,
+  canViewReceivables,
+  canPayReceivables,
   onSelect,
   onEdit,
   onDelete,
@@ -970,7 +975,7 @@ function CustomerListCard({
         </div>
 
         <div className="flex max-w-full flex-wrap items-center gap-2 xl:justify-end">
-          <DebtBadge amount={debt} />
+          {canViewReceivables && <DebtBadge amount={debt} />}
           <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-3 py-1.5 text-xs font-bold text-white sm:px-3">
             Lihat Detail
             <ArrowRight className="h-3.5 w-3.5" />
@@ -990,17 +995,19 @@ function CustomerListCard({
           tone="sky"
           info="Jumlah total transaksi yang pernah dilakukan oleh pelanggan ini."
         />
-        <DetailMetricCard
-          label="Piutang"
-          value={debt > 0 ? formatCurrency(debt) : "Tidak ada"}
-          tone={debt > 0 ? "amber" : "emerald"}
-          info="Sisa hutang atau tagihan yang belum dilunasi oleh pelanggan."
-        />
+        {canViewReceivables && (
+          <DetailMetricCard
+            label="Piutang"
+            value={debt > 0 ? formatCurrency(debt) : "Tidak ada"}
+            tone={debt > 0 ? "amber" : "emerald"}
+            info="Sisa hutang atau tagihan yang belum dilunasi oleh pelanggan."
+          />
+        )}
       </div>
 
-      {(canUpdate || canDelete || debt > 0) ? (
+      {(canUpdate || canDelete || (canPayReceivables && debt > 0)) ? (
         <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 sm:mt-4 sm:flex sm:flex-wrap sm:pt-4">
-          {debt > 0 && canUpdate ? (
+          {debt > 0 && canPayReceivables ? (
             <button
               type="button"
               onClick={(event) => {
@@ -1046,6 +1053,9 @@ function CustomerDetailPanel({
   customerId,
   fallbackCustomer,
   canUpdate,
+  canViewReceivables,
+  canCreateReceivables,
+  canPayReceivables,
   onClose,
   onEdit,
   onPayDebt,
@@ -1054,6 +1064,9 @@ function CustomerDetailPanel({
   customerId: string | null;
   fallbackCustomer: Customer | null;
   canUpdate: boolean;
+  canViewReceivables: boolean;
+  canCreateReceivables: boolean;
+  canPayReceivables: boolean;
   onClose: () => void;
   onEdit: (customer: Customer) => void;
   onPayDebt: (customer: Customer) => void;
@@ -1140,7 +1153,7 @@ function CustomerDetailPanel({
         </div>
 
         <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-          {debtAmount > 0 && canUpdate ? (
+          {debtAmount > 0 && canPayReceivables ? (
             <button
               type="button"
               onClick={() => onPayDebt(customer)}
@@ -1174,12 +1187,12 @@ function CustomerDetailPanel({
           tone="sky"
           info="Jumlah total transaksi yang pernah dilakukan oleh pelanggan ini."
         />
-        <DetailMetricCard
+        {canViewReceivables && <DetailMetricCard
           label="Piutang"
           value={debtAmount > 0 ? formatCurrency(debtAmount) : "Tidak ada"}
           tone={debtAmount > 0 ? "amber" : "emerald"}
           info="Sisa hutang atau tagihan yang belum dilunasi oleh pelanggan."
-        />
+        />}
       </div>
 
       <Suspense
@@ -1187,15 +1200,15 @@ function CustomerDetailPanel({
           <div className="mt-5 h-80 rounded-3xl border border-slate-200 bg-slate-50 sm:mt-6" />
         }
       >
-        <div className="mt-5 sm:mt-6">
+        {canViewReceivables && <div className="mt-5 sm:mt-6">
           <CustomerReceivablesSection
             key={customerId}
             customerId={customerId}
             customerName={displayName}
-            canAdd={canUpdate}
-            canPay={canUpdate}
+            canAdd={canCreateReceivables}
+            canPay={canPayReceivables}
           />
-        </div>
+        </div>}
         <CustomerRecapPanel customerId={customerId} range={recapRange} />
       </Suspense>
 
@@ -1315,13 +1328,19 @@ function CustomerDetailPanel({
 
 export default function CustomersClientPage() {
   const { canPerform } = useRole();
+  const canReadCustomers = shouldShowAction("customer", "read", canPerform);
+  const canViewReceivables = shouldShowAction("customer.receivable", "read", canPerform);
+  const canCreateReceivables = canViewReceivables && shouldShowAction("customer.receivable", "create", canPerform);
+  const canPayReceivables = canViewReceivables && shouldShowAction("customer.receivable.payment", "create", canPerform);
+  const canReadTransactions = shouldShowAction("transaction", "read", canPerform);
   const canCreateCustomers = shouldShowAction("customer", "create", canPerform);
   const canUpdateCustomers = shouldShowUpdateAction("customer", canPerform);
   const canDeleteCustomers = shouldShowDeleteAction("customer", canPerform);
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<CustomerType | "">("");
-  const [activeTab, setActiveTab] = useState<CustomerPageTab>("all");
+  const [requestedTab, setActiveTab] = useState<CustomerPageTab>("all");
+  const activeTab: CustomerPageTab = requestedTab === "all" && canReadCustomers ? "all" : canViewReceivables ? "debt" : "all";
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -1341,13 +1360,13 @@ export default function CustomersClientPage() {
   const { data, isLoading, isFetching } = useCustomers({
     search: debouncedSearch,
     type: typeFilter,
-    hasDebt: activeTab === "debt",
+    hasDebt: canViewReceivables && activeTab === "debt",
     page,
     limit: 20,
-    enabled: activeTab !== "debt",
+    enabled: canReadCustomers && activeTab !== "debt",
   });
 
-  const customers = useMemo(() => data?.data ?? [], [data?.data]);
+  const customers = useMemo(() => canReadCustomers ? data?.data ?? [] : [], [canReadCustomers, data?.data]);
 
   const selectedCustomer = useMemo(
     () =>
@@ -1450,6 +1469,7 @@ export default function CustomersClientPage() {
   );
 
   const hasActiveFilters = search.trim().length > 0 || typeFilter !== "";
+  if (!canReadCustomers && !canViewReceivables) return <p role="status" className="p-6 text-sm text-slate-600">Akun ini belum memiliki izin melihat pelanggan atau piutang.</p>;
 
   return (
     <div className="min-h-full overflow-x-hidden bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.12),_transparent_24%),linear-gradient(180deg,_#fffdf8_0%,_#f8fafc_34%,_#f8fafc_100%)]">
@@ -1496,7 +1516,7 @@ export default function CustomersClientPage() {
           </div>
         </section>
 
-        <Suspense
+        {canReadCustomers && <Suspense
           fallback={
             <section className="h-[520px] rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.06)] sm:rounded-[32px]" />
           }
@@ -1506,7 +1526,7 @@ export default function CustomersClientPage() {
             onRangeChange={setRecapRange}
             onSelectCustomer={setSelectedCustomerId}
           />
-        </Suspense>
+        </Suspense>}
 
         <section className="min-w-0 rounded-[24px] border border-slate-200 bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.06)] sm:rounded-[32px] sm:p-5">
           <div
@@ -1514,7 +1534,7 @@ export default function CustomersClientPage() {
             aria-label="Tampilan pelanggan"
             className="mb-3 grid grid-cols-2 gap-2 rounded-[20px] bg-slate-100 p-1 sm:mb-4 sm:inline-grid sm:min-w-[420px]"
           >
-            <button
+            {canReadCustomers && <button
               type="button"
               role="tab"
               aria-selected={activeTab === "all"}
@@ -1527,8 +1547,8 @@ export default function CustomersClientPage() {
             >
               <Users2 className="h-4 w-4 shrink-0" />
               <span className="truncate">Semua Pelanggan</span>
-            </button>
-            <button
+            </button>}
+            {canViewReceivables && <button
               type="button"
               role="tab"
               aria-selected={activeTab === "debt"}
@@ -1541,13 +1561,13 @@ export default function CustomersClientPage() {
             >
               <Wallet className="h-4 w-4 shrink-0" />
               <span className="truncate">Piutang</span>
-            </button>
+            </button>}
           </div>
 
-          {activeTab === "debt" ? (
+          {activeTab === "debt" && canViewReceivables ? (
             <div className="space-y-5">
-              <CustomerReceivablesSection canAdd={false} canPay={canUpdateCustomers} />
-              <DebtTransactionsList />
+              <CustomerReceivablesSection canAdd={false} canPay={canPayReceivables} />
+              <DebtTransactionsList canPay={canPayReceivables} canReadTransactions={canReadTransactions} />
             </div>
           ) : (
             <>
@@ -1671,6 +1691,8 @@ export default function CustomersClientPage() {
                       isSelected={customer.id === selectedCustomerId}
                       canUpdate={canUpdateCustomers}
                       canDelete={canDeleteCustomers}
+                      canViewReceivables={canViewReceivables}
+                      canPayReceivables={canPayReceivables}
                       onSelect={setSelectedCustomerId}
                       onEdit={openEditModal}
                       onDelete={handleDeleteCustomer}
@@ -1720,11 +1742,14 @@ export default function CustomersClientPage() {
         )}
       </div>
 
-      {selectedCustomerId && selectedCustomer ? (
+      {canReadCustomers && selectedCustomerId && selectedCustomer ? (
         <CustomerDetailPanel
           customerId={selectedCustomerId}
           fallbackCustomer={selectedCustomer}
           canUpdate={canUpdateCustomers}
+          canViewReceivables={canViewReceivables}
+          canCreateReceivables={canCreateReceivables}
+          canPayReceivables={canPayReceivables}
           onClose={() => setSelectedCustomerId(null)}
           onEdit={openEditModal}
           onPayDebt={setDebtTarget}
@@ -1736,7 +1761,7 @@ export default function CustomersClientPage() {
         <CustomerFormModal initial={editTarget} onClose={closeFormModal} />
       ) : null}
 
-      {debtTarget && canUpdateCustomers ? (
+      {debtTarget && canReadCustomers && canPayReceivables ? (
         <PayDebtModal
           customer={debtTarget}
           onClose={() => setDebtTarget(null)}

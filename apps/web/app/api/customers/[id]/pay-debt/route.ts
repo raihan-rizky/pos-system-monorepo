@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { z } from "zod";
-import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError, canAuthenticatedUserPerform, canAuthenticatedUserAccessPage, AuthError } from "@/lib/rbac/guard";
 import { allocateCustomerDebtPayment } from "@/features/customer-debt/helpers/customer-debt-allocation";
 import { captureReceiptSnapshot, recordReceiptChange, shouldRecordReceiptChange } from "@/features/receipt-changes/server/receipt-change-audit";
 
@@ -40,7 +40,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requirePermission("customer", "update");
+    const user = await requirePermission("customer.receivable", "read");
+    await requirePermission("customer.receivable.payment", "create");
+    if (!await canAuthenticatedUserAccessPage(user, "/customers")) throw new AuthError(403, "Akses halaman Pelanggan diperlukan.");
+    const canReadCustomer = await canAuthenticatedUserPerform(user, "customer", "read");
     const storeId = user.storeId || "store-main";
     const { id } = await params;
     const body = await request.json();
@@ -214,7 +217,7 @@ export async function POST(
         id: updated.id,
         name: updated.name,
         totalDebt: updated.totalDebt,
-        totalSpent: updated.totalSpent,
+        ...(canReadCustomer ? { totalSpent: updated.totalSpent } : {}),
       },
     });
   } catch (error) {

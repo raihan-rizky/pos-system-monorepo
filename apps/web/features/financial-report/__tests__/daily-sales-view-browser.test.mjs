@@ -68,7 +68,7 @@ try {
         return route.fulfill({ json });
       }
       if (url.pathname === '/api/finance/report') {
-        requests.push({ full: true });
+        requests.push({ full: true, ...Object.fromEntries(url.searchParams) });
         return route.fulfill({ json: { dateFrom: '2026-11-01', dateTo: '2026-11-07', summary: { revenue: 50000, collected: 25000, outstandingDp: 25000 }, topProducts: [], salespersons: [], categories: [], subcategories: [], paymentMethods: [], shifts: [], lossStok: [], trend: [] } });
       }
       if (url.pathname === '/api/history/receipts') {
@@ -212,6 +212,7 @@ try {
     await expect(sales).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByRole('heading', { name: 'Laporan Keuangan', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Pemasukan Harian', exact: true })).toHaveCount(0);
+    await expect.poll(() => requests.filter(row => row.full).at(-1)?.view).toBe('sales');
     await load('?role=SALES&limited=1');
     const beforeSales = requests.filter(row => row.full).length;
     await expect(page.getByRole('heading', { name: 'Outstanding DP', exact: true })).toBeVisible();

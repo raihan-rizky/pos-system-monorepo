@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GET } from "../route";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
+const canPerformMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const customerFindManyMock = vi.hoisted(() => vi.fn());
 const transactionFindManyMock = vi.hoisted(() => vi.fn());
@@ -10,6 +11,7 @@ const customerReceivableFindManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
+  canAuthenticatedUserPerform: canPerformMock,
   handleAuthError: handleAuthErrorMock,
 }));
 
@@ -25,6 +27,7 @@ vi.mock("@pos/db", () => ({
 describe("GET /api/customers/recap/export", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    canPerformMock.mockResolvedValue(true);
     customerReceivableFindManyMock.mockResolvedValue([]);
     requirePermissionMock.mockResolvedValue({ id: "owner-1", storeId: "store-main" });
     handleAuthErrorMock.mockReturnValue(null);
@@ -100,6 +103,19 @@ describe("GET /api/customers/recap/export", () => {
     expect(response.status).toBe(200);
     expect(body.data.summary).toMatchObject({ debtCollectedInPeriod: 10000, totalDebtOutstanding: 100000 });
     expect(customerReceivableFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ storeId: "store-main" }) }));
+  });
+
+  it("omits piutang from customer exports without the receivable-read grant", async () => {
+    canPerformMock.mockResolvedValue(false);
+    const response = await GET(new Request("http://localhost/api/customers/recap/export?dateFrom=2026-05-01&dateTo=2026-05-02"));
+    const { data } = await response.json();
+    expect(response.status).toBe(200);
+    expect(data.groups[0].customers[0].totalSpent).toBe(125000);
+    expect(data.groups[0].customers[0]).not.toHaveProperty("totalDebt");
+    expect(data.groups[0].summary).not.toHaveProperty("debtOutstanding");
+    expect(data.summary).not.toHaveProperty("totalDebtOutstanding");
+    expect(debtPaymentLogFindManyMock).not.toHaveBeenCalled();
+    expect(customerReceivableFindManyMock).not.toHaveBeenCalled();
   });
 
 });
