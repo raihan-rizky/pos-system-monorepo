@@ -16,15 +16,15 @@ Piutang adalah sisa transaksi Tempo yang belum lunas ditambah sisa Piutang Manua
 ## Akses dan lingkup data
 
 - Query dibatasi ke toko pengguna.
-- KPI hanya dikirim jika role memiliki izin baca transaksi (`transaction:read`) dan data Pelanggan (`customer:read`); tampilan Sales memakai izin efektif Sales.
+- KPI hanya dikirim jika role memiliki izin baca transaksi (`transaction:read`) dan Lihat piutang (`customer.receivable:read`); tampilan Sales memakai izin efektif Sales.
 - API menerapkan pemeriksaan izin, dan UI menyembunyikan kartu ketika saldo tidak tersedia.
-- Fitur memakai izin RBAC yang sudah ada; tidak menambah permission atau migrasi.
+- Izin Lihat piutang terpisah dari izin baca profil Pelanggan (`customer:read`).
 
 ## Tampilan
 
 - Dashboard: kartu Piutang dan Outstanding DP tampil terpisah.
-- Laporan Keuangan lengkap: kartu Piutang mengikuti tanggal akhir rentang dan izin baca transaksi serta data Pelanggan pada role aktif.
-- Lihat sebagai Sales: kartu Piutang mengikuti tanggal pilihan dan izin role Sales.
+- Laporan Keuangan lengkap: kartu Piutang mengikuti tanggal akhir rentang dan izin baca transaksi serta Lihat piutang pada role aktif.
+- Lihat sebagai Sales: kartu Piutang mengikuti tanggal pilihan dan izin efektif role Sales.
 - Ekspor bulanan tidak menambahkan KPI ini.
 
 Catatan Perubahan memakai ilustrasi keuangan dengan data contoh. Screenshot aman untuk dipublikasikan belum tersedia.

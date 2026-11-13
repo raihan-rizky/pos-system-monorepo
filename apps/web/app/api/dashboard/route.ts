@@ -71,7 +71,8 @@ export async function GET() {
       ? resolveIncomeAccess(user.role, rolePermissions)
       : null;
     const canReadReceivables = rolePermissions
-      ? canRolePerformAction(user.role, "customer", "read", rolePermissions)
+      ? canRolePerformAction(user.role, "transaction", "read", rolePermissions) &&
+        canRolePerformAction(user.role, "customer.receivable", "read", rolePermissions)
       : false;
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);

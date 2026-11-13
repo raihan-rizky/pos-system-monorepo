@@ -358,7 +358,10 @@ describe("GET /api/finance/report", () => {
       storeId: "store-main",
     });
     globalRolePermissionsMock.mockResolvedValueOnce(permissions);
-    canRolePerformActionMock.mockReturnValue(true);
+    canRolePerformActionMock.mockImplementation(
+      (_role, resource, action) =>
+        action === "read" && ["transaction", "customer.receivable"].includes(resource),
+    );
     loadReceivableBalanceMock.mockResolvedValueOnce(425000);
 
     const response = await GET(
@@ -377,6 +380,12 @@ describe("GET /api/finance/report", () => {
     );
     expect(canRolePerformActionMock).toHaveBeenCalledWith(
       "SALES",
+      "customer.receivable",
+      "read",
+      permissions,
+    );
+    expect(canRolePerformActionMock).not.toHaveBeenCalledWith(
+      "SALES",
       "customer",
       "read",
       permissions,
@@ -388,7 +397,7 @@ describe("GET /api/finance/report", () => {
     expect(body.summary.receivableBalance).toBe(425000);
   });
 
-  it.each(["transaction", "customer"])(
+  it.each(["transaction", "customer.receivable"])(
     "omits Piutang from the full report when the effective role lacks %s:read",
     async (deniedResource) => {
       const permissions = { catalog: "test" };
@@ -419,7 +428,7 @@ describe("GET /api/finance/report", () => {
       );
       expect(canRolePerformActionMock).toHaveBeenCalledWith(
         "OWNER",
-        "customer",
+        deniedResource,
         "read",
         permissions,
       );
@@ -428,7 +437,7 @@ describe("GET /api/finance/report", () => {
     },
   );
 
-  it.each(["transaction", "customer"])(
+  it.each(["transaction", "customer.receivable"])(
     "omits Piutang when the effective role lacks %s:read",
     async (deniedResource) => {
       const permissions = { catalog: "test" };
@@ -459,7 +468,7 @@ describe("GET /api/finance/report", () => {
       );
       expect(canRolePerformActionMock).toHaveBeenCalledWith(
         "SALES",
-        "customer",
+        deniedResource,
         "read",
         permissions,
       );

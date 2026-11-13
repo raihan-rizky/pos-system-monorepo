@@ -23,13 +23,14 @@ describe("daily receipt ranges", () => {
 });
 
 describe("daily receivable access", () => {
-  it("requires both transaction and customer read permissions", async () => {
+  it("requires transaction and customer receivable read permissions", async () => {
     const dailyIncomeModule = await import("../daily-income") as Record<string, unknown>;
     const hasDailyReceivableAccess = dailyIncomeModule.hasDailyReceivableAccess as ((canRead: (target: string) => boolean) => boolean) | undefined;
     expect(hasDailyReceivableAccess).toBeTypeOf("function");
-    expect(hasDailyReceivableAccess?.(target => ["transaction", "customer"].includes(target))).toBe(true);
+    expect(hasDailyReceivableAccess?.(target => ["transaction", "customer.receivable"].includes(target))).toBe(true);
+    expect(hasDailyReceivableAccess?.(target => ["transaction", "customer"].includes(target))).toBe(false);
     expect(hasDailyReceivableAccess?.(target => target === "transaction")).toBe(false);
-    expect(hasDailyReceivableAccess?.(target => target === "customer")).toBe(false);
+    expect(hasDailyReceivableAccess?.(target => target === "customer.receivable")).toBe(false);
   });
 });
 
