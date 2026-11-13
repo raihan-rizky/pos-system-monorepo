@@ -1,5 +1,19 @@
 import type { PrintingServiceCartItem } from "@/hooks/useCart";
-import type { PrintingReceiptLine } from "./types";
+import type { PrintingReceiptDocument, PrintingReceiptLine, PrintingSubcategory } from "./types";
+
+export function applyPrintingReceiptCheckoutNames(
+  document: PrintingReceiptDocument,
+  subcategory: PrintingSubcategory,
+  selection: { customerName: string; customerId: string | null; salesName?: string | null },
+): PrintingReceiptDocument {
+  return {
+    ...document,
+    customerName: selection.customerName,
+    customerId: selection.customerId,
+    receiver: subcategory === "SPANDUK" ? selection.customerName : document.receiver,
+    signatory: selection.salesName?.trim() || document.signatory,
+  };
+}
 
 export function buildPrintingReceiptCartItems(lines: PrintingReceiptLine[]): PrintingServiceCartItem[] {
   const items: PrintingServiceCartItem[] = [];

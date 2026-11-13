@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "nama-otomatis-pdf-nota-percetakan", date: "2026-11-13", revision: 1,
+    highlight: { title: "Nama otomatis di nota cetak", summary: "Nama pelanggan dan sales mengikuti pilihan saat pembayaran." },
+    title: "Isi nama nota percetakan lebih mudah.",
+    summary: "Nama pelanggan dan sales terisi dari pilihan pembayaran pada semua jenis nota percetakan. Draft dapat dipratinjau dan baru dapat dicetak atau diunduh sebagai PDF setelah diproses.",
+    kind: "improvement", impact: "major", area: "Kasir & Percetakan", href: "/pos", visual: "printing",
+    screenshot: { src: "/images/changelog/nama-otomatis-nota-2026-11-12.png", alt: "Kolom Hormat Kami pada nota Spanduk terisi nama contoh Sales Baru." },
+    steps: [
+      { title: "Siapkan nota", detail: "Buka Kasir > Percetakan, pilih jenis nota, lalu isi pesanan." },
+      { title: "Pilih pelanggan dan sales", detail: "Klik Bayar / DP, pilih pelanggan dan sales, lalu proses pembayaran." },
+      { title: "Periksa dan cetak", detail: "Periksa nama pada nota yang diproses, lalu pilih Cetak atau Unduh PDF." },
+    ],
+  },
+  {
     id: "sesi-multi-perangkat-20261111", date: "2026-11-12", revision: 1,
     highlight: { title: "Masuk di banyak perangkat", summary: "Keluar di satu perangkat tidak mengganggu sesi pada perangkat lain." },
     title: "Sesi kasir tetap aktif di perangkat lain",

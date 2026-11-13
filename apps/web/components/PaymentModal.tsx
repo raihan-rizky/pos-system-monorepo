@@ -49,6 +49,7 @@ interface PaymentModalProps {
   receiptInvoiceDate?: string;
   initialCustomerSelection?: CheckoutCustomerSelection;
   onCustomerSelectionChange?: (selection: CheckoutCustomerSelection) => void;
+  preserveCustomerSelectionOnClose?: boolean;
   open: boolean;
   onClose: () => void;
   items: CartItem[];
@@ -144,6 +145,7 @@ export function PaymentModal({
   onUpdateTransactionPrice,
   initialCustomerSelection,
   onCustomerSelectionChange,
+  preserveCustomerSelectionOnClose = false,
   allowItemDiscounts = true,
   receiptInvoiceDate,
 }: PaymentModalProps) {
@@ -184,9 +186,11 @@ export function PaymentModal({
   const createCustomer = useCreateCustomer();
   const handleClose = () => {
     if (isProcessing || isSavingDraft || createCustomer.isPending) return;
-    const generalSelection: CheckoutCustomerSelection = { kind: "general" };
-    setCustomerSelection(generalSelection);
-    onCustomerSelectionChange?.(generalSelection);
+    if (!preserveCustomerSelectionOnClose) {
+      const generalSelection: CheckoutCustomerSelection = { kind: "general" };
+      setCustomerSelection(generalSelection);
+      onCustomerSelectionChange?.(generalSelection);
+    }
     onClose();
   };
   const pricingRulesQuery = useCustomerCategoryPricingRules({ activeOnly: true });
@@ -204,10 +208,17 @@ export function PaymentModal({
     serverClock.isLoading,
     { preserveOnReopen: true },
   );
-  const invoiceDate = receiptInvoiceDate ?? selectedInvoiceDate;
+  const [receiptDate, setReceiptDate] = useState(receiptInvoiceDate ?? "");
+  const isReceiptPayment = receiptInvoiceDate !== undefined;
+  const invoiceDate = isReceiptPayment ? receiptDate : selectedInvoiceDate;
+
+  useEffect(() => {
+    setReceiptDate(receiptInvoiceDate ?? "");
+  }, [receiptInvoiceDate]);
   
   const { role, isOfflineSession } = useRole();
   const canChangeInvoiceDate = !isOfflineSession && (role === "OWNER" || role === "ADMIN");
+  const invalidReceiptDate = canChangeInvoiceDate && isReceiptPayment && !invoiceDate;
   const selectedCustomerType: CustomerType =
     customerSelection.kind === "existing"
       ? customerSelection.customer.type ?? "UMUM"
@@ -299,7 +310,7 @@ export function PaymentModal({
     customerSelection.kind === "existing" ||
     (customerSelection.kind === "new" && Boolean(customerSelection.name.trim()));
   const hasInvalidSellingPrice = pricedItems.some(item => item.lineType === "PRODUCT" && item.priceError);
-  const canPay = canUseRoundingPolicy && canUseSpecialPricingPolicy && !hasInvalidSellingPrice && pricedItems.length > 0 && !invalidTax && !itemDiscountEditor && canSubmitPayment({
+  const canPay = canUseRoundingPolicy && canUseSpecialPricingPolicy && !hasInvalidSellingPrice && pricedItems.length > 0 && !invalidReceiptDate && !invalidTax && !itemDiscountEditor && canSubmitPayment({
     mode: isTempo ? "TEMPO" : isDP ? "DP" : "PAID",
     amountPaid,
     total,
@@ -310,10 +321,19 @@ export function PaymentModal({
   const resolveCustomerForSubmit = async () => {
     try {
       setCustomerError(null);
-      return await resolveCheckoutCustomer(
+      const customer = await resolveCheckoutCustomer(
         customerSelection,
         createCustomer.mutateAsync,
       );
+      if (customerSelection.kind === "new" && customer.customerId) {
+        const savedSelection: CheckoutCustomerSelection = {
+          kind: "existing",
+          customer: { id: customer.customerId, name: customer.customerName, type: customer.customerType },
+        };
+        setCustomerSelection(savedSelection);
+        onCustomerSelectionChange?.(savedSelection);
+      }
+      return customer;
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Gagal menyimpan pelanggan";
@@ -734,14 +754,15 @@ export function PaymentModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label htmlFor="payment-invoice-date" className="text-sm font-medium text-surface-700 mb-1.5 block">
-                  {receiptInvoiceDate ? "Tanggal Nota" : "Tanggal Invoice (Opsional)"}
+                  {isReceiptPayment ? "Tanggal Nota" : "Tanggal Invoice (Opsional)"}
                 </label>
                 <input
                   type="date"
                   id="payment-invoice-date"
-                  disabled={Boolean(receiptInvoiceDate)}
+                  required={isReceiptPayment}
+                  disabled={isProcessing || isSavingDraft || (isReceiptPayment && !canChangeInvoiceDate)}
                   value={invoiceDate}
-                  onChange={(e) => setInvoiceDate(e.target.value)}
+                  onChange={(e) => isReceiptPayment ? setReceiptDate(e.target.value) : setInvoiceDate(e.target.value)}
                   className="w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 text-sm text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400"
                 />
               </div>
@@ -759,9 +780,10 @@ export function PaymentModal({
               </div>
             </div>
             <p className="text-xs text-surface-500">
-              {receiptInvoiceDate ? "Tanggal mengikuti nota. Ubah pada lembar nota sebelum pembayaran. " : ""}
+              {isReceiptPayment ? "Tanggal pilihan disimpan ke nota dan dipakai untuk invoice saat pembayaran. " : ""}
               Jika jam dikosongkan, sistem memakai jam checkout saat invoice dibuat.
             </p>
+            {invalidReceiptDate && <p role="alert" className="text-xs text-danger-700">Pilih tanggal nota sebelum pembayaran.</p>}
             {invoiceDate && invoiceDate !== toJakartaInputParts(serverClock.now ?? new Date()).date && (
               <div>
                 <label className="text-sm font-medium text-surface-700 mb-1.5 block">
