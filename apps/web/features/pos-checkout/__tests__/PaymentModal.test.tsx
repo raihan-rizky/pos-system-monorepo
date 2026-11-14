@@ -308,6 +308,33 @@ describe("PaymentModal custom invoice date", () => {
     expect(html).not.toContain("lalu − 0%");
   });
 
+  it("uses a new customer's selected type for checkout pricing", () => {
+    pricingRulesMock.mockReturnValue([{
+      id: "rule-agent", categoryId: "cat-paper", customerType: "AGEN",
+      unit: "Rim", brandId: null, mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT",
+      value: 10, discountPercent: 5, isActive: true,
+      category: { id: "cat-paper", name: "Kertas" },
+    }]);
+    const item: ProductCartItem = {
+      cartLineId: "PRODUCT:paper-rim", lineType: "PRODUCT", productId: "paper-rim",
+      name: "Kertas A4", price: 16200, catalogPrice: 16200, costPrice: 12000,
+      hargaAgen: null, hargaDinas: null, quantity: 1, unit: "Rim", stock: 20,
+      categoryId: "cat-paper", categoryName: "Kertas", appliedPricing: null,
+    };
+    const html = renderToStaticMarkup(
+      <PaymentModal
+        open
+        onClose={vi.fn()}
+        items={[item]}
+        subtotal={16200}
+        onConfirm={vi.fn()}
+        initialCustomerSelection={{ kind: "new", name: "Agen Budi", type: "AGEN" }}
+      />,
+    );
+
+    expect(html).toContain("AGEN HPP masing-masing satuan + 10% lalu − 5%");
+  });
+
   it("shows optional invoice date and time controls for owners", () => {
     roleMock = "OWNER";
 

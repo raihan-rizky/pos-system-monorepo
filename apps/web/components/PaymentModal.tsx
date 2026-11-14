@@ -222,7 +222,9 @@ export function PaymentModal({
   const selectedCustomerType: CustomerType =
     customerSelection.kind === "existing"
       ? customerSelection.customer.type ?? "UMUM"
-      : "UMUM";
+      : customerSelection.kind === "new"
+        ? customerSelection.type ?? "UMUM"
+        : "UMUM";
   const specialPricingSettings = useSpecialPricingSettings();
   const specialPricingEnabled = specialPricingSettings.data ?? false;
   const canUseSpecialPricingPolicy = !items.some(item => item.lineType === "PRODUCT") || specialPricingSettings.data !== undefined;
