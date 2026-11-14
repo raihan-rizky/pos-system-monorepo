@@ -45,4 +45,23 @@ describe("panduan koreksi nota Percetakan yang diproses", () => {
     const steps = JSON.stringify(entry?.steps);
     for (const term of ["Edit nota diproses", "Saya memahami dampaknya terhadap transaksi, stok, dan piutang.", "Tetap edit nota", "Tinjau perubahan", "Simpan dan perbarui transaksi"]) expect(steps).toContain(term);
   });
+
+  it("documents payment-method and salesperson corrections for processed notes", () => {
+    const printingGuide = help.slice(help.indexOf("const PRINTING_RECEIPT_GUIDE"), help.indexOf("export const HELP_ROLE_CONTENT"));
+    const guide = FAQ_WORKFLOWS.find(item => item.faqNumber === 42)!;
+    const workflow = JSON.stringify(guide.steps);
+    for (const text of [printingGuide, faq, workflow]) {
+      expect(text).toContain("Metode pembayaran");
+      expect(text).toContain("Sales transaksi");
+      expect(text).toContain("Tinjau perubahan");
+    }
+    expect(faq).toContain("Nominal dan tanggal pembayaran awal tetap");
+    expect(faq).toContain("Pembayaran lanjutan tetap");
+    const entry = CHANGELOG.find(item => item.id === "processed-printing-payment-details");
+    expect(entry).toMatchObject({ date: "2026-11-14", revision: 1, visual: "printing", screenshot: { src: "/images/changelog/processed-printing-payment-details.png" } });
+    expect(entry?.steps).toHaveLength(3);
+    expect(entry!.highlight.title.length).toBeLessThanOrEqual(40);
+    expect(entry!.highlight.summary.length).toBeLessThanOrEqual(85);
+    expect(entry!.screenshot?.alt).toContain("contoh");
+  });
 });

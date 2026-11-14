@@ -6,7 +6,7 @@ import { AlertTriangle, Link2, Plus, Trash2, X } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
 import { calculateTransactionTax, getTransactionTaxMethod, getTransactionTaxRate } from "@/features/transaction-tax/helpers/tax-calculation";
 import { readPrintingReceiptResponse } from "../receipt-api";
-import type { ProcessedPrintingReceiptReview } from "../processed-edit";
+import type { ProcessedPaymentMethod, ProcessedPrintingReceiptReview, ProcessedPrintingReceiptTransactionInput } from "../processed-edit";
 import { MAX_PRINTING_RECEIPT_AMOUNT } from "../domain";
 import type { PrintingReceipt, PrintingReceiptLine } from "../types";
 import { PrintingReceiptView } from "./PrintingReceiptView";
@@ -15,6 +15,24 @@ import { PrintingReceiptStockLinkModal } from "./PrintingReceiptStockLinkModal";
 type Phase = "warning" | "edit" | "review" | "discard";
 const warning = "Menyimpan perubahan akan memperbarui transaksi, menyesuaikan stok/bahan yang terpakai, serta menghitung ulang total tagihan dan sisa piutang. Transaksi yang sebelumnya lunas dapat kembali memiliki piutang jika total tagihan bertambah.";
 const emptyLine = (): PrintingReceiptLine => ({ id: crypto.randomUUID(), name: "", material: "", quantity: null, price: null, stockLink: null });
+const paymentMethodOptions: { value: ProcessedPaymentMethod; label: string }[] = [
+  { value: "CASH", label: "Tunai" }, { value: "DEBIT", label: "Debit" }, { value: "CREDIT", label: "Kartu kredit" },
+  { value: "QRIS", label: "QRIS" }, { value: "TRANSFER", label: "Transfer" },
+];
+const paymentMethodLabels = Object.fromEntries(paymentMethodOptions.map(option => [option.value, option.label])) as Record<ProcessedPaymentMethod, string>;
+
+function transactionInputFromReceipt(receipt: PrintingReceipt): ProcessedPrintingReceiptTransactionInput {
+  const transaction = receipt.transaction;
+  const payments = (transaction?.payments ?? []) as { id: string; amount: number; method: string }[];
+  const storedMethod = transaction?.paymentMethod;
+  return {
+    paymentMethods: payments.map(payment => ({ id: payment.id, method: payment.method as ProcessedPaymentMethod })),
+    legacyPaymentMethod: !payments.length && storedMethod && storedMethod !== "TEMPO" && paymentMethodOptions.some(option => option.value === storedMethod)
+      ? storedMethod as ProcessedPaymentMethod
+      : null,
+    salespersonId: transaction?.salespersonId ?? null,
+  };
+}
 
 /** Processed corrections stay local until the reviewed, explicit commit succeeds. */
 export function ProcessedPrintingReceiptEditor({ receipt, onClose, onSaved }: {
@@ -26,17 +44,23 @@ export function ProcessedPrintingReceiptEditor({ receipt, onClose, onSaved }: {
   const heading = useRef<HTMLHeadingElement>(null);
   const mounted = useRef(true);
   const pending = useRef(false);
+  const transaction = receipt.transaction;
+  const paymentRows = (transaction?.payments ?? []) as { id: string; amount: number; method: string }[];
   const [draft, setDraft] = useState(receipt);
+  const [transactionDraft, setTransactionDraft] = useState<ProcessedPrintingReceiptTransactionInput>(() => transactionInputFromReceipt(receipt));
+  const [salespersons, setSalespersons] = useState<{ id: string; name: string }[]>([]);
   const [phase, setPhase] = useState<Phase>("warning");
   const [acknowledged, setAcknowledged] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [review, setReview] = useState<ProcessedPrintingReceiptReview | null>(null);
   const [stockLineId, setStockLineId] = useState<string | null>(null);
-  const dirty = JSON.stringify(draft.document) !== JSON.stringify(receipt.document);
+  const dirty = JSON.stringify(draft.document) !== JSON.stringify(receipt.document) || JSON.stringify(transactionDraft) !== JSON.stringify(transactionInputFromReceipt(receipt));
   const stockLine = draft.document.lines.find(line => line.id === stockLineId);
   const endpoint = `/api/printing-receipts/${encodeURIComponent(receipt.id)}/processed`;
-  const transaction = receipt.transaction;
+  const salespersonOptions = transaction?.salespersonId && !salespersons.some(salesperson => salesperson.id === transaction.salespersonId)
+    ? [{ id: transaction.salespersonId, name: transaction.salesperson?.name || transaction.salesName || "Sales transaksi saat ini" }, ...salespersons]
+    : salespersons;
   const subtotal = draft.document.lines.reduce((sum, line) => sum + (line.price ?? 0) * (line.quantity ?? 0), 0);
   const previewSubtotal = Number.isFinite(subtotal) ? Math.min(MAX_PRINTING_RECEIPT_AMOUNT, Math.max(0, subtotal)) : MAX_PRINTING_RECEIPT_AMOUNT;
   const draftPayment = transaction ? {
@@ -50,6 +74,17 @@ export function ProcessedPrintingReceiptEditor({ receipt, onClose, onSaved }: {
     const element = dialog.current;
     element?.showModal();
     return () => { mounted.current = false; element?.close(); };
+  }, []);
+  useEffect(() => {
+    let active = true;
+    fetch("/api/salespersons?activeOnly=true")
+      .then(response => response.json())
+      .then((result: { data?: { id?: unknown; name?: unknown }[] }) => {
+        if (!active) return;
+        setSalespersons(Array.isArray(result.data) ? result.data.filter((row): row is { id: string; name: string } => typeof row.id === "string" && typeof row.name === "string") : []);
+      })
+      .catch(() => { if (active) setSalespersons([]); });
+    return () => { active = false; };
   }, []);
   useEffect(() => { heading.current?.focus(); }, [phase, stockLineId]);
 
@@ -68,7 +103,7 @@ export function ProcessedPrintingReceiptEditor({ receipt, onClose, onSaved }: {
     pending.current = true; setBusy(true); setError(null);
     try {
       const response = await fetch(endpoint, { method: save ? "PATCH" : "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ revision: receipt.revision, number: receipt.number, document: draft.document,
+        body: JSON.stringify({ revision: receipt.revision, number: receipt.number, document: draft.document, transaction: transactionDraft,
           ...(save ? { acknowledged: true, reviewToken: review!.reviewToken } : {}) }) });
       if (save) {
         const saved = await readPrintingReceiptResponse<PrintingReceipt>(response);
@@ -111,6 +146,34 @@ export function ProcessedPrintingReceiptEditor({ receipt, onClose, onSaved }: {
       {phase === "edit" && <>
         <Input label="Judul nota" value={draft.document.title ?? draft.number} maxLength={100} disabled={busy} onChange={event => change({ ...draft, document: { ...draft.document, title: event.target.value } })} />
         <p className="text-xs text-surface-600">Nomor nota dan identitas pelanggan terkait pembayaran tetap dipertahankan. Nama yang tercetak masih bisa dikoreksi.</p>
+        {transaction && <section role="region" aria-labelledby="processed-transaction-heading" className="space-y-3 rounded-lg border border-surface-200 bg-surface-50 p-4">
+          <div><h3 id="processed-transaction-heading" className="font-bold text-surface-900">Data transaksi</h3><p className="mt-1 text-xs text-surface-600">Koreksi ini memperbarui riwayat transaksi. Nominal dan waktu pembayaran awal tetap seperti yang tercatat.</p></div>
+          {paymentRows.length > 0 ? <div className="grid gap-3 sm:grid-cols-2">
+            {paymentRows.map((payment, index) => <div key={payment.id} className="rounded-md border border-surface-200 bg-white p-3">
+              <label className="block text-sm font-semibold text-surface-800" htmlFor={`processed-payment-method-${payment.id}`}>Metode pembayaran {index + 1}</label>
+              <select id={`processed-payment-method-${payment.id}`} aria-label={`Metode pembayaran ${index + 1}`} disabled={busy} value={transactionDraft.paymentMethods.find(row => row.id === payment.id)?.method ?? payment.method as ProcessedPaymentMethod}
+                onChange={event => setTransactionDraft(current => ({ ...current, paymentMethods: current.paymentMethods.map(row => row.id === payment.id ? { ...row, method: event.target.value as ProcessedPaymentMethod } : row) }))}
+                className="mt-1 w-full rounded-md border border-surface-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+                {paymentMethodOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+              <p className="mt-2 text-xs text-surface-600">Nominal awal: <strong>{formatRupiah(Number(payment.amount))}</strong></p>
+            </div>)}
+          </div> : transaction.paymentMethod === "TEMPO" ? <p className="rounded-md bg-white p-3 text-sm text-surface-700">Transaksi Tempo ini tidak memiliki pembayaran awal. Metode Tempo tetap dipertahankan.</p> : <label className="block max-w-sm text-sm font-semibold text-surface-800" htmlFor="processed-legacy-payment-method">Metode pembayaran
+            <select id="processed-legacy-payment-method" aria-label="Metode pembayaran" disabled={busy} value={transactionDraft.legacyPaymentMethod ?? ""}
+              onChange={event => setTransactionDraft(current => ({ ...current, legacyPaymentMethod: event.target.value as ProcessedPaymentMethod }))}
+              className="mt-1 w-full rounded-md border border-surface-300 bg-white px-3 py-2 font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+              <option value="" disabled>Pilih metode pembayaran</option>{paymentMethodOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>}
+          <label className="block max-w-sm text-sm font-semibold text-surface-800" htmlFor="processed-salesperson">Sales transaksi
+            <select id="processed-salesperson" aria-label="Sales transaksi" disabled={busy} value={transactionDraft.salespersonId ?? ""}
+              onChange={event => setTransactionDraft(current => ({ ...current, salespersonId: event.target.value || null }))}
+              className="mt-1 w-full rounded-md border border-surface-300 bg-white px-3 py-2 font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+              <option value="">Tanpa sales transaksi</option>{salespersonOptions.map(salesperson => <option key={salesperson.id} value={salesperson.id}>{salesperson.name}</option>)}
+            </select>
+          </label>
+          {!transaction.salespersonId && transaction.salesName && <p className="text-xs text-surface-600">Nama sales yang sudah tercatat: {transaction.salesName}. Pilih sales transaksi untuk memperbarui atribusi.</p>}
+        </section>}
         <div className="max-h-[55dvh] overflow-auto rounded-lg border border-surface-200 bg-surface-100" aria-label="Lembar koreksi nota">
           <PrintingReceiptView receipt={draft} transaction={draftPayment} editable={!busy} allowProcessedEdit onChange={change} />
         </div>
@@ -144,6 +207,15 @@ export function ProcessedPrintingReceiptEditor({ receipt, onClose, onSaved }: {
         <div className="space-y-2 text-sm text-surface-700"><h4 className="font-semibold text-surface-900">Pemakaian bahan sebelum → sesudah</h4>
           {review.materials.length ? review.materials.map(material => <p className="break-words" key={material.productId}>{material.name}: {material.before} → <strong>{material.after}</strong> {material.unit}</p>) : <p>Tidak ada bahan yang terhubung ke stok.</p>}
         </div>
+        <section className="space-y-2 rounded-lg border border-surface-200 p-3 text-sm text-surface-700" aria-labelledby="processed-transaction-review-heading">
+          <h4 id="processed-transaction-review-heading" className="font-semibold text-surface-900">Data transaksi</h4>
+          {review.transaction.paymentMethods.map((payment, index) => <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1" key={payment.id}>
+            <span>Metode pembayaran {index + 1}: <strong>{paymentMethodLabels[payment.beforeMethod as ProcessedPaymentMethod] ?? payment.beforeMethod} → {paymentMethodLabels[payment.afterMethod]}</strong></span><span>{formatRupiah(payment.amount)}</span>
+          </div>)}
+          {review.transaction.legacyPaymentMethod && <p>Metode pembayaran: <strong>{paymentMethodLabels[review.transaction.legacyPaymentMethod.before as ProcessedPaymentMethod] ?? review.transaction.legacyPaymentMethod.before} → {paymentMethodLabels[review.transaction.legacyPaymentMethod.after]}</strong></p>}
+          {!review.transaction.paymentMethods.length && !review.transaction.legacyPaymentMethod && <p>Metode transaksi tetap {paymentMethodLabels[review.transaction.summaryPaymentMethod.after as ProcessedPaymentMethod] ?? review.transaction.summaryPaymentMethod.after}.</p>}
+          <p>{review.transaction.salesperson.before.name || "Tanpa sales transaksi"} → {review.transaction.salesperson.after.name || "Tanpa sales transaksi"}</p>
+        </section>
         <p className="text-sm text-surface-600">Pajak dan diskon mengikuti ketentuan transaksi tersimpan. Pembayaran bersih memperhitungkan kembalian yang sudah diberikan.</p>
         <div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" disabled={busy} onClick={() => { setReview(null); setPhase("edit"); }}>Kembali mengedit</Button><Button variant="danger" loading={busy} onClick={() => void request(true)}>Simpan dan perbarui transaksi</Button></div>
       </>}

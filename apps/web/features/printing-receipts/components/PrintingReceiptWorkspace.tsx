@@ -225,7 +225,7 @@ function PrintingReceiptSession({ canCheckout = true, onRequireShift, isCurrentS
             {
               customerName: transaction.customerName ?? saved.document.customerName,
               customerId: transaction.customerId ?? null,
-              salesName: transaction.salespersonId ? transaction.salesperson?.name ?? saved.document.signatory : undefined,
+              salesName: transaction.salespersonId ? transaction.salesperson?.name ?? transaction.salesName : undefined,
             },
           );
           processed = { ...saved, document: fallbackDocument, transactionId: transaction.id, transaction };

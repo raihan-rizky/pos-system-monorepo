@@ -32,8 +32,9 @@ const source = (await Promise.all((await readdir(feature)).filter(file=>file.end
 const config = loadConfig(path.join(web,"tailwind.config.ts"));
 const css = await postcss([tailwind({...config,content:[{raw:source,extension:"tsx"},path.join(repo,"packages/ui/src/**/*.{ts,tsx}")]})]).process("@tailwind base;@tailwind components;@tailwind utilities;",{from:undefined});
 const html = `<!doctype html><html lang="id"><head><meta charset="utf-8"><style>html,body{margin:0}#root{display:flex;height:100dvh;min-width:0}${css.css}\n${bundle.outputFiles.find(f=>f.path.endsWith('.css'))?.text??''}</style></head><body><div id="root"></div><script>${bundle.outputFiles.find(f=>f.path.endsWith('.js')).text}</script></body></html>`;
-const initial = {id:"processed",storeId:"s",subcategory:"SPANDUK",number:"SP-CONTOH",revision:1,transactionId:"tx",createdAt:"2026-10-21T03:00:00Z",updatedAt:"2026-10-21T03:00:00Z",transaction:{id:"tx",subtotal:75000,discount:0,tax:0,total:75000,amountPaid:25000,change:0,status:"DP"},document:{title:"Contoh koreksi nota",customerName:"Pelanggan Contoh",customerPhone:"",customerId:null,date:"2026-10-21",note:"",completionDate:"",completionTime:"",receiver:"",setter:"",signatory:"",lines:[{id:"line",name:"Spanduk contoh",material:"Flexi",quantity:1,price:75000,stockLink:null}]}};
+const initial = {id:"processed",storeId:"s",subcategory:"SPANDUK",number:"SP-CONTOH",revision:1,transactionId:"tx",createdAt:"2026-10-21T03:00:00Z",updatedAt:"2026-10-21T03:00:00Z",transaction:{id:"tx",subtotal:75000,discount:0,tax:0,total:75000,amountPaid:25000,change:0,status:"DP",paymentMethod:"CASH",salesName:"Sales Lama",salespersonId:"sales-1",payments:[{id:"pay-1",amount:20000,method:"CASH",createdAt:"2026-10-21T03:00:00Z"},{id:"pay-2",amount:5000,method:"TRANSFER",createdAt:"2026-10-21T03:01:00Z"}]},document:{title:"Contoh koreksi nota",customerName:"Pelanggan Contoh",customerPhone:"",customerId:null,date:"2026-10-21",note:"",completionDate:"",completionTime:"",receiver:"",setter:"",signatory:"Penanda tangan tetap",lines:[{id:"line",name:"Spanduk contoh",material:"Flexi",quantity:1,price:75000,stockLink:null}]}};
 const output=path.join(repo,"output/playwright/printing-receipts/processed-edit");await mkdir(output,{recursive:true});
+const changelogScreenshot=path.join(web,"public/images/changelog/processed-printing-payment-details.png");await mkdir(path.dirname(changelogScreenshot),{recursive:true});
 const browser=await chromium.launch({channel:"chrome",headless:true});
 try{
   for(const width of [1280,390]){
@@ -44,6 +45,7 @@ try{
       const json=(body,status=200)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
       if(url.pathname==='/')return route.fulfill({contentType:'text/html',body:html});
       if(url.pathname.startsWith('/images/printing-receipts/'))return route.fulfill({contentType:'image/png',body:await readFile(path.join(web,'public',url.pathname))});
+      if(url.pathname==='/api/salespersons')return json({data:[{id:'sales-1',name:'Sales Lama'},{id:'sales-2',name:'Sales Baru'}]});
       const body=request.postDataJSON();calls.push({method,path:url.pathname,body});
       if(url.pathname==='/api/printing-receipts')return json({data:[record],pagination:{page:1,total:1,totalPages:1}});
       if(url.pathname==='/api/printing-receipts/processed')return json({data:record});
@@ -51,12 +53,13 @@ try{
         if(method==='POST'){
           if(failReview)return json({message:'Pembayaran berubah. Tinjau ulang perubahan.'},409);
           const total=body.document.lines.reduce((sum,line)=>sum+(line.quantity??0)*(line.price??0),0);
-          return json({data:{reviewToken:'review-token',before:{subtotal:75000,total:75000,paid:25000,debt:50000,status:'DP'},after:{subtotal:total,total,paid:25000,debt:total-25000,status:'DP'},materials:[]}});
+          const methods=new Map(body.transaction.paymentMethods.map(payment=>[payment.id,payment.method]));
+          return json({data:{reviewToken:'review-token',before:{subtotal:75000,total:75000,paid:25000,debt:50000,status:'DP'},after:{subtotal:total,total,paid:25000,debt:total-25000,status:'DP'},materials:[],transaction:{paymentMethods:[{id:'pay-1',amount:20000,beforeMethod:'CASH',afterMethod:methods.get('pay-1')},{id:'pay-2',amount:5000,beforeMethod:'TRANSFER',afterMethod:methods.get('pay-2')}],legacyPaymentMethod:null,summaryPaymentMethod:{before:'CASH',after:methods.get('pay-1')},salesperson:{before:{id:'sales-1',name:'Sales Lama'},after:{id:body.transaction.salespersonId,name:'Sales Baru'}}}}});
         }
         if(method==='PATCH'){
           if(failSave)return json({message:'Stok berubah. Tinjau ulang perubahan.'},409);
           assert.equal(body.acknowledged,true);assert.equal(body.reviewToken,'review-token');
-          record={...record,document:body.document,revision:record.revision+1,transaction:{...record.transaction,total:body.document.lines[0].price}};
+          record={...record,document:body.document,revision:record.revision+1,transaction:{...record.transaction,total:body.document.lines[0].price,paymentMethod:'QRIS',salespersonId:body.transaction.salespersonId,salesName:'Sales Baru',payments:record.transaction.payments.map(payment=>({...payment,method:body.transaction.paymentMethods.find(next=>next.id===payment.id)?.method??payment.method}))}};
           return json({data:record});
         }
       }
@@ -77,6 +80,10 @@ try{
     if(width===1280)await dialog.screenshot({path:path.join(web,'public/images/changelog/edit-nota-diproses.png')});
     assert.equal(await dialog.getByRole('button',{name:'Tetap edit nota',exact:true}).isDisabled(),true);
     await dialog.getByRole('checkbox').check();await dialog.getByRole('button',{name:'Tetap edit nota',exact:true}).click();
+    await dialog.getByLabel('Metode pembayaran 1',{exact:true}).selectOption('QRIS');
+    await dialog.getByLabel('Sales transaksi',{exact:true}).selectOption('sales-2');
+    assert.equal(calls.filter(call=>call.method==='PATCH').length,0,'transaction details must remain unsaved before review');
+    if(width===1280)await dialog.getByRole('region',{name:'Data transaksi'}).screenshot({path:changelogScreenshot});
     await dialog.getByLabel('Harga satuan baris 1',{exact:true}).fill('1e200');
     await dialog.getByLabel('Banyaknya baris 1',{exact:true}).fill('1e200');
     assert.equal(await dialog.getByRole('button',{name:'Tinjau perubahan',exact:true}).isVisible(),true,'overflowing input does not crash the editor');
@@ -95,6 +102,9 @@ try{
     failReview=true;await dialog.getByRole('button',{name:'Tinjau perubahan',exact:true}).click();
     await dialog.getByRole('alert').filter({hasText:'Pembayaran berubah'}).waitFor();failReview=false;
     await dialog.getByRole('button',{name:'Tinjau perubahan',exact:true}).click();
+    await dialog.getByText('Tunai → QRIS',{exact:true}).waitFor();
+    await dialog.getByText('Sales Lama → Sales Baru',{exact:true}).waitFor();
+    assert.equal(calls.filter(call=>call.method==='PATCH').length,0,'review must not write transaction changes');
     await dialog.getByText('Rp 100.000',{exact:true}).first().waitFor();
     await dialog.getByText('Rp 75.000',{exact:true}).first().waitFor();
     await dialog.screenshot({path:path.join(output,`tinjau-${width}.png`)});
@@ -107,6 +117,10 @@ try{
     const invalidated=await page.evaluate(()=>window.invalidated);
     for(const key of ['customer-receivables','customer-recap','inventory-logs','stock-group','inventory-management','financial-report'])assert.ok(invalidated.includes(key),`refresh ${key} after correction`);
     assert.equal(calls.filter(c=>c.method==='PATCH'&&c.path.endsWith('/processed')).length,2);
+    const commit=calls.filter(call=>call.method==='PATCH'&&call.path.endsWith('/processed')).at(-1);
+    assert.deepEqual(commit.body.transaction.paymentMethods,[{id:'pay-1',method:'QRIS'},{id:'pay-2',method:'TRANSFER'}]);
+    assert.equal(commit.body.transaction.salespersonId,'sales-2');
+    assert.equal(commit.body.document.signatory,'Penanda tangan tetap');
     await page.getByRole('button',{name:'Edit nota diproses',exact:true}).click();dialog=page.getByRole('dialog',{name:'Edit nota diproses'});
     await dialog.getByRole('checkbox').check();await dialog.getByRole('button',{name:'Tetap edit nota',exact:true}).click();
     await dialog.getByLabel('Harga satuan baris 1',{exact:true}).fill('110000');await page.keyboard.press('Escape');

@@ -5,7 +5,7 @@ import { StockMutationConflictError } from "@/features/product-stock-groups/stoc
 import { resolveInvoiceDateTime } from "@/features/invoice-date/helpers/invoice-date-core";
 import type { Role } from "@/lib/rbac/permissions";
 import { getPrintingReceiptCheckoutLines, parsePrintingReceiptDocument, parsePrintingReceiptNumber, PrintingReceiptValidationError } from "../domain";
-import { planProcessedPrintingReceiptEdit, type ProcessedPrintingReceiptInput, type ProcessedPrintingReceiptReview } from "../processed-edit";
+import { parseProcessedPrintingReceiptTransactionInput, planProcessedPrintingReceiptEdit, type ProcessedPrintingReceiptInput, type ProcessedPrintingReceiptReview } from "../processed-edit";
 import { getPrintingReceipt, PrintingReceiptStorageError } from "./receipt-store";
 import { parsePrintingReceiptRevision } from "./route-support";
 import { assertReceivableChangeAllowed, type ReceivableAccess } from "@/features/customer-debt/helpers/receivable-authorization";
@@ -17,7 +17,7 @@ const conflict = () => new PrintingReceiptStorageError(409, "Nota, pembayaran, a
 const productSelect = { id: true, name: true, unit: true, isActive: true, stockGroupId: true, unitMultiplierToBase: true, conversionNeedsReview: true, costPrice: true } as const;
 
 async function prepare(tx: Tx, storeId: string, id: string, raw: ProcessedPrintingReceiptInput) {
-  const input = { revision: parsePrintingReceiptRevision(raw.revision), number: parsePrintingReceiptNumber(raw.number), document: parsePrintingReceiptDocument(raw.document) };
+  const input = { revision: parsePrintingReceiptRevision(raw.revision), number: parsePrintingReceiptNumber(raw.number), document: parsePrintingReceiptDocument(raw.document), transaction: parseProcessedPrintingReceiptTransactionInput(raw.transaction) };
   const hint = await tx.printingReceipt.findFirst({ where: { id, storeId }, select: { transactionId: true } });
   if (!hint) throw new PrintingReceiptStorageError(404, "Nota tidak ditemukan di toko ini.");
   if (!hint.transactionId) throw conflict();
@@ -39,7 +39,23 @@ async function prepare(tx: Tx, storeId: string, id: string, raw: ProcessedPrinti
     const customer = await tx.customer.findFirst({ where: { id: input.document.customerId, storeId }, select: { id: true } });
     if (!customer) throw new PrintingReceiptValidationError("Pelanggan tidak ditemukan di toko ini.");
   }
-  const plan = planProcessedPrintingReceiptEdit(transaction, input.document);
+  const currentPaymentIds = new Set(transaction.payments.map(payment => payment.id));
+  const requestedPaymentIds = new Set(input.transaction.paymentMethods.map(payment => payment.id));
+  if (input.transaction.paymentMethods.length !== transaction.payments.length || requestedPaymentIds.size !== transaction.payments.length || [...requestedPaymentIds].some(paymentId => !currentPaymentIds.has(paymentId))) throw conflict();
+  const plan = planProcessedPrintingReceiptEdit(transaction, input.document, input.transaction);
+  if (!plan.transaction) throw new PrintingReceiptValidationError("Data transaksi tidak valid.");
+  const nextSalesperson = input.transaction.salespersonId
+    ? await tx.salesperson.findFirst({ where: { id: input.transaction.salespersonId, storeId }, select: { id: true, name: true } })
+    : null;
+  if (input.transaction.salespersonId && !nextSalesperson) throw new PrintingReceiptValidationError("Sales transaksi tidak ditemukan di toko ini.");
+  const salespersonReview = {
+    before: { id: transaction.salespersonId ?? null, name: transaction.salesName ?? null },
+    after: nextSalesperson
+      ? { id: nextSalesperson.id, name: nextSalesperson.name }
+      : transaction.salespersonId
+        ? { id: null, name: null }
+        : { id: null, name: transaction.salesName ?? null },
+  };
   const ids = plan.materials.map(item => item.productId);
   const products = ids.length ? await tx.product.findMany({ where: { id: { in: ids }, storeId }, select: productSelect, orderBy: { id: "asc" } }) : [];
   const byId = new Map(products.map(product => [product.id, product]));
@@ -60,8 +76,8 @@ async function prepare(tx: Tx, storeId: string, id: string, raw: ProcessedPrinti
       if (!rows.length || !Number.isFinite(multiplier) || multiplier <= 0 || rows.some(row => row.status !== "APPROVED" || row.stockBaseDelta === null || row.stockGroupIdSnapshot !== product.stockGroupId || row.unitMultiplierSnapshot === null || Math.abs(Number(row.unitMultiplierSnapshot) - multiplier) > 1e-10 * Math.max(1, multiplier)) || Math.abs(rows.reduce((sum, row) => sum + Number(row.stockBaseDelta), 0) + material.before * multiplier) > 1e-7) throw conflict();
     }
   }
-  const reviewToken = createHash("sha256").update(JSON.stringify({ storeId, id, input, current, transaction, products, journal })).digest("hex");
-  const review: ProcessedPrintingReceiptReview = { reviewToken, before: plan.before, after: plan.after, materials: plan.materials.map(row => ({ ...row, name: byId.get(row.productId)!.name, unit: byId.get(row.productId)!.unit })) };
+  const reviewToken = createHash("sha256").update(JSON.stringify({ storeId, id, input, current, transaction, salesperson: salespersonReview.after, products, journal })).digest("hex");
+  const review: ProcessedPrintingReceiptReview = { reviewToken, before: plan.before, after: plan.after, materials: plan.materials.map(row => ({ ...row, name: byId.get(row.productId)!.name, unit: byId.get(row.productId)!.unit })), transaction: { ...plan.transaction, salesperson: salespersonReview } };
   return { input, current, transaction, products, plan, review };
 }
 
@@ -95,7 +111,15 @@ export async function saveProcessedPrintingReceipt(storeId: string, id: string, 
       const receiptWrite = await tx.printingReceipt.updateMany({ where: { id, storeId, revision: input.revision, transactionId: transaction.id }, data: { document: input.document as unknown as Prisma.InputJsonObject, revision: { increment: 1 } } });
       if (receiptWrite.count !== 1) throw conflict();
       const invoiceDate = resolveInvoiceDateTime({ mode: "edit", date: input.document.date, previousInvoiceDate: transaction.invoiceDate, now: new Date() });
-      const transactionWrite = await tx.transaction.updateMany({ where: { id: transaction.id, storeId, status: transaction.status, total: transaction.total, amountPaid: transaction.amountPaid, change: transaction.change, customerId: transaction.customerId }, data: { subtotal: plan.after.subtotal, tax: plan.tax, taxRate: plan.taxRate, taxMethod: plan.taxMethod, total: plan.after.total, status: plan.after.status as "DP" | "COMPLETED" | "PENDING_APPROVAL", customerName: input.document.customerName || null, note: input.document.note || null, invoiceDate,
+      for (const payment of plan.transaction!.paymentMethods) {
+        if (payment.beforeMethod === payment.afterMethod) continue;
+        const paymentWrite = await tx.transactionPayment.updateMany({ where: { id: payment.id, transactionId: transaction.id }, data: { method: payment.afterMethod } });
+        if (paymentWrite.count !== 1) throw conflict();
+      }
+      const transactionWrite = await tx.transaction.updateMany({ where: { id: transaction.id, storeId, status: transaction.status, total: transaction.total, amountPaid: transaction.amountPaid, change: transaction.change, customerId: transaction.customerId, paymentMethod: transaction.paymentMethod, salespersonId: transaction.salespersonId }, data: { subtotal: plan.after.subtotal, tax: plan.tax, taxRate: plan.taxRate, taxMethod: plan.taxMethod, total: plan.after.total, status: plan.after.status as "DP" | "COMPLETED" | "PENDING_APPROVAL", customerName: input.document.customerName || null, note: input.document.note || null, invoiceDate,
+        paymentMethod: plan.transaction!.summaryPaymentMethod.after as typeof transaction.paymentMethod,
+        salespersonId: review.transaction.salesperson.after.id,
+        salesName: review.transaction.salesperson.after.name,
         // The cash change has already left the drawer. Keep payment history intact,
         // and normalize the invoice balance used by existing debt/payment screens.
         ...(plan.after.total !== plan.before.total ? { amountPaid: plan.after.paid, change: 0 } : {}),

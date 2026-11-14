@@ -3,6 +3,20 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "processed-printing-payment-details", date: "2026-11-14", revision: 1,
+    highlight: { title: "Koreksi detail transaksi nota", summary: "Perbaiki metode pembayaran awal dan sales dari nota diproses." },
+    title: "Koreksi transaksi dari nota Percetakan diproses.",
+    summary: "Perbarui metode pembayaran awal dan atribusi sales melalui satu tinjauan. Nominal dan waktu pembayaran tetap, sehingga riwayat transaksi dan laporan mengikuti koreksi yang sama.",
+    kind: "improvement", impact: "major", area: "Kasir & Percetakan", href: "/pos", visual: "printing",
+    screenshot: { src: "/images/changelog/processed-printing-payment-details.png", alt: "Panel Data transaksi dengan contoh sintetis dua metode pembayaran dan pilihan Sales transaksi." },
+    steps: [
+      { title: "Buka nota diproses", detail: "Di Riwayat, pilih transaksi Percetakan atau buka nota tersimpan di Kasir > Percetakan. Klik Edit nota diproses, baca peringatan, setujui, lalu pilih Tetap edit nota." },
+      { title: "Koreksi data transaksi", detail: "Pada Data transaksi, ubah Metode pembayaran untuk setiap pembayaran awal dan pilih Sales transaksi. Nominal dan waktu pembayaran awal, pembayaran lanjutan, serta tanda tangan pada nota tetap." },
+      { title: "Tinjau dan simpan", detail: "Klik Tinjau perubahan, periksa metode, sales, total, piutang, dan bahan. Klik Simpan dan perbarui transaksi untuk menyimpan koreksi bersama transaksi." },
+    ],
+  },
+
+  {
     id: "rincian-pemeriksaan-pemasukan-20261113", date: "2026-11-13", revision: 1,
     highlight: { title: "Rincian dan cek pemasukan", summary: "Lihat penerimaan per hari dan cocokkan dengan nominal aktual." },
     title: "Rincian dan pemeriksaan pemasukan harian",
