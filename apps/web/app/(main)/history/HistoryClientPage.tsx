@@ -1623,8 +1623,9 @@ export default function HistoryClientPage({ initialSearch = "" }: { initialSearc
                         const isVoided = tx.status === "VOIDED";
                         const isRefunded = tx.status === "REFUNDED";
                         const isPending = needsCashierApproval(tx);
+                        const paymentEntries = getHistoryPaymentEntries(tx);
                         const hasMultiplePaymentMethods = new Set(
-                          (tx.payments ?? []).map((payment) => payment.method),
+                          paymentEntries.filter((payment) => payment.amount > 0 && payment.method !== "TEMPO").map((payment) => payment.method),
                         ).size > 1;
                         const isDraft = tx.status === "DRAFT";
                         const isBundled = isSuratJalanBundle(tx);
@@ -1772,7 +1773,7 @@ export default function HistoryClientPage({ initialSearch = "" }: { initialSearc
                                     Multi-payment
                                   </span>
                                 )}
-                                {getHistoryPaymentEntries(tx).map((payment, idx) => (
+                                {paymentEntries.map((payment, idx) => (
                                   <PaymentBadge
                                     key={`${payment.method}-${idx}`}
                                     method={payment.method}
@@ -1886,8 +1887,9 @@ export default function HistoryClientPage({ initialSearch = "" }: { initialSearc
                     const isVoided = tx.status === "VOIDED";
                     const isRefunded = tx.status === "REFUNDED";
                     const isPending = needsCashierApproval(tx);
+                    const paymentEntries = getHistoryPaymentEntries(tx);
                     const hasMultiplePaymentMethods = new Set(
-                      (tx.payments ?? []).map((payment) => payment.method),
+                      paymentEntries.filter((payment) => payment.amount > 0 && payment.method !== "TEMPO").map((payment) => payment.method),
                     ).size > 1;
                     const isDraft = tx.status === "DRAFT";
                     const isBundled = isSuratJalanBundle(tx);
@@ -2031,7 +2033,7 @@ export default function HistoryClientPage({ initialSearch = "" }: { initialSearc
                                   Multi-payment
                                 </span>
                               )}
-                              {getHistoryPaymentEntries(tx).map((payment, idx) => (
+                              {paymentEntries.map((payment, idx) => (
                                 <PaymentBadge
                                   key={`${payment.method}-${idx}`}
                                   method={payment.method}
