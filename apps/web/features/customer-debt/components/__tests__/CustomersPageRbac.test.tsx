@@ -11,7 +11,7 @@ vi.mock("next/dynamic",()=>({default:(loader:()=>unknown)=>{
   const source=loader.toString();
   return (props: {canPay?:boolean})=><div data-section={source.includes("DebtTransactionsList")?"invoices":source.includes("CustomerRecapSection")?"recap":"other"} data-can-pay={String(props.canPay)}/>;
 }}));
-vi.mock("../CustomerReceivablesSection",()=>({CustomerReceivablesSection:(props:{canPay?:boolean})=><div data-section="manual" data-can-pay={String(props.canPay)}/>}));
+vi.mock("../CustomerReceivablesSection",()=>({CustomerReceivablesSection:(props:{canPay?:boolean;collapsible?:boolean})=><div data-section="manual" data-can-pay={String(props.canPay)} data-collapsible={String(props.collapsible)}/>}));
 import CustomersClientPage from "@/app/(main)/customers/CustomersClientPage";
 beforeEach(()=>{vi.resetAllMocks();m.customers.mockReturnValue({data:{data:[],pagination:{total:0,totalPages:1}},isLoading:false,isFetching:false});});
 it.each(["SALES","CASHIER"] as const)("defaults %s to profile access and view-only debt",role=>{
@@ -30,6 +30,8 @@ it("starts debt-only accounts on Piutang without profile or recap queries",()=>{
   m.can.mockImplementation((r,a)=>r==="customer.receivable" && a==="read");
   const html=renderToStaticMarkup(<CustomersClientPage/>);
   expect(html).toContain('data-section="invoices"');expect(html).toContain('data-section="manual"');
+  expect(html.indexOf('data-section="invoices"')).toBeLessThan(html.indexOf('data-section="manual"'));
+  expect(html).toContain('data-section="manual" data-can-pay="false" data-collapsible="true"');
   expect(html).not.toContain('data-section="recap"');expect(html).not.toContain('Semua Pelanggan');
   expect(m.customers).toHaveBeenCalledWith(expect.objectContaining({enabled:false}));
 });

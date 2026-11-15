@@ -17,7 +17,7 @@ const bundle = await build({ stdin: { contents: `
   window.invalidated=[]; const invalidate=client.invalidateQueries.bind(client);
   client.invalidateQueries=(options)=>{window.invalidated.push(options.queryKey);return invalidate(options)};
   const root=createRoot(document.getElementById('root'));
-  window.renderSection=(props={customerId:'customer-1',customerName:'Pelanggan Contoh'})=>root.render(
+  window.renderSection=(props={customerId:'customer-1',customerName:'Pelanggan Contoh',canAdd:true,canPay:true})=>root.render(
     <QueryClientProvider client={client}><CustomerReceivablesSection key={JSON.stringify(props)} {...props}/></QueryClientProvider>);
   window.renderSection();`, resolveDir:web, loader:'tsx' }, bundle:true,write:false,platform:'browser',format:'iife',jsx:'automatic',alias:{'@':web},define:{'process.env.NODE_ENV':'"production"'} });
 const modalBundle = await build({ stdin: { contents: `
@@ -53,6 +53,43 @@ try {
     if(url.pathname.endsWith('/payments')){entries=entries.map(e=>({...e,amountPaid:String(Number(e.amountPaid)+payload.amount),payments:[...e.payments,{id:`p${requests.length}`,...payload,createdAt:'2026-10-20T01:00:00Z'}]}));if(entries.every(e=>Number(e.amountPaid)>=Number(e.amount)))totalPages=1;return route.fulfill({json:entries[0]});}
     entries=[{id:'manual-1',customerId:'customer-1',customer:{id:'customer-1',name:'Pelanggan Contoh'},amount:String(payload.amount),amountPaid:'0',debtDate:payload.debtDate,dueDate:payload.dueDate,note:payload.note,payments:[],createdAt:'2026-10-20T00:00:00Z'}];return route.fulfill({status:201,json:entries[0]});
   });
+  await page.goto('http://localhost:3004/__receivables');await page.addStyleTag({content:css.css});await page.addScriptTag({content:bundle.outputFiles[0].text});
+  await page.evaluate(()=>window.localStorage.clear());
+  await page.evaluate(()=>window.renderSection({customerId:'customer-1',customerName:'Pelanggan Contoh',canAdd:false,canPay:true,collapsible:true}));
+  const manualToggle=page.getByRole('button',{name:'Piutang Manual',exact:true});
+  assert.equal(await manualToggle.count(),1,'the manual receivables heading exposes a toggle');
+  await manualToggle.waitFor();
+  assert.equal(await manualToggle.getAttribute('aria-expanded'),'true','a missing preference defaults to expanded');
+  const contentId=await manualToggle.getAttribute('aria-controls');
+  assert.ok(contentId,'the toggle points to its controlled content');
+  const manualContent=page.locator('[id="'+contentId+'"]');
+  assert.equal(await manualContent.isVisible(),true,'expanded manual receivables content is visible');
+  await manualToggle.focus();await page.keyboard.press('Space');
+  await page.waitForFunction(id=>document.getElementById(id)?.hidden===true,contentId);
+  assert.equal(await manualToggle.getAttribute('aria-expanded'),'false');
+  assert.equal(await page.evaluate(key=>window.localStorage.getItem(key),'pos:customers:manual-receivables:expanded'),'false');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(id=>document.getElementById(id)?.hidden===false,contentId);
+  assert.equal(await manualToggle.getAttribute('aria-expanded'),'true');
+  await page.keyboard.press('Space');
+  await page.waitForFunction(id=>document.getElementById(id)?.hidden===true,contentId);
+  await page.reload();await page.addStyleTag({content:css.css});await page.addScriptTag({content:bundle.outputFiles[0].text});
+  await page.evaluate(()=>window.renderSection({customerId:'customer-1',customerName:'Pelanggan Contoh',canAdd:false,canPay:true,collapsible:true}));
+  const restoredToggle=page.getByRole('button',{name:'Piutang Manual',exact:true});
+  await restoredToggle.waitFor();
+  const restoredContentId=await restoredToggle.getAttribute('aria-controls');
+  await page.waitForFunction(id=>document.getElementById(id)?.hidden===true,restoredContentId);
+  assert.equal(await restoredToggle.getAttribute('aria-expanded'),'false','the collapsed state is restored after reload');
+  await page.evaluate(()=>{
+    Object.defineProperty(Storage.prototype,'getItem',{configurable:true,value:()=>{throw new Error('storage blocked')}});
+    Object.defineProperty(Storage.prototype,'setItem',{configurable:true,value:()=>{throw new Error('storage blocked')}});
+    window.renderSection({customerId:'customer-1',customerName:'Pelanggan Contoh',canAdd:false,canPay:false,collapsible:true});
+  });
+  const fallbackToggle=page.getByRole('button',{name:'Piutang Manual',exact:true});
+  await fallbackToggle.waitFor();
+  assert.equal(await fallbackToggle.getAttribute('aria-expanded'),'true','storage read failures keep the section usable');
+  await fallbackToggle.focus();await page.keyboard.press('Space');
+  assert.equal(await fallbackToggle.getAttribute('aria-expanded'),'false','storage write failures do not block toggling');
   await page.goto('http://localhost:3004/__receivables');await page.addStyleTag({content:css.css});await page.addScriptTag({content:bundle.outputFiles[0].text});
   await page.getByRole('button',{name:'Tambah Piutang',exact:true}).focus();await page.keyboard.press('Enter');
   const amount=page.getByLabel('Nominal piutang');
@@ -149,6 +186,7 @@ try {
   await page.goto('http://localhost:3004/__modal');await page.addScriptTag({content:modalBundle.outputFiles[0].text});
   await page.getByText('Rp 100.000,25',{exact:true}).and(page.locator('p')).waitFor();
   assert.equal(await page.getByRole('button',{name:'Tambah Piutang',exact:true}).count(),0);
+  assert.equal(await page.getByRole('button',{name:'Piutang Manual',exact:true}).count(),0,'the existing payment modal keeps its static manual receivables heading');
   await page.getByRole('button',{name:'Bayar Piutang Manual',exact:true}).click();
   await page.getByRole('button',{name:'Simpan Pembayaran',exact:true}).click();
   await page.getByText('Rp 0',{exact:true}).first().waitFor();await page.getByText('Lunas',{exact:true}).waitFor();

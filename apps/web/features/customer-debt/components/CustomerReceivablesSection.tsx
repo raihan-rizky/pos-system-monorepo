@@ -1,8 +1,12 @@
 "use client";
 
 import React, { useEffect, useId, useRef, useState } from "react";
-import { Plus, Wallet, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Wallet, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { useDebounce } from "@/hooks/useDebounce";
+import {
+  loadCustomerReceivablesExpanded,
+  saveCustomerReceivablesExpanded,
+} from "../helpers/customer-receivables-preferences";
 import { CustomerReceivable, ReceivablePaymentMethod, useCreateCustomerReceivable, useCustomerReceivables, usePayCustomerReceivable } from "../hooks/useCustomerReceivables";
 
 const inputClass = "min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 aria-[invalid=true]:border-red-500";
@@ -284,8 +288,10 @@ function ReceivableCard({ entry, canPay }: { entry: CustomerReceivable; canPay: 
   </article>;
 }
 
-export function CustomerReceivablesSection({ customerId, customerName, canAdd = false, canPay = false }: { customerId?: string; customerName?: string; canAdd?: boolean; canPay?: boolean }) {
+export function CustomerReceivablesSection({ customerId, customerName, canAdd = false, canPay = false, collapsible = false }: { customerId?: string; customerName?: string; canAdd?: boolean; canPay?: boolean; collapsible?: boolean }) {
   const titleId = useId();
+  const contentId = useId();
+  const [expanded, setExpanded] = useState(true);
   const [adding, setAdding] = useState(false);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -295,32 +301,69 @@ export function CustomerReceivablesSection({ customerId, customerName, canAdd = 
   const query = useCustomerReceivables({ customerId, page, search: debouncedSearch, status });
   const totalPages = query.data?.pagination.totalPages;
   useEffect(() => {
+    if (collapsible) {
+      setExpanded(loadCustomerReceivablesExpanded());
+    }
+  }, [collapsible]);
+  useEffect(() => {
     if (totalPages !== undefined && page > Math.max(1, totalPages)) {
       setPage(Math.max(1, totalPages));
     }
   }, [page, totalPages]);
+  const toggleExpanded = () => {
+    const nextExpanded = !expanded;
+    setExpanded(nextExpanded);
+    saveCustomerReceivablesExpanded(nextExpanded);
+  };
   return <section aria-labelledby={titleId}
     className="min-w-0 rounded-3xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
     <div
       className="flex flex-wrap items-start justify-between gap-3">
       <div
-        className="min-w-0">
-        <h3
+        className="min-w-0 flex-1">
+        {collapsible ? <h3
           id={titleId}
-          className="flex items-center gap-2 text-base font-black text-slate-900">
-          <Wallet aria-hidden="true"
-            className="h-5 w-5 text-brand-600" />Piutang Manual</h3>
-        <p
-          className="mt-1 max-w-xl text-sm leading-6 text-slate-600">Catat piutang lama atau tagihan di luar kasir{customerName ? ` untuk ${customerName}` : ""}. Catatan ini tidak menambah penjualan, order, atau mengubah stok.</p>
+          className="m-0 w-full">
+          <button
+            type="button"
+            aria-expanded={expanded}
+            aria-controls={contentId}
+            onClick={toggleExpanded}
+            className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">
+            <span
+              className="flex items-center gap-2 text-base font-black text-slate-900">
+              <Wallet aria-hidden="true"
+                className="h-5 w-5 text-brand-600" />
+              Piutang Manual
+            </span>
+            <ChevronDown aria-hidden="true"
+              className={expanded
+                ? "h-5 w-5 shrink-0 rotate-180 text-slate-500 transition-transform"
+                : "h-5 w-5 shrink-0 text-slate-500 transition-transform"} />
+          </button>
+        </h3> : <>
+          <h3
+            id={titleId}
+            className="flex items-center gap-2 text-base font-black text-slate-900">
+            <Wallet aria-hidden="true"
+              className="h-5 w-5 text-brand-600" />Piutang Manual</h3>
+          <p
+            className="mt-1 max-w-xl text-sm leading-6 text-slate-600">Catat piutang lama atau tagihan di luar kasir{customerName ? ` untuk ${customerName}` : ""}. Catatan ini tidak menambah penjualan, order, atau mengubah stok.</p>
+        </>}
       </div>{customerId && canAdd && !adding && <button
         type="button"
         onClick={() => { setAdding(true); setSuccess(""); }}
         className={`${primaryClass} inline-flex items-center gap-2`}>
         <Plus aria-hidden="true"
           className="h-4 w-4" />Tambah Piutang</button>}</div>
-    <p role="status"
-      className="mt-2 text-sm font-semibold text-emerald-700">{success}</p>
-    {customerId && canAdd && adding && <ReceivableForm customerId={customerId} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); setPage(1); setStatus("all"); setSuccess("Piutang berhasil dicatat."); }} />}
+    <div
+      id={contentId}
+      hidden={collapsible && !expanded}>
+      {collapsible && <p
+        className="mt-3 max-w-xl text-sm leading-6 text-slate-600">Catat piutang lama atau tagihan di luar kasir{customerName ? ` untuk ${customerName}` : ""}. Catatan ini tidak menambah penjualan, order, atau mengubah stok.</p>}
+      <p role="status"
+        className="mt-2 text-sm font-semibold text-emerald-700">{success}</p>
+      {customerId && canAdd && adding && <ReceivableForm customerId={customerId} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); setPage(1); setStatus("all"); setSuccess("Piutang berhasil dicatat."); }} />}
     <div
       className="mt-4 flex flex-col gap-3 sm:flex-row">{!customerId && <input
         type="search"
@@ -350,7 +393,7 @@ export function CustomerReceivablesSection({ customerId, customerName, canAdd = 
       </div> : <div
         className="mt-4 space-y-3">{query.data?.data.length ? query.data.data.map(entry => <ReceivableCard key={entry.id} entry={entry} canPay={canPay} />) : <p
           className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-600">{status === "open" ? "Tidak ada piutang manual yang belum lunas." : "Belum ada piutang manual."}</p>}</div>}
-    {query.data && query.data.pagination.totalPages > 1 && <nav
+      {query.data && query.data.pagination.totalPages > 1 && <nav
       aria-label="Halaman piutang manual"
       className="mt-4 flex flex-wrap items-center justify-between gap-2">
       <p
@@ -375,7 +418,8 @@ export function CustomerReceivablesSection({ customerId, customerName, canAdd = 
           <ChevronRight aria-hidden="true"
             className="h-4 w-4" />
         </button>
-      </div>
-    </nav>}
+        </div>
+      </nav>}
+    </div>
   </section>;
 }

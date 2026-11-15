@@ -1566,8 +1566,8 @@ export default function CustomersClientPage() {
 
           {activeTab === "debt" && canViewReceivables ? (
             <div className="space-y-5">
-              <CustomerReceivablesSection canAdd={false} canPay={canPayReceivables} />
               <DebtTransactionsList canPay={canPayReceivables} canReadTransactions={canReadTransactions} />
+              <CustomerReceivablesSection canAdd={false} canPay={canPayReceivables} collapsible />
             </div>
           ) : (
             <>
