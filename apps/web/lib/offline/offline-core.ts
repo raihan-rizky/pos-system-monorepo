@@ -14,6 +14,7 @@ export type OfflineSyncState =
 export type OfflineCartItem = {
   productId: string;
   categoryId?: string;
+  catalogSubcategoryId?: string | null;
   name: string;
   price: number;
   transactionPrice?: number | null;

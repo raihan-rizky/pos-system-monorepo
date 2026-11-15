@@ -68,6 +68,8 @@ describe('pembacaan data bulanan', () => {
     expect(mocks.balances.mock.calls[0][0]).toBe('store-test');
     expect(result).toMatchObject({ openingInventoryBalance: 100, inventoryBalance: 90, supplierDebtBalance: 0 });
     const query = mocks.transaction.mock.calls[0][0];
+    expect(query.select.items.select.product.select.catalogSubcategory).toEqual({ select: { group: true, name: true } });
+    expect(query.select.offlineSyncMetadata).toBe(true);
     expect(query.where.status).toEqual({ in: ['COMPLETED', 'DP'] });
     expect(query.where.OR).toContainEqual({ invoiceDate: { lt: new Date('2026-09-30T17:00:00Z') } });
     expect(query.select.payments).not.toHaveProperty('where');

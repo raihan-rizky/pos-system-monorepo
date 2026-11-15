@@ -11,7 +11,8 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@pos/ui";
-import { useProducts, type Product, type ProductVariant } from "@/hooks/useProducts";
+import { useProducts, type Product, type ProductVariant, type UseProductsOptions } from "@/hooks/useProducts";
+import { CatalogClassificationFilter } from "@/features/product-classification/components/CatalogClassificationFilter";
 import { ProductStockThumbnail } from "./ProductStockThumbnail";
 import {
   previewStockGroupBulk,
@@ -218,6 +219,8 @@ export const SingleStockUpdatePanel: React.FC<SingleStockUpdatePanelProps> = ({
   onError,
 }) => {
   const [search, setSearch] = useState("");
+  const [catalogGroup, setCatalogGroup] = useState<NonNullable<UseProductsOptions["catalogGroup"]> | "">("");
+  const [catalogSubcategoryId, setCatalogSubcategoryId] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<SelectableProduct | null>(null);
   const [mode, setMode] = useState<ProductFirstStockMode>("PRODUCT_ONLY");
   const [type, setType] = useState<StockActionType>("ADJUSTMENT");
@@ -229,7 +232,7 @@ export const SingleStockUpdatePanel: React.FC<SingleStockUpdatePanelProps> = ({
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const productsQuery = useProducts(search, undefined, { limit: 12 });
+  const productsQuery = useProducts(search, undefined, { limit: 12, catalogGroup: catalogGroup || undefined, catalogSubcategoryId: catalogSubcategoryId || undefined });
   const candidates = useMemo(
     () => flattenProductCandidates(productsQuery.data),
     [productsQuery.data],
@@ -337,6 +340,8 @@ export const SingleStockUpdatePanel: React.FC<SingleStockUpdatePanelProps> = ({
         </div>
       )}
 
+      <CatalogClassificationFilter idPrefix="inventory-single" group={catalogGroup} subcategoryId={catalogSubcategoryId}
+        onChange={(group, subcategoryId) => { setCatalogGroup(group); setCatalogSubcategoryId(subcategoryId); }} />
       <label className="block text-xs font-bold text-slate-600">
         Cari produk
         <div className="relative mt-1">
@@ -350,7 +355,7 @@ export const SingleStockUpdatePanel: React.FC<SingleStockUpdatePanelProps> = ({
         </div>
       </label>
 
-      {search.trim() && (
+      {(search.trim() || catalogGroup) && (
         <div className="max-h-52 overflow-auto rounded-xl border border-slate-200 bg-white">
           {productsQuery.isFetching ? (
             <div className="flex items-center gap-2 px-3 py-3 text-sm text-slate-500">

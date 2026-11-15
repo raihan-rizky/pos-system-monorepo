@@ -13,14 +13,17 @@ const bundle = await build({
   stdin: { contents: `import React from 'react';import {createRoot} from 'react-dom/client';
     import {ReportExportMenu} from './features/financial-report/components/ReportExportMenu';
     window.legacyExports=[];
-    createRoot(document.getElementById('root')).render(<main className="p-6"><h1 className="mb-5 text-xl font-semibold">Laporan Keuangan</h1><ReportExportMenu/></main>);`, resolveDir: web, loader: "tsx" },
+    createRoot(document.getElementById('root')).render(<main className="p-6"><h1 className="mb-5 text-xl font-semibold">Laporan Keuangan</h1><ReportExportMenu reportRange={{from:'2026-05-03',to:'2026-05-05'}}/></main>);`, resolveDir: web, loader: "tsx" },
   bundle: true, write: false, platform: "browser", format: "iife", jsx: "automatic",
   alias: { "@": web }, define: { "process.env.NODE_ENV": '"production"' },
   plugins: [{ name: "isolated-export-boundaries", setup(build) {
+    build.onResolve({ filter: /providers\/RoleProvider$/ }, () => ({ path: "role", namespace: "fixture" }));
     build.onResolve({ filter: /journal-export$/ }, () => ({ path: "journal-export", namespace: "fixture" }));
     build.onResolve({ filter: /monthly-workbook$/ }, () => ({ path: "monthly-workbook", namespace: "fixture" }));
-    build.onLoad({ filter: /.*/, namespace: "fixture" }, ({ path: name }) => ({ contents: name === "journal-export"
-      ? "export async function exportFinancialReportFile(period,format){window.legacyExports.push({period,format});}"
+    build.onLoad({ filter: /.*/, namespace: "fixture" }, ({ path: name }) => ({ contents: name === "role"
+      ? "export function useRole(){return {canPerform:()=>true}}"
+      : name === "journal-export"
+      ? "export async function exportFinancialReportFile(period,format,preview,range){window.legacyExports.push({period,format,...(range?{range}:{})});}"
       : `export function serializeMonthlyWorkbook(){return new Uint8Array([80,75]);}` }));
   } }],
 });
@@ -107,6 +110,12 @@ try {
     await expect(trigger).toBeFocused();
     assert.equal(requests.length, 2);
     assert.deepEqual(requests[1], { year: "2026", month: "9" });
+    await trigger.click();
+    await page.getByLabel("Jenis laporan").selectOption("journal");
+    await expect(page.getByLabel("Periode jurnal")).toHaveValue("custom");
+    await page.getByRole("button", { name: "Unduh Excel", exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+    assert.deepEqual(await page.evaluate(() => window.legacyExports.shift()), { period: "custom", format: "xlsx", range: { from: "2026-05-03", to: "2026-05-05" } });
     await trigger.click();
     await page.getByLabel("Jenis laporan").selectOption("journal");
     for (const format of ["xlsx", "pdf"]) {

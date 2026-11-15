@@ -8,6 +8,7 @@ import type {
 
 export interface CustomerCategoryPricingRule {
   id: string;
+  scope?: "CATEGORY" | "SUBCATEGORY";
   storeId: string;
   categoryId: string;
   customerType: PricingCustomerType;
@@ -37,6 +38,7 @@ export interface CustomerCategoryPricingRule {
 }
 
 export interface CustomerCategoryPricingRuleInput {
+  scope?: "CATEGORY" | "SUBCATEGORY";
   categoryId: string;
   customerType?: PricingCustomerType;
   customerTypes?: PricingCustomerType[];
@@ -172,7 +174,7 @@ export function useDeleteCustomerCategoryPricingRule() {
 
 export interface PricingScopeOptions {
   units: string[];
-  products: Array<{ id: string; name: string; unit: string; price: number; costPrice?: number | null; brandId: string | null; baseCostPrice: number | null; baseCostUnit: string | null }>;
+  products: Array<{ id: string; name: string; categoryId?: string; unit: string; price: number; costPrice?: number | null; brandId: string | null; baseCostPrice: number | null; baseCostUnit: string | null }>;
 }
 
 async function fetchPricingScopeOptions(
@@ -181,8 +183,10 @@ async function fetchPricingScopeOptions(
   signal: AbortSignal,
   unit?: string | string[] | null,
   brandId?: string | null,
+  scope: "CATEGORY" | "SUBCATEGORY" = "CATEGORY",
 ): Promise<PricingScopeOptions> {
   const params = new URLSearchParams({ categoryId, view });
+  if (scope === "SUBCATEGORY") params.set("scope", scope);
   for (const selected of Array.isArray(unit) ? unit : unit ? [unit] : []) params.append("unit", selected);
   if (brandId) params.set("brandId", brandId);
   const response = await fetch(`/api/customer-category-pricing-rules/scope-options?${params}`, { signal });
@@ -194,22 +198,22 @@ async function fetchPricingScopeOptions(
   return json.data;
 }
 
-export function usePricingUnitOptions(categoryId?: string) {
+export function usePricingUnitOptions(categoryId?: string, scope: "CATEGORY" | "SUBCATEGORY" = "CATEGORY") {
   return useQuery({
-    queryKey: ["pricing-scope-units", categoryId],
+    queryKey: ["pricing-scope-units", categoryId, scope],
     enabled: Boolean(categoryId),
-    queryFn: async ({ signal }) => (await fetchPricingScopeOptions(categoryId!, "units", signal)).units,
+    queryFn: async ({ signal }) => (await fetchPricingScopeOptions(categoryId!, "units", signal, null, null, scope)).units,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     retry: 1,
   });
 }
 
-export function usePricingScopeOptions(categoryId?: string, unit?: string | string[] | null, brandId?: string | null, options: { enabled?: boolean } = {}) {
+export function usePricingScopeOptions(categoryId?: string, unit?: string | string[] | null, brandId?: string | null, options: { enabled?: boolean; scope?: "CATEGORY" | "SUBCATEGORY" } = {}) {
   return useQuery({
-    queryKey: ["pricing-scope-options", categoryId, unit, brandId],
+    queryKey: ["pricing-scope-options", categoryId, unit, brandId, options.scope ?? "CATEGORY"],
     enabled: Boolean(categoryId) && options.enabled !== false,
-    queryFn: ({ signal }) => fetchPricingScopeOptions(categoryId!, "preview", signal, unit, brandId),
+    queryFn: ({ signal }) => fetchPricingScopeOptions(categoryId!, "preview", signal, unit, brandId, options.scope),
     staleTime: 15_000,
     refetchOnWindowFocus: false,
     retry: 1,

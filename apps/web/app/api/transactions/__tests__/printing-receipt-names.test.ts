@@ -25,7 +25,8 @@ vi.mock("@pos/db", () => ({ Prisma: {}, db: {
   customer: { findFirst: mocks.customer }, salesperson: { findFirst: mocks.salesperson },
   printingService: { findMany: vi.fn(async () => []) },
   transaction: { count: async () => 0, findFirst: mocks.findTransaction },
-  categoryCustomerPricingRule: { findMany: async () => [] }, $transaction: mocks.transaction,
+  categoryCustomerPricingRule: { findMany: async () => [] },
+  subcategoryCustomerPricingRule: { findMany: async () => [] }, $transaction: mocks.transaction,
 } }));
 
 const document = () => ({

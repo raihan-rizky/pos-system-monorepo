@@ -20,6 +20,7 @@ const cashierShiftFindManyMock = vi.hoisted(() => vi.fn());
 const inventoryLogFindManyMock = vi.hoisted(() => vi.fn());
 const expenseAggregateMock = vi.hoisted(() => vi.fn());
 const expenseCountMock = vi.hoisted(() => vi.fn());
+const manualIncomeFindManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
@@ -40,6 +41,7 @@ vi.mock("@/features/customer-debt/services/receivable-balance", () => ({
 
 vi.mock("@pos/db", () => ({
   db: {
+    manualIncome: { findMany: manualIncomeFindManyMock },
     transaction: {
       findMany: transactionFindManyMock,
     },
@@ -79,6 +81,7 @@ describe("GET /api/finance/report", () => {
     globalRolePermissionsMock.mockResolvedValue({});
     canRolePerformActionMock.mockImplementation(() => false);
     loadReceivableBalanceMock.mockReset();
+    manualIncomeFindManyMock.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -93,6 +96,18 @@ describe("GET /api/finance/report", () => {
     await GET(request);
 
     expect(requirePermissionMock).toHaveBeenCalledWith("financial-report", "read");
+  });
+
+  it("includes only the current store's manual income in the selected WIB period", async () => {
+    manualIncomeFindManyMock.mockResolvedValue([{ id: "m1", occurredAt: new Date("2026-05-03T04:00:00Z"), category: "ATK", amount: 100, payments: [{ method: "CASH", amount: 100 }] }]);
+    const response = await GET(new NextRequest("http://localhost/api/finance/report?dateFrom=2026-05-03&dateTo=2026-05-03"));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(manualIncomeFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: {
+      storeId: "store-main", deletedAt: null, occurredAt: { gte: new Date("2026-05-02T17:00:00.000Z"), lt: new Date("2026-05-03T17:00:00.000Z") },
+    } }));
+    expect(body.summary).toMatchObject({ revenue: 100, collected: 100, grossProfit: 0 });
+    expect(body.subcategories).toEqual([expect.objectContaining({ categoryName: "ATK", subcategoryName: "Pemasukan manual", revenue: 100 })]);
   });
 
   it("queries initial collections independently of invoice date", async () => {
@@ -117,6 +132,7 @@ describe("GET /api/finance/report", () => {
 
     const response = await GET(request);
     expect(response.status).toBe(200);
+    expect(transactionFindManyMock.mock.calls[0][0].select.items.select.product.select.catalogSubcategory).toEqual({ select: { group: true, name: true } });
 
     expect(transactionFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({

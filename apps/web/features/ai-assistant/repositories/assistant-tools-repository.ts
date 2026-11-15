@@ -141,6 +141,9 @@ export async function getFinancialReportAnalysis({
       select: {
         id: true,
         invoiceNumber: true,
+        transactionCategory: true,
+        printingSubcategory: true,
+        printingReceipt: { select: { subcategory: true } },
         invoiceDate: true,
         createdAt: true,
         status: true,
@@ -153,12 +156,13 @@ export async function getFinancialReportAnalysis({
         items: {
           select: {
             productId: true,
+            printingServiceId: true,
             productName: true,
             quantity: true,
             subtotal: true,
             unitCost: true,
             product: {
-              select: { category: { select: { name: true } } },
+              select: { category: { select: { name: true } }, catalogSubcategory: { select: { group: true, name: true } } },
             },
           },
         },

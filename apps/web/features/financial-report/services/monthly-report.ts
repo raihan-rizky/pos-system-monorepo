@@ -29,10 +29,11 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
         { createdAt: bounds },
       ] },
       select: {
-        id: true, invoiceNumber: true, invoiceDate: true, createdAt: true, status: true, paymentMethod: true,
+        id: true, invoiceNumber: true, invoiceDate: true, createdAt: true, offlineSyncMetadata: true, status: true, paymentMethod: true,
         total: true, amountPaid: true, change: true, transactionCategory: true, printingSubcategory: true,
         customerName: true, customer: { select: { name: true } },
-        items: { select: { productName: true, subtotal: true, product: { select: { category: { select: { name: true } } } } } },
+        printingReceipt: { select: { subcategory: true } },
+        items: { select: { productName: true, subtotal: true, printingServiceId: true, product: { select: { category: { select: { name: true } }, catalogSubcategory: { select: { group: true, name: true } } } } } },
         payments: { select: paymentSelect, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
         debtPaymentLogs: { select: { id: true, paymentMethod: true, amount: true, createdAt: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
       },

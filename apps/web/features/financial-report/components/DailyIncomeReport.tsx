@@ -24,7 +24,7 @@ function IncomeBreakdown({ title, rows }: { title: string; rows: BreakdownRow[] 
   </section>;
 }
 
-export function DailyIncomeReport({ previewSales = false, fullReportPreview }: { previewSales?: boolean; fullReportPreview?: ReactNode } = {}) {
+export function DailyIncomeReport({ previewSales = false, fullReportPreview }: { previewSales?: boolean; fullReportPreview?: ReactNode | ((exportAccess: boolean) => ReactNode) } = {}) {
   const { canPerform, canAccess, userId, storeId, authorizationFingerprint } = useRole();
   const fullReportAccess = !previewSales && canPerform("financial-report", "read");
   const access = {
@@ -37,7 +37,7 @@ export function DailyIncomeReport({ previewSales = false, fullReportPreview }: {
   const { data, isLoading, isFetching, error, refetch } = useDailyIncome(date, access, previewSales);
   const hasAccess = Object.values(access).some(Boolean);
   const report = !error && !isLoading && data?.date === date ? data : undefined;
-  if (previewSales && report?.viewMode === "full" && fullReportPreview) return fullReportPreview;
+  if (previewSales && report?.viewMode === "full" && fullReportPreview) return typeof fullReportPreview === "function" ? fullReportPreview(report.exportAccess === true) : fullReportPreview;
   const historyGate = canAccess("/history") && canPerform("transaction", "read");
   const canOpen = (section: "total" | "category" | "subcategory" | "method" | "outstandingDp") => historyGate && (!previewSales || report?.receiptHistoryAccess?.[section] === true);
   const hrefFor = (section: "total" | "category" | "subcategory" | "method" | "outstandingDp", extra: Partial<ReceiptHistoryContext> = {}) => canOpen(section)

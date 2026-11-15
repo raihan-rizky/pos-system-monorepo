@@ -32,6 +32,7 @@ export type DailyIncomeReport = {
 export type DailyIncomeResponse = Pick<DailyIncomeReport, "date"> & Partial<Omit<DailyIncomeReport, "date">> & {
   viewMode?: "full";
   receivableBalance?: number;
+  exportAccess?: boolean;
   receiptHistoryAccess?: { total: boolean; category: boolean; subcategory: boolean; method: boolean; outstandingDp: boolean };
 };
 

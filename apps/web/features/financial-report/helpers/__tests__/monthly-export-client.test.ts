@@ -43,6 +43,11 @@ describe("exportMonthlyFinancialReport", () => {
     expect(createUrl).not.toHaveBeenCalled();
     expect(anchor.click).not.toHaveBeenCalled();
   });
+  it("sends the Sales preview context to the server", async () => {
+    fetchReport.mockResolvedValue(new Response(JSON.stringify({ year: 2026, month: 9 }), { status: 200 }));
+    await exportMonthlyFinancialReport(2026, 9, true);
+    expect(fetchReport).toHaveBeenCalledWith("/api/finance/report/monthly?year=2026&month=9&view=sales", { cache: "no-store" });
+  });
 
   it("reports a friendly failure when the server does not return JSON", async () => {
     fetchReport.mockResolvedValue(new Response("Bad gateway", { status: 502 }));

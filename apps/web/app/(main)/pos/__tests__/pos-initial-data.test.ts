@@ -79,6 +79,18 @@ describe("loadPOSInitialData", () => {
     expect(result.productsUpdatedAt).toBeLessThanOrEqual(Date.now());
   });
 
+  it("loads unit classification for initial catalog pricing", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("E2E_AUTH_BYPASS", "0");
+    mocks.requirePermission.mockResolvedValue({ storeId: "store-main" });
+    mocks.productFindMany.mockResolvedValue([]);
+    mocks.productCount.mockResolvedValue(0);
+    mocks.categoryFindMany.mockResolvedValue([]);
+    mocks.storeSettingsFindUnique.mockResolvedValue({ shiftEnabled: true });
+    await loadPOSInitialData();
+    expect(mocks.productFindMany.mock.calls[0][0].select).toMatchObject({ catalogSubcategoryId: true, catalogSubcategory: { select: { id: true, group: true, name: true, legacyCategoryId: true } } });
+  });
+
   it("keeps selected product and variant barcodes searchable in the seeded catalog", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("E2E_AUTH_BYPASS", "0");

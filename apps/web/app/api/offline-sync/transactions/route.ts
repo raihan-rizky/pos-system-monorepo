@@ -5,6 +5,7 @@ import { getPriceRoundingSettings } from "@/features/product-price-rounding/serv
 import { getSpecialPricingEnabled } from "@/features/customer-category-pricing/server/special-pricing-settings";
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
 import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
+import { loadCustomerPricingRules } from "@/features/customer-category-pricing/server/pricing-rule-loader";
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { z } from "zod";
@@ -36,6 +37,7 @@ export const dynamic = "force-dynamic";
 const offlineItemSchema = z.object({
   productId: z.string(),
   categoryId: z.string().optional(),
+  catalogSubcategoryId: z.string().nullable().optional(),
   name: z.string(),
   size: z.string().optional().nullable(),
   material: z.string().optional().nullable(),
@@ -257,7 +259,7 @@ async function syncOne(
     : isTempo ? [] : [{ method: offlineTx.paymentMethod as Exclude<typeof offlineTx.paymentMethod, "TEMPO">, amount: offlineTx.amountPaid }];
 
   const productIds = [...new Set(offlineTx.items.map((item) => item.productId))];
-  const [products, customer, rawPricingRules] = await Promise.all([
+  const [products, customer, pricingRules] = await Promise.all([
     db.product.findMany({
       where: { id: { in: productIds }, storeId, isActive: true },
       select: {
@@ -276,6 +278,8 @@ async function syncOne(
         stock: true,
         unit: true,
         categoryId: true,
+        catalogSubcategoryId: true,
+        catalogSubcategory: { select: { legacyCategoryId: true } },
         category: { select: { name: true } },
         brandId: true,
         brand: { select: { name: true } },
@@ -287,13 +291,7 @@ async function syncOne(
           select: { id: true, type: true },
         })
       : Promise.resolve(true),
-    db.categoryCustomerPricingRule.findMany({
-      where: { storeId, isActive: true },
-      include: {
-        category: { select: { name: true } },
-        brand: { select: { name: true } },
-      },
-    }),
+    loadCustomerPricingRules(db, storeId),
   ]);
   const baseCosts = await loadProductBaseCosts(db, products);
   const productById = new Map(products.map((product) => [product.id, product]));
@@ -318,22 +316,6 @@ async function syncOne(
     offlineTx.customerId && customer && customer !== true
       ? (customer.type as CustomerType)
       : "UMUM";
-  const pricingRules = rawPricingRules.map((rule) => ({
-    id: rule.id,
-    categoryId: rule.categoryId,
-    categoryName: rule.category.name,
-    customerType: (rule.customerType ?? "ALL") as CategoryPricingRule["customerType"],
-    customerTypes: rule.customerTypes,
-    unit: rule.unit,
-    units: rule.units,
-    brandId: rule.brandId,
-    brandName: rule.brand?.name ?? null,
-    mode: rule.mode,
-    value: Number(rule.value),
-    discountPercent: Number(rule.discountPercent ?? 0),
-    isActive: rule.isActive,
-    updatedAt: rule.updatedAt,
-  })) satisfies CategoryPricingRule[];
   const appliedPricingByProductId = new Map<string, AppliedCategoryPricing | null>();
   const catalogPriceByProductId = new Map<string, number>();
 
@@ -342,7 +324,9 @@ async function syncOne(
   const pricingPermissions = await getGlobalRolePermissions();
   const canUseTransactionPrice = canRolePerformAction(user.role as Role, "transaction.custom_price", "update", pricingPermissions);
   const canUseCustomerManualPrice = specialPricingEnabled && canEditCustomPriceForCustomer(user.role, checkoutCustomerType);
-  const categoryChanged = offlineTx.items.some(item => item.categoryId != null && item.categoryId !== productById.get(item.productId)?.categoryId);
+  const categoryChanged = offlineTx.items.some(item =>
+    (item.categoryId != null && item.categoryId !== productById.get(item.productId)?.categoryId) ||
+    (item.catalogSubcategoryId !== undefined && item.catalogSubcategoryId !== (productById.get(item.productId)?.catalogSubcategoryId ?? null)));
   const capturedPolicy = offlineTx.priceRoundingSettings;
   const roundingPolicyChanged = Boolean(capturedPolicy && (
     capturedPolicy.enabled !== roundingSettings.enabled || capturedPolicy.increment !== roundingSettings.increment ||
@@ -363,6 +347,8 @@ async function syncOne(
       {
         categoryId: product.categoryId,
         categoryName: product.category?.name ?? null,
+        catalogSubcategoryId: product.catalogSubcategoryId,
+        catalogSubcategoryLegacyCategoryId: product.catalogSubcategory?.legacyCategoryId ?? null,
         price: Number(product.price),
         costPrice: product.costPrice == null ? null : Number(product.costPrice),
         ...baseCosts.get(product.id),

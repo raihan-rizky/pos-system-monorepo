@@ -19,6 +19,7 @@ const transactionItemCountMock = vi.hoisted(() => vi.fn());
 const productPriceLogCreateManyMock = vi.hoisted(() => vi.fn());
 const txProductStockGroupFindUniqueMock = vi.hoisted(() => vi.fn());
 const txProductStockGroupCreateMock = vi.hoisted(() => vi.fn());
+const txSubcategoryFindUniqueMock = vi.hoisted(() => vi.fn());
 const groupActivityCreateMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
@@ -60,6 +61,24 @@ describe("POST /api/products", () => {
     stock: 24, minStock: 5, price: 2000, description: "Kertas putih",
   };
   const boxInput = { unit: "dus", sku: "KERTAS-DUS", relativeQuantity: 12, price: 22000 };
+
+  it("assigns the chosen subcategory to all newly created units", async () => {
+    const response = await POST(new Request("http://localhost/api/products", {
+      method: "POST", body: JSON.stringify({ ...originalUnitInput, catalogSubcategoryId: "print", additionalUnitVariants: [boxInput] }),
+    }));
+    expect(response.status).toBe(201);
+    expect(productCreateMock).toHaveBeenCalledTimes(2);
+    expect(productCreateMock.mock.calls.map(([args]) => args.data.catalogSubcategoryId)).toEqual(["print", "print"]);
+  });
+
+  it("rejects an unsupported subcategory before writing a product", async () => {
+    txSubcategoryFindUniqueMock.mockResolvedValueOnce({ id: "spanduk", group: "PERCETAKAN", name: "SPANDUK", legacyCategoryId: null });
+    const response = await POST(new Request("http://localhost/api/products", {
+      method: "POST", body: JSON.stringify({ ...originalUnitInput, catalogSubcategoryId: "spanduk" }),
+    }));
+    expect(response.status).toBe(422);
+    expect(productCreateMock).not.toHaveBeenCalled();
+  });
 
   it.each([
     { unit: "pcs", stock: 24, variant: boxInput, baseUnit: "pcs", primaryMultiplier: 1, addedMultiplier: 12 },
@@ -226,6 +245,7 @@ describe("POST /api/products", () => {
       baseUnit: "meter",
       baseStock: 0,
     });
+    txSubcategoryFindUniqueMock.mockReset().mockResolvedValue({ id: "print", group: "PERCETAKAN", name: "PRINT", legacyCategoryId: null });
     productCreateMock.mockReset().mockResolvedValue({
       id: "product-1",
       name: "Banner Flexi",
@@ -240,6 +260,7 @@ describe("POST /api/products", () => {
       callback(withPricingTransaction({
         $queryRaw: groupRowLockMock,
         product: { create: productCreateMock },
+        productSubcategory: { findUnique: txSubcategoryFindUniqueMock },
         productStockGroup: {
           findUnique: txProductStockGroupFindUniqueMock,
           create: txProductStockGroupCreateMock,
@@ -577,6 +598,23 @@ describe("POST /api/products", () => {
 });
 
 describe("GET /api/products", () => {
+  it("filters each unit by its new category and subcategory before counting and grouping", async () => {
+    const response = await GET(new Request("http://localhost/api/products?catalogGroup=PERCETAKAN&catalogSubcategoryId=print"));
+    expect(response.status).toBe(200);
+    const expectedWhere = expect.objectContaining({
+      storeId: "store-main", isActive: true,
+      catalogSubcategoryId: "print", catalogSubcategory: { is: { group: "PERCETAKAN" } },
+    });
+    expect(productFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: expectedWhere }));
+    expect(productCountMock).toHaveBeenCalledWith({ where: expectedWhere });
+  });
+
+  it("can find units whose new classification has not been set", async () => {
+    const response = await GET(new Request("http://localhost/api/products?catalogGroup=UNCLASSIFIED&categoryId=cat-1"));
+    expect(response.status).toBe(200);
+    expect(productCountMock).toHaveBeenCalledWith({ where: expect.objectContaining({ categoryId: "cat-1", catalogSubcategoryId: null }) });
+  });
+
   it("applies a unit filter to both rows and counts before pagination", async () => {
     const response = await GET(new Request("http://localhost/api/products?unit=dus&categoryId=cat-1&page=2&limit=10"));
     expect(response.status).toBe(200);

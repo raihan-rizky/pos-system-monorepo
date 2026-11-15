@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Modal, Button, Input } from "@pos/ui";
 import { Plus, Upload, X, RefreshCw } from "lucide-react";
 import { useCreateProduct, useUpdateProduct, Product } from "@/hooks/useProducts";
@@ -11,6 +12,7 @@ import { PriceRoundingPreview } from "@/features/product-price-rounding/componen
 import type { PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 import { MemberPriceField } from "@/features/customer-category-pricing/components/MemberPriceField";
 import { MemberPricingGuidance } from "@/features/customer-category-pricing/components/MemberPricingGuidance";
+import type { CatalogGroup, CatalogSubcategory } from "@/features/product-classification/types";
 
 interface ProductFormModalProps {
   roundingSettings?: PriceRoundingSettings;
@@ -27,12 +29,23 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
   const updateProduct = useUpdateProduct();
   const { data: brands = [] } = useBrands();
   const createBrand = useCreateBrand();
+  const [classificationGroup, setClassificationGroup] = useState<CatalogGroup | "">("");
+  const classification = useQuery({
+    queryKey: ["product-classification", "catalog"],
+    enabled: isOpen && !productId,
+    queryFn: async ({ signal }): Promise<{ subcategories: CatalogSubcategory[] }> => {
+      const response = await fetch("/api/product-classification", { signal });
+      if (!response.ok) throw new Error("Kategori belum dapat dimuat.");
+      return response.json();
+    },
+  });
 
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     sku: "",
     categoryId: "",
+    catalogSubcategoryId: "",
     brandId: "",
     price: "",
     costPrice: "",
@@ -103,6 +116,7 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
         description: initialData.description ?? "",
         sku: initialData.sku,
         categoryId: initialData.category?.id || "",
+        catalogSubcategoryId: initialData.catalogSubcategoryId || "",
         brandId: initialData.brandId || initialData.brand?.id || "",
         price: initialData.price.toString(),
         costPrice: initialData.costPrice?.toString() || "",
@@ -127,11 +141,13 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
       setFormData(values);
     } else if (isOpen && !initialData && initializedProduct.current !== "create") {
       initializedProduct.current = "create";
+      setClassificationGroup("");
       setFormData({
         name: "",
         description: "",
         sku: "",
         categoryId: categories[0]?.id || "",
+        catalogSubcategoryId: "",
         brandId: "",
         price: "",
         costPrice: "",
@@ -260,9 +276,35 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
           />
         </div>
 
+        {!productId ? <fieldset className="space-y-3 rounded-xl border border-surface-200 bg-surface-50 p-4">
+          <legend className="px-1 text-sm font-semibold text-surface-900">Kategori produk</legend>
+          <p id="inventory-classification-hint" className="text-xs text-surface-600">Bisa diatur nanti. Pilihan ini berlaku untuk semua satuan produk baru.</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="inventory-product-classification-group" className="mb-1 block text-sm font-medium text-surface-700">Kategori utama</label>
+              <select id="inventory-product-classification-group" value={classificationGroup} aria-describedby="inventory-classification-hint" disabled={isProcessing}
+                onChange={(event) => { setClassificationGroup(event.target.value as CatalogGroup | ""); setFormData(current => ({ ...current, catalogSubcategoryId: "" })); }}
+                className="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600">
+                <option value="">Belum diatur</option><option value="ATK">ATK</option><option value="PERCETAKAN">PERCETAKAN</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="inventory-product-subcategory" className="mb-1 block text-sm font-medium text-surface-700">Subkategori</label>
+              <select id="inventory-product-subcategory" value={formData.catalogSubcategoryId} aria-describedby="inventory-classification-hint"
+                disabled={!classificationGroup || classification.isPending || classification.isError || isProcessing}
+                onChange={(event) => setFormData(current => ({ ...current, catalogSubcategoryId: event.target.value }))}
+                className="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600">
+                <option value="">Belum diatur</option>
+                {classification.data?.subcategories.filter(item => item.group === classificationGroup).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </div>
+          </div>
+          {classification.isError && <p role="status" className="text-sm text-red-700">Kategori belum dapat dimuat. Anda tetap dapat mengaturnya nanti di Penataan kategori.</p>}
+        </fieldset> : <p className="text-sm text-surface-600">Kategori produk: {initialData?.catalogSubcategory ? `${initialData.catalogSubcategory.group} / ${initialData.catalogSubcategory.name}` : "Belum diatur"}. Ubah satuan melalui Penataan kategori.</p>}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="inventory-product-category" className="block text-sm font-medium text-surface-700 mb-1">Kategori</label>
+            <label htmlFor="inventory-product-category" className="block text-sm font-medium text-surface-700 mb-1">Kategori lama</label>
             <select
               id="inventory-product-category"
               aria-describedby={initialData?.stockGroupId || initialData?.stockGroup?.id ? "inventory-category-group-hint" : undefined}

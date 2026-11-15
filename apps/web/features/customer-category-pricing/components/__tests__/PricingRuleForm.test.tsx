@@ -2,6 +2,14 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PricingRuleForm } from "../PricingRuleForm";
 import { CustomerCategoryPricingRulesTab } from "../CustomerCategoryPricingRulesTab";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+vi.mock("@tanstack/react-query", async (original) => {
+  const actual = await original<typeof import("@tanstack/react-query")>();
+  return { ...actual, useQuery: () => ({ data: { subcategories: [
+    { id: "bot", group: "ATK", name: "BOT" }, { id: "print", group: "PERCETAKAN", name: "PRINT" },
+  ] }, isError: false }) };
+});
 import type { PricingPreviewProduct } from "../../helpers/pricing-form";
 
 const queryState = vi.hoisted(() => ({
@@ -92,6 +100,17 @@ const initialRule = {
 } as any;
 
 describe("Harga Khusus editor", () => {
+  it("offers distinct ATK and printing subcategories for a new rule", () => {
+    const client = new QueryClient();
+    client.setQueryData(["product-classification", "catalog"], { subcategories: [
+      { id: "bot", group: "ATK", name: "BOT" },
+      { id: "print", group: "PERCETAKAN", name: "PRINT" },
+    ] });
+    const html = renderToStaticMarkup(<QueryClientProvider client={client}><PricingRuleForm onSave={vi.fn()} onClose={vi.fn()} isSaving={false} /></QueryClientProvider>);
+    expect(html).toContain("ATK / BOT");
+    expect(html).toContain("PERCETAKAN / PRINT");
+    expect(html).toContain("Kategori lama");
+  });
   it("restores both percentages and previews using the selected unit modal", () => {
     const html = renderToStaticMarkup(<PricingRuleForm initialRule={{ ...initialRule, mode: "UNIT_COST_PLUS_PERCENT_DISCOUNT", value: 10, discountPercent: 5 }} onSave={vi.fn()} onClose={vi.fn()} isSaving={false} />);
     expect(html).toContain('name="discountPercent"');
@@ -151,6 +170,12 @@ describe("Harga Khusus editor", () => {
     const disabled = renderToStaticMarkup(<PricingRuleForm initialRule={initialRule} onSave={vi.fn()} onClose={vi.fn()} isSaving={false} roundingSettings={{ enabled: false, increment: 500, threshold: 50 }} />);
     expect(disabled).toContain("4.700");
     expect(disabled).not.toContain("Dibulatkan ke atas");
+  });
+  it("uses the product's legacy rounding exception when previewing a subcategory rule", () => {
+    queryState.previewProducts = [{ id: "p", name: "Kertas", unit: "rim", price: 5000, costPrice: 5400, baseCostPrice: 700, baseCostUnit: "pcs", brandId: null, categoryId: "paper" }];
+    const html = renderToStaticMarkup(<PricingRuleForm initialRule={{ ...initialRule, scope: "SUBCATEGORY", categoryId: "print" }} onSave={vi.fn()} onClose={vi.fn()} isSaving={false} roundingSettings={{ enabled: true, increment: 500, threshold: 50, excludedCategoryIds: ["paper"] }} />);
+    expect(html).toContain("4.700");
+    expect(html).not.toContain("Dibulatkan ke atas");
   });
   it("preserves a saved unit absent from current category options", () => {
     const html = renderToStaticMarkup(

@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
 const mocks = vi.hoisted(() => ({
   findExpenses: vi.fn(), countExpenses: vi.fn(), aggregateExpenses: vi.fn(),
   findTransactions: vi.fn(), findReceivables: vi.fn(), findShifts: vi.fn(),
   findInventory: vi.fn(), findDebtPayments: vi.fn(), findBackdated: vi.fn(), requirePermission: vi.fn(),
+  currentUser: vi.fn(), rolePermissions: vi.fn(),
 }));
 
 vi.mock("@pos/db", () => {
@@ -20,7 +22,8 @@ vi.mock("@pos/db", () => {
   };
   return { db: { ...tx, $transaction: (callback: (value: typeof tx) => unknown) => callback(tx) } };
 });
-vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.requirePermission, handleAuthError: () => null }));
+vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.requirePermission, getCurrentUser: mocks.currentUser, handleAuthError: () => null }));
+vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.rolePermissions }));
 vi.mock("@/features/financial-report/services/monthly-balances", () => ({
   getMonthlyBalances: async () => ({ openingInventoryBalance: null, inventoryBalance: null, supplierDebts: [], supplierDebtBalance: 0 }),
 }));
@@ -70,6 +73,8 @@ describe("pembacaan keuangan belanja terdahulu", () => {
     vi.useFakeTimers();
     vi.clearAllMocks();
     mocks.requirePermission.mockResolvedValue({ id: "user-1", storeId: "store-1" });
+    mocks.currentUser.mockResolvedValue({ id: "user-1", role: "OWNER", storeId: "store-1" });
+    mocks.rolePermissions.mockResolvedValue(buildDefaultRolePermissions());
     mocks.findTransactions.mockResolvedValue([]);
     mocks.findReceivables.mockResolvedValue([]);
     mocks.findShifts.mockResolvedValue([]);

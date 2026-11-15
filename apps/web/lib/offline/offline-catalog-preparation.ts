@@ -2,6 +2,7 @@
 
 import { offlineDb, type OfflineCatalogIdentity, type OfflineCatalogSnapshot } from "./offline-db";
 import { warmOfflineCheckoutModules } from "./offline-module-preparation";
+import { isOfflineCatalogPricing } from "./offline-pricing";
 
 export async function prepareOfflineCatalog(identity: OfflineCatalogIdentity) {
   const response = await fetch("/api/offline-sync/catalog", { cache: "no-store" });
@@ -15,7 +16,8 @@ export async function prepareOfflineCatalog(identity: OfflineCatalogIdentity) {
   }
   if (!Array.isArray(result.products) || !Array.isArray(result.categories) ||
       !Number.isFinite(Date.parse(result.generatedAt)) ||
-      [...result.products, ...result.categories].some((item) => !item || typeof item.id !== "string")) {
+      [...result.products, ...result.categories].some((item) => !item || typeof item.id !== "string") ||
+      !isOfflineCatalogPricing(result.pricing, identity.storeId)) {
     throw new Error("Data katalog belum lengkap. Coba siapkan kembali saat online.");
   }
   await warmOfflineCheckoutModules();

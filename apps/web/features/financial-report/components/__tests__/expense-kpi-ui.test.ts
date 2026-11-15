@@ -35,7 +35,7 @@ describe("KPI pengeluaran pada Laporan Keuangan", () => {
     );
 
     expect(page).toContain(
-      "fullReportPreview={<FullFinancialReport previewSales />}",
+      "fullReportPreview={exportAccess => <FullFinancialReport previewSales previewExportAccess={exportAccess} />}",
     );
     expect(hook).toContain(
       'if (params.view === "sales") searchParams.set("view", "sales");',

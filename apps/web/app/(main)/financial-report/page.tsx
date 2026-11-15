@@ -15,7 +15,7 @@ import {
   PackageX,
   ReceiptText,
 } from "lucide-react";
-import { formatRupiah } from "@/lib/utils";
+import { formatRupiahPrecise } from "@/lib/utils";
 import {
   buildFinancialReportRange,
   type FinancialReportPreset,
@@ -93,11 +93,11 @@ export default function FinancialReportPage() {
         {currentView === "sales" && <p className="text-xs text-surface-600">Tampilan Sales mengikuti izin Sales yang diatur di Hak Akses.</p>}
       </div>
     </div>
-    {currentView === "sales" ? <DailyIncomeReport previewSales fullReportPreview={<FullFinancialReport previewSales />} /> : currentView === "daily" ? <DailyIncomeReport /> : <FullFinancialReport />}
+    {currentView === "sales" ? <DailyIncomeReport previewSales fullReportPreview={exportAccess => <FullFinancialReport previewSales previewExportAccess={exportAccess} />} /> : currentView === "daily" ? <DailyIncomeReport /> : <FullFinancialReport />}
   </div>;
 }
 
-function FullFinancialReport({ previewSales = false }: { previewSales?: boolean }) {
+function FullFinancialReport({ previewSales = false, previewExportAccess = false }: { previewSales?: boolean; previewExportAccess?: boolean } = {}) {
   const initialRange = React.useMemo(
     () => buildFinancialReportRange("month"),
     [],
@@ -182,7 +182,7 @@ function FullFinancialReport({ previewSales = false }: { previewSales?: boolean 
           name: row.categoryName,
           primaryValue: row.revenue,
           secondaryValue: row.grossProfit,
-          countLabel: `${row.transactionCount} trx`,
+          countLabel: `${row.transactionCount} entri`,
         })),
     [report?.categories],
   );
@@ -227,7 +227,7 @@ function FullFinancialReport({ previewSales = false }: { previewSales?: boolean 
                   );
                 })}
               </div>
-              <ReportExportMenu />
+              <ReportExportMenu previewSales={previewSales} previewExportAccess={previewExportAccess} reportRange={{ from: dateFrom, to: dateTo }} />
             </div>
           </div>
         </div>
@@ -303,6 +303,12 @@ function FullFinancialReport({ previewSales = false }: { previewSales?: boolean 
             </div>
           )}
 
+          {!isLoading && (summary?.manualIncomeCount ?? 0) > 0 && (
+            <p role="note" className="border-t border-amber-100 bg-amber-50/70 px-4 py-2.5 text-[12px] text-amber-800 md:px-5">
+              Pemasukan manual masuk omzet dan terkumpul, tetapi tidak dihitung dalam laba kotor karena HPP tidak dicatat.
+            </p>
+          )}
+
           {!isLoading && lossStokUnclassifiedCount > 0 && (
             <div
               role="note"
@@ -351,8 +357,8 @@ function FullFinancialReport({ previewSales = false }: { previewSales?: boolean 
         >
           <KpiCard
             label="Omzet"
-            value={formatRupiah(summary?.revenue ?? 0)}
-            hint={`${transactionCount} transaksi`}
+            value={formatRupiahPrecise(summary?.revenue ?? 0)}
+            hint={`${transactionCount} transaksi${summary?.manualIncomeCount ? ` · ${summary.manualIncomeCount} pemasukan manual` : ""}`}
             tone="brand"
             loading={isLoading}
             icon={<Wallet className="h-4 w-4" aria-hidden="true" />}
@@ -365,7 +371,7 @@ function FullFinancialReport({ previewSales = false }: { previewSales?: boolean 
           />
           <KpiCard
             label="Terkumpul"
-            value={formatRupiah(summary?.collected ?? 0)}
+            value={formatRupiahPrecise(summary?.collected ?? 0)}
             hint={`${(collectionRate * 100).toFixed(1)}% dari omzet`}
             tone="success"
             loading={isLoading}
@@ -379,7 +385,7 @@ function FullFinancialReport({ previewSales = false }: { previewSales?: boolean 
           />
           <KpiCard
             label="Laba Kotor"
-            value={formatRupiah(summary?.grossProfit ?? 0)}
+            value={formatRupiahPrecise(summary?.grossProfit ?? 0)}
             hint="Setelah HPP & Loss Stok"
             tone="success"
             loading={isLoading}
@@ -393,7 +399,7 @@ function FullFinancialReport({ previewSales = false }: { previewSales?: boolean 
           />
           <KpiCard
             label="Pengeluaran"
-            value={formatRupiah(summary?.expenseTotal ?? 0)}
+            value={formatRupiahPrecise(summary?.expenseTotal ?? 0)}
             hint={`${summary?.expenseEntryCount ?? 0} entri`}
             tone="danger"
             loading={isLoading}
@@ -407,7 +413,7 @@ function FullFinancialReport({ previewSales = false }: { previewSales?: boolean 
           />
           <KpiCard
             label="Outstanding DP"
-            value={formatRupiah(summary?.outstandingDp ?? 0)}
+            value={formatRupiahPrecise(summary?.outstandingDp ?? 0)}
             hint="Sisa belum dibayar"
             tone="warning"
             loading={isLoading}
@@ -422,7 +428,7 @@ function FullFinancialReport({ previewSales = false }: { previewSales?: boolean 
           {report?.summary.receivableBalance !== undefined && (
             <KpiCard
               label="Piutang"
-              value={formatRupiah(report.summary.receivableBalance)}
+              value={formatRupiahPrecise(report.summary.receivableBalance)}
               hint={`Saldo sampai ${dateTo}`}
               tone="warning"
               loading={isLoading}
@@ -437,7 +443,7 @@ function FullFinancialReport({ previewSales = false }: { previewSales?: boolean 
           )}
           <KpiCard
             label="Loss Stok"
-            value={formatRupiah(lossStokNet)}
+            value={formatRupiahPrecise(lossStokNet)}
             hint={
               lossStokUnclassifiedCount > 0
                 ? `${lossStokUnclassifiedCount} belum diklasifikasi`
@@ -500,8 +506,8 @@ function FullFinancialReport({ previewSales = false }: { previewSales?: boolean 
           <RankedListCard
             title="Top Subkategori"
             accent="brand"
-            rows={(report?.subcategories ?? []).slice().sort((a, b) => b.revenue - a.revenue).map(row => ({ key: `${row.categoryName}:${row.subcategoryName}`, name: `${row.categoryName} / ${row.subcategoryName}`, primaryValue: row.revenue, secondaryValue: row.grossProfit, countLabel: `${row.transactionCount} trx` }))}
-            maxRows={100}
+            rows={(report?.subcategories ?? []).slice().sort((a, b) => b.revenue - a.revenue).map(row => ({ key: `${row.categoryName}:${row.subcategoryName}`, name: `${row.categoryName} / ${row.subcategoryName}`, primaryValue: row.revenue, secondaryValue: row.grossProfit, countLabel: `${row.transactionCount} entri` }))}
+            maxRows={report?.subcategories.length ?? 0}
             loading={isLoading}
             emptyText="Belum ada subkategori pada periode ini."
           />

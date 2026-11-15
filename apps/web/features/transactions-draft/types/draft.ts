@@ -5,6 +5,7 @@ import type { PriceRoundingSettings } from "@/features/product-price-rounding/ro
 export type DraftItemInput = {
   productId: string;
   categoryId?: string;
+  catalogSubcategoryId?: string | null;
   name: string;
   documentName?: string | null;
   size?: string | null;

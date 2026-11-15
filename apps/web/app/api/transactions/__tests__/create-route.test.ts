@@ -15,6 +15,7 @@ const salespersonFindFirstMock = vi.hoisted(() => vi.fn());
 const productFindManyMock = vi.hoisted(() => vi.fn());
 const printingServiceFindManyMock = vi.hoisted(() => vi.fn());
 const pricingRuleFindManyMock = vi.hoisted(() => vi.fn());
+const subcategoryRuleFindManyMock = vi.hoisted(() => vi.fn());
 const transactionCountMock = vi.hoisted(() => vi.fn());
 const transactionFindManyMock = vi.hoisted(() => vi.fn());
 const transactionFindFirstMock = vi.hoisted(() => vi.fn());
@@ -73,6 +74,7 @@ vi.mock("@pos/db", () => ({
     },
     printingService: { findMany: printingServiceFindManyMock },
     categoryCustomerPricingRule: { findMany: pricingRuleFindManyMock },
+    subcategoryCustomerPricingRule: { findMany: subcategoryRuleFindManyMock },
     cashierShift: { findFirst: shiftFindFirstMock },
     transaction: {
       count: transactionCountMock,
@@ -86,6 +88,27 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/transactions negative stock", () => {
+  it("rejects a stale classification at checkout", async () => {
+    const product = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...product, catalogSubcategoryId: "new", catalogSubcategory: { legacyCategoryId: null } }]);
+    const response = await POST(new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      paymentMethod: "CASH", amountPaid: 10000, items: [{ productId: "p1", quantity: 1, price: 1000, catalogSubcategoryId: "old" }],
+    }) }));
+    expect(response.status).toBe(409);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+  });
+  it("uses the server subcategory rule and rejects a stale automatic price", async () => {
+    const product = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...product, price: 1000, catalogSubcategoryId: "sub", catalogSubcategory: { legacyCategoryId: null } }]);
+    subcategoryRuleFindManyMock.mockResolvedValue([{ id: "rule-sub", subcategoryId: "sub", subcategory: { group: "ATK", name: "Kertas" }, customerType: null, customerTypes: [], unit: null, units: [], brandId: null, brand: null, mode: "FLAT_DISCOUNT", value: 200, discountPercent: 0, isActive: true, updatedAt: new Date() }]);
+    const request = (price: number) => new Request("http://localhost/api/transactions", { method: "POST", body: JSON.stringify({
+      paymentMethod: "CASH", amountPaid: 10000, items: [{ productId: "p1", quantity: 1, price, catalogSubcategoryId: "sub" }],
+    }) });
+    expect((await POST(request(900))).status).toBe(409);
+    expect(transactionCreateMock).not.toHaveBeenCalled();
+    expect((await POST(request(800))).status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 800, pricingRuleId: "rule-sub" });
+  });
   it("holds mixed offline replay for approval if its customer manual price is no longer allowed", async () => {
     specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: false });
     customerFindFirstMock.mockResolvedValue({ id: "c1", type: "INDUSTRI" });
@@ -649,6 +672,7 @@ describe("POST /api/transactions negative stock", () => {
     expect(customerUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(transactionCreateMock.mock.invocationCallOrder[0]);
   });
   beforeEach(() => {
+    subcategoryRuleFindManyMock.mockResolvedValue([]);
     vi.clearAllMocks();
     specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: true });
     roundingSettingsMock.mockResolvedValue({ enabled: false, increment: 500, threshold: 50 });

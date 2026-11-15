@@ -138,6 +138,7 @@ export async function GET(request: Request) {
       debtPayments,
       collectionTransactions,
       receivableBalance,
+      manualIncome,
     ] = await Promise.all([
       db.transaction.findMany({
         where: {
@@ -177,6 +178,7 @@ export async function GET(request: Request) {
               product: {
                 select: {
                   category: { select: { name: true } },
+                  catalogSubcategory: { select: { group: true, name: true } },
                 },
               },
             },
@@ -258,6 +260,10 @@ export async function GET(request: Request) {
       }),
       findInitialCollections(db, storeId, dateBounds),
       receivableBalancePromise,
+      db.manualIncome.findMany({
+        where: { storeId, deletedAt: null, occurredAt: dateBounds },
+        select: { id: true, occurredAt: true, category: true, amount: true, payments: { select: { method: true, amount: true } } },
+      }),
     ]);
 
     return NextResponse.json(
@@ -266,6 +272,7 @@ export async function GET(request: Request) {
         dateTo,
         collectionTransactions,
         receivableBalance,
+        manualIncome,
         transactions: transactions.map((transaction) => ({
           ...transaction,
           createdAt: transaction.invoiceDate,

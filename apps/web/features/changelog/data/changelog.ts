@@ -42,6 +42,18 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "penataan-kategori-satuan-produk", date: "2026-11-15", revision: 1,
+    highlight: { title: "Kategori produk per satuan", summary: "Atur kategori dan subkategori untuk satuan yang dipilih." },
+    title: "Tata kategori produk per satuan.",
+    summary: "Kelompokkan satuan ke ATK atau PERCETAKAN dan tinjau dampak harga sebelum menyimpan. Kategori lama tetap tersedia.",
+    kind: "feature", impact: "major", area: "Produk", href: "/products", visual: "categories",
+    steps: [
+      { title: "Buka penataan", detail: "Di Produk, buka Penataan kategori lalu cari atau saring produk." },
+      { title: "Pilih satuan dan tujuan", detail: "Centang satuan yang diinginkan, lalu pilih kategori utama dan subkategori di baki." },
+      { title: "Tinjau dan pindahkan", detail: "Periksa satuan serta dampak harga pelanggan, lalu pilih Pindahkan satuan." },
+    ],
+  },
+  {
     id: "sesi-multi-perangkat-20261111", date: "2026-11-12", revision: 1,
     highlight: { title: "Masuk di banyak perangkat", summary: "Keluar di satu perangkat tidak mengganggu sesi pada perangkat lain." },
     title: "Sesi kasir tetap aktif di perangkat lain",

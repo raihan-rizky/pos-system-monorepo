@@ -38,6 +38,80 @@ const pageOptions = (search = "", category = "", options: Parameters<typeof useP
   useProductsPage(search, category, { limit: 24, ...options }) as unknown as Options;
 
 describe("product query cache and request lifecycle", () => {
+  it("sends classification filters and does not reuse unfiltered initial data", async () => {
+    const options = pageOptions("", "", { initialData, catalogGroup: "PERCETAKAN", catalogSubcategoryId: "print" });
+    expect(options.initialData).toBeUndefined();
+    await mocks.client!.fetchQuery(options);
+    const url = new URL(String(vi.mocked(fetch).mock.calls[0][0]), "http://localhost");
+    expect(url.searchParams.get("catalogGroup")).toBe("PERCETAKAN");
+    expect(url.searchParams.get("catalogSubcategoryId")).toBe("print");
+    expect(mocks.cacheCatalogProducts).not.toHaveBeenCalled();
+  });
+
+  it("selects only matching offline units without losing the original cached group", async () => {
+    const pcs = { id: "paper-pcs", unit: "pcs", catalogSubcategoryId: "paper", catalogSubcategory: { id: "paper", group: "ATK", name: "Kertas" } };
+    const rim = { id: "paper-rim", unit: "rim", catalogSubcategoryId: "print", catalogSubcategory: { id: "print", group: "PERCETAKAN", name: "PRINT" } };
+    const legacy = { id: "paper-box", unit: "dus", catalogSubcategoryId: null, catalogSubcategory: null };
+    const group = { ...pcs, name: "Kertas", variants: [pcs, rim, legacy] };
+    vi.mocked(fetch).mockRejectedValue(new TypeError("network unavailable"));
+    mocks.getCachedCatalogProducts.mockResolvedValue([group]);
+    const result = await mocks.client!.fetchQuery(pageOptions("", "", { catalogGroup: "PERCETAKAN", catalogSubcategoryId: "print" }));
+    expect(result.data.map(product => product.id)).toEqual(["paper-rim"]);
+    expect(result.data[0].variants?.map(variant => variant.id)).toEqual(["paper-rim"]);
+    const unclassified = await mocks.client!.fetchQuery(pageOptions("", "", { catalogGroup: "UNCLASSIFIED" }));
+    expect(unclassified.data.map(product => product.id)).toEqual(["paper-box"]);
+    expect(group.variants).toHaveLength(3);
+  });
+
+  it("checks stock on the matching offline unit rather than its unavailable default", async () => {
+    vi.mocked(fetch).mockRejectedValue(new TypeError("offline"));
+    mocks.getCachedCatalogProducts.mockImplementation(async (_search, _category, inStockOnly) => inStockOnly ? [] : [{
+      id: "pcs", unit: "pcs", stock: 0, catalogSubcategoryId: "atk", catalogSubcategory: { id: "atk", group: "ATK", name: "Kertas" },
+      variants: [
+        { id: "pcs", unit: "pcs", stock: 0, catalogSubcategoryId: "atk", catalogSubcategory: { id: "atk", group: "ATK", name: "Kertas" } },
+        { id: "rim", unit: "rim", stock: 2, catalogSubcategoryId: "print", catalogSubcategory: { id: "print", group: "PERCETAKAN", name: "PRINT" } },
+      ],
+    }]);
+    const result = await mocks.client!.fetchQuery(pageOptions("", "", { inStockOnly: true, catalogGroup: "PERCETAKAN" }));
+    expect(result.data.map(product => product.id)).toEqual(["rim"]);
+  });
+
+  it("searches the matching offline unit by its own SKU", async () => {
+    vi.mocked(fetch).mockRejectedValue(new TypeError("offline"));
+    mocks.getCachedCatalogProducts.mockImplementation(async (search) => search ? [] : [{
+      id: "pcs", name: "Kertas", unit: "pcs", sku: "PAPER-PCS", stock: 5,
+      catalogSubcategoryId: "atk", catalogSubcategory: { id: "atk", group: "ATK", name: "Kertas" },
+      variants: [
+        { id: "pcs", unit: "pcs", sku: "PAPER-PCS", stock: 5, catalogSubcategoryId: "atk", catalogSubcategory: { id: "atk", group: "ATK", name: "Kertas" } },
+        { id: "rim", unit: "rim", sku: "PAPER-RIM", stock: 2, catalogSubcategoryId: "print", catalogSubcategory: { id: "print", group: "PERCETAKAN", name: "PRINT" } },
+      ],
+    }]);
+    const result = await mocks.client!.fetchQuery(pageOptions("PAPER-RIM", "", { catalogGroup: "PERCETAKAN" }));
+    expect(result.data.map(product => product.id)).toEqual(["rim"]);
+  });
+
+  it("combines classification and stock status for offline units", async () => {
+    vi.mocked(fetch).mockRejectedValue(new TypeError("offline"));
+    mocks.getCachedCatalogProducts.mockResolvedValue([{
+      id: "pcs", name: "Kertas", unit: "pcs", stock: 2,
+      variants: [
+        { id: "pcs", unit: "pcs", stock: 2, catalogSubcategoryId: "atk", catalogSubcategory: { id: "atk", group: "ATK", name: "Kertas" } },
+        { id: "rim", unit: "rim", stock: -1, catalogSubcategoryId: "atk", catalogSubcategory: { id: "atk", group: "ATK", name: "Kertas" } },
+      ],
+    }]);
+    const result = await mocks.client!.fetchQuery(pageOptions("", "", { catalogGroup: "ATK", stockStatus: "negative" }));
+    expect(result.data.map(product => product.id)).toEqual(["rim"]);
+  });
+
+  it("returns an empty result when a prepared offline catalog has no matching products", async () => {
+    vi.mocked(fetch).mockRejectedValue(new TypeError("offline"));
+    mocks.getCachedCatalogProducts.mockResolvedValue([]);
+    const result = await mocks.client!.fetchQuery(pageOptions("tidak ada", "", {
+      offlineIdentity: { cashierId: "cashier", storeId: "store" }, catalogGroup: "ATK",
+    }));
+    expect(result.data).toEqual([]);
+    expect(result.pagination.total).toBe(0);
+  });
   it("loads cached products after a network failure", async () => {
     vi.mocked(fetch).mockRejectedValue(new TypeError("network unavailable"));
     mocks.getCachedCatalogProducts.mockResolvedValue(initialData.data);

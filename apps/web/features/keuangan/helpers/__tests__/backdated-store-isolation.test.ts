@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
-const mocks = vi.hoisted(() => ({ requirePermission: vi.fn(), databaseRead: vi.fn() }));
-vi.mock("@/lib/rbac/guard", () => ({ requireRole: mocks.requirePermission, requirePermission: mocks.requirePermission, handleAuthError: () => null }));
+const mocks = vi.hoisted(() => ({ requirePermission: vi.fn(), currentUser: vi.fn(), rolePermissions: vi.fn(), databaseRead: vi.fn() }));
+vi.mock("@/lib/rbac/guard", () => ({ requireRole: mocks.requirePermission, requirePermission: mocks.requirePermission, getCurrentUser: mocks.currentUser, handleAuthError: () => null }));
+vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.rolePermissions }));
 vi.mock("@pos/db", () => ({
   db: {
     expense: { findFirst: mocks.databaseRead, findMany: mocks.databaseRead, count: mocks.databaseRead },
@@ -28,11 +30,14 @@ describe("isolasi keuangan untuk pengguna tanpa toko", () => {
     ["menghapus lampiran", () => deleteAttachment(new Request("http://localhost/api/finance/expenses/1/attachment", { method: "DELETE" }), { params: Promise.resolve({ id: "1" }) })],
   ])("menolak %s tanpa mengakses toko lain", async (_label, run) => {
     mocks.requirePermission.mockResolvedValue({ id: "user-1", storeId: null });
+    mocks.currentUser.mockReset().mockResolvedValue({ id: "user-1", role: "OWNER", storeId: null });
+    mocks.rolePermissions.mockReset().mockResolvedValue(buildDefaultRolePermissions());
     mocks.databaseRead.mockReset().mockRejectedValue(new Error("database harus tidak diakses"));
 
     const response = await run();
 
     expect(response.status).toBe(403);
     expect(mocks.databaseRead).not.toHaveBeenCalled();
+    if (_label === "jurnal") expect(mocks.rolePermissions).toHaveBeenCalledOnce();
   });
 });

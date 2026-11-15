@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { seedProductSubcategories } from "./catalog-seed";
 
 declare const process: {
   cwd(): string;
@@ -324,6 +325,8 @@ async function main() {
   for (const upsertCategory of categoryUpserts) {
     await upsertCategory();
   }
+
+  await seedProductSubcategories(prisma);
 
   console.log(`  Categories: ${categoryUpserts.length} created`);
 

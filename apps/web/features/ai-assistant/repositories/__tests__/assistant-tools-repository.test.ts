@@ -281,7 +281,7 @@ describe("assistant tools repository", () => {
         quantity: 2,
         subtotal: { toNumber: () => 100_000 },
         unitCost: { toNumber: () => 30_000 },
-        product: { category: { name: "ATK" } },
+        product: { category: { name: "ATK" }, catalogSubcategory: { group: "PERCETAKAN", name: "PRINT" } },
       }],
     }]);
     transactionFindManyMock.mockResolvedValueOnce([{ id: "tx-1", status: "COMPLETED", paymentMethod: "CASH", total: 100000, amountPaid: 100000, change: 0, createdAt: new Date("2026-06-20T02:00:00Z"), salesName: "Ari", payments: [{ method: "CASH", amount: 100000, createdAt: new Date("2026-06-20T02:00:00Z") }], debtPaymentLogs: [] }]);
@@ -319,6 +319,7 @@ describe("assistant tools repository", () => {
       where: expect.objectContaining({ storeId: "store-1", invoiceDate: expect.any(Object) }),
     }));
     expect(transactionFindManyMock).toHaveBeenCalledTimes(2);
+    expect(transactionFindManyMock.mock.calls[0][0].select.items.select.product.select.catalogSubcategory).toEqual({ select: { group: true, name: true } });
     expect(expenseAggregateMock).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
         storeId: "store-1",
@@ -346,7 +347,8 @@ describe("assistant tools repository", () => {
     expect(result).toMatchObject({
       paymentMethods: [expect.objectContaining({ method: "CASH" })],
       topProducts: [expect.objectContaining({ productName: "Kertas" })],
-      categories: [expect.objectContaining({ categoryName: "ATK" })],
+      categories: [expect.objectContaining({ categoryName: "Percetakan" })],
+      subcategories: [expect.objectContaining({ categoryName: "Percetakan", subcategoryName: "PRINT", revenue: 100_000 })],
       salespersons: [expect.objectContaining({ name: "Ari" })],
       lossStok: [expect.objectContaining({ reason: "WASTE" })],
       shifts: [expect.objectContaining({ cashierName: "Rina" })],

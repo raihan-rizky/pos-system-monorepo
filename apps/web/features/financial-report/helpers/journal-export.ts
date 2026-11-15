@@ -10,17 +10,21 @@ import {
   type ReportPeriod,
 } from "./journal-core";
 
-const PERIOD_LABEL_ID: Record<ReportPeriod, string> = {
+type ExportPeriod = ReportPeriod | "custom";
+
+const PERIOD_LABEL_ID: Record<ExportPeriod, string> = {
   daily: "Harian",
   weekly: "Mingguan",
   monthly: "Bulanan",
   "30d": "30 Hari Terakhir",
+  custom: "Periode Pilihan",
 };
 
 export type ReportExportFormat = "xlsx" | "pdf";
 
 function formatRupiah(value: number): string {
-  return `Rp ${Math.round(value).toLocaleString("id-ID")}`;
+  const cents = Math.round(value * 100);
+  return `Rp ${(cents / 100).toLocaleString("id-ID", { minimumFractionDigits: cents % 100 === 0 ? 0 : 2, maximumFractionDigits: 2 })}`;
 }
 
 function todayJakartaKey(): string {
@@ -32,11 +36,11 @@ function todayJakartaKey(): string {
   }).format(new Date());
 }
 
-function buildFilename(period: ReportPeriod, ext: "xlsx" | "pdf"): string {
+function buildFilename(period: ExportPeriod, ext: "xlsx" | "pdf"): string {
   return `laporan-keuangan-${period}-${todayJakartaKey()}.${ext}`;
 }
 
-function periodTitle(period: ReportPeriod, from: string, to: string): string {
+function periodTitle(period: ExportPeriod, from: string, to: string): string {
   if (from === to) return `Laporan ${PERIOD_LABEL_ID[period]} · ${from}`;
   return `Laporan ${PERIOD_LABEL_ID[period]} · ${from} – ${to}`;
 }
@@ -53,7 +57,7 @@ function triggerDownload(blob: Blob, filename: string): void {
 }
 
 export type ExportInput = {
-  period: ReportPeriod;
+  period: ExportPeriod;
   from: string;
   to: string;
   rows: ReportRow[];
@@ -86,10 +90,15 @@ export function buildFinancialExportAdvice(input: ExportInput): string[] {
 }
 
 export async function exportFinancialReportFile(
-  period: ReportPeriod,
+  period: ExportPeriod,
   format: ReportExportFormat,
+  previewSales = false,
+  range?: { from: string; to: string },
 ): Promise<ReportExportResult> {
-  const response = await fetch(`/api/finance/report/journal?period=${period}`, {
+  const params = new URLSearchParams({ period });
+  if (period === "custom" && range) { params.set("from", range.from); params.set("to", range.to); }
+  if (previewSales) params.set("view", "sales");
+  const response = await fetch(`/api/finance/report/journal?${params}`, {
     cache: "no-store",
   });
   if (!response.ok) {
@@ -121,7 +130,7 @@ const COLOR = {
   muted: "64748B", // surface-500
 } as const;
 
-const NUM_FMT = "#,##0;[Red]-#,##0";
+const NUM_FMT = "#,##0.00;[Red]-#,##0.00";
 
 function thinBorder() {
   return {

@@ -53,7 +53,7 @@ export async function GET(request: Request) {
       return apiError("Pilih satu tanggal yang valid, hari ini atau sebelumnya.", 422, { code: "ValidationError" });
     }
     if (view === "sales" && full) {
-      return NextResponse.json({ date, viewMode: "full" }, { headers: { "Cache-Control": "private, no-store" } });
+      return NextResponse.json({ date, viewMode: "full", exportAccess: canRolePerformAction(effectiveRole, "financial-report.export", "read", permissions) }, { headers: { "Cache-Control": "private, no-store" } });
     }
     const [report, receivableBalance] = await Promise.all([
       allowed.length ? loadDailyIncome(user.storeId, date) : Promise.resolve(undefined),

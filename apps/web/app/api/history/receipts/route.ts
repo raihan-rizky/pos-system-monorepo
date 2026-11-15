@@ -31,7 +31,7 @@ export async function GET(request: Request) {
     const method = params.get("method");
     const view = params.get("view");
     if ((mode !== "receipt" && mode !== "outstanding-dp") || (view !== null && view !== "sales")
-      || (category !== null && category !== "ATK" && category !== "Percetakan")
+      || (category !== null && category !== "ATK" && category !== "Percetakan" && category !== "Belum ditentukan")
       || (subcategory !== null && (!category || !subcategory.trim() || subcategory.length > 150))
       || (method !== null && !methods.has(method))
       || (mode === "outstanding-dp" && (category || subcategory || method))) {

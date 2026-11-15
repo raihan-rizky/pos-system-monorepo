@@ -178,6 +178,20 @@ describe("Riwayat penerimaan dan Outstanding DP", () => {
     const body = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&category=ATK&subcategory=Kertas"))).json();
     expect(body.items).toEqual(expect.arrayContaining([expect.objectContaining({ transactionId: "old-invoice", amount: 60_000 })]));
   });
+  it("memfilter bagian nota campuran menurut klasifikasi terbaru dan izin subkategori", async () => {
+    const route = await loadRoute(); expect(route).not.toBeNull(); if (!route) return;
+    const mixed = { ...oldInvoice, items: [
+      { subtotal: 60, product: { category: { name: "Lama" }, catalogSubcategory: { group: "ATK", name: "Buku" } } },
+      { subtotal: 40, product: { category: { name: "Lama" }, catalogSubcategory: { group: "PERCETAKAN", name: "PRINT" } } },
+    ] };
+    mocks.transactions.mockImplementation(async query => query.select?.payments ? [mixed] : [{ id: "old-invoice", invoiceNumber: "INV-OLD" }]);
+    const body = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&category=Percetakan&subcategory=PRINT"))).json();
+    expect(body.items).toEqual([expect.objectContaining({ transactionId: "old-invoice", amount: 24_000 })]);
+    const permissions = buildDefaultRolePermissions();
+    permissions.SALES.resources["financial-report.daily-subcategory"].read = false;
+    mocks.permissions.mockResolvedValue(permissions);
+    expect((await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&category=Percetakan&subcategory=PRINT"))).status).toBe(403);
+  });
   it("menerima nama subkategori produk hingga 150 karakter", async () => {
     const route = await loadRoute(); expect(route).not.toBeNull(); if (!route) return;
     const params = new URLSearchParams({ mode: "receipt", dateFrom: "2026-11-11", dateTo: "2026-11-11", category: "ATK", subcategory: "A".repeat(150) });

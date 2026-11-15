@@ -1,6 +1,6 @@
 import { netInitialPayments } from "@/features/customer-debt/helpers/net-initial-payments";
 import type { DailyIncomeReport, DailyIncomeTransaction, DailyManualIncome } from "./daily-income";
-import { allocateIncomeSubcategories, incomeClassification, type IncomeCategory, type IncomeSubcategoryRow } from "./income-categories";
+import { allocateIncomePaymentItems, groupIncomeAllocations, incomeClassification, type IncomeCategory, type IncomeSubcategoryRow } from "./income-categories";
 
 export type ReceiptContribution = {
   id: string;
@@ -61,12 +61,12 @@ export function buildIncomePeriod(input: IncomePeriodInput): IncomePeriod {
       ...netInitialPayments(ledger, { total: initialLimit, amountPaid: initialLimit }).map(row => ({ ...row, kind: "payment" })),
       ...netInitialPayments(debts, { total: Math.min(debtTotal, retained), amountPaid: Math.min(debtTotal, retained) }).map(row => ({ ...row, kind: "debt" })),
     ];
-    for (const row of rows) {
-      if (row.method === "TEMPO" || row.amount <= 0 || row.createdAt.getTime() < start || row.createdAt.getTime() >= end) continue;
+    for (const row of allocateIncomePaymentItems(rows, tx)) {
+      if (row.createdAt.getTime() < start || row.createdAt.getTime() >= end) continue;
       contributions.push({
         id: `${tx.id}:${row.kind}:${row.id}`, date: dateKey(row.createdAt), source: "transaction",
         transactionId: tx.id, manualIncomeId: null, method: row.method, amount: row.amount,
-        allocations: allocateIncomeSubcategories(row.amount, tx),
+        allocations: groupIncomeAllocations(row.allocations),
       });
     }
   }

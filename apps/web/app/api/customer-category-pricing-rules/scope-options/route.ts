@@ -16,6 +16,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const categoryId = searchParams.get("categoryId");
     if (!categoryId) return apiError("Pilih kategori terlebih dahulu", 422, { code: "ValidationError" });
+    const scope = searchParams.get("scope") ?? "CATEGORY";
+    if (scope !== "CATEGORY" && scope !== "SUBCATEGORY") return apiError("Cakupan aturan tidak valid", 422, { code: "ValidationError" });
     const view = searchParams.get("view") ?? "all";
     if (!["all", "units", "preview"].includes(view)) {
       return apiError("Pilihan data tidak valid", 422, { code: "ValidationError" });
@@ -23,15 +25,25 @@ export async function GET(request: Request) {
     const selectedUnits = normalizePricingUnits(searchParams.getAll("unit"));
     const unit = selectedUnits.length === 1 ? selectedUnits[0] : null;
     const brandId = searchParams.get("brandId");
-    const where = { storeId, categoryId, isActive: true };
+    const where = {
+      storeId, isActive: true,
+      ...(scope === "SUBCATEGORY" ? { catalogSubcategoryId: categoryId } : {
+        OR: [
+          { categoryId, catalogSubcategoryId: null },
+          { catalogSubcategory: { is: { legacyCategoryId: categoryId } } },
+        ],
+      }),
+    };
     const [productUnits, savedUnits, products] = await Promise.all([
       view === "preview" ? [] : db.product.findMany({ where, select: { unit: true }, distinct: ["unit"] }),
-      view === "preview" ? [] : db.categoryCustomerPricingRule.findMany({ where: { storeId, categoryId }, select: { unit: true, units: true } }),
+      view === "preview" ? [] : scope === "SUBCATEGORY"
+        ? db.subcategoryCustomerPricingRule.findMany({ where: { storeId, subcategoryId: categoryId }, select: { unit: true, units: true } })
+        : db.categoryCustomerPricingRule.findMany({ where: { storeId, categoryId }, select: { unit: true, units: true } }),
       view === "units" ? [] : db.product.findMany({
-        where: { ...where, ...(unit ? { unit: { equals: unit, mode: "insensitive" as const } } : selectedUnits.length ? { OR: selectedUnits.map((value) => ({ unit: { equals: value, mode: "insensitive" as const } })) } : {}), ...(brandId ? { brandId } : {}) },
+        where: { ...where, ...(unit ? { unit: { equals: unit, mode: "insensitive" as const } } : selectedUnits.length ? { AND: [{ OR: selectedUnits.map((value) => ({ unit: { equals: value, mode: "insensitive" as const } })) }] } : {}), ...(brandId ? { brandId } : {}) },
         ...(unit ? {} : { distinct: ["unit" as const] }),
         take: 3, orderBy: [{ name: "asc" }, { id: "asc" }],
-        select: { id: true, name: true, storeId: true, unit: true, price: true, costPrice: true, brandId: true, stockGroupId: true, stockGroup: { select: { baseUnit: true, storeId: true } } },
+        select: { id: true, name: true, storeId: true, categoryId: true, unit: true, price: true, costPrice: true, brandId: true, stockGroupId: true, stockGroup: { select: { baseUnit: true, storeId: true } } },
       }),
     ]);
     const units = [...new Set([
@@ -40,7 +52,7 @@ export async function GET(request: Request) {
     ])].sort();
     if (view === "units") return Response.json({ data: { units, products: [] } });
     const baseCosts = await loadProductBaseCosts(db, products);
-    return Response.json({ data: { units, products: products.map((product) => ({ id: product.id, name: product.name, unit: product.unit, price: Number(product.price), costPrice: product.costPrice == null ? null : Number(product.costPrice), brandId: product.brandId, ...baseCosts.get(product.id) })) } });
+    return Response.json({ data: { units, products: products.map((product) => ({ id: product.id, name: product.name, categoryId: product.categoryId, unit: product.unit, price: Number(product.price), costPrice: product.costPrice == null ? null : Number(product.costPrice), brandId: product.brandId, ...baseCosts.get(product.id) })) } });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

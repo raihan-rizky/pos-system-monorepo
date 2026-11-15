@@ -182,7 +182,29 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
   band(rc, rcTotal, 1, 9, COLORS.accent);
   heading(rc, rcTotal + 2, "Perlu pemetaan tetap dihitung dalam TOTAL. Arahkan ke tanggal untuk melihat referensi.", 9, COLORS.soft);
   rc["!rows"]![rcTotal + 1] = { hpt: 30 };
-  finish(rc, rcTotal + 2, 9);
+  const categoryDetails = new Map<string, { category: string; subcategory: string; amount: number }>();
+  for (const entry of income) for (const part of entry.breakdown ?? []) {
+    const key = JSON.stringify([part.category, part.subcategory]);
+    const previous = categoryDetails.get(key);
+    categoryDetails.set(key, { ...part, amount: moneySum([previous?.amount ?? 0, part.amount]) });
+  }
+  let rcLast = rcTotal + 2;
+  if (categoryDetails.size) {
+    const detailRows = [...categoryDetails.values()].sort((a, b) => a.category.localeCompare(b.category) || a.subcategory.localeCompare(b.subcategory));
+    heading(rc, rcTotal + 4, "RINCIAN KATEGORI DAN SUBKATEGORI", 9, COLORS.accent);
+    tableHeader(rc, rcTotal + 5, ["Kategori", "Subkategori", "Nominal", "", "", "", "", "", ""]);
+    detailRows.forEach((part, index) => {
+      const row = rcTotal + 6 + index;
+      put(rc, row, 1, part.category);
+      put(rc, row, 2, part.subcategory);
+      put(rc, row, 3, part.amount);
+    });
+    rcLast = rcTotal + 6 + detailRows.length;
+    put(rc, rcLast, 1, "TOTAL RINCIAN");
+    sumFormula(rc, rcLast, 3, rcTotal + 6, rcLast - 1, moneySum(detailRows.map(part => part.amount)));
+    band(rc, rcLast, 1, 9, COLORS.accent);
+  }
+  finish(rc, rcLast, 9);
 
   const rp = makeSheet(`RINCIAN PENGELUARAN BULAN ${month} ${report.year}`, report, [14, 25, 18, 16, 17, 17, 18]);
   tableHeader(rp, 5, ["Tanggal", "Keterangan", "", "Nilai", "Gaji / Mingguan", "TOTAL", "Kategori / kelompok"]);
@@ -272,7 +294,7 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
   report.receivables.forEach((entry, index) => {
     const row = index + 7;
     put(balances, row, 1, index + 1).z = "0";
-    dateCell(balances, row, 2, entry.date);
+    if (entry.id !== "restricted:receivables") dateCell(balances, row, 2, entry.date);
     if (entry.dueDate) dateCell(balances, row, 3, entry.dueDate);
     put(balances, row, 4, entry.amount);
     put(balances, row, 5, entry.description);
@@ -294,7 +316,7 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
   supplierDebts.forEach((entry, index) => {
     const row = debtRow + index;
     put(balances, row, 1, index + 1).z = "0";
-    dateCell(balances, row, 2, entry.date);
+    if (entry.id !== "restricted:supplier-debts") dateCell(balances, row, 2, entry.date);
     if (entry.dueDate) dateCell(balances, row, 3, entry.dueDate);
     put(balances, row, 4, entry.amount);
     put(balances, row, 5, entry.supplier);
@@ -394,10 +416,16 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
   insight(overview, 6, 7, cashIncomplete ? "Sisa kas belum tersedia · Riwayat giro atau belanja belum lengkap" : `${cashStatus}: Rp ${currency(netAmount)} · Modal awal: ${opening === null ? "belum tersedia" : `Rp ${currency(opening)}`}`, cashIncomplete ? '"Sisa kas belum tersedia · Riwayat giro atau belanja belum lengkap"' : 'IF(G29<0,"Defisit kas",IF(G29>0,"Surplus kas","Kas seimbang"))&": Rp "&TEXT(G29,"#,##0.00")&" · Modal awal: "&IF(ISNUMBER(D8),"Rp "&TEXT(D8,"#,##0.00"),"belum tersedia")');
   insight(net, 6, 10, cashIncomplete ? "Sisa kas belum tersedia · Riwayat giro atau belanja belum lengkap" : totalIncome > 0 ? `Sisa kas: ${(netAmount / totalIncome * 100).toFixed(1)}% dari penerimaan · Basis kas` : "Belum ada penerimaan · Persentase sisa kas belum tersedia", cashIncomplete ? '"Sisa kas belum tersedia · Riwayat giro atau belanja belum lengkap"' : 'IF(F24>0,"Sisa kas: "&TEXT(F27/F24,"0.0%")&" dari penerimaan · Basis kas","Belum ada penerimaan · Persentase sisa kas belum tersedia")');
   insight(daily, 8, 12, cashIncomplete ? "Kas belum lengkap; rincian harian hanya memuat pembayaran yang diketahui." : `Perlu pemetaan: Rp ${currency(incomeTotals.UNMAPPED)} · Sudah termasuk total pendapatan`, cashIncomplete ? '"Kas belum lengkap; rincian harian hanya memuat pembayaran yang diketahui."' : `"Perlu pemetaan: Rp "&TEXT(G${dailyTotal + 2},"#,##0.00")&" · Sudah termasuk total pendapatan"`);
-  insight(rc, 6, 9, `${income.length} penerimaan · Perlu pemetaan: Rp ${currency(incomeTotals.UNMAPPED)}`, `COUNT(A7:A${rcEnd})&" penerimaan · Perlu pemetaan: Rp "&TEXT(H${rcTotal},"#,##0.00")`);
-  insight(rp, 6, 7, `${expenses.length} pengeluaran manual · Gaji / mingguan: Rp ${currency(manualTotals.SALARY)}`, `COUNT(A7:A${rpEnd})&" pengeluaran manual · Gaji / mingguan: Rp "&TEXT(E${rpTotal},"#,##0.00")`);
+  const restrictedIncome = income.some(entry => entry.id.startsWith("restricted:income:") || entry.id.startsWith("manual-income:aggregate:"));
+  const restrictedExpenses = expenses.some(entry => entry.id.startsWith("restricted:expense:"));
+  insight(rc, 6, 9, `${restrictedIncome ? "Penerimaan digabungkan" : `${income.length} penerimaan`} · Perlu pemetaan: Rp ${currency(incomeTotals.UNMAPPED)}`, `${restrictedIncome ? '"Penerimaan digabungkan"' : `COUNT(A7:A${rcEnd})&" penerimaan"`}&" · Perlu pemetaan: Rp "&TEXT(H${rcTotal},"#,##0.00")`);
+  insight(rp, 6, 7, `${restrictedExpenses ? "Pengeluaran digabungkan" : `${expenses.length} pengeluaran manual`} · Gaji / mingguan: Rp ${currency(manualTotals.SALARY)}`, `${restrictedExpenses ? '"Pengeluaran digabungkan"' : `COUNT(A7:A${rpEnd})&" pengeluaran manual"`}&" · Gaji / mingguan: Rp "&TEXT(E${rpTotal},"#,##0.00")`);
   insight(purchases, 6, 6, `Jadwal belanja: Rp ${currency(moneySum(purchasedExpenses.map(entry => entry.amount)))} · Pembayaran aktual dirinci di bawah`, `"Jadwal belanja: Rp "&TEXT(SUM(${purchaseTotalCells.join(",")}),"#,##0.00")&" · Pembayaran aktual dirinci di bawah"`);
-  insight(balances, 6, 7, `${report.receivables.length} nota piutang · ${report.supplierDebtBalance === null ? "Hutang belum tersedia" : `${supplierDebts.length} hutang tercatat`}`, `COUNT(B7:B${balanceEnd})&" nota piutang · "&IF(ISNUMBER(G${debtTotal}),COUNT(B${debtRow}:B${debtEnd})&" hutang tercatat","Hutang belum tersedia")`);
+  const restrictedReceivables = report.receivables.some(entry => entry.id === "restricted:receivables");
+  const restrictedDebts = supplierDebts.some(entry => entry.id === "restricted:supplier-debts");
+  const balanceInsight = `${restrictedReceivables ? "Rincian piutang dibatasi" : `${report.receivables.length} nota piutang`} · ${report.supplierDebtBalance === null ? "Hutang belum tersedia" : restrictedDebts ? "Rincian hutang dibatasi" : `${supplierDebts.length} hutang tercatat`}`;
+  const balanceFormula = restrictedReceivables || restrictedDebts ? `"${balanceInsight}"` : `COUNT(B7:B${balanceEnd})&" nota piutang · "&IF(ISNUMBER(G${debtTotal}),COUNT(B${debtRow}:B${debtEnd})&" hutang tercatat","Hutang belum tersedia")`;
+  insight(balances, 6, 7, balanceInsight, balanceFormula);
 
   const sheets = [overview, net, daily, rc, rp, purchases, balances];
   sheets.forEach((sheet, index) => {

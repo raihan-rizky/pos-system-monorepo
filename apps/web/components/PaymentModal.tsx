@@ -41,10 +41,12 @@ import { usePriceRoundingSettings } from "@/features/product-price-rounding/hook
 import { useSpecialPricingSettings } from "@/features/customer-category-pricing/hooks/useSpecialPricingSettings";
 import { DEFAULT_PRICE_ROUNDING_SETTINGS, type PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 import { PriceRoundingBadge } from "@/features/product-price-rounding/components/PriceRoundingBadge";
+import type { OfflineCatalogPricing } from "@/lib/offline/offline-pricing";
 
 
 
 interface PaymentModalProps {
+  offlinePricing?: OfflineCatalogPricing;
   allowItemDiscounts?: boolean;
   receiptInvoiceDate?: string;
   initialCustomerSelection?: CheckoutCustomerSelection;
@@ -148,6 +150,7 @@ export function PaymentModal({
   preserveCustomerSelectionOnClose = false,
   allowItemDiscounts = true,
   receiptInvoiceDate,
+  offlinePricing,
 }: PaymentModalProps) {
   const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<string[]>(["CASH"]);
   const [discountMode, setDiscountMode] = useState<"RP" | "PERCENT">("RP");
@@ -226,21 +229,24 @@ export function PaymentModal({
         ? customerSelection.type ?? "UMUM"
         : "UMUM";
   const specialPricingSettings = useSpecialPricingSettings();
-  const specialPricingEnabled = specialPricingSettings.data ?? false;
-  const canUseSpecialPricingPolicy = !items.some(item => item.lineType === "PRODUCT") || specialPricingSettings.data !== undefined;
+  const specialPricingEnabled = (isOfflineSession ? offlinePricing?.specialPricingEnabled : specialPricingSettings.data) ?? false;
+  const activePricingRules = isOfflineSession ? offlinePricing?.rules : pricingRulesQuery.data;
+  const canUseSpecialPricingPolicy = !items.some(item => item.lineType === "PRODUCT") ||
+    (isOfflineSession ? offlinePricing !== undefined : specialPricingSettings.data !== undefined && (!specialPricingEnabled || activePricingRules !== undefined));
   const canEditCustomPrices = !isOfflineSession && specialPricingEnabled && canEditCustomPriceForCustomer(
     role,
     selectedCustomerType,
   );
-  const currentCatalogItems = useCartCatalogPrices(items, open);
+  const refreshedCatalogItems = useCartCatalogPrices(items, open && !isOfflineSession);
+  const currentCatalogItems = isOfflineSession ? items : refreshedCatalogItems;
   const roundingQuery = usePriceRoundingSettings();
-  const roundingSettings = roundingQuery.data ?? DEFAULT_PRICE_ROUNDING_SETTINGS;
+  const roundingSettings = (isOfflineSession ? offlinePricing?.rounding : roundingQuery.data) ?? DEFAULT_PRICE_ROUNDING_SETTINGS;
   const canUseRoundingPolicy = !items.some(item => item.lineType === "PRODUCT") ||
-    Boolean(roundingQuery.data && !roundingQuery.isPlaceholderData);
+    (isOfflineSession ? Boolean(offlinePricing?.rounding) : Boolean(roundingQuery.data && !roundingQuery.isPlaceholderData));
   const basePricedItems = priceCartItemsForCheckout({
     items: currentCatalogItems,
     customerType: selectedCustomerType,
-    pricingRules: pricingRulesQuery.data ?? [],
+    pricingRules: activePricingRules ?? [],
     manualPrices,
     role,
     roundingSettings,
@@ -446,12 +452,12 @@ export function PaymentModal({
   return (
     <Modal open={open} onClose={handleClose} title="Pembayaran" size="lg">
       <div className="space-y-5 px-1 py-1">
-        {!canUseRoundingPolicy && (
+        {!isOfflineSession && !canUseRoundingPolicy && (
           <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             {roundingQuery.isError ? "Pengaturan pembulatan harga gagal dimuat. Muat ulang sebelum melanjutkan pembayaran." : "Memuat pengaturan pembulatan harga sebelum pembayaran…"}
           </div>
         )}
-        {!canUseSpecialPricingPolicy && (
+        {!isOfflineSession && !canUseSpecialPricingPolicy && (
           <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             {specialPricingSettings.isError ? "Pengaturan Harga Khusus gagal dimuat. Muat ulang sebelum melanjutkan pembayaran." : "Memuat pengaturan Harga Khusus sebelum pembayaran…"}
           </div>
@@ -472,10 +478,14 @@ export function PaymentModal({
           )}
         </div>
         <div className="bg-surface-50 rounded-xl p-4 space-y-2 max-h-[280px] overflow-y-auto">
-          {specialPricingEnabled && pricingRulesQuery.isError && (
+          {isOfflineSession && !offlinePricing && items.some(item => item.lineType === "PRODUCT") && (
+            <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+              Katalog atau aturan harga offline belum lengkap untuk keranjang ini. Siapkan ulang katalog saat terhubung ke internet, atau hapus produk yang tidak tersedia.
+            </div>
+          )}
+          {!isOfflineSession && specialPricingEnabled && pricingRulesQuery.isError && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-              Aturan Harga Khusus gagal dimuat. Harga Agen/Dinas dipakai jika
-              tersedia, lalu Harga Normal.
+              Aturan Harga Khusus belum dapat dimuat. Pembayaran menunggu aturan harga tersedia.
             </div>
           )}
           {affectedItems.length > 0 && (

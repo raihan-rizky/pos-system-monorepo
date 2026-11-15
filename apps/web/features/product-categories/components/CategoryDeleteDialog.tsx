@@ -16,21 +16,26 @@ export function CategoryDeleteImpact({ preview }: { preview: DeletePreview }) {
       <h3 className="font-bold">Perhatian: perubahan ini memengaruhi produk dan harga pelanggan</h3>
       <p className="text-sm">Anda akan menghapus {totals.categories} kategori, memindahkan {totals.products} produk, dan menghapus {totals.rules} aturan harga pelanggan di {totals.stores} toko.</p>
       <p className="text-sm">Produk mencakup {totals.activeProducts} aktif dan {totals.inactiveProducts} nonaktif. Semua aturan aktif maupun nonaktif kategori asal ikut dihapus. Kategori dan aturan harga yang dihapus tidak dapat dipulihkan melalui fitur ini.</p>
-      <p className="text-sm">Harga pelanggan dan pengelompokan penjualan dapat berubah mengikuti kategori tujuan. Aturan asal tidak disalin ke tujuan.</p>
+      <p className="text-sm">Satuan yang belum diklasifikasikan mengikuti kategori lama tujuan. Klasifikasi baru tetap; harga pelanggan dapat berubah jika kaitan aturan atau pembulatan kategori lama berubah. Aturan asal tidak disalin ke tujuan.</p>
     </section>
     {preview.categories.map(category => <section key={category.id} className="space-y-2 rounded-xl border border-slate-200 p-4">
       <h3 className="font-bold break-words">{category.name}</h3>
       <p className="text-sm">{category.products} produk ({category.activeProducts} aktif, {category.inactiveProducts} nonaktif). Tujuan: {category.targetCategoryName ?? (category.products ? "Belum dipilih" : "Tidak diperlukan")}.</p>
       <p className="text-sm font-medium">{category.rules.length} aturan dihapus ({category.rules.filter(rule => rule.isActive).length} aktif, {category.rules.filter(rule => !rule.isActive).length} nonaktif)</p>
+      {category.linkedClassification && <div className="space-y-1 rounded-lg bg-amber-50 p-3 text-sm text-amber-950">
+        <p>Subkategori {category.linkedClassification.group} / {category.linkedClassification.name}: {category.linkedClassification.units} satuan ({category.linkedClassification.activeUnits} aktif, {category.linkedClassification.inactiveUnits} nonaktif). Jumlah ini juga mencakup satuan pada kategori lama lain dan dapat termasuk produk yang dipindahkan.</p>
+        <p>Klasifikasi baru tetap, tetapi hubungannya dengan aturan harga kategori lama ini terputus. Harga pelanggan dapat berubah.</p>
+        <ul>{category.linkedClassification.stores.map(store => <li key={store.id}>{store.name}: {store.units} satuan</li>)}</ul>
+      </div>}
       <h4 className="text-sm font-bold">Dampak toko untuk {category.name}</h4>
-      <ul className="space-y-1 text-sm">{category.stores.map(store => <li key={store.id} className="break-words">{store.name}: {store.products} produk, {store.rules} aturan</li>)}</ul>
+      <ul className="space-y-1 text-sm">{category.stores.map(store => <li key={store.id} className="break-words">{store.name}: {store.products} produk, {store.rules} aturan{store.classifiedUnits ? `, ${store.classifiedUnits} satuan terkait` : ""}</li>)}</ul>
       {category.rules.length > 0 && <ul className="space-y-2 text-sm">{category.rules.map(rule => <li key={rule.id} className="rounded-lg bg-slate-50 p-3 break-words">
         <p className="font-medium">{rule.storeName}: {rule.customerTypes.join(", ")}</p>
         <p>Unit: {rule.unit ?? "Semua unit"}; merek: {rule.brandName ?? "Semua merek"}</p>
         <p>{rule.mode}: {rule.value}. {rule.isActive ? "Aktif" : "Nonaktif"}</p>
       </li>)}</ul>}
     </section>)}
-    <section className="space-y-2 text-sm"><h3 className="font-bold">Toko terdampak, seluruh toko</h3><ul className="space-y-1">{preview.stores.map(store => <li key={store.id} className="break-words">{store.name}: {store.products} produk, {store.rules} aturan</li>)}</ul>{preview.stores.length === 0 && <p>Tidak ada produk atau aturan harga yang terdampak.</p>}</section>
+    <section className="space-y-2 text-sm"><h3 className="font-bold">Toko terdampak, seluruh toko</h3><ul className="space-y-1">{preview.stores.map(store => <li key={store.id} className="break-words">{store.name}: {store.products} produk, {store.rules} aturan{store.classifiedUnits ? `, ${store.classifiedUnits} satuan terkait` : ""}</li>)}</ul>{preview.stores.length === 0 && <p>Tidak ada produk atau aturan harga yang terdampak.</p>}</section>
   </div>;
 }
 

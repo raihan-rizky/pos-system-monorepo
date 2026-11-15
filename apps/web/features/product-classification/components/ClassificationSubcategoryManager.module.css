@@ -1,0 +1,30 @@
+.manager { margin-top: 20px; padding: 20px; border: 1px solid #dce7ed; border-radius: 13px; background: #fff; color: #193047; }
+.manager *, .dialog * { box-sizing: border-box; }
+.manager button, .manager input, .dialog button { font: inherit; }
+.manager :is(button, input):focus-visible, .dialog button:focus-visible { outline: 3px solid #1683ae; outline-offset: 3px; }
+.heading h2 { margin: 0; font-size: 1rem; }
+.heading p { margin: 7px 0 0; color: #516a7b; font-size: .8rem; line-height: 1.5; }
+.create, .edit { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; }
+.create { margin-top: 18px; }
+.create label, .edit label { display: flex; flex: 1 1 200px; flex-direction: column; gap: 6px; color: #486477; font-size: .75rem; font-weight: 700; }
+.create input, .edit input { width: 100%; min-height: 42px; padding: 0 10px; border: 1px solid #c8dbe4; border-radius: 8px; color: #193047; background: white; font-size: .85rem; }
+.manager button, .dialog button { min-height: 42px; padding: 8px 12px; border: 1px solid #c8dbe4; border-radius: 8px; background: #fff; color: #075f80; font-size: .75rem; font-weight: 800; cursor: pointer; }
+.manager button:disabled, .dialog button:disabled { cursor: not-allowed; opacity: .55; }
+.create > button, .edit button[type="submit"], .dialogActions button:last-child { border-color: #087da9; background: #087da9; color: white; }
+.list { margin: 18px 0 0; padding: 0; list-style: none; border: 1px solid #e0ebef; border-radius: 8px; }
+.list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; font-size: .8rem; }
+.list li + li { border-top: 1px solid #e8eff1; }
+.list strong { overflow-wrap: anywhere; }
+.edit { flex: 1; min-width: 0; }
+.actions, .dialogActions { display: flex; flex-wrap: wrap; gap: 8px; }
+.empty, .success, .error { margin: 14px 0 0; font-size: .8rem; line-height: 1.5; }
+.empty { color: #516a7b; }
+.success { color: #176b50; }
+.error { padding: 10px 12px; border: 1px solid #e7b8ae; border-radius: 8px; background: #fff1ee; color: #922c1b; }
+.dialog { width: min(460px, calc(100% - 28px)); padding: 22px; border: 0; border-radius: 12px; color: #193047; box-shadow: 0 25px 70px #0c263b55; }
+.dialog::backdrop { background: #102b40a8; }
+.dialog h2 { margin: 0; font-size: 1rem; }
+.dialog p { font-size: .85rem; line-height: 1.6; }
+.dialogActions { justify-content: end; margin-top: 20px; }
+@media (max-width: 800px) { .manager { margin-bottom: 80px; } }
+@media (max-width: 767px) { .manager { margin-bottom: 144px; } }

@@ -26,6 +26,7 @@ import {
 } from "@/features/product-stock-groups/stock-group-lock";
 import { groupProductsByNameAndCategory } from "@/features/pos-search/services/product-grouping-service";
 import { normalizeProductUnitGroup } from "@/lib/product-form/product-unit-variants";
+import { listCatalogSubcategories } from "@/features/product-classification/helpers/classification";
 
 import { getLogger } from "@/lib/logger";
 
@@ -53,6 +54,7 @@ const productSchema = z.object({
   size: z.string().optional().nullable(),
   material: z.string().optional().nullable(),
   categoryId: z.string().min(1, "Category is required"),
+  catalogSubcategoryId: z.string().trim().min(1).optional().nullable(),
   brandId: z.string().optional().nullable(),
   imageUrl: z.string().optional().nullable(),
   additionalUnitVariants: z.array(z.object({
@@ -136,6 +138,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const categoryId = searchParams.get("categoryId") || "";
+    const catalogGroup = searchParams.get("catalogGroup") || "";
+    const catalogSubcategoryId = searchParams.get("catalogSubcategoryId") || "";
     const unit = searchParams.get("unit")?.trim() || "";
     const storeId = user.storeId || "store-main";
     // Cap at 200 to prevent unbounded result sets on Vercel
@@ -191,6 +195,11 @@ export async function GET(request: Request) {
       isActive: true,
       ...(searchWhere ?? {}),
       ...(categoryId && { categoryId }),
+      ...(catalogGroup === "UNCLASSIFIED" ? { catalogSubcategoryId: null } : {}),
+      ...(catalogGroup === "ATK" || catalogGroup === "PERCETAKAN"
+        ? { catalogSubcategory: { is: { group: catalogGroup } } }
+        : {}),
+      ...(catalogSubcategoryId && catalogGroup !== "UNCLASSIFIED" ? { catalogSubcategoryId } : {}),
       ...(unit && { unit: { equals: unit, mode: "insensitive" as const } }),
       ...(stockFilter ?? {}),
       ...(stockGroupFilter ?? {}),
@@ -200,6 +209,7 @@ export async function GET(request: Request) {
       db.product.findMany({
         where: whereClause,
         include: {
+          catalogSubcategory: { select: { id: true, group: true, name: true, legacyCategoryId: true } },
           category: {
             select: { id: true, name: true, icon: true, color: true },
           },
@@ -298,6 +308,15 @@ export async function POST(request: Request) {
     }
 
     const product = await db.$transaction(async (tx) => {
+      if (validatedData.catalogSubcategoryId) {
+        const destination = await tx.productSubcategory.findUnique({
+          where: { id: validatedData.catalogSubcategoryId },
+          select: { id: true, group: true, name: true, legacyCategoryId: true },
+        });
+        if (!destination || listCatalogSubcategories(destination.group, [destination]).length !== 1) {
+          throw new Error("INVALID_CATALOG_SUBCATEGORY");
+        }
+      }
       const { additionalUnitVariants: _additionalVariants, pricingMode: _pricingMode, priceFactor: _priceFactor, ...legacyData } = validatedData;
       if (validatedData.additionalUnitVariants?.length) {
         const { additionalUnitVariants, smallestUnitVariant: _legacyVariant, pricingMode: _primaryMode, priceFactor: _primaryFactor, ...primaryData } = validatedData;
@@ -326,7 +345,7 @@ export async function POST(request: Request) {
           products.push(await tx.product.create({
             data: {
               name: primaryData.name, description: primaryData.description,
-              categoryId: primaryData.categoryId, brandId: primaryData.brandId,
+              categoryId: primaryData.categoryId, catalogSubcategoryId: primaryData.catalogSubcategoryId, brandId: primaryData.brandId,
               imageUrl: primaryData.imageUrl, material: primaryData.material, size: primaryData.size,
               minStock: primaryData.minStock, unit: variant.unit, sku: variant.sku, barcode: variant.barcode,
               price: variant.price, costPrice: variant.costPrice ?? null,
@@ -431,6 +450,7 @@ export async function POST(request: Request) {
             size: validatedData.size,
             material: validatedData.material,
             categoryId: validatedData.categoryId,
+            catalogSubcategoryId: validatedData.catalogSubcategoryId,
             brandId: validatedData.brandId ?? null,
             imageUrl: validatedData.imageUrl,
             stockGroupId: group.id,
@@ -601,6 +621,9 @@ export async function POST(request: Request) {
     if (authErr) return authErr;
 
     if (error instanceof GroupPricingError) return NextResponse.json({ message: error.message }, { status: error.status });
+    if (error instanceof Error && error.message === "INVALID_CATALOG_SUBCATEGORY") {
+      return NextResponse.json({ message: "Subkategori tidak tersedia. Silakan pilih kembali." }, { status: 422 });
+    }
     log.error("Failed to create product:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(

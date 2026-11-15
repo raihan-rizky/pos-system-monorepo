@@ -2,8 +2,8 @@
 
 import type { MonthlyFinancialReport } from "./monthly-report-types";
 
-export async function exportMonthlyFinancialReport(year: number, month: number): Promise<void> {
-  const response = await fetch(`/api/finance/report/monthly?year=${year}&month=${month}`, { cache: "no-store" }).catch(() => {
+export async function exportMonthlyFinancialReport(year: number, month: number, previewSales = false): Promise<void> {
+  const response = await fetch(`/api/finance/report/monthly?year=${year}&month=${month}${previewSales ? "&view=sales" : ""}`, { cache: "no-store" }).catch(() => {
     throw new Error("Koneksi terputus. Periksa internet Anda lalu coba lagi.");
   });
   if (!response.ok) {

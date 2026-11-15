@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { formatRupiah } from "@/lib/utils";
+import { formatRupiahPrecise } from "@/lib/utils";
 
 export interface RankedRow {
   key: string;
@@ -104,7 +104,7 @@ export const RankedListCard: React.FC<RankedListCardProps> = React.memo(
                           {row.name}
                         </p>
                         <p className="text-sm font-semibold text-surface-900 tabular-nums shrink-0">
-                          {formatRupiah(row.primaryValue)}
+                          {formatRupiahPrecise(row.primaryValue)}
                         </p>
                       </div>
                       <div className="mt-1.5 flex items-center gap-3">
@@ -121,7 +121,7 @@ export const RankedListCard: React.FC<RankedListCardProps> = React.memo(
                           {row.countLabel && <span>{row.countLabel}</span>}
                           {row.secondaryValue !== undefined && (
                             <span className="tabular-nums font-semibold text-emerald-700">
-                              {formatRupiah(row.secondaryValue)}
+                              {formatRupiahPrecise(row.secondaryValue)}
                             </span>
                           )}
                         </div>

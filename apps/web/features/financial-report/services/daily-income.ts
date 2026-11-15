@@ -27,7 +27,7 @@ export async function loadIncomePeriod(storeId: string, fromDate: string, toDate
       select: {
         id: true, createdAt: true, offlineSyncMetadata: true, status: true, total: true, amountPaid: true, change: true, paymentMethod: true,
         transactionCategory: true, printingSubcategory: true, printingReceipt: { select: { subcategory: true } },
-        items: { select: { subtotal: true, printingServiceId: true, product: { select: { category: { select: { name: true } } } } } },
+        items: { select: { subtotal: true, printingServiceId: true, product: { select: { category: { select: { name: true } }, catalogSubcategory: { select: { group: true, name: true } } } } } },
         // Complete ledgers are needed to allocate refunds before filtering by day.
         payments: { select: { id: true, method: true, amount: true, createdAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
         debtPaymentLogs: { select: { id: true, paymentMethod: true, amount: true, createdAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },

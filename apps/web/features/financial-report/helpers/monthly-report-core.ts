@@ -1,5 +1,6 @@
 import { netInitialPayments } from '@/features/customer-debt/helpers/net-initial-payments';
 import { normalizeExpenseCategoryName } from '@/features/keuangan/helpers/category-meta';
+import { allocateIncomePaymentItems, incomeClassification, incomeItemClassification, type IncomeItem } from './income-categories';
 import type { IncomeGroup, MonthlyExpense, MonthlyFinancialReport, MonthlyGiroPayment, MonthlySupplierDebt } from './monthly-report-types';
 
 export type MonthlyPeriod = { from: string; to: string; start: Date; end: Date };
@@ -8,9 +9,11 @@ type Payment = { id: string; method: string; amount: Money; createdAt: Date };
 export type MonthlyTransactionInput = {
   id: string; invoiceNumber: string | null; invoiceDate: Date; createdAt: Date;
   status: string; paymentMethod: string; total: Money; amountPaid: Money; change: Money;
+  offlineSyncMetadata?: unknown;
   transactionCategory?: string | null; printingSubcategory?: string | null; customerName?: string | null;
+  printingReceipt?: { subcategory?: string | null } | null;
   customer?: { name: string } | null;
-  items: { productName: string; subtotal: Money; product?: { category?: { name: string } | null } | null }[];
+  items: (IncomeItem & { productName: string })[];
   payments: Payment[];
   debtPaymentLogs: { id: string; paymentMethod: string; amount: Money; createdAt: Date }[];
 };
@@ -94,10 +97,16 @@ function explicitGroup(value?: string | null): IncomeGroup {
 }
 
 function transactionWeights(transaction: MonthlyTransactionInput) {
-  const category = transaction.transactionCategory;
-  if (category === 'ATK') return [{ group: 'ATK' as const, amount: 1 }];
-  if (category === 'PERCETAKAN' && transaction.printingSubcategory) return [{ group: explicitGroup(transaction.printingSubcategory), amount: 1 }];
-  return transaction.items.map(item => ({ group: explicitGroup(item.product?.category?.name), amount: cents(item.subtotal) / 100 }));
+  const fallback = incomeClassification(transaction);
+  const hasServiceLine = transaction.items.some(row => Boolean(row.printingServiceId) || (!row.product && Boolean(transaction.printingReceipt)));
+  const legacyGroup = (item?: IncomeItem): IncomeGroup => {
+    const catalog = item?.product?.catalogSubcategory;
+    const classification = item ? incomeItemClassification(transaction, item, hasServiceLine, fallback) : fallback;
+    if (catalog && !item?.printingServiceId) return catalog.group === 'ATK' ? 'ATK' : explicitGroup(catalog.name);
+    if (classification.category === 'Percetakan') return explicitGroup(transaction.printingSubcategory || transaction.printingReceipt?.subcategory);
+    return classification.category === 'ATK' ? 'ATK' : 'UNMAPPED';
+  };
+  return transaction.items.length ? transaction.items.map(legacyGroup) : [legacyGroup()];
 }
 
 function uniquePayments<T extends { id: string }>(payments: T[]): T[] {
@@ -106,7 +115,7 @@ function uniquePayments<T extends { id: string }>(payments: T[]): T[] {
 
 /** Allocate refunds using the complete ledger before applying historical cutoffs. */
 function transactionEvents(transaction: MonthlyTransactionInput) {
-  const initial = uniquePayments(transaction.payments);
+  const initial = uniquePayments(transaction.payments).map(payment => transaction.offlineSyncMetadata ? { ...payment, createdAt: transaction.createdAt } : payment);
   const debts = uniquePayments(transaction.debtPaymentLogs).map(payment => ({ ...payment, method: payment.paymentMethod }));
   const retained = Math.min(cents(transaction.total), Math.max(0, cents(transaction.amountPaid) - cents(transaction.change)));
   const debtTotal = debts.reduce((sum, payment) => sum + (payment.method === 'TEMPO' ? 0 : cents(payment.amount)), 0);
@@ -136,9 +145,20 @@ export function buildMonthlyReport(input: {
     const events = transactionEvents(transaction);
     const reference = transaction.invoiceNumber || transaction.id;
     const description = transaction.items.map(item => item.productName).join(', ') || 'Penerimaan transaksi';
-    for (const event of events) {
-      if (event.amount <= 0 || event.method === 'TEMPO' || !inPeriod(event.createdAt)) continue;
-      report.income.push({ id: `${transaction.id}:${event.id}`, date: dateKey(event.createdAt), reference, description, amounts: allocateMonthlyIncome(event.amount, transactionWeights(transaction)) });
+    for (const event of allocateIncomePaymentItems(events, transaction)) {
+      if (!inPeriod(event.createdAt)) continue;
+      const itemGroups = transactionWeights(transaction);
+      const amounts = Object.fromEntries(groups.map(group => [group, 0])) as Record<IncomeGroup, number>;
+      const details = new Map<string, { category: string; subcategory: string; amount: number }>();
+      for (const part of event.allocations) {
+        const group = itemGroups[part.itemIndex ?? 0] ?? 'UNMAPPED';
+        amounts[group] = (Math.round(amounts[group] * 100) + Math.round(part.amount * 100)) / 100;
+        const { category, subcategory } = part;
+        const key = JSON.stringify([category, subcategory]);
+        const previous = details.get(key);
+        details.set(key, { category, subcategory, amount: (Math.round((previous?.amount ?? 0) * 100) + Math.round(part.amount * 100)) / 100 });
+      }
+      report.income.push({ id: `${transaction.id}:${event.id}`, date: dateKey(event.createdAt), reference, description, amounts, breakdown: [...details.values()] });
     }
     if (transaction.invoiceDate < period.end) {
       const paid = events.filter(event => event.createdAt < period.end).reduce((sum, event) => sum + cents(event.amount), 0);
@@ -152,6 +172,7 @@ export function buildMonthlyReport(input: {
       id: `manual-income:${row.id}`, date: dateKey(row.occurredAt),
       reference: `Pemasukan manual ${row.id}`, description: row.description,
       amounts: allocateMonthlyIncome(cents(row.amount) / 100, [{ group: row.category, amount: 1 }]),
+      breakdown: [{ ...(row.category === 'ATK' ? { category: 'ATK', subcategory: 'Pemasukan manual' } : incomeClassification({ transactionCategory: 'PERCETAKAN', printingSubcategory: row.category, items: [] })), amount: cents(row.amount) / 100 }],
     });
   }
   for (const receivable of input.manualReceivables) {
@@ -161,7 +182,7 @@ export function buildMonthlyReport(input: {
     const description = receivable.note || 'Penerimaan piutang manual';
     for (const event of events) {
       if (event.amount <= 0 || !inPeriod(event.createdAt)) continue;
-      report.income.push({ id: `manual:${receivable.id}:${event.id}`, date: dateKey(event.createdAt), reference, description, amounts: allocateMonthlyIncome(event.amount, []) });
+      report.income.push({ id: `manual:${receivable.id}:${event.id}`, date: dateKey(event.createdAt), reference, description, amounts: allocateMonthlyIncome(event.amount, []), breakdown: [{ category: 'Belum ditentukan', subcategory: 'Belum ditentukan', amount: event.amount }] });
     }
     if (calendarKey(receivable.debtDate) <= period.to) {
       const paid = events.filter(event => event.createdAt < period.end).reduce((sum, event) => sum + cents(event.amount), 0);

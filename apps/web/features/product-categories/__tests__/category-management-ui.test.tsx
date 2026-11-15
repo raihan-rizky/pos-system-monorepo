@@ -26,6 +26,19 @@ describe("category management UI", () => {
     expect(canConfirmCategoryDelete({ ...preview, expiresAt: 0 }, true, "HAPUS 1 KATEGORI", false)).toBe(false);
     expect(canConfirmCategoryDelete({ ...preview, categories: [{ ...preview.categories[0], targetCategoryId: null }] }, true, "HAPUS 1 KATEGORI", false)).toBe(false);
   });
+  it("explains the impact on classified units before deleting a legacy category", () => {
+    const withClassification = { ...preview, categories: [{ ...preview.categories[0], linkedClassification: {
+      id: "sub", name: "Buku", group: "ATK", units: 3, activeUnits: 2, inactiveUnits: 1,
+      stores: [{ id: "s", name: "Toko Selatan", units: 3 }],
+    } }] };
+    const html = renderToStaticMarkup(<CategoryDeleteImpact preview={withClassification} />);
+    for (const text of ["Buku", "3 satuan", "2 aktif", "1 nonaktif", "aturan harga kategori lama", "klasifikasi"]) expect(html).toContain(text);
+  });
+  it("states that legacy-category moves keep a unit's new classification", () => {
+    const html = renderToStaticMarkup(<MoveProductsImpact preview={{ kind: "move", token: "t", expiresAt: 1, targetCategoryId: "next", targetCategoryName: "ATK", totals: { products: 1, unchanged: 0 }, origins: [] }} />);
+    expect(html).toContain("kategori lama");
+    expect(html).toContain("klasifikasi baru tetap");
+  });
   it("shows active and inactive products, exact rule details, store and irreversible warning", () => {
     const html = renderToStaticMarkup(<CategoryDeleteImpact preview={preview} />);
     for (const text of ["7 produk", "5 aktif", "2 nonaktif", "1 aturan", "1 toko", "Toko Selatan", "AGEN", "rim", "Sinar", "2000", "Nonaktif", "tidak dapat dipulihkan", "harga pelanggan", "Dampak toko untuk Kertas"]) expect(html.includes(text), text).toBe(true);

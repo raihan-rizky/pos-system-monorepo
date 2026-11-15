@@ -2,6 +2,8 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { StockGroupBulkPanel } from "../StockGroupBulkPanel";
+import { SingleStockUpdatePanel } from "../SingleStockUpdatePanel";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 vi.mock("@pos/ui", () => ({
   Button: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
@@ -38,8 +40,16 @@ vi.mock("@/hooks/useProducts", () => ({
 }));
 
 describe("StockGroupBulkPanel", () => {
+  it.each([["massal", StockGroupBulkPanel], ["satuan", SingleStockUpdatePanel]] as const)("offers classification filters for %s stock selection", (_name, Panel) => {
+    const client = new QueryClient();
+    client.setQueryData(["product-classification", "catalog"], { subcategories: [], legacyCategories: [] });
+    const html = renderToStaticMarkup(<QueryClientProvider client={client}><Panel /></QueryClientProvider>);
+    expect(html).toContain("Kategori produk");
+    expect(html).toContain("Belum diatur");
+  });
+
   it("renders product-first controls with stock mode options", () => {
-    const html = renderToStaticMarkup(<StockGroupBulkPanel />);
+    const html = renderToStaticMarkup(<QueryClientProvider client={new QueryClient()}><StockGroupBulkPanel /></QueryClientProvider>);
 
     expect(html).toContain("Update Stok Massal");
     expect(html).toContain("Cari produk");

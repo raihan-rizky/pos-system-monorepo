@@ -8,6 +8,7 @@ let roleMock = "OWNER";
 let offlineSessionMock = false;
 const useServerClockMock = vi.hoisted(() => vi.fn());
 const pricingRulesMock = vi.hoisted(() => vi.fn<() => unknown[]>(() => []));
+const cartRefreshMock = vi.hoisted(() => vi.fn((items: ProductCartItem[]) => items));
 const roundingQueryMock = vi.hoisted(() => vi.fn(() => ({
   data: { enabled: true, increment: 500, threshold: 50 }, isError: false, isPlaceholderData: false,
 })));
@@ -67,7 +68,7 @@ vi.mock("@/hooks/useCustomerCategoryPricingRules", () => ({
 }));
 
 vi.mock("@/features/pos-checkout/hooks/useCartCatalogPrices", () => ({
-  useCartCatalogPrices: (items: ProductCartItem[]) => items,
+  useCartCatalogPrices: cartRefreshMock,
 }));
 
 vi.mock("@/features/pos-checkout/components/CustomerCheckoutSelect", () => ({
@@ -149,6 +150,7 @@ describe("PaymentModal custom invoice date", () => {
   beforeEach(() => {
     offlineSessionMock = false;
     pricingRulesMock.mockReturnValue([]);
+    cartRefreshMock.mockImplementation(items => items);
     roundingQueryMock.mockReturnValue({ data: { enabled: true, increment: 500, threshold: 50 }, isError: false, isPlaceholderData: false });
     useServerClockMock.mockReturnValue({
       now: new Date("2026-10-05T20:24:41.000Z"),
@@ -170,6 +172,36 @@ describe("PaymentModal custom invoice date", () => {
     const offline = renderToStaticMarkup(<PaymentModal {...props} />);
     expect(offline).not.toContain('type="date"');
     expect(offline).not.toContain("Harga Khusus pembayaran");
+  });
+
+  it("uses the prepared subcategory pricing rule and setting when offline", () => {
+    offlineSessionMock = true;
+    roundingQueryMock.mockReturnValue({ data: { enabled: false, increment: 500, threshold: 50 }, isError: false, isPlaceholderData: false });
+    const item: ProductCartItem = { cartLineId: "pen", lineType: "PRODUCT", productId: "pen", name: "Pulpen", price: 10000, catalogPrice: 10000, quantity: 1, unit: "pcs", stock: 10, categoryId: "old", categoryName: "ATK", catalogSubcategoryId: "print" };
+    const offlinePricing = { specialPricingEnabled: true, rounding: { enabled: false, increment: 500, threshold: 50 }, rules: [{ id: "print-rule", scope: "SUBCATEGORY", categoryId: "print", customerType: "UMUM", unit: null, brandId: null, mode: "PERCENT_DISCOUNT", value: 10, isActive: true, category: { id: "print", name: "PERCETAKAN / PRINT" } }] };
+    cartRefreshMock.mockImplementation(items => items.map(line => ({ ...line, catalogPrice: 20000 })));
+    const html = renderToStaticMarkup(<PaymentModal open onClose={vi.fn()} items={[item]} subtotal={10000} onConfirm={vi.fn()} {...({ offlinePricing } as any)} />);
+    expect(html).toContain("9.000");
+    expect(html).toContain("UMUM diskon 10%");
+  });
+
+  it("uses the prepared rounding policy instead of a stale saved policy while offline", () => {
+    offlineSessionMock = true;
+    roundingQueryMock.mockReturnValue({ data: { enabled: false, increment: 500, threshold: 50 }, isError: false, isPlaceholderData: false });
+    const item: ProductCartItem = { cartLineId: "pen", lineType: "PRODUCT", productId: "pen", name: "Pulpen", price: 1200, catalogPrice: 1200, quantity: 1, unit: "pcs", stock: 10, categoryId: "old", categoryName: "ATK" };
+    const offlinePricing = { specialPricingEnabled: false, rounding: { enabled: true, increment: 500, threshold: 50 }, rules: [] };
+    const html = renderToStaticMarkup(<PaymentModal open onClose={vi.fn()} items={[item]} subtotal={1200} onConfirm={vi.fn()} {...({ offlinePricing } as any)} />);
+    expect(html).toContain("1.500");
+    expect(html).not.toContain("1.200</span></div><div class=\"mt-1 flex justify-between text-sm opacity-80\"");
+  });
+
+  it("blocks offline payment when the prepared pricing snapshot is unavailable", () => {
+    offlineSessionMock = true;
+    const item: ProductCartItem = { cartLineId: "pen", lineType: "PRODUCT", productId: "pen", name: "Pulpen", price: 10000, catalogPrice: 10000, quantity: 1, unit: "pcs", stock: 10, categoryId: "old", categoryName: "ATK" };
+    const html = renderToStaticMarkup(<PaymentModal open onClose={vi.fn()} items={[item]} subtotal={10000} onConfirm={vi.fn()} />);
+    expect(html).toContain("Siapkan ulang katalog");
+    expect(html).not.toContain("Memuat pengaturan pembulatan harga sebelum pembayaran");
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Konfirmasi Bayar/);
   });
 
   it("uses the saved disabled rounding setting in payment totals", () => {

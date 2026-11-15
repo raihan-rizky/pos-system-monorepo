@@ -23,6 +23,10 @@ const harness = vi.hoisted(() => ({
   storeId: "store-main" as string | null,
   transactionAllowed: true,
   offlineSession: false,
+  canReadOfflineCatalog: true,
+  offlinePricing: undefined as any,
+  offlineProducts: [] as Product[],
+  productQueryOptions: undefined as any,
 }));
 
 vi.mock("react", async (importOriginal) => {
@@ -63,14 +67,14 @@ vi.mock("@/components/Pagination", () => ({ Pagination: () => null }));
 vi.mock("@/components/ui/HorizontalScroll", () => ({ HorizontalScroll: () => null }));
 vi.mock("@/features/pos-checkout/components/CustomerCheckoutSelect", () => ({ CustomerCheckoutSelect: () => null }));
 vi.mock("@/hooks/useProducts", () => ({
-  useProductsPage: () => ({ data: { data: harness.catalog }, isLoading: false, isFetching: false }),
+  useProductsPage: (_search: unknown, _category: unknown, options: unknown) => { harness.productQueryOptions = options; return { data: { data: harness.catalog }, isLoading: false, isFetching: false }; },
   useCategories: () => ({ data: [] }),
   useUpdateProduct: () => ({ mutateAsync: harness.mutateProduct }),
   useUpdateProductGroupMetadata: () => ({}),
 }));
 vi.mock("@/hooks/useCart", () => ({ useCart: () => ({ ...harness.cart }) }));
 vi.mock("@/hooks/useCustomerCategoryPricingRules", () => ({ useCustomerCategoryPricingRules: () => ({ data: harness.rules }) }));
-vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: harness.catalog }) }));
+vi.mock("@tanstack/react-query", () => ({ useQuery: (options: any) => ({ data: options.queryKey?.[0] === "offline-catalog-pricing" ? (harness.offlinePricing && { pricing: harness.offlinePricing, products: harness.offlineProducts }) : harness.catalog }) }));
 vi.mock("@/hooks/useBrands", () => ({ useBrands: () => ({ data: [] }) }));
 vi.mock("@/hooks/useShift", () => ({ useActiveShift: () => ({ data: null, isLoading: false }) }));
 vi.mock("@/hooks/useShiftSettings", () => ({ useShiftSettings: () => ({ data: { enabled: false } }) }));
@@ -89,13 +93,14 @@ vi.mock("@/lib/offline/offline-db", () => ({
   },
 }));
 vi.mock("@/features/transactions-draft", () => ({ useCreateDraft: () => ({}) }));
-vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({ role: "CASHIER", userId: harness.userId, storeId: harness.storeId, isOfflineSession: harness.offlineSession, canPerform: (resource: string, action: string) => resource === "transaction" && action === "create" && harness.transactionAllowed }) }));
+vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({ role: "CASHIER", userId: harness.userId, storeId: harness.storeId, isOfflineSession: harness.offlineSession, canReadOfflineCatalog: harness.canReadOfflineCatalog, canPerform: (resource: string, action: string) => resource === "transaction" && action === "create" && harness.transactionAllowed }) }));
 vi.mock("@/features/invoice-date/hooks/useServerClock", () => ({ useServerClock: () => ({ now: null }) }));
 
 import POSClientPage from "../POSClientPage";
 import { ProductGrid } from "@/components/ProductGrid";
 import { CartSidebar } from "@/components/CartSidebar";
 import { CustomerCheckoutSelect } from "@/features/pos-checkout/components/CustomerCheckoutSelect";
+import { CatalogClassificationFilter } from "@/features/product-classification/components/CatalogClassificationFilter";
 
 function findProps(node: React.ReactNode, predicate: (element: React.ReactElement<any>) => boolean): any {
   if (Array.isArray(node)) {
@@ -117,10 +122,18 @@ function render() {
     payment: findProps(tree, element => typeof element.props.onCustomerSelectionChange === "function" && "initialCustomerSelection" in element.props),
     search: findProps(tree, element => element.type === "input" && typeof element.props.onChange === "function"),
     priceEditor: findProps(tree, element => "item" in element.props && "roundingSettings" in element.props && typeof element.props.onSave === "function"),
+    classification: findProps(tree, element => element.type === CatalogClassificationFilter),
   };
 }
 
 describe("POS pricing across unrelated renders", () => {
+  it("passes category and subcategory choices to the POS product query for the current cashier", () => {
+    const page = render();
+    expect(page.classification.offlineIdentity).toEqual({ cashierId: "cashier-1", storeId: "store-main" });
+    page.classification.onChange("PERCETAKAN", "print");
+    render();
+    expect(harness.productQueryOptions).toMatchObject({ catalogGroup: "PERCETAKAN", catalogSubcategoryId: "print" });
+  });
   beforeEach(() => {
     harness.mutateTransaction.mockReset();
     harness.mutateProduct.mockReset();
@@ -130,6 +143,8 @@ describe("POS pricing across unrelated renders", () => {
     harness.storeId = "store-main";
     harness.transactionAllowed = true;
     harness.offlineSession = false;
+    harness.canReadOfflineCatalog = true;
+    harness.offlinePricing = { specialPricingEnabled: true, rounding: { enabled: true, increment: 500, threshold: 50 }, rules: [] };
     harness.states.length = 0;
     harness.memos.length = 0;
     harness.rules = undefined;
@@ -139,6 +154,7 @@ describe("POS pricing across unrelated renders", () => {
       price: 2000, hargaAgen: 1800, costPrice: 1000, baseCostPrice: 1000, baseCostUnit: "pcs",
       category: { id: "cat-paper", name: "Kertas", icon: null, color: null },
     } as Product];
+    harness.offlineProducts = harness.catalog;
     const item: ProductCartItem = {
       cartLineId: "line-paper", lineType: "PRODUCT", productId: "paper", name: "Kertas",
       unit: "pcs", stock: 10, price: 2000, catalogPrice: 2000, quantity: 1,
@@ -186,6 +202,54 @@ describe("POS pricing across unrelated renders", () => {
     harness.offlineSession = true;
     render().cart.onCheckout();
     expect(render().payment.onSaveDraft).toBeUndefined();
+  });
+
+  it("uses one cashier-scoped pricing snapshot in the cart and payment modal offline", () => {
+    harness.offlineSession = true;
+    harness.rounding = { enabled: false, increment: 500, threshold: 50 };
+    harness.offlinePricing = { specialPricingEnabled: true, rounding: { enabled: false, increment: 500, threshold: 50 }, rules: [{
+      id: "offline-rule", scope: "SUBCATEGORY", categoryId: "print", customerType: "UMUM", unit: null, brandId: null,
+      mode: "PERCENT_DISCOUNT", value: 10, isActive: true, category: { id: "print", name: "PERCETAKAN / PRINT" },
+    }] };
+    harness.catalog = [{ ...harness.catalog[0], catalogSubcategoryId: "print" }];
+    harness.offlineProducts = [{ ...harness.catalog[0], price: 3000 }];
+    harness.cart.items[0] = { ...harness.cart.items[0], catalogSubcategoryId: "print" };
+    expect(render().cart.subtotal).toBe(2700);
+    render().cart.onCheckout();
+    expect(render().payment.offlinePricing).toEqual(harness.offlinePricing);
+    expect(render().payment.items[0].catalogPrice).toBe(3000);
+  });
+
+  it("uses the prepared rounding policy in the offline cart when the saved online policy is stale", () => {
+    harness.offlineSession = true;
+    harness.rounding = { enabled: false, increment: 500, threshold: 50 };
+    harness.offlinePricing = { specialPricingEnabled: false, rounding: { enabled: true, increment: 500, threshold: 50 }, rules: [] };
+    harness.offlineProducts = [{ ...harness.catalog[0], price: 1200 }];
+    expect(render().cart.subtotal).toBe(1500);
+    render().cart.onCheckout();
+    expect(render().payment.offlinePricing.rounding.enabled).toBe(true);
+  });
+
+  it("does not allow payment with a cart item missing from the prepared offline catalog", () => {
+    harness.offlineSession = true;
+    harness.offlineProducts = [];
+    render().cart.onCheckout();
+    expect(render().payment.offlinePricing).toBeUndefined();
+  });
+
+  it("does not pass cached pricing to payment without product read permission", () => {
+    harness.offlineSession = true;
+    harness.canReadOfflineCatalog = false;
+    harness.rounding = { enabled: false, increment: 500, threshold: 50 };
+    harness.offlinePricing = { specialPricingEnabled: true, rounding: { enabled: false, increment: 500, threshold: 50 }, rules: [{
+      id: "offline-rule", scope: "SUBCATEGORY", categoryId: "print", customerType: "UMUM", unit: null, brandId: null,
+      mode: "PERCENT_DISCOUNT", value: 10, isActive: true, category: { id: "print", name: "PERCETAKAN / PRINT" },
+    }] };
+    harness.catalog = [{ ...harness.catalog[0], catalogSubcategoryId: "print" }];
+    harness.cart.items[0] = { ...harness.cart.items[0], catalogSubcategoryId: "print" };
+    expect(render().cart.subtotal).toBe(2000);
+    render().cart.onCheckout();
+    expect(render().payment.offlinePricing).toBeUndefined();
   });
 
   it("requires removing unsupported saved cart lines and custom prices before offline checkout", () => {

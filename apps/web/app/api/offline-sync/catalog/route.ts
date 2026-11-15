@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { db } from "@pos/db";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
+import { pricingRuleInclude, serializePricingRule, serializeSubcategoryPricingRule, subcategoryPricingRuleInclude } from "@/features/customer-category-pricing/helpers/rule-persistence";
+import { getSpecialPricingEnabled } from "@/features/customer-category-pricing/server/special-pricing-settings";
+import { getPriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
 import { withCalculatedStock } from "@/features/product-stock-groups/stock-display";
 import { groupProductsByNameAndCategory } from "@/features/pos-search/services/product-grouping-service";
 import { getLogger } from "@/lib/logger";
@@ -18,10 +21,11 @@ export async function GET() {
       const where = { storeId, isActive: true };
       const count = await tx.product.count({ where });
       if (count > MAX_PRODUCTS) return null;
-      const [products, categories] = await Promise.all([
+      const [products, categories, legacyRules, subcategoryRules, specialPricingEnabled, rounding] = await Promise.all([
         tx.product.findMany({
           where,
           include: {
+            catalogSubcategory: { select: { id: true, group: true, name: true, legacyCategoryId: true } },
             category: { select: { id: true, name: true, icon: true, color: true } },
             brand: { select: { id: true, name: true, normalizedName: true } },
             stockGroup: { select: { id: true, displayName: true, baseUnit: true, baseStock: true } },
@@ -29,6 +33,10 @@ export async function GET() {
           orderBy: [{ name: "asc" }, { id: "asc" }],
         }),
         tx.category.findMany({ orderBy: { order: "asc" }, include: { _count: { select: { products: { where: { storeId } } } } } }),
+        tx.categoryCustomerPricingRule.findMany({ where: { storeId, isActive: true }, include: pricingRuleInclude, orderBy: [{ isActive: "desc" }, { updatedAt: "desc" }] }),
+        tx.subcategoryCustomerPricingRule.findMany({ where: { storeId, isActive: true }, include: subcategoryPricingRuleInclude, orderBy: [{ isActive: "desc" }, { updatedAt: "desc" }] }),
+        getSpecialPricingEnabled(tx),
+        getPriceRoundingSettings(tx),
       ]);
       const baseCosts = await loadProductBaseCosts(tx, products);
       const normalized = products.map((product) => ({
@@ -42,7 +50,10 @@ export async function GET() {
         }),
         ...baseCosts.get(product.id),
       }));
-      return { products: groupProductsByNameAndCategory(normalized), categories };
+      return {
+        products: groupProductsByNameAndCategory(normalized), categories,
+        pricing: { specialPricingEnabled, rounding, rules: [...legacyRules.map(serializePricingRule), ...subcategoryRules.map(serializeSubcategoryPricingRule)] },
+      };
     }, { isolationLevel: "RepeatableRead", timeout: 30_000 });
 
     if (!snapshot) {

@@ -1,5 +1,7 @@
 import { netInitialPayments } from "@/features/customer-debt/helpers/net-initial-payments";
-import { incomeClassification } from "./income-categories";
+import { allocateIncomeItems, incomeClassification, incomeItemClassification, type IncomeItem } from "./income-categories";
+import { buildIncomePeriod } from "./income-period";
+import type { DailyManualIncome } from "./daily-income";
 
 type NullableNumber = number | string | null | undefined;
 
@@ -38,7 +40,7 @@ export type FinancialReportTransaction = {
     subtotal: NullableNumber;
     unitCost: NullableNumber;
     printingServiceId?: string | null;
-    product?: { category?: { name?: string | null } | null } | null;
+    product?: IncomeItem["product"];
   }>;
 };
 
@@ -311,6 +313,7 @@ export function buildFinancialReport({
   debtPayments = [],
   collectionTransactions,
   receivableBalance,
+  manualIncome = [],
 }: {
   dateFrom: string;
   dateTo: string;
@@ -322,6 +325,7 @@ export function buildFinancialReport({
   debtPayments?: FinancialReportDebtPayment[];
   collectionTransactions?: FinancialReportCollection[];
   receivableBalance?: number;
+  manualIncome?: DailyManualIncome[];
 }) {
   const paymentMap = new Map<
     string,
@@ -415,7 +419,9 @@ export function buildFinancialReport({
     transactionCount += 1;
 
     const classification = incomeClassification(transaction);
-    for (const item of transaction.items) {
+    const allocations = allocateIncomeItems(total, transaction);
+    const itemAmounts = new Map(allocations.filter(row => row.itemIndex !== null).map(row => [row.itemIndex, row.amount]));
+    for (const [itemIndex, item] of transaction.items.entries()) {
       const quantity = toNumber(item.quantity);
       const itemRevenue = toNumber(item.subtotal);
       const itemCost =
@@ -441,30 +447,33 @@ export function buildFinancialReport({
       product.grossProfit += itemGrossProfit;
       productMap.set(productKey, product);
 
-      const subcategoryName = classification.category === "Percetakan"
-        ? classification.subcategory
-        : item.product?.category?.name?.trim() || "Belum ditentukan";
-      const key = JSON.stringify([classification.category, subcategoryName]);
-      const subcategory = subcategoryMap.get(key) ?? { categoryName: classification.category, subcategoryName, transactionIds: new Set<string>(), revenue: 0, grossProfit: 0 };
+      const itemClassification = incomeItemClassification(transaction, item);
+      const categoryName = itemClassification.category;
+      const subcategoryName = itemClassification.subcategory;
+      const allocatedRevenue = itemAmounts.get(itemIndex) ?? 0;
+      const category = categoryMap.get(categoryName) ?? { categoryName, transactionIds: new Set<string>(), quantity: 0, revenue: 0, grossProfit: 0 };
+      category.transactionIds.add(transaction.id);
+      category.quantity += quantity;
+      category.revenue = (Math.round(category.revenue * 100) + Math.round(allocatedRevenue * 100)) / 100;
+      category.grossProfit += itemGrossProfit;
+      categoryMap.set(categoryName, category);
+      const key = JSON.stringify([categoryName, subcategoryName]);
+      const subcategory = subcategoryMap.get(key) ?? { categoryName, subcategoryName, transactionIds: new Set<string>(), revenue: 0, grossProfit: 0 };
       subcategory.transactionIds.add(transaction.id);
-      subcategory.revenue += itemRevenue;
+      subcategory.revenue = (Math.round(subcategory.revenue * 100) + Math.round(allocatedRevenue * 100)) / 100;
       subcategory.grossProfit += itemGrossProfit;
       subcategoryMap.set(key, subcategory);
     }
 
-    const { category: categoryName } = incomeClassification(transaction);
-    const category = categoryMap.get(categoryName) ?? { categoryName, transactionIds: new Set<string>(), quantity: 0, revenue: 0, grossProfit: 0 };
-    category.transactionIds.add(transaction.id);
-    category.quantity += transaction.items.reduce((sum, item) => sum + toNumber(item.quantity), 0);
-    const itemRevenueTotal = transaction.items.reduce((sum, item) => sum + toNumber(item.subtotal), 0);
-    category.revenue += itemRevenueTotal || total;
-    category.grossProfit += transactionGrossProfit;
-    categoryMap.set(categoryName, category);
-    if (transaction.items.length === 0) {
+    if (allocations[0]?.itemIndex === null) {
+      const category = categoryMap.get(classification.category) ?? { categoryName: classification.category, transactionIds: new Set<string>(), quantity: 0, revenue: 0, grossProfit: 0 };
+      category.transactionIds.add(transaction.id);
+      category.revenue = (Math.round(category.revenue * 100) + Math.round(total * 100)) / 100;
+      categoryMap.set(classification.category, category);
       const key = JSON.stringify([classification.category, classification.subcategory]);
       const subcategory = subcategoryMap.get(key) ?? { categoryName: classification.category, subcategoryName: classification.subcategory, transactionIds: new Set<string>(), revenue: 0, grossProfit: 0 };
       subcategory.transactionIds.add(transaction.id);
-      subcategory.revenue += total;
+      subcategory.revenue = (Math.round(subcategory.revenue * 100) + Math.round(total * 100)) / 100;
       subcategoryMap.set(key, subcategory);
     }
 
@@ -552,6 +561,28 @@ export function buildFinancialReport({
     salespersonMap.set(salespersonName, salesperson);
   }
 
+  // Manual income has no recorded cost; include its receipts without inventing profit.
+  const manualContributions = buildIncomePeriod({ fromDate: dateFrom, toDate: dateTo, transactions: [], manualIncome }).contributions;
+  const manualIncomeIds = new Set<string>();
+  for (const entry of manualContributions) {
+    const entryId = `manual:${entry.manualIncomeId}`;
+    manualIncomeIds.add(entryId);
+    revenue = (Math.round(revenue * 100) + Math.round(entry.amount * 100)) / 100;
+    collected = (Math.round(collected * 100) + Math.round(entry.amount * 100)) / 100;
+    addPayment(entry.method, entryId, entry.amount, entry.amount);
+    for (const allocation of entry.allocations) {
+      const category = categoryMap.get(allocation.category) ?? { categoryName: allocation.category, transactionIds: new Set<string>(), quantity: 0, revenue: 0, grossProfit: 0 };
+      category.transactionIds.add(entryId);
+      category.revenue = (Math.round(category.revenue * 100) + Math.round(allocation.amount * 100)) / 100;
+      categoryMap.set(allocation.category, category);
+      const key = JSON.stringify([allocation.category, allocation.subcategory]);
+      const subcategory = subcategoryMap.get(key) ?? { categoryName: allocation.category, subcategoryName: allocation.subcategory, transactionIds: new Set<string>(), revenue: 0, grossProfit: 0 };
+      subcategory.transactionIds.add(entryId);
+      subcategory.revenue = (Math.round(subcategory.revenue * 100) + Math.round(allocation.amount * 100)) / 100;
+      subcategoryMap.set(key, subcategory);
+    }
+  }
+
   const lossBucketMap = new Map<LossReason, LossBucket>();
   let lossStokNet = 0;
   let lossStokUnclassifiedCount = 0;
@@ -559,6 +590,7 @@ export function buildFinancialReport({
   const granularity = pickGranularity(rangeDays(dateFrom, dateTo));
   const trendPoints = generateTrendBuckets(dateFrom, dateTo, granularity);
   const trendIndex = new Map(trendPoints.map((p) => [p.bucketKey, p]));
+  const manualTrendCents = new Map<string, number>();
 
   for (const transaction of confirmedTransactions) {
     const txKey = bucketKeyForDate(transaction.createdAt, granularity);
@@ -570,6 +602,15 @@ export function buildFinancialReport({
       if (item.unitCost === null || item.unitCost === undefined) continue;
       txPoint.cost += toNumber(item.unitCost) * toNumber(item.quantity);
     }
+  }
+
+  for (const entry of manualContributions) {
+    const key = bucketKeyForDate(new Date(`${entry.date}T12:00:00+07:00`), granularity);
+    const point = trendIndex.get(key);
+    if (!point) continue;
+    const cents = Math.round(entry.amount * 100);
+    point.omzet = (Math.round(point.omzet * 100) + cents) / 100;
+    manualTrendCents.set(key, (manualTrendCents.get(key) ?? 0) + cents);
   }
 
   for (const log of inventoryLogs) {
@@ -617,7 +658,7 @@ export function buildFinancialReport({
   }
 
   for (const point of trendPoints) {
-    point.labaKotor = point.omzet - point.cost;
+    point.labaKotor = (Math.round(point.omzet * 100) - Math.round(point.cost * 100) - (manualTrendCents.get(point.bucketKey) ?? 0)) / 100;
   }
 
   const reportShifts = shifts.map((shift) => ({
@@ -654,6 +695,7 @@ export function buildFinancialReport({
     dateTo,
     summary: {
       transactionCount,
+      manualIncomeCount: manualIncomeIds.size,
       revenue,
       collected,
       grossProfit: grossProfitNet,

@@ -27,7 +27,7 @@ export function parseReceiptHistoryParams(params: Record<string, string | string
   if (params.mode === undefined) return { status: "none" };
   const { mode, date, category, subcategory, method, view, period } = params;
   if ((mode !== "receipt" && mode !== "outstanding-dp") || typeof date !== "string"
-    || (category !== undefined && category !== "ATK" && category !== "Percetakan")
+    || (category !== undefined && category !== "ATK" && category !== "Percetakan" && category !== "Belum ditentukan")
     || (subcategory !== undefined && (typeof subcategory !== "string" || !category || !subcategory.trim() || subcategory.length > 150))
     || (method !== undefined && (typeof method !== "string" || !["CASH", "DEBIT", "CREDIT", "QRIS", "TRANSFER", "Belum dicatat"].includes(method)))
     || (view !== undefined && view !== "sales")

@@ -25,7 +25,8 @@ export async function requestCategoryAction(input: CategoryAction): Promise<Acti
 }
 
 export async function invalidateCategoryCatalog(client: QueryClient) {
-  await Promise.all([client.cancelQueries({ queryKey: ["products"] }), client.cancelQueries({ queryKey: ["categories"] })]);
+  const reportKeys = ["financial-report", "daily-financial-report", "monthly-financial-report"];
+  await Promise.all(["products", "categories", "product-classification", ...reportKeys].map(key => client.cancelQueries({ queryKey: [key] })));
   let offlineCleared = true;
   try {
     const { offlineDb } = await import("@/lib/offline/offline-db");
@@ -36,7 +37,7 @@ export async function invalidateCategoryCatalog(client: QueryClient) {
   } catch {
     offlineCleared = false;
   }
-  await Promise.all(["categories", "products", "product-stats", "customer-category-pricing-rules", "pricing-scope-units", "pricing-scope-options"].map(key => client.invalidateQueries({ queryKey: [key] })));
+  await Promise.all(["categories", "products", "product-classification", ...reportKeys, "product-stats", "customer-category-pricing-rules", "pricing-scope-units", "pricing-scope-options"].map(key => client.invalidateQueries({ queryKey: [key] })));
   return offlineCleared;
 }
 

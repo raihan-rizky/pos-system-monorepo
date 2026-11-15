@@ -17,6 +17,7 @@ import { canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
 import type { Role } from "@/lib/rbac/permissions";
 import { z } from "zod";
+import { loadCustomerPricingRules } from "@/features/customer-category-pricing/server/pricing-rule-loader";
 import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
 
 import { getLogger } from "@/lib/logger";
@@ -80,6 +81,7 @@ const productTransactionItemSchema = z.object({
   material: z.string().optional().nullable(),
   price: z.number().min(0).optional(),
   categoryId: z.string().optional(),
+  catalogSubcategoryId: z.string().nullable().optional(),
   transactionPrice: z.number().positive().max(9_999_999_999.99).optional().nullable(),
   customerManualPrice: z.number().finite().min(0).max(9_999_999_999.99).optional().nullable(),
   quantity: z.number().int().min(1),
@@ -812,6 +814,8 @@ export async function POST(request: Request) {
           size: true,
           material: true,
           categoryId: true,
+          catalogSubcategoryId: true,
+          catalogSubcategory: { select: { legacyCategoryId: true } },
           category: { select: { name: true } },
           brand: { select: { name: true } },
         },
@@ -878,28 +882,7 @@ export async function POST(request: Request) {
       customerId && customerCheck && customerCheck !== true
         ? (customerCheck.type as CustomerType)
         : "UMUM";
-    const pricingRules = (await db.categoryCustomerPricingRule.findMany({
-      where: { storeId, isActive: true },
-      include: {
-        category: { select: { name: true } },
-        brand: { select: { name: true } },
-      },
-    })).map((rule) => ({
-      id: rule.id,
-      categoryId: rule.categoryId,
-      categoryName: rule.category.name,
-      customerType: (rule.customerType ?? "ALL") as CategoryPricingRule["customerType"],
-      customerTypes: rule.customerTypes,
-      unit: rule.unit,
-      units: rule.units,
-      brandId: rule.brandId,
-      brandName: rule.brand?.name ?? null,
-      mode: rule.mode,
-      value: Number(rule.value),
-      discountPercent: Number(rule.discountPercent ?? 0),
-      isActive: rule.isActive,
-      updatedAt: rule.updatedAt,
-    })) satisfies CategoryPricingRule[];
+    const pricingRules = await loadCustomerPricingRules(db, storeId);
 
     const roundingSettings = await getPriceRoundingSettings();
     const specialPricingEnabled = await getSpecialPricingEnabled();
@@ -924,8 +907,10 @@ export async function POST(request: Request) {
     ));
     const categoryChanged = items.some(item => item.lineType === "PRODUCT" && item.categoryId != null &&
       item.categoryId !== productById.get(item.productId)?.categoryId);
-    if ((roundingPolicyChanged || categoryChanged) && !parsed.data.offlineReplay) {
-      return NextResponse.json({ message: categoryChanged
+    const classificationChanged = items.some(item => item.lineType === "PRODUCT" && item.catalogSubcategoryId !== undefined &&
+      item.catalogSubcategoryId !== (productById.get(item.productId)?.catalogSubcategoryId ?? null));
+    if ((roundingPolicyChanged || categoryChanged || classificationChanged) && !parsed.data.offlineReplay) {
+      return NextResponse.json({ message: categoryChanged || classificationChanged
         ? "Kategori produk sudah berubah. Muat ulang harga sebelum melanjutkan transaksi."
         : "Pengaturan pembulatan harga sudah berubah. Muat ulang harga sebelum melanjutkan transaksi." }, { status: 409 });
     }
@@ -977,6 +962,8 @@ export async function POST(request: Request) {
             {
               categoryId: product.categoryId,
               categoryName: product.category.name,
+              catalogSubcategoryId: product.catalogSubcategoryId,
+              catalogSubcategoryLegacyCategoryId: product.catalogSubcategory?.legacyCategoryId ?? null,
               price: Number(product.price),
               costPrice: product.costPrice == null ? null : Number(product.costPrice),
               ...baseCosts.get(product.id),
@@ -994,7 +981,7 @@ export async function POST(request: Request) {
           const roundedAutomatic = roundSellingPriceLine(priced, roundingSettings, product.categoryId);
           const legacyResolved = resolveCustomPricedLine({
             pricedLine: priced,
-            submittedPrice: (parsed.data.offlineReplay && (roundingPolicyChanged ||
+            submittedPrice: item.catalogSubcategoryId !== undefined || (parsed.data.offlineReplay && (roundingPolicyChanged || classificationChanged ||
               (item.categoryId != null && item.categoryId !== product.categoryId))) || item.price === roundedAutomatic.unitPrice
               ? undefined : item.price,
             role: user.role,
@@ -1023,6 +1010,12 @@ export async function POST(request: Request) {
         discount: item.discount,
       };
     });
+
+    const staleAutomaticPrice = !parsed.data.offlineReplay && items.some((item, index) =>
+      item.lineType === "PRODUCT" && item.catalogSubcategoryId !== undefined && item.price != null &&
+      item.transactionPrice == null && item.customerManualPrice == null &&
+      Math.round(item.price * 100) !== Math.round(serverItems[index].price * 100));
+    if (staleAutomaticPrice) return NextResponse.json({ message: "Harga produk sudah berubah. Muat ulang harga sebelum melanjutkan transaksi." }, { status: 409 });
 
     // Calculate totals
     const subtotal = serverItems.reduce(

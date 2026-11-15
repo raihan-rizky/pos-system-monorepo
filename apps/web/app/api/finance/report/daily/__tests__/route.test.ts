@@ -187,9 +187,17 @@ describe("daily finance API", () => {
     mocks.permissions.mockResolvedValue(permissions);
     const response = await GET(request("date=2026-11-05&view=sales"));
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ date: "2026-11-05", viewMode: "full" });
+    expect(await response.json()).toEqual({ date: "2026-11-05", viewMode: "full", exportAccess: false });
     expect(mocks.transactions).not.toHaveBeenCalled();
     expect(mocks.manual).not.toHaveBeenCalled();
+  });
+  it("reports saved Sales export permission in the full Owner preview", async () => {
+    mocks.user.mockResolvedValue({ id: "owner", role: "OWNER", storeId: "store-1" });
+    const permissions = buildDefaultRolePermissions();
+    permissions.SALES.resources["financial-report"].read = true;
+    permissions.SALES.resources["financial-report.export"].read = true;
+    mocks.permissions.mockResolvedValue(permissions);
+    expect(await (await GET(request("date=2026-11-05&view=sales"))).json()).toMatchObject({ viewMode: "full", exportAccess: true });
   });
   it("does not let the OWNER preview bypass the SALES page grant", async () => {
     mocks.user.mockResolvedValue({ id: "owner", role: "OWNER", storeId: "store-1" });

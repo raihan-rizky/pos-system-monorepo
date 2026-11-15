@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect, useMemo, useDeferredValue, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { buildDraftCheckoutItems, buildOfflineCheckoutTotals } from "@/features/pos-checkout/helpers/checkout-persistence";
 import { AlertTriangle, Check, CircleMinus, Clock, Search, ShoppingCart, X } from "lucide-react";
@@ -59,6 +60,7 @@ import { useCart, type ProductCartItem } from "@/hooks/useCart";
 import { useCustomerCategoryPricingRules, type CustomerCategoryPricingRule } from "@/hooks/useCustomerCategoryPricingRules";
 import { mapCheckoutPricingRule, priceCartItemsForCheckout } from "@/features/pos-checkout/helpers/checkout-pricing";
 import { useCartCatalogPrices } from "@/features/pos-checkout/hooks/useCartCatalogPrices";
+import { refreshCartCatalogPrices } from "@/features/pos-checkout/helpers/cart-catalog-pricing";
 import type { CheckoutCustomerSelection } from "@/features/pos-checkout/customer-selection";
 import { useCreateTransaction, type Transaction } from "@/hooks/useTransactions";
 import { WAIT_FOR_SESSION_RECOVERY } from "@/lib/auth/session-failure";
@@ -91,6 +93,8 @@ import {
   getCartCheckoutMode,
 } from "@/features/nota-penawaran/helpers/quotation-rules";
 import type { DraftCreateInput } from "@/features/transactions-draft";
+import { CatalogClassificationFilter } from "@/features/product-classification/components/CatalogClassificationFilter";
+import type { UseProductsOptions } from "@/hooks/useProducts";
 
 const POS_PAGE_SIZE = 24;
 const EMPTY_PRICING_RULES: CustomerCategoryPricingRule[] = [];
@@ -128,6 +132,8 @@ export default function POSClientPage({
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [catalogGroup, setCatalogGroup] = useState<NonNullable<UseProductsOptions["catalogGroup"]> | "">("");
+  const [catalogSubcategoryId, setCatalogSubcategoryId] = useState("");
   const [page, setPage] = useState(1);
   const [hideOutOfStock, setHideOutOfStock] = useState<boolean>(
     getInitialHideOutOfStock,
@@ -202,7 +208,7 @@ export default function POSClientPage({
     initialData.activeShift ?? undefined,
   );
   const { data: shiftSettings } = useShiftSettings(initialData.shiftEnabled);
-  const { role, userId, storeId, canPerform, isOfflineSession, isSessionRecovering } = useRole();
+  const { role, userId, storeId, authorizationFingerprint, canPerform, canReadOfflineCatalog, isOfflineSession, isSessionRecovering } = useRole();
   const offlineIdentity = useMemo(
     () => userId ? { cashierId: userId, storeId: storeId || "store-main" } : undefined,
     [userId, storeId],
@@ -214,6 +220,8 @@ export default function POSClientPage({
   const canCreateTransaction = canPerform(role === "SALES" ? "transaction.request" : "transaction", "create");
 
   const productsQuery = useProductsPage(deferredSearch, selectedCategory, {
+    catalogGroup: catalogGroup || undefined,
+    catalogSubcategoryId: catalogSubcategoryId || undefined,
     page,
     limit: POS_PAGE_SIZE,
     inStockOnly: hideOutOfStock,
@@ -246,10 +254,32 @@ export default function POSClientPage({
   const [pricingCustomer, setPricingCustomer] = useState<CheckoutCustomerSelection>({ kind: "general" });
   const resetPricingCustomer = useCallback(() => setPricingCustomer({ kind: "general" }), []);
   const customerType = pricingCustomer.kind === "existing" ? pricingCustomer.customer.type ?? "UMUM" : "UMUM";
-  const { data: categoryRules = EMPTY_PRICING_RULES } = useCustomerCategoryPricingRules({ activeOnly: true });
-  const catalogCartItems = useCartCatalogPrices(cart.items);
-  const { data: roundingSettings = DEFAULT_PRICE_ROUNDING_SETTINGS } = usePriceRoundingSettings();
-  const { data: specialPricingEnabled = false } = useSpecialPricingSettings();
+  const { data: onlineCategoryRules = EMPTY_PRICING_RULES } = useCustomerCategoryPricingRules({ activeOnly: true });
+  const { data: cachedOfflineCatalog } = useQuery({
+    queryKey: ["offline-catalog-pricing", offlineIdentity?.cashierId, offlineIdentity?.storeId, authorizationFingerprint, isOfflineSession],
+    enabled: isOfflineSession && canReadOfflineCatalog && Boolean(offlineIdentity),
+    networkMode: "always",
+    retry: false,
+    gcTime: 0,
+    queryFn: async () => {
+      if (!offlineIdentity) throw new Error("Identitas kasir belum tersedia.");
+      const { getOfflineCheckoutCatalog } = await import("@/lib/offline/offline-pricing");
+      return getOfflineCheckoutCatalog(offlineIdentity);
+    },
+  });
+  const offlineCatalog = isOfflineSession && canReadOfflineCatalog && offlineIdentity ? cachedOfflineCatalog : undefined;
+  const offlinePricing = offlineCatalog?.pricing;
+  const categoryRules = isOfflineSession ? offlinePricing?.rules ?? EMPTY_PRICING_RULES : onlineCategoryRules;
+  const onlineCatalogCartItems = useCartCatalogPrices(cart.items, !isOfflineSession);
+  const catalogCartItems = useMemo(() => isOfflineSession
+    ? refreshCartCatalogPrices(cart.items, offlineCatalog?.products ?? [])
+    : onlineCatalogCartItems, [isOfflineSession, cart.items, offlineCatalog, onlineCatalogCartItems]);
+  const offlineCartComplete = Boolean(offlineCatalog && catalogCartItems.every(item =>
+    item.lineType !== "PRODUCT" || offlineCatalog.products.some(product => product.id === item.productId)));
+  const { data: onlineRoundingSettings = DEFAULT_PRICE_ROUNDING_SETTINGS } = usePriceRoundingSettings();
+  const roundingSettings = isOfflineSession ? offlinePricing?.rounding ?? DEFAULT_PRICE_ROUNDING_SETTINGS : onlineRoundingSettings;
+  const { data: onlineSpecialPricingEnabled = false } = useSpecialPricingSettings();
+  const specialPricingEnabled = isOfflineSession ? offlinePricing?.specialPricingEnabled ?? false : onlineSpecialPricingEnabled;
   const pricedCartItems = useMemo(
     () => priceCartItemsForCheckout({ items: catalogCartItems, customerType, pricingRules: categoryRules, manualPrices: {}, role, roundingSettings, specialPricingEnabled }),
     [catalogCartItems, customerType, categoryRules, role, roundingSettings, specialPricingEnabled],
@@ -394,7 +424,7 @@ export default function POSClientPage({
 
   useEffect(() => {
     setPage(1);
-  }, [search, selectedCategory]);
+  }, [search, selectedCategory, catalogGroup, catalogSubcategoryId]);
 
   useEffect(() => {
     if (
@@ -787,6 +817,8 @@ export default function POSClientPage({
           </header>
 
           {/* Category Filter */}
+          {activeTab === "products" && <CatalogClassificationFilter idPrefix="pos" group={catalogGroup} subcategoryId={catalogSubcategoryId}
+            offlineIdentity={offlineIdentity} onChange={(group, subcategoryId) => { setCatalogGroup(group); setCatalogSubcategoryId(subcategoryId); }} />}
           {activeTab === "products" && (
             <HorizontalScroll
               className="px-3 md:px-6 py-2 md:py-3 bg-white border-b border-surface-100 flex items-center gap-2 flex-nowrap"
@@ -824,6 +856,7 @@ export default function POSClientPage({
                 aria-hidden="true"
                 className="h-5 w-px bg-surface-200 mx-1 flex-shrink-0"
               />
+              <span className="shrink-0 text-xs font-semibold text-slate-500">Kategori lama:</span>
               <button
                 onClick={() => setSelectedCategory("")}
                 className={`
@@ -1001,6 +1034,7 @@ export default function POSClientPage({
             setShowPayment(false);
           }}
           items={catalogCartItems}
+          offlinePricing={isOfflineSession && offlineCartComplete ? offlinePricing : undefined}
           subtotal={pricedCartSubtotal}
           initialCustomerSelection={pricingCustomer}
           onCustomerSelectionChange={setPricingCustomer}

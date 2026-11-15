@@ -63,6 +63,36 @@ export const pricingRuleInclude = {
   brand: { select: { id: true, name: true, normalizedName: true } },
 } as const;
 
+export const subcategoryPricingRuleInclude = {
+  subcategory: { select: { id: true, group: true, name: true } },
+  brand: { select: { id: true, name: true, normalizedName: true } },
+} as const;
+
+export function serializeSubcategoryPricingRule<T extends StoredTargets & { value: unknown; discountPercent?: unknown; subcategoryId: string; subcategory: { id: string; group: string; name: string } }>(rule: T) {
+  return {
+    ...serializePricingRule(rule), scope: "SUBCATEGORY" as const,
+    categoryId: rule.subcategoryId,
+    category: { id: rule.subcategory.id, name: `${rule.subcategory.group} / ${rule.subcategory.name}`, icon: null, color: null },
+  };
+}
+
+export async function hasOverlappingSubcategoryPricingRule(tx: Prisma.TransactionClient, input: {
+  storeId: string; categoryId: string; customerTypes: CustomerType[];
+  unit: string | null; units?: string[]; brandId: string | null; excludeId?: string;
+}) {
+  const units = normalizePricingUnits(input.units, input.unit);
+  const others = await tx.subcategoryCustomerPricingRule.findMany({
+    where: { storeId: input.storeId, subcategoryId: input.categoryId, brandId: input.brandId, isActive: true, ...(input.excludeId ? { id: { not: input.excludeId } } : {}) },
+    select: { id: true, customerType: true, customerTypes: true, unit: true, units: true },
+  });
+  return others.some((other) => {
+    const otherUnits = normalizePricingUnits(other.units, other.unit);
+    if (units.length === 0 ? otherUnits.length !== 0 : !otherUnits.some((unit) => units.includes(unit))) return false;
+    const targets = readCustomerTargets(other);
+    return input.customerTypes.length === 0 ? targets.includes("ALL") : !targets.includes("ALL") && targets.some((type) => input.customerTypes.includes(type as CustomerType));
+  });
+}
+
 // Remote database round trips can exceed Prisma's default five-second budget.
 export const pricingRuleTransactionOptions = { maxWait: 5000, timeout: 15000 };
 

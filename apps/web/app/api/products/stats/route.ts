@@ -37,6 +37,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const categoryId = searchParams.get("categoryId") || "";
+    const catalogGroup = searchParams.get("catalogGroup") || "";
+    const catalogSubcategoryId = searchParams.get("catalogSubcategoryId") || "";
     const storeId = user.storeId;
 
     try {
@@ -59,6 +61,15 @@ export async function GET(request: Request) {
 
     if (categoryId) {
       conditions.push(Prisma.sql`"categoryId" = ${categoryId}`);
+    }
+
+    if (catalogGroup === "UNCLASSIFIED") {
+      conditions.push(Prisma.sql`"catalogSubcategoryId" IS NULL`);
+    } else {
+      if (catalogGroup === "ATK" || catalogGroup === "PERCETAKAN") {
+        conditions.push(Prisma.sql`"catalogSubcategoryId" IN (SELECT id FROM pos_product_subcategories WHERE "group"::text = ${catalogGroup})`);
+      }
+      if (catalogSubcategoryId) conditions.push(Prisma.sql`"catalogSubcategoryId" = ${catalogSubcategoryId}`);
     }
 
     const whereClause = Prisma.join(conditions, " AND ");

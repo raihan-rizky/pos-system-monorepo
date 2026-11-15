@@ -31,6 +31,19 @@ describe("buildProductFormPayload", () => {
     barcode: "", costPrice: "",
   };
 
+  it("includes an optional subcategory when creating a product", () => {
+    expect(buildProductFormPayload({ ...formData, catalogSubcategoryId: "print" }, "create"))
+      .toMatchObject({ catalogSubcategoryId: "print" });
+    expect(buildProductFormPayload({ ...formData, catalogSubcategoryId: "" }, "create"))
+      .not.toHaveProperty("catalogSubcategoryId");
+  });
+
+  it("does not change a classification while editing unrelated product details", () => {
+    const initial = { ...formData, catalogSubcategoryId: "print" };
+    expect(buildProductFormPayload({ ...initial, description: "Baru" }, "edit", initial))
+      .not.toHaveProperty("catalogSubcategoryId");
+  });
+
   it("optionally creates a larger unit with a suggested independent price", () => {
     const payload = buildProductFormPayload({
       ...formData, unit: "pcs", sku: "KERTAS-PCS", price: "2000", costPrice: "1000",
