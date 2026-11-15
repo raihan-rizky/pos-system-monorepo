@@ -170,6 +170,57 @@ describe("Riwayat payment status in desktop and mobile views", () => {
     expect(html.match(/>\s*Lunas\s*<\/span>/g)).toHaveLength(2);
   });
 
+  it("shows a settled cash DP as multi-payment in both history layouts", () => {
+    Object.assign(history.transactions[0], {
+      status: "COMPLETED", paymentMethod: "CASH", total: 1_000_000, amountPaid: 1_000_000,
+      payments: [{ method: "CASH", amount: 300_000 }],
+      debtPaymentLogs: [{ id: "settlement", createdAt: "2026-10-15T03:00:00.000Z", paymentMethod: "TRANSFER", amount: 700_000 }],
+    });
+    const html = renderToStaticMarkup(createElement(HistoryClientPage));
+
+    expect(html.match(/>\s*Multi-payment\s*<\/span>/g)).toHaveLength(2);
+    expect(html.match(/aria-label="CASH, Rp 300\.000"/g)).toHaveLength(2);
+    expect(html.match(/aria-label="TRANSFER, Rp 700\.000"/g)).toHaveLength(2);
+  });
+
+  it("does not label separate payments by the same method as multi-payment", () => {
+    Object.assign(history.transactions[0], {
+      status: "COMPLETED", paymentMethod: "CASH", total: 1_000_000, amountPaid: 1_000_000,
+      payments: [{ method: "CASH", amount: 300_000 }],
+      debtPaymentLogs: [{ id: "settlement", createdAt: "2026-10-15T03:00:00.000Z", paymentMethod: "CASH", amount: 700_000 }],
+    });
+    const html = renderToStaticMarkup(createElement(HistoryClientPage));
+
+    expect(html).not.toContain("Multi-payment");
+    expect(html.match(/aria-label="CASH, Rp 300\.000"/g)).toHaveLength(2);
+    expect(html.match(/aria-label="CASH, Rp 700\.000"/g)).toHaveLength(2);
+  });
+
+  it("does not count an unpaid initial method as multi-payment", () => {
+    Object.assign(history.transactions[0], {
+      status: "DP", paymentMethod: "CASH", total: 1_000_000, amountPaid: 700_000,
+      payments: [{ method: "CASH", amount: 0 }],
+      debtPaymentLogs: [{ id: "installment", createdAt: "2026-10-15T03:00:00.000Z", paymentMethod: "TRANSFER", amount: 700_000 }],
+    });
+    const html = renderToStaticMarkup(createElement(HistoryClientPage));
+
+    expect(html).not.toContain("Multi-payment");
+    expect(html).not.toContain('aria-label="CASH, Rp 0"');
+    expect(html.match(/aria-label="TRANSFER, Rp 700\.000"/g)).toHaveLength(2);
+  });
+
+  it("does not count the Tempo term as another actual payment method", () => {
+    Object.assign(history.transactions[0], {
+      status: "COMPLETED", paymentMethod: "TEMPO", total: 100_000, amountPaid: 100_000,
+      payments: [],
+      debtPaymentLogs: [{ id: "settlement", createdAt: "2026-10-15T03:00:00.000Z", paymentMethod: "TRANSFER", amount: 50_000 }],
+    });
+    const html = renderToStaticMarkup(createElement(HistoryClientPage));
+
+    expect(html).not.toContain("Multi-payment");
+    expect(html.match(/aria-label="TRANSFER, Rp 50\.000"/g)).toHaveLength(2);
+  });
+
   it("preserves DP for partial cash payments", () => {
     history.transactions[0].paymentMethod = "CASH";
     history.transactions[0].status = "DP";
