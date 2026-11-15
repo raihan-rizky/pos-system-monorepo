@@ -90,7 +90,9 @@ test("export dialog opens with monthly report and journal format and period cont
 
   await dialog.getByLabel("Jenis laporan").selectOption("journal");
   await expect(dialog.getByLabel("Format", { exact: true })).toHaveValue("xlsx");
+  await expect(dialog.getByLabel("Periode jurnal")).toHaveValue("custom");
   await expect(dialog.getByLabel("Periode jurnal").getByRole("option")).toHaveText([
+    /^Periode pada layar · \d{4}-\d{2}-\d{2} – \d{4}-\d{2}-\d{2}$/,
     "Harian · Hari ini",
     "Mingguan · 7 hari terakhir",
     "30 hari terakhir",
@@ -136,7 +138,7 @@ test("Excel export downloads xlsx file with daily laporan data", async ({
   const workbook = XLSX.read(await readFile(downloadPath!), { type: "buffer" });
   const rows = XLSX.utils.sheet_to_json(workbook.Sheets.Laporan, { header: 1 });
   expect(rows).toContainEqual([
-    "2026-05-20", "INV-20260520-0001", "Budi", "Kertas A4", "Alat Tulis", "Pemasukan", 100_000, "CASH",
+    "2026-05-20", "INV-20260520-0001", "Budi", "Kertas A4", "ATK / Alat Tulis", "Pemasukan", 100_000, "CASH",
   ]);
   await expect(dialog).not.toBeVisible();
 });

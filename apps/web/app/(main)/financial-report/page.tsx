@@ -507,7 +507,7 @@ function FullFinancialReport({ previewSales = false, previewExportAccess = false
             title="Top Subkategori"
             accent="brand"
             rows={(report?.subcategories ?? []).slice().sort((a, b) => b.revenue - a.revenue).map(row => ({ key: `${row.categoryName}:${row.subcategoryName}`, name: `${row.categoryName} / ${row.subcategoryName}`, primaryValue: row.revenue, secondaryValue: row.grossProfit, countLabel: `${row.transactionCount} entri` }))}
-            maxRows={report?.subcategories.length ?? 0}
+            maxRows={report?.subcategories?.length ?? 0}
             loading={isLoading}
             emptyText="Belum ada subkategori pada periode ini."
           />

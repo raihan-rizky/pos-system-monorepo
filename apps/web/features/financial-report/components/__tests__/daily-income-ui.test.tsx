@@ -108,6 +108,12 @@ describe("daily financial report UI", () => {
     expect(html).toContain("0,33");
     expect(html).toContain("0,12");
   });
+  it("tetap menampilkan laporan ketika data lama belum memuat subkategori", () => {
+    mocks.role.mockReturnValue({ role: "OWNER", canAccess: () => true, canPerform: () => true });
+    mocks.full.mockReturnValue({ data: { ...fullReport, subcategories: undefined }, isLoading: false, isFetching: false, error: null });
+    const html = renderToStaticMarkup(createElement(FinancialReportPage));
+    expect(html).toContain("Belum ada subkategori pada periode ini.");
+  });
   it("menampilkan seluruh subkategori meskipun jumlahnya lebih dari seratus", () => {
     mocks.role.mockReturnValue({ role: "OWNER", canAccess: () => true, canPerform: () => true });
     const subcategories = Array.from({ length: 101 }, (_, index) => ({

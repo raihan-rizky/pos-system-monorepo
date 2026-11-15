@@ -461,7 +461,10 @@ export async function mockApis(page: Page) {
           { productId: "prod-1", productName: "Kertas A4", quantity: 20, revenue: 1_000_000, grossProfit: 400_000 },
         ],
         categories: [
-          { categoryName: "Alat Tulis", quantity: 30, revenue: 2_500_000, grossProfit: 800_000, transactionCount: 8 },
+          { categoryName: "ATK", quantity: 30, revenue: 2_500_000, grossProfit: 800_000, transactionCount: 8 },
+        ],
+        subcategories: [
+          { categoryName: "ATK", subcategoryName: "Alat Tulis", quantity: 30, revenue: 2_500_000, grossProfit: 800_000, transactionCount: 8 },
         ],
         salespersons: [
           { name: "Budi", transactionCount: 6, revenue: 2_000_000, collected: 1_900_000, grossProfit: 700_000 },
@@ -487,7 +490,7 @@ export async function mockApis(page: Page) {
             invoice: "INV-20260520-0001",
             person: "Budi",
             products: "Kertas A4",
-            categories: "Alat Tulis",
+            categories: "ATK / Alat Tulis",
             status: "Pemasukan",
             amount: 100_000,
             method: "CASH",
@@ -510,7 +513,7 @@ export async function mockApis(page: Page) {
           byMethod: { CASH: 100_000, TRANSFER: 0, QRIS: 0, DEBIT: 0, CREDIT: 0 },
         },
         categories: [
-          { categoryName: "Alat Tulis", transactionCount: 1, revenue: 100_000 },
+          { categoryName: "ATK / Alat Tulis", transactionCount: 1, revenue: 100_000 },
         ],
       });
     }
