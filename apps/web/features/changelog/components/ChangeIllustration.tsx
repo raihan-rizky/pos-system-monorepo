@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowRight, Check, FileClock, FileText, FolderInput, History, Layers, Package, ReceiptText, ShoppingBag } from "lucide-react";
+import { ArrowDown, ArrowRight, Check, ChevronDown, FileClock, FileText, FolderInput, History, Layers, Package, ReceiptText, ShoppingBag, User } from "lucide-react";
 import type { ChangeVisual } from "../types";
 
 export function ChangeIllustration({ visual, compact = false }: { visual: ChangeVisual; compact?: boolean }) {
@@ -19,6 +19,8 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
       "receipt-audit": { Icon: FileClock, title: "Jejak nota mudah ditelusuri.", detail: "Pilih revisi · Bandingkan · Periksa asli" },
       financial: { Icon: FileText, title: "Saldo laporan otomatis.", detail: "Inventaris dan hutang tercatat" },
       rbac: { Icon: Check, title: "Izin Riwayat lebih jelas.", detail: "Halaman · Data · Tindakan" },
+      "manual-receivables": { Icon: ChevronDown, title: "Lipat Piutang Manual", detail: "Pilihan tersimpan di browser yang sama" },
+      "checkout-customer-type": { Icon: User, title: "Jenis pelanggan baru", detail: "UMUM · AGEN · INDUSTRI · PEMERINTAH" },
     };
     const preview = previews[visual];
     return <div className="relative flex min-h-36 items-center gap-4 bg-brand-50 px-5 pb-5 pt-9 sm:min-h-44 sm:px-7"><span className="absolute left-5 top-3 text-[11px] font-medium text-brand-800">Ilustrasi fitur</span><span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-brand-100 bg-white"><preview.Icon className="h-7 w-7 text-brand-600" aria-hidden="true" /></span><div><p className="text-base font-extrabold leading-tight tracking-tight text-brand-950 sm:text-xl">{preview.title}</p><p className="mt-2 text-xs text-brand-800">{preview.detail}</p></div></div>;
@@ -44,6 +46,28 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
             ))}
           </div>
           <p className="mt-3 text-xs text-surface-500">Periksa prasyarat, tinjau perubahan, lalu simpan.</p>
+        </div>
+      )}
+      {visual === "manual-receivables" && (
+        <div className="mx-auto grid w-full max-w-lg gap-3 sm:grid-cols-2">
+          <div className={panel}>
+            <div className="flex items-center justify-between gap-3"><span className="text-sm font-bold">Piutang Manual</span><ChevronDown className={`${icon} rotate-180`} aria-hidden="true" /></div>
+            <div className="mt-3 rounded-lg bg-brand-50 p-3 text-xs"><p className="font-semibold text-brand-900">Contoh piutang</p><p className="mt-1 text-brand-700">Sisa tagihan tersedia</p></div>
+            <p className="mt-2 text-[11px] font-medium text-brand-800">Bagian terbuka</p>
+          </div>
+          <div className={panel}>
+            <div className="flex items-center justify-between gap-3"><span className="text-sm font-bold">Piutang Manual</span><ChevronDown className={icon} aria-hidden="true" /></div>
+            <p className="mt-3 text-xs text-surface-600">Bagian tertutup</p>
+          </div>
+        </div>
+      )}
+      {visual === "checkout-customer-type" && (
+        <div className={`mx-auto w-full max-w-md ${panel}`}>
+          <p className="text-sm font-bold text-surface-900">Jenis pelanggan</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-semibold">
+            {["UMUM", "AGEN", "INDUSTRI", "PEMERINTAH"].map((type, index) => <span key={type} className={`rounded-lg px-3 py-2 ${index === 0 ? "bg-brand-100 text-brand-900 ring-1 ring-brand-300" : "bg-surface-50 text-surface-700"}`}>{type}{index === 0 ? " · pilihan awal" : ""}</span>)}
+          </div>
+          <p className="mt-3 text-xs text-surface-600">Jenis pilihan menentukan harga checkout.</p>
         </div>
       )}
       {visual === "history-table" && (

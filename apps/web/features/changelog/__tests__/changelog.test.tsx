@@ -37,6 +37,53 @@ describe("manual changelog", () => {
     expect(JSON.stringify(manual)).toContain("Tambah Piutang");
     expect(JSON.stringify(manual)).toContain("Bayar Piutang");
   });
+  it("announces the collapsible Piutang Manual section as a minor improvement", () => {
+    const receivables = CHANGELOG.find(change => change.id === "piutang-manual-toggle-20261115");
+    expect(receivables).toMatchObject({
+      date: "2026-11-15",
+      revision: 1,
+      title: "Lipat daftar Piutang Manual saat perlu.",
+      kind: "improvement",
+      impact: "minor",
+      area: "Pelanggan",
+      href: "/customers",
+      visual: "manual-receivables",
+    });
+    expect(receivables?.steps).toHaveLength(3);
+    expect(JSON.stringify(receivables)).toContain("browser yang sama");
+  });
+  it("announces choosing a new customer's type during checkout", () => {
+    const checkout = CHANGELOG.find(change => change.id === "jenis-pelanggan-checkout-20261114");
+    expect(checkout).toMatchObject({
+      date: "2026-11-14",
+      revision: 1,
+      title: "Pilih jenis pelanggan baru saat checkout.",
+      kind: "feature",
+      impact: "major",
+      area: "Kasir",
+      href: "/pos",
+      visual: "checkout-customer-type",
+    });
+    expect(checkout?.steps).toHaveLength(3);
+    expect(JSON.stringify(checkout)).toContain("UMUM");
+    expect(JSON.stringify(checkout)).toContain("PEMERINTAH");
+  });
+  it("illustrates collapsible receivables and checkout customer types", () => {
+    const receivables = renderToStaticMarkup(<ChangeIllustration visual={"manual-receivables" as ChangeEntry["visual"]} />);
+    const checkout = renderToStaticMarkup(<ChangeIllustration visual={"checkout-customer-type" as ChangeEntry["visual"]} />);
+    expect(receivables).toContain("Piutang Manual");
+    expect(receivables).toContain("Bagian terbuka");
+    expect(receivables).toContain("Bagian tertutup");
+    expect(checkout).toContain("Jenis pelanggan");
+    expect(checkout).toContain("UMUM");
+    expect(checkout).toContain("PEMERINTAH");
+  });
+  it("renders the new feature visuals in the weekly popup", () => {
+    const entries = CHANGELOG.filter(change => ["piutang-manual-toggle-20261115", "jenis-pelanggan-checkout-20261114"].includes(change.id));
+    const html = renderToStaticMarkup(<WhatsNewDialog entries={entries} onClose={() => {}} canAccess={() => true} />);
+    expect(html).toContain("Tutup Piutang Manual saat perlu");
+    expect(html).toContain("Jenis pelanggan saat checkout");
+  });
   it("announces the Dashboard and report Piutang KPI with three usage steps", () => {
     const receivable = CHANGELOG.find(change => change.id === "kpi-piutang-dashboard-laporan");
     expect(receivable).toMatchObject({

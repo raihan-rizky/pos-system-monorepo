@@ -3,6 +3,30 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "piutang-manual-toggle-20261115", date: "2026-11-15", revision: 1,
+    highlight: { title: "Tutup Piutang Manual saat perlu", summary: "Buka atau lipat daftar, dan pilihan tersimpan di browser yang sama." },
+    title: "Lipat daftar Piutang Manual saat perlu.",
+    summary: "Tutup bagian Piutang Manual agar daftar lebih ringkas. Pilihan tersimpan di browser yang sama.",
+    kind: "improvement", impact: "minor", area: "Pelanggan", href: "/customers", visual: "manual-receivables",
+    steps: [
+      { title: "Buka tab Piutang", detail: "Di halaman Pelanggan, pilih tab Piutang." },
+      { title: "Buka atau lipat bagian", detail: "Klik judul Piutang Manual untuk menampilkan atau menyembunyikan daftarnya." },
+      { title: "Lanjutkan pekerjaan", detail: "Pilihan tersimpan di browser yang sama. Jika penyimpanan tidak tersedia, bagian tetap dapat dipakai selama halaman terbuka." },
+    ],
+  },
+  {
+    id: "jenis-pelanggan-checkout-20261114", date: "2026-11-14", revision: 1,
+    highlight: { title: "Jenis pelanggan saat checkout", summary: "Pilih jenis pelanggan baru untuk menghitung harga dan menyimpan profil." },
+    title: "Pilih jenis pelanggan baru saat checkout.",
+    summary: "Saat menambahkan pelanggan baru dari modal Pembayaran, pilih jenis yang sesuai. Harga checkout mengikuti pilihan dan jenis tersimpan pada profil setelah transaksi.",
+    kind: "feature", impact: "major", area: "Kasir", href: "/pos", visual: "checkout-customer-type",
+    steps: [
+      { title: "Buka pelanggan baru", detail: "Di modal Pembayaran, pilih Tambah pelanggan baru lalu isi nama dan nomor WhatsApp bila ada." },
+      { title: "Pilih jenis", detail: "Pilih UMUM, AGEN, INDUSTRI, atau PEMERINTAH. UMUM terpilih secara bawaan." },
+      { title: "Selesaikan transaksi", detail: "Harga checkout mengikuti jenis yang dipilih, lalu jenis tersimpan pada profil pelanggan. Pelanggan lama tetap memakai jenis pada profilnya." },
+    ],
+  },
+  {
     id: "processed-printing-payment-details", date: "2026-11-14", revision: 1,
     highlight: { title: "Koreksi detail transaksi nota", summary: "Perbaiki metode pembayaran awal dan sales dari nota diproses." },
     title: "Koreksi transaksi dari nota Percetakan diproses.",
