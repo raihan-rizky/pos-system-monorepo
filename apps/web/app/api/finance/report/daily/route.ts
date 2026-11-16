@@ -6,7 +6,7 @@ import { canRoleAccessPage, canRolePerformAction } from "@/features/rbac/helpers
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
 import { buildDailyIncomeRange, DAILY_INCOME_PERMISSIONS, hasDailyReceivableAccess, jakartaToday, type DailyIncomeResponse } from "@/features/financial-report/helpers/daily-income";
 import { loadDailyIncome } from "@/features/financial-report/services/daily-income";
-import { loadReceivableBalance } from "@/features/customer-debt/services/receivable-balance";
+import { loadReceivableBreakdown } from "@/features/customer-debt/services/receivable-balance";
 import { resolveReceiptHistoryAccess } from "@/features/financial-report/helpers/income-access";
 
 export const dynamic = "force-dynamic";
@@ -57,11 +57,15 @@ export async function GET(request: Request) {
     }
     const [report, receivableBalance] = await Promise.all([
       allowed.length ? loadDailyIncome(user.storeId, date) : Promise.resolve(undefined),
-      canReadReceivableBalance ? loadReceivableBalance(user.storeId, date) : Promise.resolve(undefined),
+      canReadReceivableBalance ? loadReceivableBreakdown(user.storeId, date) : Promise.resolve(undefined),
     ]);
     const body: DailyIncomeResponse = { date: report?.date ?? date };
     if (report) for (const key of allowed) Object.assign(body, { [key]: report[key] });
-    if (canReadReceivableBalance && receivableBalance !== undefined) body.receivableBalance = receivableBalance;
+    if (canReadReceivableBalance && receivableBalance !== undefined) {
+      body.receivableBalance = receivableBalance.total;
+      body.receivableNotaBalance = receivableBalance.nota;
+      body.receivableManualBalance = receivableBalance.manual;
+    }
     if (view === "sales") body.receiptHistoryAccess = resolveReceiptHistoryAccess(effectiveRole, permissions);
     return NextResponse.json(body, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {

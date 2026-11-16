@@ -71,7 +71,11 @@ export function DailyIncomeReport({ previewSales = false, fullReportPreview }: {
                 <p className="mt-2 text-xs leading-relaxed text-[#587586]">Sisa transaksi berstatus DP. Tidak termasuk Tempo atau Piutang Manual.</p></section>}
               {access.receivableBalance && report.receivableBalance !== undefined && <section className="min-w-0 rounded-2xl border border-[#dce9ed] bg-white p-5"><p className="text-xs font-medium text-[#587586]">Saldo per tanggal pilihan</p><h2 className="mt-1 text-sm font-bold text-[#17384a]">Piutang</h2>
                 <p className="mt-2 break-all text-2xl font-bold tabular-nums text-[#17384a]">{formatRupiahPrecise(report.receivableBalance)}</p>
-                <p className="mt-2 text-xs leading-relaxed text-[#587586]">Sisa Tempo dan Piutang Manual. Tidak termasuk DP.</p></section>}
+                <p className="mt-2 text-xs leading-relaxed text-[#587586]">Sisa Tempo dan Piutang Manual. Tidak termasuk DP.</p>
+                {report.receivableNotaBalance !== undefined && report.receivableManualBalance !== undefined && <dl className="mt-4 space-y-2 border-t border-[#dce9ed] pt-3">
+                  <div className="flex flex-wrap justify-between gap-x-3"><dt className="text-xs text-[#587586]">Piutang Nota</dt><dd className="break-all text-sm font-semibold tabular-nums text-[#17384a]">{formatRupiahPrecise(report.receivableNotaBalance)}</dd></div>
+                  <div className="flex flex-wrap justify-between gap-x-3"><dt className="text-xs text-[#587586]">Piutang Manual</dt><dd className="break-all text-sm font-semibold tabular-nums text-[#17384a]">{formatRupiahPrecise(report.receivableManualBalance)}</dd></div>
+                </dl>}</section>}
             </div>
             <div className="grid gap-6 lg:grid-cols-2">
               {access.categories && report.categories && <IncomeBreakdown title="Pemasukan per Kategori" rows={report.categories.map(row => ({ label: row.category, amount: row.amount, href: hrefFor("category", { category: row.category }) }))} />}

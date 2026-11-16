@@ -31,7 +31,7 @@ export async function GET(request: Request) {
     const method = params.get("method");
     const view = params.get("view");
     if ((mode !== "receipt" && mode !== "outstanding-dp") || (view !== null && view !== "sales")
-      || (category !== null && category !== "ATK" && category !== "Percetakan" && category !== "Belum ditentukan")
+      || (category !== null && category !== "ATK" && category !== "Percetakan" && category !== "Belum ditentukan" && category !== "Piutang Manual")
       || (subcategory !== null && (!category || !subcategory.trim() || subcategory.length > 150))
       || (method !== null && !methods.has(method))
       || (mode === "outstanding-dp" && (category || subcategory || method))) {
@@ -59,6 +59,14 @@ export async function GET(request: Request) {
     }
 
     const period = await loadIncomePeriod(user.storeId, mode === "outstanding-dp" ? toDate : fromDate, toDate);
+    const receiptTotal = mode === "receipt" ? period.contributions.reduce((sum, row) => {
+      if (method && row.method !== method) return sum;
+      const allocations = row.allocations.filter(part => (!category || part.category === category) && (!subcategory || part.subcategory === subcategory));
+      const cents = category || subcategory
+        ? allocations.reduce((amount, part) => amount + Math.round(part.amount * 100), 0)
+        : Math.round(row.amount * 100);
+      return sum + cents;
+    }, 0) / 100 : undefined;
     type Amounts = { cents: number; methods: Set<string>; payments: Map<string, number>; categories: Map<string, number> };
     const emptyAmounts = (): Amounts => ({ cents: 0, methods: new Set(), payments: new Map(), categories: new Map() });
     const addAmounts = (group: Amounts, paymentMethod: string, cents: number, allocations: Array<{ category: string; amount: number }>) => {
@@ -73,12 +81,13 @@ export async function GET(request: Request) {
       ...(access.method && { paymentBreakdown: [...group.payments].sort(([a], [b]) => a.localeCompare(b)).map(([method, cents]) => ({ method, amount: cents / 100 })) }),
       ...(access.category && { categoryBreakdown: [...group.categories].sort(([a], [b]) => a.localeCompare(b)).map(([category, cents]) => ({ category, amount: cents / 100 })) }),
     } : {};
-    const groups = new Map<string, Amounts & { transactionId: string; date: string }>();
+    const groups = new Map<string, Amounts & { transactionId: string; date: string; isReceivableNota: boolean }>();
     const manualGroups = new Map<string, Amounts & { id: string; date: string }>();
+    const manualReceivableGroups = new Map<string, Amounts & { id: string; date: string; receivableId: string }>();
     if (mode === "outstanding-dp") {
       for (const row of period.outstandingDp) {
         if (row.remaining <= 0) continue;
-        groups.set(row.transactionId, { ...emptyAmounts(), transactionId: row.transactionId, date: toDate, cents: Math.round(row.remaining * 100) });
+        groups.set(row.transactionId, { ...emptyAmounts(), transactionId: row.transactionId, date: toDate, cents: Math.round(row.remaining * 100), isReceivableNota: false });
       }
     } else {
       for (const row of period.contributions) {
@@ -88,34 +97,46 @@ export async function GET(request: Request) {
         if (cents <= 0) continue;
         if (row.source === "transaction" && row.transactionId) {
           const key = `${row.transactionId}:${row.date}`;
-          const group = groups.get(key) ?? { ...emptyAmounts(), transactionId: row.transactionId, date: row.date };
+          const group = groups.get(key) ?? { ...emptyAmounts(), transactionId: row.transactionId, date: row.date, isReceivableNota: false };
+          group.isReceivableNota ||= row.isReceivableNota === true;
           addAmounts(group, row.method, cents, allocations); groups.set(key, group);
         } else if (access.manualDetails && row.manualIncomeId) {
           const group = manualGroups.get(row.manualIncomeId) ?? { ...emptyAmounts(), id: row.manualIncomeId, date: row.date };
           addAmounts(group, row.method, cents, allocations); manualGroups.set(row.manualIncomeId, group);
+        } else if (access.manualReceivableDetails && row.receivablePaymentId) {
+          const group = manualReceivableGroups.get(row.receivablePaymentId) ?? { ...emptyAmounts(), id: row.receivablePaymentId, receivableId: row.receivableId ?? "", date: row.date };
+          addAmounts(group, row.method, cents, allocations); manualReceivableGroups.set(row.receivablePaymentId, group);
         }
       }
     }
 
     const transactionIds = [...new Set([...groups.values()].map(row => row.transactionId))];
     const manualIds = [...manualGroups.keys()];
-    const [transactions, manual] = await Promise.all([
+    const receivablePaymentIds = [...manualReceivableGroups.keys()];
+    const [transactions, manual, receivablePayments] = await Promise.all([
       transactionIds.length ? db.transaction.findMany({ where: { storeId: user.storeId, id: { in: transactionIds } }, select: { id: true, invoiceNumber: true } }) : [],
       manualIds.length && access.manualDetails ? db.manualIncome.findMany({ where: { storeId: user.storeId, id: { in: manualIds }, deletedAt: null }, select: { id: true, description: true } }) : [],
+      receivablePaymentIds.length && access.manualReceivableDetails ? db.customerReceivablePayment.findMany({ where: { id: { in: receivablePaymentIds }, receivable: { storeId: user.storeId } }, select: { id: true, receivableId: true, receivable: { select: { customer: { select: { name: true } } } } } }) : [],
     ]);
     const invoiceNumbers = new Map(transactions.map(row => [row.id, row.invoiceNumber]));
     const descriptions = new Map(manual.map(row => [row.id, row.description]));
+    const receivableDetails = new Map(receivablePayments.map(row => [row.id, row]));
     const items = [...groups.values()].filter(row => invoiceNumbers.has(row.transactionId)).map(row => ({
-      transactionId: row.transactionId, invoiceNumber: invoiceNumbers.get(row.transactionId), date: row.date, amount: row.cents / 100, methods: access.method ? [...row.methods] : [], ...breakdown(row),
+      transactionId: row.transactionId, invoiceNumber: invoiceNumbers.get(row.transactionId), date: row.date, amount: row.cents / 100, methods: access.method ? [...row.methods] : [], isReceivableNota: row.isReceivableNota, ...breakdown(row),
     })).sort((a, b) => b.date.localeCompare(a.date) || a.transactionId.localeCompare(b.transactionId));
     const manualEntries = [...manualGroups.values()].filter(row => descriptions.has(row.id)).map(row => ({
       id: row.id, description: descriptions.get(row.id), date: row.date, amount: row.cents / 100, methods: access.method ? [...row.methods] : [], ...breakdown(row),
     })).sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
+    const manualReceivableEntries = [...manualReceivableGroups.values()].filter(row => receivableDetails.has(row.id)).map(row => {
+      const detail = receivableDetails.get(row.id)!;
+      return { id: row.id, receivableId: detail.receivableId, customerName: detail.receivable.customer.name, date: row.date, amount: row.cents / 100, methods: access.method ? [...row.methods] : [] };
+    }).sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
     const dailySummary = mode === "receipt" && fromDate === toDate && !category && !subcategory && !method && access.total
       ? period.days[0] : undefined;
     const canCompare = Boolean(dailySummary && access.method && canRolePerformAction(effectiveRole, "financial-report.daily-comparison", "read", permissions));
-    return NextResponse.json({ mode, dateFrom: fromDate, dateTo: toDate, items, manualDetailsAvailable: access.manualDetails,
+    return NextResponse.json({ mode, dateFrom: fromDate, dateTo: toDate, items, ...(receiptTotal !== undefined && { receiptTotal }), manualDetailsAvailable: access.manualDetails, manualReceivableDetailsAvailable: access.manualReceivableDetails,
       ...(access.manualDetails && mode === "receipt" ? { manualEntries } : {}),
+      ...(access.manualReceivableDetails && mode === "receipt" ? { manualReceivableEntries } : {}),
       ...(dailySummary && { summary: { total: dailySummary.total, ...(access.method && { paymentMethods: dailySummary.paymentMethods }) } }),
       ...(dailySummary && access.method && { comparisonAccess: { read: canCompare, create: canCompare && view !== "sales" && canRolePerformAction(effectiveRole, "financial-report.daily-comparison", "create", permissions), update: canCompare && view !== "sales" && canRolePerformAction(effectiveRole, "financial-report.daily-comparison", "update", permissions) } }),
     }, { headers: { "Cache-Control": "private, no-store" } });

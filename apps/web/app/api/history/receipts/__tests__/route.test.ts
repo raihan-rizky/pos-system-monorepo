@@ -1,13 +1,13 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
-const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn() }));
+const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn(), receivablePayments: vi.fn() }));
 vi.mock(import("@/lib/rbac/guard"), async importOriginal => ({
   ...await importOriginal(),
   getCurrentUser: mocks.user,
 }));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
-vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual } } }));
+vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual }, customerReceivablePayment: { findMany: mocks.receivablePayments } } }));
 type Route = { GET: (request: Request) => Promise<Response> };
 const loadRoute = () => vi.importActual<Route>("../route").catch(() => null);
 const request = (query = "mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11") => new Request(`http://localhost/api/history/receipts?${query}`);
@@ -30,6 +30,7 @@ describe("Riwayat penerimaan dan Outstanding DP", () => {
     mocks.manual.mockImplementation(async query => query.select?.category
       ? [{ id: "manual", occurredAt: new Date("2026-11-11T04:00:00Z"), category: "ATK", amount: 20_000 }]
       : [{ id: "manual", description: "Pemasukan contoh", occurredAt: new Date("2026-11-11T04:00:00Z") }]);
+    mocks.receivablePayments.mockResolvedValue([]);
   });
   afterEach(() => vi.useRealTimers());
 
@@ -201,7 +202,7 @@ describe("Riwayat penerimaan dan Outstanding DP", () => {
   it("memakai sisa DP terkini dari nota sebelumnya dan mengecualikan Tempo", async () => {
     const route = await loadRoute(); expect(route).not.toBeNull(); if (!route) return;
     const body = await (await route.GET(request("mode=outstanding-dp&dateFrom=2026-11-11&dateTo=2026-11-11"))).json();
-    expect(body.items).toEqual([expect.objectContaining({ transactionId: "dp", amount: 75_000 })]);
+    expect(body.items).toEqual([expect.objectContaining({ transactionId: "dp", amount: 75_000, isReceivableNota: false })]);
     expect(body).not.toHaveProperty("summary");
   });
 

@@ -1,4 +1,4 @@
-export type IncomeCategory = "ATK" | "Percetakan" | "Belum ditentukan";
+export type IncomeCategory = "ATK" | "Percetakan" | "Belum ditentukan" | "Piutang Manual";
 export type IncomeItem = {
   subtotal: unknown;
   printingServiceId?: string | null;

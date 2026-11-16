@@ -12,7 +12,7 @@ export async function loadIncomePeriod(storeId: string, fromDate: string, toDate
   const start = from.start;
   const end = buildDailyIncomeRange(effectiveTo).end;
   const bounds = { gte: start, lt: end };
-  const [transactions, manualIncome] = await Promise.all([
+  const [transactions, manualIncome, manualReceivablePayments] = await Promise.all([
     db.transaction.findMany({
       where: {
         storeId, status: { in: ["COMPLETED", "DP"] },
@@ -37,8 +37,12 @@ export async function loadIncomePeriod(storeId: string, fromDate: string, toDate
       where: { storeId, deletedAt: null, occurredAt: bounds },
       select: { id: true, occurredAt: true, category: true, amount: true, payments: { select: { method: true, amount: true } } },
     }),
+    db.customerReceivablePayment.findMany({
+      where: { receivable: { storeId }, createdAt: bounds },
+      select: { id: true, receivableId: true, createdAt: true, method: true, amount: true },
+    }),
   ]);
-  return buildIncomePeriod({ fromDate, toDate: effectiveTo, transactions, manualIncome });
+  return buildIncomePeriod({ fromDate, toDate: effectiveTo, transactions, manualIncome, manualReceivablePayments });
 }
 
 export async function loadDailyIncome(storeId: string, date: string) {

@@ -24,7 +24,7 @@ function getAsOfBounds(asOfDate: string) {
   };
 }
 
-export async function loadReceivableBalance(storeId: string, asOfDate: string): Promise<number> {
+export async function loadReceivableBreakdown(storeId: string, asOfDate: string): Promise<{ nota: number; manual: number; total: number }> {
   const { invoiceDateEndExclusive, debtDateInclusive } = getAsOfBounds(asOfDate);
   const [transactions, manualReceivables] = await Promise.all([
     db.transaction.findMany({
@@ -42,5 +42,13 @@ export async function loadReceivableBalance(storeId: string, asOfDate: string): 
     }),
   ]);
 
-  return calculateReceivableBalance({ transactions, manualReceivables });
+  return {
+    nota: calculateReceivableBalance({ transactions, manualReceivables: [] }),
+    manual: calculateReceivableBalance({ transactions: [], manualReceivables }),
+    total: calculateReceivableBalance({ transactions, manualReceivables }),
+  };
+}
+
+export async function loadReceivableBalance(storeId: string, asOfDate: string): Promise<number> {
+  return (await loadReceivableBreakdown(storeId, asOfDate)).total;
 }

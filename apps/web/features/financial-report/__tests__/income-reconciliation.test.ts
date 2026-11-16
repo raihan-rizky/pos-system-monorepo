@@ -1,13 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
-const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn() }));
+const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn(), receivablePayments: vi.fn() }));
 vi.mock("@/lib/rbac/guard", () => ({ getCurrentUser: mocks.user, requirePermission: mocks.user, handleAuthError: () => null }));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
-vi.mock("@/features/customer-debt/services/receivable-balance", () => ({ loadReceivableBalance: async () => 0 }));
+vi.mock("@/features/customer-debt/services/receivable-balance", () => ({
+  loadReceivableBalance: async () => 0,
+  loadReceivableBreakdown: async () => ({ nota: 0, manual: 0, total: 0 }),
+}));
 vi.mock("@pos/db", () => ({ db: {
   transaction: { findMany: mocks.transactions, groupBy: async () => [], aggregate: async () => ({ _sum: { total: 0, amountPaid: 0 } }) },
-  manualIncome: { findMany: mocks.manual }, transactionItem: { groupBy: async () => [] },
+  manualIncome: { findMany: mocks.manual }, customerReceivablePayment: { findMany: mocks.receivablePayments }, transactionItem: { groupBy: async () => [] },
   product: { count: async () => 0, findMany: async () => [] }, $queryRaw: async () => [],
 } }));
 import { GET as sales } from "@/app/api/finance/report/daily/route";
@@ -33,6 +36,7 @@ describe("Rekonsiliasi pemasukan lintas halaman", () => {
     mocks.permissions.mockResolvedValue(buildDefaultRolePermissions());
     mocks.transactions.mockImplementation(async query => query.select?.invoiceNumber ? [oldInvoice, dp] : query.select?.payments || query.select?.invoiceDate ? [oldInvoice, dp] : [oldInvoice]);
     mocks.manual.mockImplementation(async () => [manual]);
+    mocks.receivablePayments.mockResolvedValue([]);
   });
   afterEach(() => vi.useRealTimers());
 

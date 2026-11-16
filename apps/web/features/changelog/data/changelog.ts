@@ -15,6 +15,18 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "rincian-piutang-per-metode-20261116", date: "2026-11-16", revision: 1,
+    highlight: { title: "Rincian penerimaan piutang", summary: "Bandingkan nilai tiap jenis dan buka nota dari baris rincian." },
+    title: "Telusuri penerimaan piutang per metode.",
+    summary: "Penerimaan nota, pemasukan manual, dan pembayaran piutang kini tampil pada rincian per metode pembayaran. Ringkasan menunjukkan komposisi setiap jenis transaksi; klik baris nota untuk membuka popup nota.",
+    kind: "feature", impact: "major", area: "Laporan Keuangan", href: "/financial-report", visual: "financial",
+    steps: [
+      { title: "Pilih tanggal dan metode", detail: "Di Laporan Keuangan > Pemasukan Harian, pilih tanggal lalu buka Pemasukan per Metode Pembayaran." },
+      { title: "Saring jenis transaksi", detail: "Gunakan filter Jenis transaksi dan baca jumlah, persentase, serta total tiap jenis pada ringkasan." },
+      { title: "Buka nota", detail: "Klik baris Nota atau Piutang Nota untuk menampilkan popup nota yang sesuai." },
+    ],
+  },
+  {
     id: "piutang-manual-toggle-20261115", date: "2026-11-15", revision: 1,
     highlight: { title: "Tutup Piutang Manual saat perlu", summary: "Buka atau lipat daftar, dan pilihan tersimpan di browser yang sama." },
     title: "Lipat daftar Piutang Manual saat perlu.",

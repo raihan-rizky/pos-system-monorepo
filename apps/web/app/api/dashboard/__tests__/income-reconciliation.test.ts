@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
-const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn() }));
+const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn(), receivablePayments: vi.fn() }));
 vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.user, handleAuthError: () => null }));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
 vi.mock("@/features/customer-debt/services/receivable-balance", () => ({ loadReceivableBalance: async () => 0 }));
 vi.mock("@pos/db", () => ({ db: {
   transaction: { findMany: mocks.transactions, groupBy: async () => [], aggregate: async () => ({ _sum: { total: 100_000, amountPaid: 25_000 } }) },
-  manualIncome: { findMany: mocks.manual }, transactionItem: { groupBy: async () => [] },
+  manualIncome: { findMany: mocks.manual }, customerReceivablePayment: { findMany: mocks.receivablePayments }, transactionItem: { groupBy: async () => [] },
   product: { count: async () => 0, findMany: async () => [] }, $queryRaw: async () => [],
 } }));
 import { GET } from "../route";
@@ -30,6 +30,7 @@ describe("Dashboard berdasarkan penerimaan Sales", () => {
     mocks.permissions.mockResolvedValue(buildDefaultRolePermissions());
     mocks.transactions.mockImplementation(async query => query.select?.payments ? [oldInvoice, dp] : query.select?.invoiceDate ? [oldInvoice, dp] : []);
     mocks.manual.mockResolvedValue([{ id: "manual", occurredAt: new Date("2026-11-11T04:00:00Z"), category: "ATK", amount: 20_000, payments: [{ method: "CASH", amount: 10_000 }, { method: "TRANSFER", amount: 10_000 }] }]);
+    mocks.receivablePayments.mockResolvedValue([]);
   });
   afterEach(() => { vi.useRealTimers(); if (originalTimezone === undefined) delete process.env.TZ; else process.env.TZ = originalTimezone; });
 

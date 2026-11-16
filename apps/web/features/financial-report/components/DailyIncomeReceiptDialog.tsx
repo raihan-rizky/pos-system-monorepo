@@ -18,6 +18,8 @@ type ReceiptRow = AmountBreakdown & {
   date: string;
   amount: number;
   manual: boolean;
+  manualReceivable?: boolean;
+  isReceivableNota?: boolean;
   href?: string;
 };
 type Props = {
@@ -54,6 +56,7 @@ export function DailyIncomeReceiptDialog({ date, previewSales = false, allowComp
       ...(!previewSales && { href: `/history?${new URLSearchParams({ search: item.invoiceNumber || item.transactionId })}` }),
     })),
     ...(data.manualEntries ?? []).map(item => ({ ...item, key: `manual:${item.id}`, label: item.description || "Pemasukan manual", manual: true })),
+    ...(data.manualReceivableEntries ?? []).map(item => ({ ...item, key: `manual-receivable:${item.id}`, label: item.customerName, manual: true, manualReceivable: true })),
   ] : [];
   const toggle = (key: string) => setExpanded(current => {
     const next = new Set(current);
@@ -75,6 +78,7 @@ export function DailyIncomeReceiptDialog({ date, previewSales = false, allowComp
         {data && summary && <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 border-t border-white/20 pt-3 text-sm text-[#d7edf5]">
           <span>{data.items.length} nota terlihat</span>
           {data.manualDetailsAvailable && <span>{data.manualEntries?.length ?? 0} pemasukan manual terlihat</span>}
+          {data.manualReceivableDetailsAvailable && <span>{data.manualReceivableEntries?.length ?? 0} pembayaran Piutang Manual terlihat</span>}
         </div>}
       </section>
       {summary?.paymentMethods && summary.paymentMethods.length > 0 && <section aria-label="Ringkasan metode pembayaran" className="space-y-2">
@@ -85,17 +89,18 @@ export function DailyIncomeReceiptDialog({ date, previewSales = false, allowComp
       {error ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error.message} <button type="button" onClick={() => void refetch()} className="min-h-11 font-semibold underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700">Coba lagi</button></div>
         : isLoading || !data ? <p role="status" className="text-sm text-[#587586]">Memuat rincian pemasukan...</p> : !summary ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">Ringkasan pemasukan belum dapat dimuat. <button type="button" onClick={() => void refetch()} className="min-h-11 font-semibold underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700">Coba lagi</button></div> : <>
           {!data.manualDetailsAvailable && <p className="rounded-lg border border-[#c9dce6] bg-[#f1f7fb] p-3 text-sm text-[#385e70]">Akses untuk sebagian rincian pemasukan belum tersedia. Hubungi Owner untuk melihat rincian lengkap.</p>}
+          {data.manualReceivableDetailsAvailable === false && <p className="rounded-lg border border-[#c9dce6] bg-[#f1f7fb] p-3 text-sm text-[#385e70]">Akses rincian Piutang Manual belum diizinkan. Hubungi Owner untuk melihat rincian lengkap.</p>}
           {rows.length === 0 ? <p className="rounded-xl border border-[#dce9ed] p-5 text-sm text-[#587586]">Belum ada penerimaan yang dapat ditampilkan pada tanggal ini.</p> : <section aria-label="Daftar penerimaan">
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2"><h3 className="text-sm font-bold">Penerimaan yang terlihat</h3><p className="text-xs text-[#587586]">Nominal yang diterima pada tanggal pilihan</p></div>
             <ul className="divide-y divide-[#e5eef2] overflow-hidden rounded-xl border border-[#dce9ed]">{rows.map((row, index) => {
               const isExpanded = expanded.has(row.key);
               const hasBreakdown = Boolean(row.paymentBreakdown?.length || row.categoryBreakdown?.length);
               const detailsId = `daily-income-receipt-${index}`;
-              return <li key={row.key} className="bg-white">
+              return <li key={row.key} className={row.manualReceivable ? "bg-amber-50" : row.manual ? "bg-emerald-50" : "bg-white"}>
                 <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3">
                   <div className="w-full min-w-0 sm:w-auto sm:flex-1">
                     {row.href ? <Link href={row.href} className="inline-flex min-h-11 max-w-full items-center break-all font-semibold text-blue-800 underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700">{row.label}</Link> : <p className="break-words font-semibold">{row.label}</p>}
-                    <p className="text-xs text-[#587586]">{row.manual ? "Pemasukan manual" : "Nota"} · {row.date}</p>
+                    <p className="text-xs text-[#587586]">{row.manualReceivable ? "Piutang Manual" : row.manual ? "Pemasukan Manual" : row.isReceivableNota ? "Piutang Nota" : "Nota"} · {row.date}</p>
                   </div>
                   <div className="flex w-full max-w-full flex-wrap items-center justify-between gap-x-3 sm:w-auto sm:justify-end"><span className="break-all font-mono text-sm font-bold tabular-nums">{formatRupiahPrecise(row.amount)}</span>{hasBreakdown && <button type="button" aria-label={`Rincian ${row.label}`} aria-expanded={isExpanded} aria-controls={detailsId} onClick={() => toggle(row.key)} className="inline-flex min-h-11 items-center gap-1 rounded text-sm font-semibold text-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700">Rincian <ChevronDown size={16} aria-hidden="true" className={isExpanded ? "rotate-180" : ""} /></button>}</div>
                 </div>

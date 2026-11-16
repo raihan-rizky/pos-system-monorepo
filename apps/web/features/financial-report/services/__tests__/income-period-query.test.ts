@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ transactions: vi.fn(), manual: vi.fn() }));
-vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual } } }));
+const mocks = vi.hoisted(() => ({ transactions: vi.fn(), manual: vi.fn(), receivablePayments: vi.fn() }));
+vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual }, customerReceivablePayment: { findMany: mocks.receivablePayments } } }));
 import * as service from "../daily-income";
 
 type Result = { days: Array<{ date: string; total: number }> };
@@ -19,6 +19,7 @@ describe("pemuatan penerimaan untuk satu rentang", () => {
       debtPaymentLogs: [{ id: "d", paymentMethod: "TRANSFER", amount: 60_000, createdAt: new Date("2026-11-11T03:00:00Z") }],
     }]);
     mocks.manual.mockResolvedValue([{ id: "manual", occurredAt: new Date("2026-11-11T04:00:00Z"), category: "ATK", amount: 20_000, payments: [] }]);
+    mocks.receivablePayments.mockResolvedValue([]);
   });
   afterEach(() => vi.useRealTimers());
 

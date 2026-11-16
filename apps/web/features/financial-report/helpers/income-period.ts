@@ -1,13 +1,16 @@
 import { netInitialPayments } from "@/features/customer-debt/helpers/net-initial-payments";
-import type { DailyIncomeReport, DailyIncomeTransaction, DailyManualIncome } from "./daily-income";
+import type { DailyIncomeReport, DailyIncomeTransaction, DailyManualIncome, DailyReceivablePayment } from "./daily-income";
 import { allocateIncomePaymentItems, groupIncomeAllocations, incomeClassification, type IncomeCategory, type IncomeSubcategoryRow } from "./income-categories";
 
 export type ReceiptContribution = {
   id: string;
   date: string;
-  source: "transaction" | "manual";
+  source: "transaction" | "manual" | "manual-receivable";
   transactionId: string | null;
   manualIncomeId: string | null;
+  receivablePaymentId?: string;
+  receivableId?: string;
+  isReceivableNota?: boolean;
   method: string;
   amount: number;
   allocations: IncomeSubcategoryRow[];
@@ -15,7 +18,7 @@ export type ReceiptContribution = {
 
 export type OutstandingDpEntry = { transactionId: string; createdAt: Date; remaining: number };
 export type IncomePeriod = { days: DailyIncomeReport[]; contributions: ReceiptContribution[]; outstandingDp: OutstandingDpEntry[] };
-export type IncomePeriodInput = { fromDate: string; toDate: string; transactions: DailyIncomeTransaction[]; manualIncome: DailyManualIncome[] };
+export type IncomePeriodInput = { fromDate: string; toDate: string; transactions: DailyIncomeTransaction[]; manualIncome: DailyManualIncome[]; manualReceivablePayments?: DailyReceivablePayment[] };
 
 const dayMs = 86_400_000;
 const formatter = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" });
@@ -66,6 +69,7 @@ export function buildIncomePeriod(input: IncomePeriodInput): IncomePeriod {
       contributions.push({
         id: `${tx.id}:${row.kind}:${row.id}`, date: dateKey(row.createdAt), source: "transaction",
         transactionId: tx.id, manualIncomeId: null, method: row.method, amount: row.amount,
+        isReceivableNota: tx.paymentMethod === "TEMPO" && row.kind === "debt",
         allocations: groupIncomeAllocations(row.allocations),
       });
     }
@@ -89,6 +93,18 @@ export function buildIncomePeriod(input: IncomePeriodInput): IncomePeriod {
         transactionId: null, manualIncomeId: row.id, method: payment.method, amount: part,
         allocations: [{ ...classification, amount: part }],
       });
+    });
+  }
+
+  for (const row of unique(input.manualReceivablePayments ?? [])) {
+    if (row.createdAt.getTime() < start || row.createdAt.getTime() >= end || row.method === "TEMPO") continue;
+    const amount = money(row.amount);
+    if (amount <= 0) continue;
+    contributions.push({
+      id: `receivable:${row.id}`, date: dateKey(row.createdAt), source: "manual-receivable",
+      transactionId: null, manualIncomeId: null, receivablePaymentId: row.id, receivableId: row.receivableId,
+      method: row.method, amount,
+      allocations: [{ category: "Piutang Manual", subcategory: "Tanpa kategori", amount }],
     });
   }
 

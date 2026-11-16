@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
-const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn(), customerReceivables: vi.fn() }));
+const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn(), customerReceivables: vi.fn(), receivablePayments: vi.fn() }));
 vi.mock(import("@/lib/rbac/guard"), async importOriginal => ({
   ...await importOriginal(),
   getCurrentUser: mocks.user,
 }));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
-vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual }, customerReceivable: { findMany: mocks.customerReceivables } } }));
+vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual }, customerReceivable: { findMany: mocks.customerReceivables }, customerReceivablePayment: { findMany: mocks.receivablePayments } } }));
 import { GET } from "../route";
 
 const targets = ["financial-report.daily-income", "financial-report.daily-category", "financial-report.daily-subcategory", "financial-report.daily-payment-method", "financial-report.daily-outstanding-dp"];
@@ -29,6 +29,7 @@ describe("daily finance API", () => {
     mocks.transactions.mockResolvedValue([{ id: "t1", createdAt: new Date("2026-10-01T03:00:00Z"), status: "DP", total: 100, amountPaid: 40, change: 0, paymentMethod: "TRANSFER", transactionCategory: "PERCETAKAN", printingSubcategory: "PLAT", items: [], payments: [{ id: "p1", method: "TRANSFER", amount: 40, createdAt: new Date() }], debtPaymentLogs: [] }]);
     mocks.manual.mockResolvedValue([]);
     mocks.customerReceivables.mockResolvedValue([]);
+    mocks.receivablePayments.mockResolvedValue([]);
   });
   afterEach(() => vi.useRealTimers());
 
@@ -89,7 +90,7 @@ describe("daily finance API", () => {
     const response = await GET(request("date=2026-11-05"));
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ date: "2026-11-05", receivableBalance: 900 });
+    expect(await response.json()).toEqual({ date: "2026-11-05", receivableBalance: 900, receivableNotaBalance: 600, receivableManualBalance: 300 });
     expect(mocks.transactions).toHaveBeenCalledOnce();
     expect(mocks.transactions.mock.calls[0][0].where).toMatchObject({
       storeId: "store-1", status: "COMPLETED", paymentMethod: "TEMPO",

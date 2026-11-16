@@ -33,5 +33,6 @@ export function resolveReceiptHistoryAccess(role: Role, permissions: RolePermiss
     method,
     outstandingDp,
     manualDetails: canRead("income") && (total || category || subcategory || method),
+    manualReceivableDetails: canRoleAccessPage(role, "/customers", permissions) && canRead("customer.receivable") && (total || category || subcategory || method),
   };
 }

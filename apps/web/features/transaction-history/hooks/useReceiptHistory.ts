@@ -8,12 +8,16 @@ type ReceiptBreakdown = {
   paymentBreakdown?: Array<{ method: string; amount: number }>;
   categoryBreakdown?: Array<{ category: string; amount: number }>;
 };
-type ReceiptItem = ReceiptBreakdown & { transactionId: string; invoiceNumber: string | null; date: string; amount: number; methods: string[] };
+type ReceiptItem = ReceiptBreakdown & { transactionId: string; invoiceNumber: string | null; date: string; amount: number; methods: string[]; isReceivableNota?: boolean };
 type ManualEntry = ReceiptBreakdown & { id: string; description: string | null; date: string; amount: number; methods: string[] };
+type ManualReceivableEntry = { id: string; receivableId: string; customerName: string; date: string; amount: number; methods: string[] };
 export type ReceiptHistoryData = {
   items: ReceiptItem[];
   manualDetailsAvailable: boolean;
   manualEntries?: ManualEntry[];
+  manualReceivableDetailsAvailable?: boolean;
+  manualReceivableEntries?: ManualReceivableEntry[];
+  receiptTotal?: number;
   summary?: { total: number; paymentMethods?: Array<{ method: string; amount: number }> };
   comparisonAccess?: { read: boolean; create: boolean; update: boolean };
 };

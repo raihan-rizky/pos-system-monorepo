@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
-const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn() }));
+const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn(), receivablePayments: vi.fn() }));
 vi.mock(import("@/lib/rbac/guard"), async original => ({ ...await original(), getCurrentUser: mocks.user }));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
-vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual } } }));
+vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual }, customerReceivablePayment: { findMany: mocks.receivablePayments } } }));
 import { GET } from "../route";
 const at = new Date("2026-09-02T03:00:00Z");
 const invoice = { id: "old", createdAt: at, status: "COMPLETED", total: 100, amountPaid: 100, change: 0, paymentMethod: "CASH", transactionCategory: null, printingSubcategory: null, items: [], payments: [{ id: "p", method: "CASH", amount: 100, createdAt: at }], debtPaymentLogs: [] };
@@ -16,6 +16,7 @@ describe("Riwayat pemasukan tanpa kategori", () => {
     mocks.permissions.mockResolvedValue(buildDefaultRolePermissions());
     mocks.transactions.mockImplementation(async input => input.select?.payments ? [invoice] : [{ id: "old", invoiceNumber: "INV-LAMA" }]);
     mocks.manual.mockResolvedValue([]);
+    mocks.receivablePayments.mockResolvedValue([]);
   });
   it("menemukan nominal dengan filter kategori dan subkategori yang belum ditentukan", async () => {
     const response = await GET(request());

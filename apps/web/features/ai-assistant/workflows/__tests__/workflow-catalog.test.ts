@@ -407,11 +407,12 @@ describe("FAQ workflow catalog", () => {
     const report = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 52)!;
     const text = JSON.stringify(report.steps);
 
-    expect(text).toContain("Piutang = sisa transaksi Tempo + sisa Piutang Manual");
+    expect(text).toContain("Piutang merangkum sisa transaksi Tempo, Piutang Nota, dan Piutang Manual");
     expect(text).toContain("tanggal akhir rentang");
     expect(text).toContain("tanggal pilihan");
     expect(text).toContain("Lihat piutang (customer.receivable:read)");
     expect(text).toContain("role yang digunakan");
-    expect(text).toContain("Sisa transaksi berstatus DP. Tidak termasuk Tempo atau Piutang Manual.");
+    expect(text).toContain("Sisa transaksi berstatus DP. Tidak termasuk Tempo, Piutang Nota, atau Piutang Manual.");
+    expect(text).toContain("Klik baris nota untuk membuka popup nota");
   });
 });

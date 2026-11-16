@@ -22,6 +22,7 @@ export type DailyIncomeTransaction = IncomeClassificationInput & {
   debtPaymentLogs: Array<{ id: string; paymentMethod: string; amount: unknown; createdAt: Date }>;
 };
 export type DailyManualIncome = { id: string; occurredAt: Date; category: string; amount: unknown; deletedAt?: Date | null; payments?: Array<{ method: string; amount: unknown }> };
+export type DailyReceivablePayment = { id: string; receivableId: string; createdAt: Date; method: string; amount: unknown };
 export type DailyIncomeReport = {
   date: string; total: number;
   outstandingDp: number;
@@ -32,6 +33,8 @@ export type DailyIncomeReport = {
 export type DailyIncomeResponse = Pick<DailyIncomeReport, "date"> & Partial<Omit<DailyIncomeReport, "date">> & {
   viewMode?: "full";
   receivableBalance?: number;
+  receivableNotaBalance?: number;
+  receivableManualBalance?: number;
   exportAccess?: boolean;
   receiptHistoryAccess?: { total: boolean; category: boolean; subcategory: boolean; method: boolean; outstandingDp: boolean };
 };
