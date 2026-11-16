@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "history-dp-multipayment-20261117", date: "2026-11-17", revision: 1,
+    highlight: { title: "Metode pembayaran DP di Riwayat", summary: "Lihat metode dan nominal pembayaran awal serta pelunasan." },
+    title: "Riwayat DP menampilkan metode awal dan pelunasan.",
+    summary: "Pembayaran awal dan pelunasan kini tampil dengan metode serta nominal masing-masing. Jika berbeda, label Multi-payment muncul.",
+    kind: "fix", impact: "minor", area: "Riwayat Transaksi", href: "/history", visual: "history-table",
+    steps: [
+      { title: "Buka Riwayat Transaksi", detail: "Cari nota DP yang sudah dilunasi." },
+      { title: "Lihat rincian pembayaran", detail: "Periksa metode dan nominal pada pembayaran awal serta pelunasan." },
+      { title: "Cek label transaksi", detail: "Jika metode pembayaran berbeda, label Multi-payment muncul." },
+    ],
+  },
+  {
     id: "sesi-multi-perangkat-20261111", date: "2026-11-12", revision: 1,
     highlight: { title: "Masuk di banyak perangkat", summary: "Keluar di satu perangkat tidak mengganggu sesi pada perangkat lain." },
     title: "Sesi kasir tetap aktif di perangkat lain",
