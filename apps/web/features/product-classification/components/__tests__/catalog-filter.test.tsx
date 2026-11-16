@@ -22,7 +22,8 @@ describe("catalog classification filter", () => {
     </QueryClientProvider>);
     expect(html).toContain('for="products-catalog-group"');
     expect(html).toContain('for="products-catalog-subcategory"');
-    expect(html).not.toContain("Belum diatur");
+    expect(html).toContain("Belum diatur");
+    expect(html).toContain('value="UNCLASSIFIED"');
     expect(html).toContain('value="print"');
     expect(html).not.toContain('value="atk"');
   });
@@ -33,13 +34,14 @@ describe("catalog classification filter", () => {
       subcategories: [], legacyCategories: [],
     });
     const html = renderToStaticMarkup(<QueryClientProvider client={client}>
-      <CatalogClassificationFilter idPrefix="pos" group="" subcategoryId="" onChange={vi.fn()} />
+      <CatalogClassificationFilter idPrefix="pos" group="" subcategoryId="" includeUnclassified={false} onChange={vi.fn()} />
     </QueryClientProvider>);
 
     expect(html).toContain('for="pos-catalog-group"');
     expect(html).toContain('for="pos-catalog-subcategory"');
     expect(html).toContain("Pilih kategori dahulu");
     expect(html).toContain("disabled=\"\"");
+    expect(html).not.toContain("Belum diatur");
     expect(html).not.toContain('value="UNCLASSIFIED"');
   });
 

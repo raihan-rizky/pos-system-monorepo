@@ -814,7 +814,7 @@ export default function POSClientPage({
           </header>
 
           {/* Category Filter */}
-          {activeTab === "products" && <CatalogClassificationFilter idPrefix="pos" group={catalogGroup} subcategoryId={catalogSubcategoryId}
+          {activeTab === "products" && <CatalogClassificationFilter idPrefix="pos" group={catalogGroup} subcategoryId={catalogSubcategoryId} includeUnclassified={false}
             offlineIdentity={offlineIdentity} onChange={(group, subcategoryId) => { setCatalogGroup(group); setCatalogSubcategoryId(subcategoryId); setPage(1); }} />}
           {activeTab === "products" && (
             <div className="px-3 md:px-6 py-2 md:py-3 bg-white border-b border-surface-100">

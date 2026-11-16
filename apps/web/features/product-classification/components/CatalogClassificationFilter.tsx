@@ -36,12 +36,13 @@ export async function fetchClassificationCatalog(signal?: AbortSignal, identity?
   return { subcategories: [...subcategories.values()].sort((a, b) => a.name.localeCompare(b.name)), legacyCategories: [] };
 }
 
-export function CatalogClassificationFilter({ idPrefix, group, subcategoryId, onChange, offlineIdentity }: {
+export function CatalogClassificationFilter({ idPrefix, group, subcategoryId, onChange, offlineIdentity, includeUnclassified = true }: {
   idPrefix: string;
   group: CatalogGroupFilter;
   subcategoryId: string;
   onChange: (group: CatalogGroupFilter, subcategoryId: string) => void;
   offlineIdentity?: OfflineCatalogIdentity;
+  includeUnclassified?: boolean;
 }) {
   const catalog = useQuery({
     queryKey: offlineIdentity
@@ -65,6 +66,7 @@ export function CatalogClassificationFilter({ idPrefix, group, subcategoryId, on
         <select id={`${idPrefix}-catalog-group`} aria-label="Kategori produk" className={selectClass} value={group}
           onChange={(event) => onChange(event.target.value as CatalogGroupFilter, "")}>
           <option value="">Semua kategori</option>
+          {includeUnclassified && <option value="UNCLASSIFIED">Belum diatur</option>}
           <option value="ATK">ATK</option>
           <option value="PERCETAKAN">PERCETAKAN</option>
         </select>
