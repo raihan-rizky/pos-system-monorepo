@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import dynamic from "next/dynamic";
 import { ChevronDown, X } from "lucide-react";
 import { formatRupiahPrecise } from "@/lib/utils";
 import { ReceiptHistoryError, useReceiptHistory } from "@/features/transaction-history/hooks/useReceiptHistory";
@@ -17,10 +17,10 @@ type ReceiptRow = AmountBreakdown & {
   label: string;
   date: string;
   amount: number;
+  transactionId?: string;
   manual: boolean;
   manualReceivable?: boolean;
   isReceivableNota?: boolean;
-  href?: string;
 };
 type Props = {
   date: string;
@@ -33,11 +33,17 @@ const methodLabels: Record<string, string> = {
   CASH: "Tunai", TRANSFER: "Transfer", DEBIT: "Debit", CREDIT: "Kredit", QRIS: "QRIS",
 };
 const methodLabel = (method: string) => methodLabels[method] ?? method;
+const ReceiptHistoryReceiptDialog = dynamic(
+  () => import("@/features/transaction-history/components/ReceiptHistoryReceiptDialog").then(module => module.ReceiptHistoryReceiptDialog),
+  { ssr: false },
+);
 
 export function DailyIncomeReceiptDialog({ date, previewSales = false, allowComparison = false, onClose }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const receiptTriggerRef = useRef<HTMLButtonElement | null>(null);
   const { userId, storeId, authorizationFingerprint } = useRole();
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
   const { data, isLoading, error, refetch } = useReceiptHistory({ mode: "receipt", date, previewSales });
   const summary = !error ? data?.summary : undefined;
   const accessDenied = error instanceof ReceiptHistoryError && (error.status === 401 || error.status === 403);
@@ -53,7 +59,6 @@ export function DailyIncomeReceiptDialog({ date, previewSales = false, allowComp
   const rows: ReceiptRow[] = data ? [
     ...data.items.map(item => ({
       ...item, key: `receipt:${item.transactionId}:${item.date}`, label: item.invoiceNumber || "Nota tanpa nomor", manual: false,
-      ...(!previewSales && { href: `/history?${new URLSearchParams({ search: item.invoiceNumber || item.transactionId })}` }),
     })),
     ...(data.manualEntries ?? []).map(item => ({ ...item, key: `manual:${item.id}`, label: item.description || "Pemasukan manual", manual: true })),
     ...(data.manualReceivableEntries ?? []).map(item => ({ ...item, key: `manual-receivable:${item.id}`, label: item.customerName, manual: true, manualReceivable: true })),
@@ -63,8 +68,23 @@ export function DailyIncomeReceiptDialog({ date, previewSales = false, allowComp
     if (next.has(key)) next.delete(key); else next.add(key);
     return next;
   });
+  const closeReceiptPopup = () => {
+    setSelectedTransactionId(null);
+    requestAnimationFrame(() => receiptTriggerRef.current?.focus());
+  };
 
-  return <dialog ref={dialogRef} onClose={onClose} aria-labelledby="daily-income-receipt-title"
+  return <dialog ref={dialogRef} onClose={onClose} onCancel={event => {
+    if (selectedTransactionId) {
+      event.preventDefault();
+      closeReceiptPopup();
+    }
+  }} onKeyDown={event => {
+    if (event.key === "Escape" && selectedTransactionId) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeReceiptPopup();
+    }
+  }} aria-labelledby="daily-income-receipt-title"
     className="m-auto flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-3xl flex-col overflow-hidden overscroll-contain rounded-2xl border-0 bg-white p-0 text-[#17384a] shadow-2xl backdrop:overflow-hidden backdrop:bg-[#061d2b]/60 backdrop:overscroll-contain">
     <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[#dce9ed] px-5 py-4 sm:px-6">
       <div><p className="text-xs font-semibold uppercase tracking-wider text-[#587586]">Penerimaan harian</p><h2 id="daily-income-receipt-title" className="mt-1 text-lg font-bold">Rincian pemasukan</h2></div>
@@ -95,14 +115,20 @@ export function DailyIncomeReceiptDialog({ date, previewSales = false, allowComp
             <ul className="divide-y divide-[#e5eef2] overflow-hidden rounded-xl border border-[#dce9ed]">{rows.map((row, index) => {
               const isExpanded = expanded.has(row.key);
               const hasBreakdown = Boolean(row.paymentBreakdown?.length || row.categoryBreakdown?.length);
+              const receiptTransactionId = previewSales ? undefined : row.transactionId;
               const detailsId = `daily-income-receipt-${index}`;
               return <li key={row.key} className={row.manualReceivable ? "bg-amber-50" : row.manual ? "bg-emerald-50" : "bg-white"}>
-                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3">
-                  <div className="w-full min-w-0 sm:w-auto sm:flex-1">
-                    {row.href ? <Link href={row.href} className="inline-flex min-h-11 max-w-full items-center break-all font-semibold text-blue-800 underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700">{row.label}</Link> : <p className="break-words font-semibold">{row.label}</p>}
-                    <p className="text-xs text-[#587586]">{row.manualReceivable ? "Piutang Manual" : row.manual ? "Pemasukan Manual" : row.isReceivableNota ? "Piutang Nota" : "Nota"} · {row.date}</p>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
+                  <div className="w-full min-w-0 flex-1">
+                    {receiptTransactionId ? <button type="button" aria-label={`Lihat nota ${row.label}`} onClick={event => { receiptTriggerRef.current = event.currentTarget; setSelectedTransactionId(receiptTransactionId); }} className="flex min-h-11 w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded text-left hover:bg-black/[0.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700">
+                      <span className="min-w-0 flex-1"><span className="block break-all font-semibold text-blue-800 underline-offset-4">{row.label}</span><span className="block text-xs text-[#587586]">{row.isReceivableNota ? "Piutang Nota" : "Nota"} · {row.date}</span></span>
+                      <span className="break-all font-mono text-sm font-bold tabular-nums">{formatRupiahPrecise(row.amount)}</span>
+                    </button> : <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                      <div className="w-full min-w-0 sm:w-auto sm:flex-1"><p className="break-words font-semibold">{row.label}</p><p className="text-xs text-[#587586]">{row.manualReceivable ? "Piutang Manual" : row.manual ? "Pemasukan Manual" : row.isReceivableNota ? "Piutang Nota" : "Nota"} · {row.date}</p></div>
+                      <span className="break-all font-mono text-sm font-bold tabular-nums">{formatRupiahPrecise(row.amount)}</span>
+                    </div>}
                   </div>
-                  <div className="flex w-full max-w-full flex-wrap items-center justify-between gap-x-3 sm:w-auto sm:justify-end"><span className="break-all font-mono text-sm font-bold tabular-nums">{formatRupiahPrecise(row.amount)}</span>{hasBreakdown && <button type="button" aria-label={`Rincian ${row.label}`} aria-expanded={isExpanded} aria-controls={detailsId} onClick={() => toggle(row.key)} className="inline-flex min-h-11 items-center gap-1 rounded text-sm font-semibold text-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700">Rincian <ChevronDown size={16} aria-hidden="true" className={isExpanded ? "rotate-180" : ""} /></button>}</div>
+                  {hasBreakdown && <button type="button" aria-label={`Rincian ${row.label}`} aria-expanded={isExpanded} aria-controls={detailsId} onClick={() => toggle(row.key)} className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded text-sm font-semibold text-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700">Rincian <ChevronDown size={16} aria-hidden="true" className={isExpanded ? "rotate-180" : ""} /></button>}
                 </div>
                 {isExpanded && <div id={detailsId} className="grid gap-4 border-t border-[#edf3f6] bg-[#f6fafc] px-4 py-4 text-sm sm:grid-cols-2">
                   {row.paymentBreakdown && row.paymentBreakdown.length > 0 && <section><h4 className="mb-2 text-xs font-semibold text-[#587586]">Metode pembayaran</h4><dl className="space-y-1">{row.paymentBreakdown.map(item => <div key={item.method} className="flex flex-wrap justify-between gap-x-3"><dt>{methodLabel(item.method)}</dt><dd className="font-mono font-semibold tabular-nums">{formatRupiahPrecise(item.amount)}</dd></div>)}</dl></section>}
@@ -113,5 +139,6 @@ export function DailyIncomeReceiptDialog({ date, previewSales = false, allowComp
           </section>}
         </>}
     </div>
+    {selectedTransactionId && <ReceiptHistoryReceiptDialog transactionId={selectedTransactionId} portalRoot={dialogRef.current} onClose={closeReceiptPopup} />}
   </dialog>;
 }

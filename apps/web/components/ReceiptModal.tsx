@@ -48,6 +48,7 @@ interface ReceiptModalProps {
   onClose: () => void;
   transaction: Transaction;
   draftPrintDivision?: string;
+  portalRoot?: HTMLElement | null;
 }
 
 export function ReceiptModal({
@@ -55,6 +56,7 @@ export function ReceiptModal({
   onClose,
   transaction: initialTransaction,
   draftPrintDivision,
+  portalRoot,
 }: ReceiptModalProps) {
   const isPrintingReceipt = Boolean(initialTransaction.printingReceipt || initialTransaction.printingSubcategory);
   const tax = useReceiptTax(initialTransaction, open && !isPrintingReceipt && initialTransaction.status !== "DRAFT");
@@ -146,7 +148,7 @@ export function ReceiptModal({
         : "Transaksi Berhasil";
 
   return (
-    <Modal open={open} onClose={onClose} title={modalTitle} size="5xl">
+    <Modal open={open} onClose={onClose} title={modalTitle} size="5xl" portalRoot={portalRoot}>
       <div className="space-y-6">
         <TransactionCustomPriceSummary items={items} />
         <TaxField tax={tax} />

@@ -11,6 +11,7 @@ interface ModalProps {
   children: React.ReactNode;
   size?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl" | "5xl" | "6xl" | "7xl" | "full";
   className?: string;
+  portalRoot?: HTMLElement | null;
 }
 
 const sizeClasses = {
@@ -41,6 +42,7 @@ export function Modal({
   children,
   size = "md",
   className = "",
+  portalRoot,
 }: ModalProps) {
   const handleEscape = useCallback(
     (e: KeyboardEvent) => {
@@ -101,5 +103,5 @@ export function Modal({
     </div>
   );
 
-  return createPortal(modal, document.body);
+  return createPortal(modal, portalRoot ?? document.body);
 }
