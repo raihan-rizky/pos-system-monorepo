@@ -88,7 +88,11 @@ describe("loadPOSInitialData", () => {
     mocks.categoryFindMany.mockResolvedValue([]);
     mocks.storeSettingsFindUnique.mockResolvedValue({ shiftEnabled: true });
     await loadPOSInitialData();
-    expect(mocks.productFindMany.mock.calls[0][0].select).toMatchObject({ catalogSubcategoryId: true, catalogSubcategory: { select: { id: true, group: true, name: true, legacyCategoryId: true } } });
+    expect(mocks.productFindMany.mock.calls[0][0].select).toMatchObject({
+      catalogSubcategoryId: true,
+      catalogSubcategory: { select: { id: true, group: true, name: true, legacyCategoryId: true } },
+      category: { select: { catalogSubcategory: { select: { id: true, group: true, name: true, legacyCategoryId: true } } } },
+    });
   });
 
   it("keeps selected product and variant barcodes searchable in the seeded catalog", async () => {

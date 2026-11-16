@@ -63,6 +63,26 @@ describe("product query cache and request lifecycle", () => {
     expect(group.variants).toHaveLength(3);
   });
 
+  it("uses the legacy category mapping when an offline unit has no explicit subcategory", async () => {
+    const legacy = {
+      id: "paper-box",
+      unit: "dus",
+      catalogSubcategoryId: null,
+      catalogSubcategory: null,
+      category: { catalogSubcategory: { id: "atk-paper", group: "ATK", name: "Kertas" } },
+    };
+    const group = { id: "paper-pcs", name: "Kertas", variants: [legacy] };
+    vi.mocked(fetch).mockRejectedValue(new TypeError("network unavailable"));
+    mocks.getCachedCatalogProducts.mockResolvedValue([group]);
+
+    const result = await mocks.client!.fetchQuery(pageOptions("", "", {
+      catalogGroup: "ATK",
+      catalogSubcategoryId: "atk-paper",
+    }));
+
+    expect(result.data.map((product) => product.id)).toEqual(["paper-box"]);
+  });
+
   it("checks stock on the matching offline unit rather than its unavailable default", async () => {
     vi.mocked(fetch).mockRejectedValue(new TypeError("offline"));
     mocks.getCachedCatalogProducts.mockImplementation(async (_search, _category, inStockOnly) => inStockOnly ? [] : [{

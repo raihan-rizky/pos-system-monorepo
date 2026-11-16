@@ -67,7 +67,7 @@ vi.mock("@/components/Pagination", () => ({ Pagination: () => null }));
 vi.mock("@/components/ui/HorizontalScroll", () => ({ HorizontalScroll: () => null }));
 vi.mock("@/features/pos-checkout/components/CustomerCheckoutSelect", () => ({ CustomerCheckoutSelect: () => null }));
 vi.mock("@/hooks/useProducts", () => ({
-  useProductsPage: (_search: unknown, _category: unknown, options: unknown) => { harness.productQueryOptions = options; return { data: { data: harness.catalog }, isLoading: false, isFetching: false }; },
+  useProductsPage: (_search: unknown, _category: unknown, options: any) => { harness.productQueryOptions = options; return { data: { data: harness.catalog, pagination: { total: 96, page: options.page, limit: 24, totalPages: 4, hasNextPage: options.page < 4, hasPreviousPage: options.page > 1 } }, isLoading: false, isFetching: false }; },
   useCategories: () => ({ data: [] }),
   useUpdateProduct: () => ({ mutateAsync: harness.mutateProduct }),
   useUpdateProductGroupMetadata: () => ({}),
@@ -99,6 +99,8 @@ vi.mock("@/features/invoice-date/hooks/useServerClock", () => ({ useServerClock:
 import POSClientPage from "../POSClientPage";
 import { ProductGrid } from "@/components/ProductGrid";
 import { CartSidebar } from "@/components/CartSidebar";
+import { Pagination } from "@/components/Pagination";
+import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
 import { CustomerCheckoutSelect } from "@/features/pos-checkout/components/CustomerCheckoutSelect";
 import { CatalogClassificationFilter } from "@/features/product-classification/components/CatalogClassificationFilter";
 
@@ -123,6 +125,8 @@ function render() {
     search: findProps(tree, element => element.type === "input" && typeof element.props.onChange === "function"),
     priceEditor: findProps(tree, element => "item" in element.props && "roundingSettings" in element.props && typeof element.props.onSave === "function"),
     classification: findProps(tree, element => element.type === CatalogClassificationFilter),
+    pagination: findProps(tree, element => element.type === Pagination),
+    legacyCategoryFilter: findProps(tree, element => element.type === HorizontalScroll),
   };
 }
 
@@ -134,6 +138,23 @@ describe("POS pricing across unrelated renders", () => {
     render();
     expect(harness.productQueryOptions).toMatchObject({ catalogGroup: "PERCETAKAN", catalogSubcategoryId: "print" });
   });
+
+  it("clears the subcategory and returns to the first page when the group changes", () => {
+    const page = render();
+    page.pagination.onPageChange(3);
+    render();
+    expect(harness.productQueryOptions.page).toBe(3);
+
+    page.classification.onChange("ATK", "");
+    render();
+    expect(harness.productQueryOptions).toMatchObject({ page: 1, catalogGroup: "ATK" });
+    expect(harness.productQueryOptions.catalogSubcategoryId).toBeUndefined();
+  });
+
+  it("replaces the legacy category chip row with the catalog group filters", () => {
+    expect(render().legacyCategoryFilter).toBeUndefined();
+  });
+
   beforeEach(() => {
     harness.mutateTransaction.mockReset();
     harness.mutateProduct.mockReset();

@@ -55,6 +55,9 @@ it("binds a complete snapshot to the authenticated cashier and store", async () 
   expect(state.transaction.mock.calls[0][1]).toMatchObject({ isolationLevel: "RepeatableRead" });
   expect(state.products.mock.calls[0][0].where).toMatchObject({ storeId: "store-1", isActive: true });
   expect(state.products.mock.calls[0][0].include).toMatchObject({ catalogSubcategory: { select: { id: true, group: true, name: true, legacyCategoryId: true } } });
+  expect(state.products.mock.calls[0][0].include).toMatchObject({
+    category: { select: { catalogSubcategory: { select: { id: true, group: true, name: true, legacyCategoryId: true } } } },
+  });
 });
 
 it("refuses to save a partial snapshot when the catalog is too large", async () => {

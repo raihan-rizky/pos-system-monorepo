@@ -11,7 +11,6 @@ import { ShiftStatusBanner } from "@/components/ShiftStatusBanner";
 import { PosTopPanel } from "@/features/pos-search/components/PosTopPanel";
 import { Pagination } from "@/components/Pagination";
 import { Button, Input, Modal } from "@pos/ui";
-import { CategoryIcon } from "@/lib/category-icons";
 import { loadCloseShiftModal, loadOpenShiftModal, loadPaymentModal, warmOfflineCheckoutModules } from "@/lib/offline/offline-module-preparation";
 
 import { getLogger } from "@/lib/logger";
@@ -67,7 +66,6 @@ import { WAIT_FOR_SESSION_RECOVERY } from "@/lib/auth/session-failure";
 import { buildClientMutationId } from "@/lib/offline/offline-core";
 import { OfflinePreparationBeacon } from "@/lib/offline/OfflinePreparationBeacon";
 import { useCreateDraft } from "@/features/transactions-draft";
-import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
 import { useActiveShift, type CashierShift } from "@/hooks/useShift";
 import { useShiftSettings } from "@/hooks/useShiftSettings";
 import { usePriceRoundingSettings } from "@/features/product-price-rounding/hooks/usePriceRoundingSettings";
@@ -131,7 +129,6 @@ export default function POSClientPage({
   const checkoutMutationId = useRef<string | null>(null);
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
-  const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [catalogGroup, setCatalogGroup] = useState<NonNullable<UseProductsOptions["catalogGroup"]> | "">("");
   const [catalogSubcategoryId, setCatalogSubcategoryId] = useState("");
   const [page, setPage] = useState(1);
@@ -219,7 +216,7 @@ export default function POSClientPage({
   const canEditPrice = canPerform("transaction.custom_price", "update");
   const canCreateTransaction = canPerform(role === "SALES" ? "transaction.request" : "transaction", "create");
 
-  const productsQuery = useProductsPage(deferredSearch, selectedCategory, {
+  const productsQuery = useProductsPage(deferredSearch, "", {
     catalogGroup: catalogGroup || undefined,
     catalogSubcategoryId: catalogSubcategoryId || undefined,
     page,
@@ -229,6 +226,7 @@ export default function POSClientPage({
     initialDataUpdatedAt: initialData.productsUpdatedAt,
     offlineIdentity,
   });
+  const { data: categories = [] } = useCategories(initialData.categories, offlineIdentity);
   const visibleProducts = useMemo(
     () =>
       (productsQuery.data?.data ?? []).filter((p) =>
@@ -246,7 +244,6 @@ export default function POSClientPage({
   );
   const searchTokens = parseSearchQuery(deferredSearch);
 
-  const { data: categories = [] } = useCategories(initialData.categories, offlineIdentity);
   const { data: brands = [] } = useBrands({
     enabled: Boolean(productEditItem),
   });
@@ -424,7 +421,7 @@ export default function POSClientPage({
 
   useEffect(() => {
     setPage(1);
-  }, [search, selectedCategory, catalogGroup, catalogSubcategoryId]);
+  }, [search, catalogGroup, catalogSubcategoryId]);
 
   useEffect(() => {
     if (
@@ -818,12 +815,9 @@ export default function POSClientPage({
 
           {/* Category Filter */}
           {activeTab === "products" && <CatalogClassificationFilter idPrefix="pos" group={catalogGroup} subcategoryId={catalogSubcategoryId}
-            offlineIdentity={offlineIdentity} onChange={(group, subcategoryId) => { setCatalogGroup(group); setCatalogSubcategoryId(subcategoryId); }} />}
+            offlineIdentity={offlineIdentity} onChange={(group, subcategoryId) => { setCatalogGroup(group); setCatalogSubcategoryId(subcategoryId); setPage(1); }} />}
           {activeTab === "products" && (
-            <HorizontalScroll
-              className="px-3 md:px-6 py-2 md:py-3 bg-white border-b border-surface-100 flex items-center gap-2 flex-nowrap"
-              showScrollIndicators={true}
-            >
+            <div className="px-3 md:px-6 py-2 md:py-3 bg-white border-b border-surface-100">
               <button
                 type="button"
                 onClick={toggleHideOutOfStock}
@@ -852,47 +846,7 @@ export default function POSClientPage({
                 )}
                 <span>Stok tersedia</span>
               </button>
-              <span
-                aria-hidden="true"
-                className="h-5 w-px bg-surface-200 mx-1 flex-shrink-0"
-              />
-              <span className="shrink-0 text-xs font-semibold text-slate-500">Kategori lama:</span>
-              <button
-                onClick={() => setSelectedCategory("")}
-                className={`
-                px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0
-                transition-all duration-200
-                ${selectedCategory === ""
-                    ? "bg-brand-600 text-white shadow-sm"
-                    : "bg-surface-100 text-surface-600 hover:bg-surface-200"
-                  }
-              `}
-              >
-                Semua
-              </button>
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() =>
-                    setSelectedCategory(selectedCategory === cat.id ? "" : cat.id)
-                  }
-                  className={`
-                  px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0
-                  transition-all duration-200 flex items-center gap-1.5
-                  ${selectedCategory === cat.id
-                      ? "bg-brand-600 text-white shadow-sm"
-                      : "bg-surface-100 text-surface-600 hover:bg-surface-200"
-                    }
-                `}
-                >
-                  <CategoryIcon value={cat.icon} className="h-3.5 w-3.5" />
-                  <span>{cat.name}</span>
-                  <span className="text-xs opacity-70">
-                    ({cat._count.products})
-                  </span>
-                </button>
-              ))}
-            </HorizontalScroll>
+            </div>
           )}
 
           </PosTopPanel>

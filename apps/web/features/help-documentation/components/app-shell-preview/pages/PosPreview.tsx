@@ -22,6 +22,22 @@ export function PosPreview(ctx: PreviewContext) {
               <PreviewButton ctx={ctx} target="pos-expense-button" tone="light" icon={WalletCards}>Pengeluaran</PreviewButton>
             </div>
             <div className="mt-4 flex items-center gap-3 rounded-2xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm text-surface-500"><Search className="h-5 w-5" />Cari produk, SKU, atau barcode...</div>
+          <GuideTarget ctx={ctx} target="pos-catalog-filter" className="mt-3 grid max-w-2xl grid-cols-2 gap-3">
+            <label className="min-w-0 text-[10px] font-bold uppercase tracking-[0.12em] text-surface-500">
+              <span className="mb-1 block">Kategori produk</span>
+              <select defaultValue="" aria-label="Kategori produk" className="min-h-11 w-full rounded-xl border border-surface-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-surface-800">
+                <option value="">Semua kategori</option>
+                <option value="ATK">ATK</option>
+                <option value="PERCETAKAN">PERCETAKAN</option>
+              </select>
+            </label>
+            <label className="min-w-0 text-[10px] font-bold uppercase tracking-[0.12em] text-surface-500">
+              <span className="mb-1 block">Subkategori</span>
+              <select disabled defaultValue="" aria-label="Subkategori" className="min-h-11 w-full cursor-not-allowed rounded-xl border border-surface-200 bg-surface-100 px-3 text-sm font-semibold normal-case tracking-normal text-surface-400">
+                <option value="">Pilih kategori dahulu</option>
+              </select>
+            </label>
+          </GuideTarget>
           </div>
 
           <GuideTarget ctx={ctx} target="pos-products" className="grid grid-cols-4 gap-4 p-6">

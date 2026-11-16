@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "pos-catalog-filter-unit-ux-20261116", date: "2026-11-16", revision: 1,
+    highlight: { title: "Filter katalog dan satuan POS", summary: "Saring produk menurut grup dan cek satuan jual di keranjang." },
+    title: "Filter kategori POS dan penanda satuan keranjang.",
+    summary: "Pilih grup ATK atau PERCETAKAN lalu subkategori untuk mempersempit daftar. Keranjang menandai satuan jual yang sedang dipakai.",
+    kind: "improvement", impact: "minor", area: "Kasir", href: "/pos", visual: "units",
+    steps: [
+      { title: "Pilih grup katalog", detail: "Di POS, pada Kategori produk pilih ATK atau PERCETAKAN. Subkategori aktif setelah grup dipilih." },
+      { title: "Persempit daftar produk", detail: "Pilih subkategori atau Semua subkategori. Daftar mengikuti pencarian dan filter stok, termasuk dari katalog offline yang tersimpan." },
+      { title: "Periksa satuan di keranjang", detail: "Tambahkan produk dan cek lencana Satuan dipilih. Jika tersedia beberapa satuan, gunakan Ubah satuan sebelum mengatur jumlah atau membayar." },
+    ],
+  },
+  {
     id: "piutang-manual-toggle-20261115", date: "2026-11-15", revision: 1,
     highlight: { title: "Tutup Piutang Manual saat perlu", summary: "Buka atau lipat daftar, dan pilihan tersimpan di browser yang sama." },
     title: "Lipat daftar Piutang Manual saat perlu.",

@@ -603,7 +603,10 @@ describe("GET /api/products", () => {
     expect(response.status).toBe(200);
     const expectedWhere = expect.objectContaining({
       storeId: "store-main", isActive: true,
-      catalogSubcategoryId: "print", catalogSubcategory: { is: { group: "PERCETAKAN" } },
+      OR: [
+        { catalogSubcategory: { is: { id: "print", group: "PERCETAKAN" } } },
+        { catalogSubcategoryId: null, category: { catalogSubcategory: { is: { id: "print", group: "PERCETAKAN" } } } },
+      ],
     });
     expect(productFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: expectedWhere }));
     expect(productCountMock).toHaveBeenCalledWith({ where: expectedWhere });

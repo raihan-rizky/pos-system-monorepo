@@ -47,6 +47,22 @@ describe("visual help guides", () => {
     expect(html).not.toContain('title="Edit Cepat"');
   });
 
+  it("shows the linked catalog group and subcategory controls in the POS preview", () => {
+    const html = renderToStaticMarkup(
+      <VisualGuideMockup
+        visual={{ page: "pos", target: "pos-catalog-filter", callout: "Pilih grup lalu subkategori produk." }}
+        stepNumber={2}
+        stepTitle="Saring kategori produk"
+      />,
+    );
+    const visibleText = html.replace(/<[^>]*>/g, "");
+
+    expect(visibleText).toContain("Kategori produk");
+    expect(visibleText).toContain("Subkategori");
+    expect(visibleText).toContain("Pilih kategori dahulu");
+    expect(html).toContain("disabled");
+  });
+
   it("renders the selected visual target as a read-only fake page", () => {
     const html = renderToStaticMarkup(
       <VisualGuideMockup
@@ -798,7 +814,7 @@ describe("visual help guides", () => {
       ],
       "cashier-pos": [
         "pos.pos-primary",
-        "pos.pos-products",
+        "pos.pos-catalog-filter",
         "pos.pos-cart",
         "pos.pos-payment-modal",
       ],

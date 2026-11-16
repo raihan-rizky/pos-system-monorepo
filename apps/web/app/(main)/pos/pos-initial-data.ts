@@ -63,7 +63,10 @@ export async function loadPOSInitialData(): Promise<POSInitialData> {
             },
           },
           category: {
-            select: { id: true, name: true, icon: true, color: true },
+            select: {
+              id: true, name: true, icon: true, color: true,
+              catalogSubcategory: { select: { id: true, group: true, name: true, legacyCategoryId: true } },
+            },
           },
           brand: {
             select: { id: true, name: true, normalizedName: true },

@@ -58,6 +58,13 @@ function renderCart(specialPricingEnabled = true) {
 }
 
 describe("CartSidebar quick product references", () => {
+  it("shows the active unit beside its price even when there is only one unit", () => {
+    const html = renderCart();
+
+    expect(html).toContain("Satuan dipilih");
+    expect(html).toContain('aria-label="Satuan dipilih: Rim"');
+  });
+
   it("shows unrounded references for an excluded category", () => {
     const html = renderToStaticMarkup(<CartSidebar items={[{ ...productItem, price: 4049, catalogPrice: 4049, hargaAgen: 4050, hargaDinas: 4549 }]}
       roundingSettings={{ enabled: true, increment: 500, threshold: 50, excludedCategoryIds: ["cat-paper"] }}
@@ -199,6 +206,7 @@ describe("CartSidebar quick product references", () => {
 
     expect(html).toContain('aria-label="Satuan Kertas A4"');
     expect(html).toMatch(/aria-label="Satuan Kertas A4"[^>]*class="[^"]*min-h-11/);
+    expect(html).toContain('aria-label="Satuan dipilih: Rim"');
     expect(html).toContain('Box');
   });
 

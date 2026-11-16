@@ -26,7 +26,12 @@ export async function GET() {
           where,
           include: {
             catalogSubcategory: { select: { id: true, group: true, name: true, legacyCategoryId: true } },
-            category: { select: { id: true, name: true, icon: true, color: true } },
+            category: {
+              select: {
+                id: true, name: true, icon: true, color: true,
+                catalogSubcategory: { select: { id: true, group: true, name: true, legacyCategoryId: true } },
+              },
+            },
             brand: { select: { id: true, name: true, normalizedName: true } },
             stockGroup: { select: { id: true, displayName: true, baseUnit: true, baseStock: true } },
           },

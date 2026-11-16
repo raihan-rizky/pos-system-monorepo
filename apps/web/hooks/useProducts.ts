@@ -5,14 +5,30 @@ import { useEffect } from "react";
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDebounce } from "./useDebounce";
 import { matchesStockFilter, type ProductStockStatusFilter } from "@/features/pos-search/pos-stock-filter";
+import { matchesPosCatalogFilter } from "@/features/pos-search/pos-catalog-filter";
 import { matchesSearchTokens, parseSearchQuery } from "@/features/pos-search/pos-search";
 import type { AppliedCategoryPricing } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import type { PriceRoundingResult } from "@/features/product-price-rounding/rounding";
 import type { OfflineCatalogIdentity } from "@/lib/offline/offline-db";
 
+type ProductCategoryClassification = {
+  id: string;
+  group: "ATK" | "PERCETAKAN";
+  name: string;
+  legacyCategoryId?: string | null;
+};
+type ProductCategory = {
+  id: string;
+  name: string;
+  icon: string | null;
+  color: string | null;
+  catalogSubcategory?: ProductCategoryClassification | null;
+};
+
 export interface ProductVariant {
   catalogSubcategoryId?: string | null;
-  catalogSubcategory?: { id: string; group: "ATK" | "PERCETAKAN"; name: string; legacyCategoryId?: string | null } | null;
+  catalogSubcategory?: ProductCategoryClassification | null;
+  category?: ProductCategory;
   priceRounding?: PriceRoundingResult | null;
   description?: string | null;
   displayPrice?: number;
@@ -47,7 +63,7 @@ export interface ProductVariant {
 
 export interface Product {
   catalogSubcategoryId?: string | null;
-  catalogSubcategory?: { id: string; group: "ATK" | "PERCETAKAN"; name: string; legacyCategoryId?: string | null } | null;
+  catalogSubcategory?: ProductCategoryClassification | null;
   priceRounding?: PriceRoundingResult | null;
   description?: string | null;
   displayPrice?: number;
@@ -78,12 +94,7 @@ export interface Product {
     baseUnit: string;
     baseStock: number;
   } | null;
-  category: {
-    id: string;
-    name: string;
-    icon: string | null;
-    color: string | null;
-  };
+  category: ProductCategory;
   brandId?: string | null;
   brand?: {
     id: string;
@@ -210,10 +221,15 @@ export async function fetchProducts(
     signal?.throwIfAborted();
     // A verified cashier snapshot can legitimately contain no matching rows.
     if (cachedProducts.length > 0 || offlineIdentity) {
+      const classificationFilter = {
+        group: catalogGroup === "ATK" || catalogGroup === "PERCETAKAN" ? catalogGroup : undefined,
+        subcategoryId: catalogSubcategoryId || undefined,
+      };
       const cached = normalizedUnit || catalogGroup || catalogSubcategoryId || (stockStatus && stockStatus !== "all")
         ? cachedProducts.flatMap((product) => {
             const candidates = product.variants?.length ? product.variants : [product];
             const matches = candidates.filter((variant) => {
+              const candidate = { ...product, ...variant, category: variant.category ?? product.category };
               if (normalizedUnit && variant.unit.trim().toLowerCase() !== normalizedUnit) return false;
               if (!matchesStockFilter({ stock: variant.stock }, inStockOnly)) return false;
               if (stockStatus === "negative" && !(variant.stock < 0)) return false;
@@ -223,13 +239,13 @@ export async function fetchProducts(
                 category: product.category, brand: variant.brand ?? product.brand,
               }, parseSearchQuery(search))) return false;
               if (catalogGroup === "UNCLASSIFIED" && variant.catalogSubcategoryId != null) return false;
-              if (catalogGroup && catalogGroup !== "UNCLASSIFIED" && variant.catalogSubcategory?.group !== catalogGroup) return false;
-              return catalogGroup === "UNCLASSIFIED" || !catalogSubcategoryId || variant.catalogSubcategoryId === catalogSubcategoryId;
+              if (catalogGroup === "UNCLASSIFIED") return true;
+              return (!classificationFilter.group && !classificationFilter.subcategoryId) || matchesPosCatalogFilter(candidate, classificationFilter);
             });
             const variant = matches.find((item) => item.id === product.id) ?? matches[0];
             if (!variant) return [];
             const variants = product.variants?.length ? matches : undefined;
-            return [{ ...product, ...variant, variants, defaultVariant: variant }];
+            return [{ ...product, ...variant, category: variant.category ?? product.category, variants, defaultVariant: variant }];
           })
         : cachedProducts;
       return {

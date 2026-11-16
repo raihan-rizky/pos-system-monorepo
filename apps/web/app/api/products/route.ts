@@ -12,6 +12,7 @@ import {
   buildProductStockStatusFilter,
   type ProductStockStatusFilter,
 } from "@/features/pos-search/pos-stock-filter";
+import { buildPosCatalogFilterWhere } from "@/features/pos-search/pos-catalog-filter";
 import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
 import { buildProductPriceLogEntries, type ProductPriceSnapshot } from "@/lib/product-price-logs/price-log-entries";
 import { withCalculatedStock } from "@/features/product-stock-groups/stock-display";
@@ -154,6 +155,20 @@ export async function GET(request: Request) {
 
     const tokens = parseSearchQuery(search);
     const searchWhere = buildProductSearchOR(tokens);
+    const catalogFilterWhere = catalogGroup === "UNCLASSIFIED"
+      ? {}
+      : buildPosCatalogFilterWhere({
+          group: catalogGroup === "ATK" || catalogGroup === "PERCETAKAN" ? catalogGroup : undefined,
+          subcategoryId: catalogSubcategoryId || undefined,
+        });
+    const searchAndCatalogFilters = [searchWhere, catalogFilterWhere].filter(
+      (filter): filter is Prisma.ProductWhereInput =>
+        Boolean(filter && Object.keys(filter).length > 0),
+    );
+    const searchAndCatalogWhere: Prisma.ProductWhereInput =
+      searchAndCatalogFilters.length > 1
+        ? { AND: searchAndCatalogFilters }
+        : searchAndCatalogFilters[0] ?? {};
     const stockFilter =
       buildProductStockStatusFilter(stockStatus) ??
       buildProductStockFilter(inStockOnly);
@@ -193,13 +208,9 @@ export async function GET(request: Request) {
     const whereClause: Prisma.ProductWhereInput = {
       storeId,
       isActive: true,
-      ...(searchWhere ?? {}),
+      ...searchAndCatalogWhere,
       ...(categoryId && { categoryId }),
       ...(catalogGroup === "UNCLASSIFIED" ? { catalogSubcategoryId: null } : {}),
-      ...(catalogGroup === "ATK" || catalogGroup === "PERCETAKAN"
-        ? { catalogSubcategory: { is: { group: catalogGroup } } }
-        : {}),
-      ...(catalogSubcategoryId && catalogGroup !== "UNCLASSIFIED" ? { catalogSubcategoryId } : {}),
       ...(unit && { unit: { equals: unit, mode: "insensitive" as const } }),
       ...(stockFilter ?? {}),
       ...(stockGroupFilter ?? {}),
@@ -211,7 +222,10 @@ export async function GET(request: Request) {
         include: {
           catalogSubcategory: { select: { id: true, group: true, name: true, legacyCategoryId: true } },
           category: {
-            select: { id: true, name: true, icon: true, color: true },
+            select: {
+              id: true, name: true, icon: true, color: true,
+              catalogSubcategory: { select: { id: true, group: true, name: true, legacyCategoryId: true } },
+            },
           },
           brand: {
             select: { id: true, name: true, normalizedName: true },

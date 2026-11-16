@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { Product, UseProductsOptions } from "@/hooks/useProducts";
 import type { OfflineCatalogIdentity } from "@/lib/offline/offline-db";
 import type { CatalogSubcategory } from "../types";
+import { listCatalogSubcategories } from "../helpers/classification";
 
 type CatalogResponse = { subcategories: CatalogSubcategory[]; legacyCategories: { id: string; name: string }[] };
 type CatalogGroupFilter = NonNullable<UseProductsOptions["catalogGroup"]> | "";
@@ -26,7 +27,9 @@ export async function fetchClassificationCatalog(signal?: AbortSignal, identity?
   const subcategories = new Map<string, CatalogSubcategory>();
   for (const product of products) {
     for (const item of [product, ...(product.variants ?? [])]) {
-      const category = item.catalogSubcategory;
+      const category = item.catalogSubcategoryId != null
+        ? item.catalogSubcategory
+        : item.catalogSubcategory ?? item.category?.catalogSubcategory;
       if (category) subcategories.set(category.id, { ...category, legacyCategoryId: category.legacyCategoryId ?? null });
     }
   }
@@ -47,29 +50,37 @@ export function CatalogClassificationFilter({ idPrefix, group, subcategoryId, on
     networkMode: "always",
     queryFn: ({ signal }) => fetchClassificationCatalog(signal, offlineIdentity),
   });
-  const subcategories = (catalog.data?.subcategories ?? []).filter((item) => item.group === group);
-  const selectClass = "min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600";
+  const groupSelected = group === "ATK" || group === "PERCETAKAN";
+  const subcategories = groupSelected
+    ? listCatalogSubcategories(group, catalog.data?.subcategories ?? [])
+    : [];
+  const selectClass = "mt-1.5 min-h-11 w-full rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm font-semibold text-surface-800 shadow-sm outline-none transition-colors focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-500/25 disabled:cursor-not-allowed disabled:bg-surface-100 disabled:text-surface-400";
   return (
-    <div className="flex flex-wrap items-end gap-3 px-5 py-3 md:px-6">
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${idPrefix}-catalog-group`} className="text-xs font-semibold text-slate-600">Kategori produk</label>
-        <select id={`${idPrefix}-catalog-group`} className={selectClass} value={group}
+    <div className="grid w-full grid-cols-1 gap-3 px-3 py-3 md:px-6 sm:max-w-2xl sm:grid-cols-[minmax(10rem,0.8fr)_minmax(13rem,1.2fr)]">
+      <label htmlFor={`${idPrefix}-catalog-group`} className="block min-w-0">
+        <span className="mb-0.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-surface-500">
+          <span className="font-mono text-brand-600">01</span>
+          Kategori produk
+        </span>
+        <select id={`${idPrefix}-catalog-group`} aria-label="Kategori produk" className={selectClass} value={group}
           onChange={(event) => onChange(event.target.value as CatalogGroupFilter, "")}>
           <option value="">Semua kategori</option>
           <option value="ATK">ATK</option>
           <option value="PERCETAKAN">PERCETAKAN</option>
-          <option value="UNCLASSIFIED">Belum diatur</option>
         </select>
-      </div>
-      {(group === "ATK" || group === "PERCETAKAN") && <div className="flex flex-col gap-1">
-        <label htmlFor={`${idPrefix}-catalog-subcategory`} className="text-xs font-semibold text-slate-600">Subkategori produk</label>
-        <select id={`${idPrefix}-catalog-subcategory`} className={selectClass} value={subcategoryId}
+      </label>
+      <label htmlFor={`${idPrefix}-catalog-subcategory`} className="block min-w-0">
+        <span className="mb-0.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-surface-500">
+          <span className="font-mono text-brand-600">02</span>
+          Subkategori
+        </span>
+        <select id={`${idPrefix}-catalog-subcategory`} aria-label="Subkategori" className={selectClass} value={groupSelected ? subcategoryId : ""} disabled={!groupSelected}
           onChange={(event) => onChange(group, event.target.value)}>
-          <option value="">Semua subkategori</option>
+          <option value="">{groupSelected ? "Semua subkategori" : "Pilih kategori dahulu"}</option>
           {subcategories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select>
-      </div>}
-      {catalog.isError && <span role="status" className="text-sm text-red-700">Daftar subkategori belum dapat dimuat.</span>}
+      </label>
+      {catalog.isError && <span role="status" className="text-sm text-danger-700 sm:col-span-2">Daftar subkategori belum dapat dimuat.</span>}
     </div>
   );
 }
