@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-type RowComponent = { IncomeDayRow: React.ComponentType<{ date: string; label: string; total: number; count: number; manualCount: number; canOpenHistory: boolean; onOpen: (date: string) => void }> };
+type RowComponent = { IncomeDayRow: React.ComponentType<{ date: string; label: string; total: number; count: number; manualCount: number; manualReceivable?: number; canOpenHistory: boolean; onOpen: (date: string) => void }> };
 const load = () => vi.importActual<RowComponent>("../IncomeDayRow").catch(() => null);
 describe("rincian pemasukan Keuangan", () => {
   it("menawarkan tombol untuk membuka rincian pada tanggal penerimaan tanpa berpindah halaman", async () => {
@@ -18,5 +18,12 @@ describe("rincian pemasukan Keuangan", () => {
     expect(html).not.toContain("href=");
     expect(html).not.toContain("<button");
     expect(html).toContain("60.000");
+  });
+  it("menjelaskan porsi pelunasan piutang manual pada total harian", async () => {
+    const component = await load(); expect(component).not.toBeNull(); if (!component) return;
+    const html = renderToStaticMarkup(createElement(component.IncomeDayRow, { date: "2026-11-10", label: "10 Nov", total: 150_000, count: 1, manualCount: 1, manualReceivable: 30_000, canOpenHistory: true, onOpen: vi.fn() }));
+    expect(html).toContain("Piutang manual");
+    expect(html).toContain("30.000");
+    expect(html).toContain("150.000");
   });
 });

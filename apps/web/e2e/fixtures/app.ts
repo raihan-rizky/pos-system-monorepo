@@ -318,13 +318,14 @@ export async function mockApis(page: Page) {
     if (path === "/api/finance/cash-flow/summary" && method === "GET") {
       return json(route, {
         month: "2026-05",
-        income: { total: 45_000_000, daily: [
-          { date: "2026-05-19", total: 20_000_000 },
-          { date: "2026-05-20", total: 25_000_000 },
-        ] },
+          income: { total: 45_000_000, components: { sales: 40_000_000, manualIncome: 2_000_000, manualReceivable: 3_000_000 }, daily: [
+            { date: "2026-05-19", total: 20_000_000, manualReceivable: 0 },
+            { date: "2026-05-20", total: 25_000_000, manualReceivable: 3_000_000 },
+          ] },
         expense: { total: 850_000, incomplete: false, daily: [
           { date: "2026-05-20", total: 850_000 },
-        ] },
+          ], components: { manual: 500_000, transfer: 350_000, giroPayment: 0, giroDue: 0, overpayment: 0 },
+          byCategory: [{ category: "SUPPLIES", total: 500_000 }, { category: "BEVERAGES", total: 350_000 }], entryCount: 2 },
       });
     }
     if (path === "/api/finance/income/summary") {
@@ -337,17 +338,20 @@ export async function mockApis(page: Page) {
           { date: "2026-05-20", total: 2_100_000, count: 14 },
         ],
         cashDaily: [
-          { date: "2026-05-19", total: 20_000_000 },
-          { date: "2026-05-20", total: 25_000_000 },
+            { date: "2026-05-19", total: 20_000_000, manualReceivable: 0 },
+            { date: "2026-05-20", total: 25_000_000, manualReceivable: 3_000_000 },
         ],
         cashTotal: 45_000_000,
+          incomeComponents: { sales: 40_000_000, manualIncome: 2_000_000, manualReceivable: 3_000_000 },
       });
     }
     if (path === "/api/finance/expenses/summary" && method === "GET") {
       return json(route, {
         month: "2026-05",
         monthlyTotal: 850_000,
+          incomplete: false,
         entryCount: 2,
+          components: { manual: 500_000, transfer: 350_000, giroPayment: 0, giroDue: 0, overpayment: 0 },
         byCategory: [
           { category: "SUPPLIES", total: 500_000 },
           { category: "BEVERAGES", total: 350_000 },

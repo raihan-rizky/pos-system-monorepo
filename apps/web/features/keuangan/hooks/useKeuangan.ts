@@ -13,13 +13,18 @@ export type IncomeSummary = {
   monthlyTotal: number;
   transactionCount: number;
   daily: { date: string; total: number; count: number; manualCount?: number }[];
-  cashDaily?: { date: string; total: number }[];
+  cashDaily?: { date: string; total: number; manualReceivable: number }[];
   cashTotal?: number;
+  incomeComponents?: IncomeComponents | null;
 };
+
+export type IncomeComponents = { sales: number; manualIncome: number; manualReceivable: number };
+export type ExpenseComponents = { manual: number; transfer: number; giroPayment: number; giroDue: number; overpayment: number };
 
 export type ExpenseSummary = {
   month: string;
-  monthlyTotal: number;
+  monthlyTotal: number | null;
+  incomplete: boolean;
   entryCount: number;
   byCategory: CategoryBucket[];
   daily: {
@@ -29,12 +34,13 @@ export type ExpenseSummary = {
   }[];
   cashDaily?: { date: string; total: number }[];
   cashExpense?: { total: number | null; incomplete: boolean };
+  components: ExpenseComponents;
 };
 
 export type CashFlowSummary = {
   month: string;
-  income: { total: number; daily: { date: string; total: number }[] };
-  expense: { total: number | null; incomplete: boolean; daily: { date: string; total: number }[] };
+  income: { total: number; daily: { date: string; total: number; manualReceivable: number }[]; components: IncomeComponents | null };
+  expense: { total: number | null; incomplete: boolean; daily: { date: string; total: number }[]; components: ExpenseComponents; byCategory: CategoryBucket[]; entryCount: number };
 };
 
 export type ExpenseListItem = {
@@ -57,10 +63,13 @@ export type ExpenseListItem = {
     | { type: "BACKDATED_PURCHASE"; id: string; number: string }
     | { type: "GOODS_PURCHASE"; id: string; number: string };
   recordedBy: { id: string; name: string };
+  recognitionKind?: "manual" | "transfer" | "giro_payment" | "giro_due" | "overpayment";
+  allocation?: { scheduleId: string; dueDate: string | null; source: "stored" | "automatic" | null };
 };
 
 export type ExpenseListResponse = {
   data: ExpenseListItem[];
+  incomplete: boolean;
   pagination: {
     total: number;
     page: number;

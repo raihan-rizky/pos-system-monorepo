@@ -7,6 +7,9 @@ const expenseFindManyMock = vi.hoisted(() => vi.fn());
 const expenseCountMock = vi.hoisted(() => vi.fn());
 const expenseCreateMock = vi.hoisted(() => vi.fn());
 const transactionFindFirstMock = vi.hoisted(() => vi.fn());
+const recognizedMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/features/keuangan/services/recognized-finance", () => ({ loadRecognizedExpenses: recognizedMock }));
 
 vi.mock("@/lib/rbac/guard", () => ({
   requireRole: requirePermissionMock, requirePermission: requirePermissionMock,
@@ -33,6 +36,7 @@ describe("finance expenses routes", () => {
     handleAuthErrorMock.mockReturnValue(null);
     expenseFindManyMock.mockResolvedValue([]);
     expenseCountMock.mockResolvedValue(0);
+    recognizedMock.mockResolvedValue({ rows: [], incomplete: false });
     expenseCreateMock.mockResolvedValue({
       id: "expense-1",
       applicantName: "Ada",
@@ -53,41 +57,28 @@ describe("finance expenses routes", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(expenseFindManyMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          storeId: "store-1",
-          deletedAt: null,
-        }),
-      }),
-    );
-    expect(expenseCountMock).toHaveBeenCalledWith({
-      where: expect.objectContaining({
-        storeId: "store-1",
-      }),
-    });
+    expect(recognizedMock).toHaveBeenCalledWith("store-1", "2026-06");
   });
 
   it("prefers the goods-purchase source over its shopping request", async () => {
-    expenseFindManyMock.mockResolvedValueOnce([
+    recognizedMock.mockResolvedValueOnce({ incomplete: false, rows: [
       {
         id: "expense-auto",
         applicantName: "CV Kertas",
         category: "SUPPLIES",
         description: "Permohonan Belanja DPB-202607-001 - 2 item",
-        amount: { toString: () => "42500.00" },
-        changeAmount: { toString: () => "0.00" },
-        occurredAt: new Date("2026-07-02T03:15:00.000Z"),
-        createdAt: new Date("2026-07-19T01:00:00.000Z"),
+        amount: 42500,
+        changeAmount: 0,
+        netAmount: 42500,
+        occurredAt: "2026-07-02T03:15:00.000Z",
+        createdAt: "2026-07-19T01:00:00.000Z",
         transactionId: null,
         attachmentUrl: null,
         hasMissingCostSnapshot: true,
-        shoppingRequest: { id: "request-1", number: "DPB-202607-001" },
-        goodsPurchase: { id: "purchase-1", number: "PB-202607-001" },
+        source: { type: "GOODS_PURCHASE", id: "purchase-1", number: "PB-202607-001" },
         recordedBy: { id: "owner-1", name: "Owner" },
       },
-    ]);
-    expenseCountMock.mockResolvedValueOnce(1);
+    ] });
 
     const response = await GET(
       new Request("http://localhost/api/finance/expenses?month=2026-07"),

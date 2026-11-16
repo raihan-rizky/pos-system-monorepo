@@ -23,8 +23,9 @@ describe("fixture ringkasan Keuangan untuk E2E", () => {
     const combined = await response("/api/finance/cash-flow/summary");
     expect((income.cashDaily as Array<{ total: number }>).reduce((sum, row) => sum + row.total, 0)).toBe(income.cashTotal);
     expect((expense.cashDaily as Array<{ total: number }>).reduce((sum, row) => sum + row.total, 0)).toBe((expense.cashExpense as { total: number }).total);
-    expect(combined.income).toEqual({ total: income.cashTotal, daily: income.cashDaily });
-    expect(combined.expense).toEqual({ ...expense.cashExpense as object, daily: expense.cashDaily });
+    expect(combined.income).toEqual({ total: income.cashTotal, daily: income.cashDaily, components: income.incomeComponents });
+    expect(combined.expense).toEqual({ ...expense.cashExpense as object, daily: expense.cashDaily,
+      components: expense.components, byCategory: expense.byCategory, entryCount: expense.entryCount });
     expect(expense).not.toHaveProperty("netCashFlow");
   });
 });

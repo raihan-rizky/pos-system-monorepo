@@ -33,9 +33,10 @@ import { DeferredCashFlowChart } from "@/features/keuangan/components/DeferredCa
 import { SupplierPayablesPanel } from "@/features/keuangan/components/SupplierPayablesPanel";
 import { ManualIncomePanel } from "@/features/keuangan/components/ManualIncomePanel";
 import { IncomeDayRow } from "@/features/keuangan/components/IncomeDayRow";
+import { FinanceCalculationDetails } from "@/features/keuangan/components/FinanceCalculationDetails";
 import { DailyIncomeReceiptDialog } from "@/features/financial-report/components/DailyIncomeReceiptDialog";
 import { ManualFinanceFormModal, type ManualFinanceInitial } from "@/features/keuangan/components/ManualFinanceFormModal";
-import { formatRupiah, formatRupiahPrecise } from "@/lib/utils";
+import { formatRupiahPrecise } from "@/lib/utils";
 
 const ExpenseFormModal = dynamic(
   () =>
@@ -88,6 +89,7 @@ function fullDayShort(iso: string) {
   return new Intl.DateTimeFormat("id-ID", {
     day: "2-digit",
     month: "short",
+    timeZone: "Asia/Jakarta",
   }).format(new Date(iso));
 }
 
@@ -127,13 +129,13 @@ export default function KeuanganDashboardPage() {
 
   const canReadCashFlow = canReadIncome && canReadExpense;
   const pemasukan = useIncomeSummary(month, canReadIncome, canReadCashFlow);
-  const pengeluaran = useExpenseSummary(month, canReadExpense, canReadCashFlow);
+  const pengeluaran = useExpenseSummary(month, canReadExpense && !canReadCashFlow, false);
   const cashFlow = useCashFlowSummary(month, canReadCashFlow);
   const list = useExpenseList(month, page, filterCategory, canReadExpense);
   const categoryQuery = useCustomExpenseCategories(canReadExpense);
   const customCategories = canReadExpense ? categoryQuery.data?.data ?? [] : [];
   const incomeData = canReadIncome && !pemasukan.isError ? pemasukan.data : undefined;
-  const expenseData = canReadExpense && !pengeluaran.isError ? pengeluaran.data : undefined;
+  const expenseData = canReadExpense && !canReadCashFlow && !pengeluaran.isError ? pengeluaran.data : undefined;
   const cashFlowData = canReadCashFlow && !cashFlow.isError ? cashFlow.data : undefined;
 
   const refresh = useCallback(
@@ -180,21 +182,36 @@ export default function KeuanganDashboardPage() {
     else alert("Gagal menghapus");
   }, [refresh]);
 
+  const cashIncomplete = canReadCashFlow ? cashFlowData?.expense.incomplete === true : expenseData?.cashExpense?.incomplete === true;
+  const displayedCategories = cashIncomplete ? undefined : canReadCashFlow ? cashFlowData?.expense.byCategory : expenseData?.byCategory;
   const stripeData = useMemo(() => {
-    if (!expenseData || expenseData.byCategory.length === 0) return [];
-    const total = expenseData.byCategory.reduce((s, c) => s + c.total, 0);
-    return expenseData.byCategory.map((c) => ({
+    if (!displayedCategories || displayedCategories.length === 0) return [];
+    const total = displayedCategories.reduce((s, c) => s + c.total, 0);
+    return displayedCategories.map((c) => ({
       ...c,
       pct: total > 0 ? (c.total / total) * 100 : 0,
     }));
-  }, [expenseData]);
+  }, [displayedCategories]);
 
   const cashIncome = canReadCashFlow ? cashFlowData?.income.total : incomeData?.cashTotal;
   const cashExpense = canReadCashFlow ? cashFlowData?.expense.total : expenseData?.cashExpense?.total;
   const net = canReadCashFlow && cashIncome != null && cashExpense != null ? Math.round((cashIncome - cashExpense) * 100) / 100 : null;
   const isNegative = net !== null && net < 0;
-  const cashIncomplete = canReadCashFlow ? cashFlowData?.expense.incomplete === true : expenseData?.cashExpense?.incomplete === true;
   const summaryLoading = canReadCashFlow ? cashFlow.isLoading : (canReadIncome && pemasukan.isLoading) || (canReadExpense && pengeluaran.isLoading);
+  const incomeCalculation = canReadCashFlow ? cashFlowData?.income : incomeData?.cashTotal == null ? undefined
+    : { total: incomeData.cashTotal, components: incomeData.incomeComponents ?? null };
+  const expenseCalculation = canReadCashFlow ? cashFlowData?.expense : expenseData
+    ? { total: expenseData.monthlyTotal, incomplete: expenseData.incomplete, components: expenseData.components } : undefined;
+  const incomeDayRows = incomeData ? (() => {
+    const days = canReadCashFlow ? cashFlowData?.income.daily : incomeData.cashDaily;
+    if (!days) return undefined;
+    const totals = new Map(days.map(row => [row.date, row]));
+    const rows = incomeData.daily.map(row => ({ ...row, total: totals.get(row.date)?.total ?? 0,
+      manualReceivable: totals.get(row.date)?.manualReceivable ?? 0 }));
+    const existing = new Set(rows.map(row => row.date));
+    for (const row of days) if (!existing.has(row.date)) rows.push({ ...row, count: 0, manualCount: 0 });
+    return rows.sort((a, b) => a.date.localeCompare(b.date));
+  })() : undefined;
 
   return (
     <div className="px-2 sm:px-3 py-2 sm:py-3 max-w-6xl mx-auto space-y-3 sm:space-y-4">
@@ -229,14 +246,15 @@ export default function KeuanganDashboardPage() {
                 </span>
                 <span className="hidden sm:inline"> · </span>
                 <span className="block sm:inline">
-                  {!canReadExpense ? "Tidak memiliki akses pengeluaran" : cashExpense == null ? "Pengeluaran belum tersedia" : `${formatRupiah(cashExpense)} pengeluaran`}
+                  {!canReadExpense ? "Tidak memiliki akses pengeluaran" : cashExpense == null ? "Pengeluaran belum tersedia" : `${formatRupiahPrecise(cashExpense)} pengeluaran`}
                 </span>
               </p>
             )}
-            {!summaryLoading && canReadIncome && cashIncome != null && <p className="mt-1 text-xs text-surface-500">Arus kas termasuk pelunasan piutang manual.</p>}
+            {!summaryLoading && canReadIncome && cashIncome != null && <p className="mt-1 text-xs text-surface-500">Termasuk pelunasan piutang manual dan sisa giro pada tanggal jatuh tempo.</p>}
             {!summaryLoading && cashIncomplete && (
               <p role="status" className="mt-1 text-xs text-amber-700">Riwayat giro atau belanja belum lengkap. Periksa riwayat giro untuk menghitung sisa kas.</p>
             )}
+            {!summaryLoading && (incomeCalculation || expenseCalculation) && <FinanceCalculationDetails income={incomeCalculation} expense={expenseCalculation} />}
           </div>
           {canCreate && (
             <Button
@@ -269,7 +287,7 @@ export default function KeuanganDashboardPage() {
             </span>
           </div>
         </div>
-        {cashIncomplete && <p className="mb-2 text-xs text-amber-700">Grafik hanya menampilkan pembayaran yang diketahui; riwayat giro belum lengkap.</p>}
+        {cashIncomplete && <p className="mb-2 text-xs text-amber-700">Grafik hanya menampilkan pengeluaran yang diketahui; riwayat giro belum lengkap.</p>}
         {!canReadIncome || !canReadExpense ? (
           <p className="py-6 text-center text-sm text-surface-500">Grafik memerlukan akses pemasukan dan pengeluaran.</p>
         ) : !summaryLoading && !cashFlowData ? (
@@ -303,7 +321,7 @@ export default function KeuanganDashboardPage() {
               <div className="h-8 w-44 rounded-md bg-surface-100 animate-pulse" />
             ) : (
               <p className="text-xl sm:text-2xl font-bold text-emerald-700 tabular-nums break-words">
-                {!canReadIncome ? "Tidak memiliki akses pemasukan" : incomeData ? formatRupiahPrecise(incomeData.monthlyTotal) : "Pemasukan belum tersedia"}
+                {!canReadIncome ? "Tidak memiliki akses pemasukan" : cashIncome != null ? formatRupiahPrecise(cashIncome) : "Pemasukan belum tersedia"}
               </p>
             )}
           </div>
@@ -313,13 +331,13 @@ export default function KeuanganDashboardPage() {
                 <div key={i} className="h-12 bg-surface-50 animate-pulse" />
               ))}
             </div>
-          ) : !incomeData || incomeData.daily.length === 0 ? (
+          ) : !incomeDayRows || incomeDayRows.length === 0 ? (
             <div className="px-3 sm:px-4 py-10 text-center text-sm text-surface-500">
               Belum ada pemasukan bulan ini
             </div>
           ) : (
               <ul className="divide-y divide-surface-100 max-h-72 sm:max-h-80 overflow-y-auto">
-              {incomeData.daily.map((row) => (
+              {incomeDayRows.map((row) => (
                 <li
                   key={row.date}
                   style={{
@@ -327,7 +345,7 @@ export default function KeuanganDashboardPage() {
                     containIntrinsicSize: "44px",
                   }}
                 >
-                  <IncomeDayRow date={row.date} label={fullDay(row.date)} total={row.total} count={row.count} manualCount={row.manualCount ?? 0} canOpenHistory={canOpenIncomeHistory} onOpen={(date) => setIncomeDetail({ date, month, userId, storeId, authorizationFingerprint })} />
+                  <IncomeDayRow date={row.date} label={fullDay(row.date)} total={row.total} count={row.count} manualCount={row.manualCount ?? 0} manualReceivable={row.manualReceivable} canOpenHistory={canOpenIncomeHistory} onOpen={(date) => setIncomeDetail({ date, month, userId, storeId, authorizationFingerprint })} />
                 </li>
               ))}
             </ul>
@@ -344,19 +362,19 @@ export default function KeuanganDashboardPage() {
               <span className="w-1.5 h-5 rounded-full shrink-0" style={{ backgroundColor: FLOW_COLOR_EXPENSE }} />
               <h2 className="text-sm font-semibold text-surface-900 truncate">Pengeluaran</h2>
             </div>
-            {expenseData && (
+            {(canReadCashFlow ? cashFlowData : expenseData) && (
               <span className="text-xs text-surface-500 shrink-0">
-                {expenseData.entryCount} entri
+                {canReadCashFlow ? cashFlowData?.expense.entryCount ?? "—" : expenseData?.entryCount ?? "—"} entri
               </span>
             )}
           </header>
           <div className="px-3 sm:px-4 py-2 sm:py-3 border-b border-surface-100 space-y-2">
             {canCreateTransfer && <Button type="button" size="sm" onClick={openCreateTransfer}>Tambah Belanja Transfer</Button>}
-            {pengeluaran.isLoading ? (
+            {(canReadCashFlow ? cashFlow.isLoading : pengeluaran.isLoading) ? (
               <div className="h-8 w-44 rounded-md bg-surface-100 animate-pulse" />
             ) : (
               <p className="text-xl sm:text-2xl font-bold text-red-600 tabular-nums break-words">
-                {expenseData ? formatRupiah(expenseData.monthlyTotal) : "Pengeluaran belum tersedia"}
+                {cashExpense != null ? formatRupiahPrecise(cashExpense) : "Pengeluaran belum tersedia"}
               </p>
             )}
 
@@ -372,7 +390,7 @@ export default function KeuanganDashboardPage() {
                         setFilterCategory((cur) => (cur === c.category ? null : c.category));
                         setPage(1);
                       }}
-                      title={`${expenseCategoryLabel(c.category, customCategories)} — ${formatRupiah(c.total)}`}
+                      title={`${expenseCategoryLabel(c.category, customCategories)} — ${formatRupiahPrecise(c.total)}`}
                       style={{
                         width: `${c.pct}%`,
                         minWidth: c.pct > 0 ? "10px" : 0,
@@ -434,6 +452,8 @@ export default function KeuanganDashboardPage() {
             </select>
             {categoryQuery.isError && <p role="alert" className="mt-1 text-xs text-red-700">Kategori khusus belum dapat dimuat. <button type="button" onClick={() => void categoryQuery.refetch()} className="underline">Coba lagi</button></p>}
           </div>
+
+          {list.data?.incomplete && <p role="status" className="px-3 py-2 text-xs text-amber-700">Riwayat giro belum lengkap; daftar hanya menampilkan bagian yang dapat dipastikan.</p>}
 
           {list.isLoading ? (
             <div className="divide-y divide-surface-100">
@@ -505,7 +525,7 @@ export default function KeuanganDashboardPage() {
                               : "border-surface-200 bg-surface-100 text-surface-600"
                           }`}
                         >
-                          {sourceLabel}
+                          {sourceLabel}{"number" in item.source ? ` · ${item.source.number}` : ""}
                         </span>
                         {item.hasMissingCostSnapshot && (
                           <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800">
@@ -513,18 +533,19 @@ export default function KeuanganDashboardPage() {
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-surface-500 mt-0.5 break-words sm:truncate">
+                      <p className="text-xs text-surface-500 mt-0.5 break-words">
                         {fullDayShort(item.occurredAt)} ·{" "}
-                        {item.description || "Tanpa keterangan"}
+                        {item.description || "Tanpa keterangan"}{item.recognitionKind === "giro_payment" ? " · Pembayaran giro" : item.recognitionKind === "giro_due" ? " · Sisa jatuh tempo" : item.recognitionKind === "overpayment" ? " · Kelebihan pembayaran belum dikembalikan" : ""}
+                        {item.allocation?.dueDate && ` · ${item.allocation.source === "automatic" ? "Alokasi otomatis, " : item.allocation.source === "stored" ? "Alokasi tercatat, " : ""}giro jatuh tempo ${fullDay(item.allocation.dueDate)}`}
                       </p>
                       {/* Mobile-only amount under description to avoid horizontal squeeze */}
                       <div className="sm:hidden mt-1 flex flex-row items-center gap-2">
                         <div>
                           <p className="text-sm font-semibold text-red-600 tabular-nums">
-                            {formatRupiah(item.netAmount)}
+                            {formatRupiahPrecise(item.netAmount)}
                             {item.changeAmount > 0 && (
                               <span className="ml-2 text-[10px] text-surface-500 font-normal">
-                                kembali {formatRupiah(item.changeAmount)}
+                                kembali {formatRupiahPrecise(item.changeAmount)}
                               </span>
                             )}
                           </p>
@@ -548,11 +569,11 @@ export default function KeuanganDashboardPage() {
                     <div className="hidden sm:flex items-center gap-3 shrink-0">
                       <div className="text-right">
                         <p className="text-sm font-semibold text-red-600 tabular-nums">
-                          {formatRupiah(item.netAmount)}
+                          {formatRupiahPrecise(item.netAmount)}
                         </p>
                         {item.changeAmount > 0 && (
                           <p className="text-[10px] text-surface-500 tabular-nums">
-                            kembali {formatRupiah(item.changeAmount)}
+                            kembali {formatRupiahPrecise(item.changeAmount)}
                           </p>
                         )}
                       </div>

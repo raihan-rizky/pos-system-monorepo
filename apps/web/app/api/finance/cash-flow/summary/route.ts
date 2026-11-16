@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getMonthlyFinancialReport } from "@/features/financial-report/services/monthly-report";
 import { loadIncomePeriod } from "@/features/financial-report/services/daily-income";
-import { combineSalesAndManualReceivableIncome } from "@/features/keuangan/helpers/cash-income";
+import { buildIncomeCalculation } from "@/features/keuangan/helpers/income-calculation";
+import { loadRecognizedExpenses } from "@/features/keuangan/services/recognized-finance";
 import { apiError } from "@/lib/api/responses";
 import { getLogger } from "@/lib/logger";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
@@ -30,32 +30,16 @@ export async function GET(request: Request) {
     }
     const [year, monthNumber] = month.split("-").map(Number);
     const lastDay = String(new Date(Date.UTC(year, monthNumber, 0)).getUTCDate()).padStart(2, "0");
-    const [report, incomePeriod] = await Promise.all([
-      getMonthlyFinancialReport(incomeUser.storeId, year, monthNumber),
+    const [incomePeriod, expenses] = await Promise.all([
       loadIncomePeriod(incomeUser.storeId, `${month}-01`, `${month}-${lastDay}`),
+      loadRecognizedExpenses(incomeUser.storeId, month),
     ]);
-    const expenseDays = new Map<string, number>();
-    const add = (days: Map<string, number>, date: string, amount: number) => {
-      days.set(date, (days.get(date) ?? 0) + Math.round(amount * 100));
-    };
-    for (const row of report.expenses) add(expenseDays, row.date, row.amount);
-    if (report.purchasePayments != null) {
-      for (const row of report.purchasePayments) add(expenseDays, row.date, row.amount);
-    } else {
-      for (const row of report.purchaseExpenses ?? []) {
-        if (row.purchase?.method === "TRANSFER") add(expenseDays, row.date, row.amount);
-      }
-      for (const row of report.giroPayments ?? []) add(expenseDays, row.date, row.amount);
-    }
-    const daily = (days: Map<string, number>) => [...days.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, cents]) => ({ date, total: cents / 100 }));
-    const total = (days: Map<string, number>) => [...days.values()].reduce((sum, cents) => sum + cents, 0) / 100;
-    const incomplete = report.cashIncomplete === true;
     return NextResponse.json({
       month,
-      income: combineSalesAndManualReceivableIncome(incomePeriod.days, report.income),
-      expense: { total: incomplete ? null : total(expenseDays), incomplete, daily: daily(expenseDays) },
+      income: buildIncomeCalculation(incomePeriod),
+      expense: { total: expenses.monthlyTotal, incomplete: expenses.incomplete,
+        daily: expenses.daily.map(({ date, total }) => ({ date, total })), components: expenses.components,
+        byCategory: expenses.byCategory, entryCount: expenses.entryCount },
     });
   } catch (error) {
     const authError = handleAuthError(error);

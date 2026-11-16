@@ -431,7 +431,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Pilih gambar bukti", description: "Jika ada foto nota, klik Pilih gambar bukti untuk mengunggahnya ke R2. Jika R2 gagal, gunakan input prnt.sc yang muncul sebagai fallback." },
       { title: "Simpan pengeluaran", description: "Periksa pratinjau lampiran dan klik Simpan." },
       { title: "Kenali sumber pengeluaran", description: "Badge Manual menandai input dari form. Badge Pembelian Barang, Belanja Terdahulu, dan Daftar Belanja (Legacy) menandai entri otomatis yang tidak dapat diedit atau dihapus dari Keuangan." },
-      { title: "Filter kategori pengeluaran", description: "Pada bagian Pengeluaran, pilih kategori bawaan atau kategori yang dibuat sendiri di Filter kategori untuk menyaring daftar. Pilih Semua kategori untuk menampilkan semua pengeluaran bulan tersebut. Jumlah dan grafik tetap mencakup seluruh bulan." },
+      { title: "Filter kategori pengeluaran", description: "Pada bagian Pengeluaran, pilih kategori di Filter kategori untuk menyaring daftar; jumlah dan grafik tetap mencakup seluruh bulan. Pilih Lihat cara perhitungan untuk melihat rumus Pemasukan − Pengeluaran dan komponennya, termasuk pelunasan piutang manual. Pembayaran giro sampai jatuh tempo dihitung saat dibayar, sisanya pada jatuh tempo terbaru; pembayaran setelahnya tidak dihitung ulang. Jika riwayat belum lengkap, periksa riwayat giro." },
     ],
   }),
   workflow({

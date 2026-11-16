@@ -81,7 +81,8 @@ describe("pembacaan keuangan belanja terdahulu", () => {
     mocks.findInventory.mockResolvedValue([]);
     mocks.findDebtPayments.mockResolvedValue([]);
     mocks.findBackdated.mockImplementation(async ({ where }) => where.storeId !== "store-1" ? [] : [{
-      ...purchase, purchaseDate: new Date("2026-10-01T00:00:00Z"), amount: "10000000",
+      ...purchase, storeId: "store-1", purchaseDate: new Date("2026-10-01T00:00:00Z"), amount: "10000000",
+      createdAt: new Date("2026-11-01T00:00:00Z"), createdById: "user-1", createdByName: "Admin",
       payments: [
         { id: "pay-oct", amount: "4000000", paidAt: new Date("2026-10-30T00:00:00Z") },
         { id: "pay-nov", amount: "2000000", paidAt: new Date("2026-11-02T00:00:00Z") },
@@ -97,9 +98,9 @@ describe("pembacaan keuangan belanja terdahulu", () => {
   afterEach(() => vi.useRealTimers());
 
   it.each([
-    ["2026-11-09T16:59:59.999Z", 2_000_000, ["payment-nov"]],
-    ["2026-11-09T17:00:00.000Z", 6_000_000, ["payment-nov", "due"]],
-  ])("menyelaraskan pengakuan dan kas belanja terdahulu pada %s", async (now, expected, ids) => {
+    ["2026-11-09T16:59:59.999Z", 2_000_000, ["giro_payment"]],
+    ["2026-11-09T17:00:00.000Z", 6_000_000, ["giro_payment", "giro_due"]],
+  ])("menyelaraskan pengakuan dan kas belanja terdahulu pada %s", async (now, expected, kinds) => {
     vi.setSystemTime(new Date(now));
     const listResponse = await getExpenseList(new Request("http://localhost/api/finance/expenses?month=2026-11"));
     const summaryResponse = await getExpenseSummary(new Request("http://localhost/api/finance/expenses/summary?month=2026-11"));
@@ -113,7 +114,7 @@ describe("pembacaan keuangan belanja terdahulu", () => {
     const monthly = await getMonthlyFinancialReport("store-1", 2026, 11, new Date(now));
     const assistant = await getFinancialReportAnalysis({ storeId: "store-1", dateFrom: "2026-11-01", dateTo: "2026-11-30" });
 
-    expect(list.data.map((row: { id: string }) => row.id).sort()).toEqual([...ids].sort());
+    expect(list.data.map((row: { recognitionKind: string }) => row.recognitionKind).sort()).toEqual([...kinds].sort());
     expect(list.data.every((row: { source: unknown }) => JSON.stringify(row.source) === JSON.stringify({ type: "BACKDATED_PURCHASE", id: "purchase-1", number: "GIRO-123" }))).toBe(true);
     expect(summary.monthlyTotal).toBe(expected);
     // Journal expenses are represented as negative amounts.

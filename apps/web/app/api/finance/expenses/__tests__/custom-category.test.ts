@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ permission: vi.fn(), authError: vi.fn(), findMany: vi.fn(), count: vi.fn(), create: vi.fn(), findFirst: vi.fn(), update: vi.fn(), category: vi.fn() }));
+const mocks = vi.hoisted(() => ({ permission: vi.fn(), authError: vi.fn(), findMany: vi.fn(), count: vi.fn(), create: vi.fn(), findFirst: vi.fn(), update: vi.fn(), category: vi.fn(), recognized: vi.fn() }));
 vi.mock('@/lib/rbac/guard', () => ({ requireRole: mocks.permission, requirePermission: mocks.permission, handleAuthError: mocks.authError }));
 vi.mock('@pos/db', () => ({ db: { expense: { findMany: mocks.findMany, count: mocks.count, create: mocks.create, findFirst: mocks.findFirst, update: mocks.update }, customExpenseCategory: { findFirst: mocks.category }, transaction: { findFirst: vi.fn() } } }));
+vi.mock('@/features/keuangan/services/recognized-finance', () => ({ loadRecognizedExpenses: mocks.recognized }));
 vi.mock('@/lib/logger', () => ({ getLogger: () => ({ error: vi.fn() }) }));
 import { GET, POST } from '../route';
 import { PATCH } from '../[id]/route';
@@ -17,6 +18,10 @@ describe('kategori pengeluaran khusus', () => {
     mocks.findMany.mockResolvedValue([expense]); mocks.count.mockResolvedValue(1); mocks.category.mockResolvedValue({ id: 'category-1' });
     mocks.create.mockResolvedValue(expense); mocks.update.mockResolvedValue(expense);
     mocks.findFirst.mockResolvedValue({ id: 'expense-1', deletedAt: null, shoppingRequestId: null, goodsPurchaseId: null, customCategoryId: 'category-1' });
+    mocks.recognized.mockResolvedValue({ incomplete: false, rows: [
+      { ...expense, category: 'custom:category-1', source: { type: 'MANUAL' } },
+      { ...expense, id: 'other', category: 'OTHER', source: { type: 'MANUAL' } },
+    ] });
   });
   it('mencatat kategori toko sendiri dan mengembalikan kunci kategori', async () => {
     const response = await POST(request('POST', input));
@@ -45,9 +50,8 @@ describe('kategori pengeluaran khusus', () => {
   it('menampilkan dan memfilter kategori khusus tanpa mencampur kategori Lainnya', async () => {
     const response = await GET(new Request('http://localhost/api/finance/expenses?month=2026-10&category=custom%3Acategory-1'));
     expect(response.status).toBe(200); expect((await response.json()).data[0].category).toBe('custom:category-1');
-    expect(mocks.findMany.mock.calls[0][0].where).toMatchObject({ storeId: 'store-1', customCategoryId: 'category-1' });
-    await GET(new Request('http://localhost/api/finance/expenses?month=2026-10&category=OTHER'));
-    expect(mocks.findMany.mock.calls[1][0].where).toMatchObject({ storeId: 'store-1', category: 'OTHER', customCategoryId: null });
+    const other = await GET(new Request('http://localhost/api/finance/expenses?month=2026-10&category=OTHER'));
+    expect((await other.json()).data.map((row: { category: string }) => row.category)).toEqual(['OTHER']);
   });
   it('mempertahankan kategori khusus saat mengedit dan menghapusnya saat mengganti kategori bawaan', async () => {
     const context = { params: Promise.resolve({ id: 'expense-1' }) };

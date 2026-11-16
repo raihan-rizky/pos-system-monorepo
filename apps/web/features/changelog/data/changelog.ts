@@ -39,6 +39,18 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "rekonsiliasi-arus-kas-jatuh-tempo-20261117", date: "2026-11-17", revision: 1,
+    highlight: { title: "Perhitungan arus kas lebih jelas", summary: "Lihat komponen pemasukan dan pengeluaran yang membentuk arus kas." },
+    title: "Selaraskan arus kas dan jatuh tempo giro.",
+    summary: "Net Cash Flow mengikuti Pemasukan dan Pengeluaran yang tampil. Pembayaran dan sisa giro mengikuti tanggalnya, termasuk setelah jatuh tempo dikoreksi.",
+    kind: "fix", impact: "major", area: "Keuangan", href: "/keuangan", visual: "financial",
+    steps: [
+      { title: "Buka Keuangan", detail: "Pilih bulan yang ingin diperiksa pada halaman Keuangan." },
+      { title: "Periksa perhitungan", detail: "Buka Lihat cara perhitungan untuk melihat rumus dan komponen pemasukan serta pengeluaran." },
+      { title: "Tinjau giro", detail: "Periksa riwayat Pengeluaran dan lengkapi riwayat Giro Pembelian jika ditandai belum lengkap." },
+    ],
+  },
+  {
     id: "piutang-manual-toggle-20261115", date: "2026-11-15", revision: 1,
     highlight: { title: "Tutup Piutang Manual saat perlu", summary: "Buka atau lipat daftar, dan pilihan tersimpan di browser yang sama." },
     title: "Lipat daftar Piutang Manual saat perlu.",

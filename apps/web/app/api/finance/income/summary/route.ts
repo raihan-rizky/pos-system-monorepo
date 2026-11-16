@@ -8,8 +8,7 @@ import { buildMonthlyPeriod } from "@/features/financial-report/helpers/monthly-
 import { getManualIncomeRows } from "@/features/keuangan/services/manual-income";
 import { jakartaToday } from "@/features/financial-report/helpers/daily-income";
 import { loadIncomePeriod } from "@/features/financial-report/services/daily-income";
-import { getMonthlyFinancialReport } from "@/features/financial-report/services/monthly-report";
-import { combineSalesAndManualReceivableIncome } from "@/features/keuangan/helpers/cash-income";
+import { buildIncomeCalculation } from "@/features/keuangan/helpers/income-calculation";
 
 const log = getLogger("api:finance:income:summary");
 export const dynamic = "force-dynamic";
@@ -53,9 +52,8 @@ export async function GET(request: Request) {
     const transactionCount = daily.reduce((sum, row) => sum + row.count, 0);
     const response = { month, monthlyTotal, transactionCount, manualEntryCount: manualIncome.length, daily };
     if (metricsOnly) return NextResponse.json(response);
-    const report = await getMonthlyFinancialReport(storeId, year, monthNumber);
-    const cash = combineSalesAndManualReceivableIncome(income.days, report.income);
-    return NextResponse.json({ ...response, cashDaily: cash.daily, cashTotal: cash.total });
+    const cash = buildIncomeCalculation(income);
+    return NextResponse.json({ ...response, monthlyTotal: cash.total, cashDaily: cash.daily, cashTotal: cash.total, incomeComponents: cash.components });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
