@@ -36,6 +36,7 @@ try {
           { id: 'print', group: 'PERCETAKAN', name: 'PRINT', legacyCategoryId: null },
           { id: 'stempel', group: 'PERCETAKAN', name: 'STEMPEL', legacyCategoryId: null },
           { id: 'plat', group: 'PERCETAKAN', name: 'PLAT', legacyCategoryId: null },
+          { id: 'cetak', group: 'PERCETAKAN', name: 'CETAK', legacyCategoryId: null },
           { id: 'spanduk', group: 'PERCETAKAN', name: 'SPANDUK', legacyCategoryId: null }
         ];
         window.expiry = 60000;
@@ -136,8 +137,8 @@ try {
   await page.getByRole("button", { name: "Batal pilih semua" }).click();
   await pulpen.check();
   await page.getByRole("radio", { name: "PERCETAKAN" }).check();
-  for (const name of ["PRINT", "STEMPEL", "PLAT"]) assert.equal(await page.getByRole("radio", { name }).count(), 1);
-  assert.equal(await page.getByRole("radio", { name: "SPANDUK" }).count(), 0);
+  const subcategoryChoices = page.getByRole("group", { name: /Pilih subkategori/ });
+  for (const name of ["PRINT", "STEMPEL", "PLAT", "CETAK", "SPANDUK"]) assert.equal(await subcategoryChoices.getByRole("radio", { name }).count(), 1);
   await page.getByRole("radio", { name: "PRINT" }).check();
   const review = page.getByRole("button", { name: "Tinjau pemindahan" });
   if (process.env.CLASSIFICATION_DESKTOP_SCREENSHOT) await page.screenshot({ path: process.env.CLASSIFICATION_DESKTOP_SCREENSHOT, fullPage: true });

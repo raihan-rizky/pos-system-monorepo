@@ -44,7 +44,7 @@ export function ClassificationSubcategoryManager({ subcategories, canCreate, can
   }
 
   return <section className={styles.manager} aria-label="Kelola subkategori ATK">
-    <div className={styles.heading}><div><h2>Kelola subkategori ATK</h2><p>Tambahkan atau rapikan pilihan ATK. Pilihan percetakan tetap PRINT, STEMPEL, dan PLAT.</p></div></div>
+    <div className={styles.heading}><div><h2>Kelola subkategori ATK</h2><p>Tambahkan atau rapikan pilihan ATK. Pilihan percetakan: PLAT, PRINT, STEMPEL, CETAK, dan SPANDUK.</p></div></div>
     {message && <p role="status" className={styles.success}>{message}</p>}
     {error && !deleting && <p role="alert" className={styles.error}>{error}</p>}
     {canCreate && <form className={styles.create} onSubmit={event => { event.preventDefault(); if (name.trim()) void submit({ action: "create", name: name.trim() }); }}>

@@ -93,8 +93,16 @@
 **Files:**
 - Modify: `packages/db/src/catalog-seed.ts`
 - Modify: `apps/web/features/product-classification/helpers/classification.ts`
+- Modify: `apps/web/features/product-classification/components/ProductClassificationPanel.tsx`
+- Modify: `apps/web/features/product-classification/components/ClassificationSubcategoryManager.tsx`
+- Modify: `apps/web/features/help-documentation/components/HelpContent.tsx`
+- Modify: `apps/web/features/ai-assistant/workflows/workflow-catalog.ts`
+- Modify: `apps/web/features/ai-assistant/docs/help/faq.md`
 - Test: `apps/web/features/product-classification/helpers/__tests__/catalog-seed.test.ts`
 - Test: `apps/web/features/product-classification/helpers/__tests__/classification.test.ts`
+- Test: `apps/web/features/product-classification/components/__tests__/classification-panel.browser.test.mjs`
+- Test: `apps/web/features/product-classification/server/__tests__/classification-migration.integration.test.ts`
+- Test: `apps/web/features/help-documentation/__tests__/product-categories-help.test.ts`
 - Test: `apps/web/app/api/product-classification/__tests__/route.test.ts`
 - Test: `apps/web/features/product-classification/server/__tests__/classification-move.test.ts`
 - Create: `packages/db/prisma/migrations/20261117010000_add_printing_subcategories/migration.sql`
@@ -106,8 +114,9 @@
 - [ ] **Step 5: Buat migrasi idempoten** yang menambahkan dua baris ke grup `PERCETAKAN` hanya jika nama yang sama belum ada setelah normalisasi spasi dan kapitalisasi.
 - [ ] **Step 6: Perluas allowlist klasifikasi percetakan** agar daftar katalog, validasi API, dan pemindahan produk mendukung kelima subkategori. Pertahankan penolakan untuk nama percetakan lain.
 - [ ] **Step 7: Uji helper dan API dengan lima pilihan yang didukung** serta pastikan nama yang tidak diizinkan tetap ditolak.
-- [ ] **Step 8: Jalankan tes klasifikasi/seed dan validasi Prisma.** Review independen menemukan kedua nama baru terfilter oleh allowlist lama; tambahkan kasus red-green untuk respons API dan pemindahan produk.
-- [ ] **Step 9: Commit seed, allowlist, tes, dan migrasi.**
+- [ ] **Step 8: Perbarui allowlist panel pemindahan produk, tes migrasi idempoten, Bantuan, dan panduan AI** agar kelima pilihan PERCETAKAN tampil konsisten.
+- [ ] **Step 9: Jalankan tes panel, klasifikasi/seed, Bantuan, workflow AI, dan validasi Prisma.** Review independen menemukan nama baru terfilter oleh allowlist POS dan pemindahan produk; tambahkan kasus red-green untuk API, UI, dan pemindahan.
+- [ ] **Step 10: Commit seed, allowlist, panel pemindahan, bantuan, tes, dan migrasi.**
 
 ### Final verification and release
 

@@ -76,7 +76,7 @@ export interface ProductClassificationPanelProps {
   successMessage?: string | null;
 }
 
-const printingNames = new Set(["PRINT", "STEMPEL", "PLAT"]);
+const printingNames = new Set(["PRINT", "STEMPEL", "PLAT", "CETAK", "SPANDUK"]);
 const currency = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 2 });
 
 function allowedSubcategories(subcategories: ClassificationSubcategory[], group: ProductClassificationGroup | "") {

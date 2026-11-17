@@ -19,6 +19,7 @@ describe.skipIf(!url)("product classification migrations in PostgreSQL", () => {
     const migration = (name: string) => readFileSync(path.join(root, "packages/db/prisma/migrations", name, "migration.sql"), "utf8");
     const catalog = migration("20261112010000_product_catalog_classification");
     const pricing = migration("20261113010000_subcategory_customer_pricing");
+    const printing = migration("20261117010000_add_printing_subcategories");
     const schema = `catalog_test_${randomUUID().replaceAll("-", "")}`;
     const sql = `
 BEGIN;
@@ -44,8 +45,10 @@ INSERT INTO "pos_products" VALUES ('product-a', 'a'), ('product-b', 'b');
 INSERT INTO "pos_stores" VALUES ('store');
 ${catalog}
 ${pricing}
+${printing}
 ${catalog}
 ${pricing}
+${printing}
 DO $check$
 BEGIN
   IF (SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -65,7 +68,7 @@ BEGIN
   IF (SELECT COUNT(*) FROM "pos_product_subcategories" WHERE "group" = 'ATK') <> 4 THEN
     RAISE EXCEPTION 'legacy categories or normalized Cartridge were not preserved';
   END IF;
-  IF (SELECT array_agg("name" ORDER BY "name") FROM "pos_product_subcategories" WHERE "group" = 'PERCETAKAN') <> ARRAY['PLAT','PRINT','STEMPEL'] THEN
+  IF (SELECT array_agg("name" ORDER BY "name") FROM "pos_product_subcategories" WHERE "group" = 'PERCETAKAN') <> ARRAY['CETAK','PLAT','PRINT','SPANDUK','STEMPEL'] THEN
     RAISE EXCEPTION 'printing subcategories differ from the approved catalog';
   END IF;
   IF (SELECT COUNT(*) FROM "pos_product_subcategories" WHERE "legacyCategoryId" IS NOT NULL) <> 4 THEN

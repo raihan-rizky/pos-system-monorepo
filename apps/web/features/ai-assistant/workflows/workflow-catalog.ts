@@ -1062,7 +1062,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     steps: [
       { title: "Cari produk", description: "Buka Produk > Penataan kategori. Produk lama belum diklasifikasikan otomatis; kategori lama tetap tersimpan dan bisa dicari lewat filter Kategori lama atau status Belum diatur." },
       { title: "Pilih satuan", description: "Buka induk untuk mencentang satuan yang dipilih satu per satu, atau centang induk untuk memilih seluruh satuannya, termasuk yang tertutup dan tidak aktif. Pilih semua pada halaman hanya mencakup produk halaman itu; pilihan tetap tersimpan saat mencari atau berpindah halaman." },
-      { title: "Tentukan tujuan", description: "Di baki pilih ATK atau PERCETAKAN lalu subkategori; di ponsel ketuk Atur tujuan. Pilihan PERCETAKAN adalah PRINT, STEMPEL, dan PLAT. Kelola subkategori ATK sesuai izin; subkategori yang dipakai tidak dapat dihapus." },
+      { title: "Tentukan tujuan", description: "Di baki pilih ATK atau PERCETAKAN lalu subkategori; di ponsel ketuk Atur tujuan. Pilihan PERCETAKAN adalah PLAT, PRINT, STEMPEL, CETAK, dan SPANDUK. Kelola subkategori ATK sesuai izin; subkategori yang dipakai tidak dapat dihapus." },
       { title: "Tinjau dan pindahkan", description: "Klik Tinjau pemindahan, periksa tujuan, jumlah satuan aktif/nonaktif dan Dampak harga pelanggan, lalu klik Pindahkan satuan. Jika data berubah atau pratinjau kedaluwarsa, tinjau kembali. Hanya satuan yang dipilih berpindah; stok bersama, konversi dan harga dasar tetap tersimpan. Aksi Pindahkan Kategori pada daftar Produk tetap mengubah kategori lama seluruh grup stok dan berbeda dari penataan per satuan." },
     ],
   }),
