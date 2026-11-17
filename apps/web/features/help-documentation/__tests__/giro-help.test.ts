@@ -42,8 +42,8 @@ describe("panduan giro dan laporan bulanan", () => {
   it("menyelaraskan panduan asisten dan catatan perubahan arus kas", () => {
     const guide = JSON.stringify(FAQ_WORKFLOWS.find(item => item.faqNumber === 20));
     for (const phrase of ["Lihat cara perhitungan", "Pemasukan − Pengeluaran", "jatuh tempo terbaru"]) expect(guide).toContain(phrase);
-    const change = CHANGELOG.find(item => item.id === "rekonsiliasi-arus-kas-jatuh-tempo-20261116");
-    expect(change).toMatchObject({ date: "2026-11-16", kind: "fix", impact: "major", href: "/keuangan", revision: 1 });
+    const change = CHANGELOG.find(item => item.id === "rekonsiliasi-arus-kas-jatuh-tempo-20261117");
+    expect(change).toMatchObject({ date: "2026-11-17", kind: "fix", impact: "major", href: "/keuangan", revision: 1 });
     expect(change?.steps).toHaveLength(3);
   });
 });
