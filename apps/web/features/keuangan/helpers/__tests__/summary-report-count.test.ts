@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ permission: vi.fn(), incomePeriod: vi.fn(), recognizedExpenses: vi.fn(), transaction: vi.fn(), expense: vi.fn(), manualIncome: vi.fn(), receivablePayments: vi.fn() }));
 vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transaction }, expense: { findMany: mocks.expense }, manualIncome: { findMany: mocks.manualIncome }, customerReceivablePayment: { findMany: mocks.receivablePayments } } }));
 vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.permission, handleAuthError: () => null }));
-vi.mock("@/features/financial-report/services/daily-income", async importOriginal => ({
-  ...await importOriginal<typeof import("@/features/financial-report/services/daily-income")>(),
+vi.mock("@/features/financial-report/services/daily-income", () => ({
+  jakartaToday: () => "2026-11-30",
   loadIncomePeriod: mocks.incomePeriod,
 }));
 vi.mock("@/features/keuangan/services/recognized-finance", () => ({ loadRecognizedExpenses: mocks.recognizedExpenses }));
