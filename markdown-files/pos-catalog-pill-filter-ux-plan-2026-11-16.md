@@ -19,7 +19,7 @@
 - Data produk lama dan relasi klasifikasinya tidak diubah.
 - Perubahan grup mengosongkan subkategori; perubahan grup atau subkategori mengembalikan halaman ke 1.
 - Mode dropdown tetap menjadi default untuk Produk dan inventaris.
-- Gunakan data daring/offline dan izin yang sudah ada; jangan mengubah API, query katalog, stok, atau satuan keranjang.
+- Gunakan data daring/offline dan izin yang sudah ada; jangan mengubah API, query katalog, stok, maupun logika jumlah, harga, dan pemilihan satuan keranjang. Pastikan label satuan aktif dan aksi untuk menggantinya tetap jelas.
 - Sebelum kode, periksa worktree dan kesegaran indeks GitNexus; jika indeks tertinggal dari `origin/dev`, jalankan `gitnexus analyze`.
 - Sebelum mengubah setiap fungsi/komponen, jalankan GitNexus impact upstream pada simbol dan file tersebut. Laporkan risiko HIGH/CRITICAL sebelum mengeditnya. Sebelum commit, jalankan `gitnexus detect-changes`.
 - Jangan mulai atau menghentikan server dev. Jangan menjalankan `pnpm build`.
@@ -55,13 +55,15 @@
 **Files:**
 - Modify: `apps/web/app/(main)/pos/POSClientPage.tsx`
 - Test: `apps/web/app/(main)/pos/__tests__/pos-pricing-render.test.tsx`
+- Test: `apps/web/features/pos-search/__tests__/product-selection-cart-render.test.tsx`
 
 - [ ] **Step 1: Jalankan `gitnexus impact POSClientPage -f apps/web/app/(main)/pos/POSClientPage.tsx -r 'C:\Projects\pos-system-monorepo\.worktrees\pos-catalog-unit-ux-publish' --include-tests`** dan tinjau caller serta risikonya.
 - [ ] **Step 2: Tambahkan assertion merah** bahwa `CatalogClassificationFilter` di POS menerima `presentation: "pills"` dan `includeUnclassified: false`.
 - [ ] **Step 3: Jalankan tes POS** dan pastikan assertion tampilan gagal sebelum wiring.
 - [ ] **Step 4: Atur POS memakai mode pill.** Teruskan `presentation="pills"`; pertahankan handler yang membersihkan subkategori, mengirim filter ke query, serta mereset halaman.
 - [ ] **Step 5: Ganti tes lama yang menyatakan chip lama dihapus** dengan assertion bahwa POS menggunakan mode pill. Jalankan `pnpm --dir apps/web exec vitest run "app/(main)/pos/__tests__/pos-pricing-render.test.tsx"` dan pastikan tes filter/pagination lulus.
-- [ ] **Step 6: Commit integrasi POS dan tesnya.**
+- [ ] **Step 6: Tegaskan label satuan aktif di keranjang** dengan assertion aksesibel `Satuan dipilih: <nama satuan>` dan aksi `Ubah satuan`; pastikan jumlah serta harga mengikuti perilaku yang sudah ada.
+- [ ] **Step 7: Commit integrasi POS dan tesnya.**
 
 ### Task 3: Selaraskan pratinjau Bantuan dan dokumentasi
 

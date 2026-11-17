@@ -14,7 +14,7 @@ describe("catalog subcategory seeding", () => {
       { id: "stempel", group: "PERCETAKAN", name: "STEMPEL", legacyCategoryId: null, productCount: 0 },
     ]);
     expect(plan.links).toEqual([{ subcategoryId: "default-cartridge", legacyCategoryId: "old-cartridge" }]);
-    expect(plan.creates.map((row: { legacyCategoryId: string | null }) => row.legacyCategoryId).sort()).toEqual(["old-atk", "old-bot"]);
+    expect(plan.creates.flatMap((row: { legacyCategoryId: string | null }) => row.legacyCategoryId ? [row.legacyCategoryId] : []).sort()).toEqual(["old-atk", "old-bot"]);
   });
 
   it("keeps case-different legacy categories as distinct subcategories", () => {
@@ -33,8 +33,17 @@ describe("catalog subcategory seeding", () => {
     expect(legacy?.name).not.toBe("BOT");
   });
 
-  it("adds only the three supported printing defaults", () => {
+  it("adds the five supported printing defaults", () => {
     const plan = planCatalogSeed([], []);
-    expect(plan.creates.filter((row: { group: string }) => row.group === "PERCETAKAN").map((row: { name: string }) => row.name).sort()).toEqual(["PLAT", "PRINT", "STEMPEL"]);
+    expect(plan.creates.filter((row: { group: string }) => row.group === "PERCETAKAN").map((row: { name: string }) => row.name).sort()).toEqual(["CETAK", "PLAT", "PRINT", "SPANDUK", "STEMPEL"]);
+  });
+
+  it("does not duplicate printing names that already exist with different casing or spacing", () => {
+    const plan = planCatalogSeed([], [
+      { id: "existing-cetak", group: "PERCETAKAN", name: " cetak ", legacyCategoryId: null, productCount: 0 },
+      { id: "existing-spanduk", group: "PERCETAKAN", name: "Spanduk", legacyCategoryId: null, productCount: 0 },
+    ]);
+
+    expect(plan.creates.filter((row) => row.group === "PERCETAKAN").map((row) => row.name).sort()).toEqual(["PLAT", "PRINT", "STEMPEL"]);
   });
 });

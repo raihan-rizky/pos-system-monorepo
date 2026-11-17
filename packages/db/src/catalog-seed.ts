@@ -53,6 +53,8 @@ export function planCatalogSeed(
     { id: "catalog_printing_print", group: "PERCETAKAN", name: "PRINT", legacyCategoryId: null },
     { id: "catalog_printing_stempel", group: "PERCETAKAN", name: "STEMPEL", legacyCategoryId: null },
     { id: "catalog_printing_plat", group: "PERCETAKAN", name: "PLAT", legacyCategoryId: null },
+    { id: "catalog_printing_cetak", group: "PERCETAKAN", name: "CETAK", legacyCategoryId: null },
+    { id: "catalog_printing_spanduk", group: "PERCETAKAN", name: "SPANDUK", legacyCategoryId: null },
   ];
   for (const row of defaults) {
     if (!rows.some((existingRow) => existingRow.group === row.group && normalize(existingRow.name) === normalize(row.name))) {
