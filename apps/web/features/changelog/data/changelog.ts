@@ -16,6 +16,18 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "pos-catalog-pill-unit-awareness-20261117", date: "2026-11-17", revision: 1,
+    highlight: { title: "Filter POS lebih jelas", summary: "Pilih grup dan subkategori dengan pill; satuan aktif tampak di keranjang." },
+    title: "Filter katalog dan satuan POS lebih mudah dibaca.",
+    summary: "Pilih kategori dan subkategori lewat dua baris pill. Nama satuan jual aktif terlihat di keranjang, dan PERCETAKAN kini memiliki CETAK serta SPANDUK.",
+    kind: "improvement", impact: "minor", area: "Kasir", href: "/pos", visual: "pos-catalog",
+    steps: [
+      { title: "Buka Kasir", detail: "Masuk ke POS untuk mencari dan memilih produk." },
+      { title: "Pilih grup dan subkategori", detail: "Pilih PERCETAKAN lalu CETAK atau SPANDUK, atau pilih grup lain dan subkategorinya." },
+      { title: "Periksa satuan di keranjang", detail: "Baca nama satuan pada lencana Satuan dipilih. Jika produk memiliki pilihan lain, gunakan Ubah satuan." },
+    ],
+  },
+  {
     id: "history-dp-multipayment-20261117", date: "2026-11-17", revision: 1,
     highlight: { title: "Metode pembayaran DP di Riwayat", summary: "Lihat metode dan nominal pembayaran awal serta pelunasan." },
     title: "Riwayat DP menampilkan metode awal dan pelunasan.",

@@ -22,6 +22,34 @@ const entry = (id: string, date: string, revision = 1): ChangeEntry => ({
 const now = new Date("2026-10-18T03:00:00Z");
 
 describe("manual changelog", () => {
+  it("announces the POS catalog pills and active cart unit", () => {
+    const update = CHANGELOG.find(change => change.id === "pos-catalog-pill-unit-awareness-20261117");
+    expect(update).toMatchObject({
+      date: "2026-11-17",
+      revision: 1,
+      kind: "improvement",
+      impact: "minor",
+      area: "Kasir",
+      href: "/pos",
+      visual: "pos-catalog",
+    });
+    expect(update?.highlight.title.length).toBeLessThanOrEqual(40);
+    expect(update?.highlight.summary.length).toBeLessThanOrEqual(85);
+    expect(update?.steps).toHaveLength(3);
+    expect(JSON.stringify(update)).toContain("SPANDUK");
+    expect(JSON.stringify(update)).toContain("Satuan dipilih");
+    expect(renderToStaticMarkup(<WhatsNewDialog entries={update ? [update] : []} onClose={() => {}} canAccess={() => true} />))
+      .toContain("Filter POS lebih jelas");
+  });
+
+  it("illustrates category pills, printing subcategories, and the active unit label", () => {
+    const html = renderToStaticMarkup(<ChangeIllustration visual={"pos-catalog" as ChangeEntry["visual"]} />);
+    for (const label of ["Kategori produk", "ATK", "PERCETAKAN", "CETAK", "SPANDUK", "PLAT", "PRINT", "STEMPEL", "Satuan dipilih", "Rim"]) {
+      expect(html).toContain(label);
+    }
+    expect(html).toContain('data-selected="true"');
+  });
+
   it("illustrates RBAC using page, data, and action permissions", () => {
     const html = renderToStaticMarkup(<ChangeIllustration visual={"rbac" as ChangeEntry["visual"]} />);
     expect(html).toContain("Ilustrasi fitur");

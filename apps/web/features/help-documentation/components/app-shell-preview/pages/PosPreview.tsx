@@ -15,29 +15,39 @@ export function PosPreview(ctx: PreviewContext) {
         <section className="min-w-0 flex-1 bg-surface-50">
           <div className="border-b border-surface-100 bg-white px-6 py-5">
             <div className="flex items-center justify-between">
-              <div className="flex rounded-xl bg-surface-100 p-1">
-                <span className="rounded-lg bg-white px-6 py-2.5 text-sm font-black text-surface-950 shadow-sm">ATK</span>
-                <span className="px-6 py-2.5 text-sm font-bold text-surface-500">Percetakan</span>
-              </div>
               <PreviewButton ctx={ctx} target="pos-expense-button" tone="light" icon={WalletCards}>Pengeluaran</PreviewButton>
             </div>
             <div className="mt-4 flex items-center gap-3 rounded-2xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm text-surface-500"><Search className="h-5 w-5" />Cari produk, SKU, atau barcode...</div>
-          <GuideTarget ctx={ctx} target="pos-catalog-filter" className="mt-3 grid max-w-2xl grid-cols-2 gap-3">
-            <label className="min-w-0 text-[10px] font-bold uppercase tracking-[0.12em] text-surface-500">
-              <span className="mb-1 block">Kategori produk</span>
-              <select defaultValue="" aria-label="Kategori produk" className="min-h-11 w-full rounded-xl border border-surface-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-surface-800">
-                <option value="">Semua kategori</option>
-                <option value="ATK">ATK</option>
-                <option value="PERCETAKAN">PERCETAKAN</option>
-              </select>
-            </label>
-            <label className="min-w-0 text-[10px] font-bold uppercase tracking-[0.12em] text-surface-500">
-              <span className="mb-1 block">Subkategori</span>
-              <select disabled defaultValue="" aria-label="Subkategori" className="min-h-11 w-full cursor-not-allowed rounded-xl border border-surface-200 bg-surface-100 px-3 text-sm font-semibold normal-case tracking-normal text-surface-400">
-                <option value="">Pilih kategori dahulu</option>
-              </select>
-            </label>
-          </GuideTarget>
+            <GuideTarget ctx={ctx} target="pos-catalog-filter" className="mt-3 max-w-2xl space-y-3">
+              <div className="space-y-1">
+                <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.12em] text-surface-500">
+                  <span className="font-mono text-brand-700">01</span>Kategori produk
+                </span>
+                <div role="group" aria-label="Kategori produk" className="flex gap-2 overflow-x-auto py-1">
+                  {["Semua kategori", "ATK", "PERCETAKAN"].map((label) => {
+                    const selected = label === "PERCETAKAN";
+                    return <button key={label} type="button" aria-pressed={selected}
+                      className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border px-4 text-xs font-bold ${selected ? "border-brand-700 bg-brand-700 text-white shadow-sm" : "border-surface-200 bg-white text-surface-700"}`}>
+                      {selected && <Check aria-hidden="true" className="h-3.5 w-3.5" />}{label}
+                    </button>;
+                  })}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.12em] text-surface-500">
+                  <span className="font-mono text-brand-700">02</span>Subkategori
+                </span>
+                <div role="group" aria-label="Subkategori" className="flex gap-2 overflow-x-auto py-1">
+                  {["Semua subkategori", "PLAT", "PRINT", "STEMPEL", "CETAK", "SPANDUK"].map((label) => {
+                    const selected = label === "CETAK";
+                    return <button key={label} type="button" aria-pressed={selected}
+                      className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border px-4 text-xs font-bold ${selected ? "border-brand-700 bg-brand-700 text-white shadow-sm" : "border-surface-200 bg-white text-surface-700"}`}>
+                      {selected && <Check aria-hidden="true" className="h-3.5 w-3.5" />}{label}
+                    </button>;
+                  })}
+                </div>
+              </div>
+            </GuideTarget>
           </div>
 
           <GuideTarget ctx={ctx} target="pos-products" className="grid grid-cols-4 gap-4 p-6">
@@ -66,6 +76,7 @@ export function PosPreview(ctx: PreviewContext) {
               <div key={name} className="rounded-xl bg-surface-50 p-3">
                 <div className="flex items-center justify-between gap-2"><p className="text-sm font-bold">{name}</p><X className="h-3.5 w-3.5 text-surface-500" /></div>
                 <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-surface-600"><span>Normal<br/>{normal}</span><span>Agen<br/>{agen}</span><span>Dinas<br/>{dinas}</span></div>
+                {name === "Kertas A4 80gsm" && <div role="status" aria-label="Satuan dipilih: Rim" className="mt-2 inline-flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1.5 text-brand-800"><span className="text-[10px] font-bold uppercase tracking-[0.12em] text-brand-700">Satuan dipilih</span><span className="rounded-md bg-white px-2 py-0.5 text-xs font-extrabold shadow-sm ring-1 ring-brand-100">Rim</span></div>}
                 <p className="mt-1 text-sm font-bold text-brand-600">{total}</p>
                 <div className="mt-2 flex items-center justify-between border-t border-surface-200/70 pt-1 text-xs text-surface-600">
                   <span className="flex items-center gap-3"><span className="flex items-center gap-1"><Pencil className="h-3.5 w-3.5" />Edit</span><span className="flex items-center gap-1"><DollarSign className="h-3.5 w-3.5" />Harga</span></span>

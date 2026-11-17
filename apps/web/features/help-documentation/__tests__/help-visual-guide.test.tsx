@@ -44,6 +44,8 @@ describe("visual help guides", () => {
 
     expect(visibleText).toContain("Edit");
     expect(visibleText).toContain("Harga");
+    expect(visibleText).toContain("Satuan dipilih");
+    expect(visibleText).toContain("Rim");
     expect(html).not.toContain('title="Edit Cepat"');
   });
 
@@ -59,8 +61,14 @@ describe("visual help guides", () => {
 
     expect(visibleText).toContain("Kategori produk");
     expect(visibleText).toContain("Subkategori");
-    expect(visibleText).toContain("Pilih kategori dahulu");
-    expect(html).toContain("disabled");
+    expect(visibleText).toContain("PERCETAKAN");
+    expect(visibleText).toContain("CETAK");
+    expect(visibleText).toContain("SPANDUK");
+    expect(visibleText).toContain("PLAT");
+    expect(visibleText).toContain("PRINT");
+    expect(visibleText).toContain("STEMPEL");
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).not.toContain("<select");
   });
 
   it("renders the selected visual target as a read-only fake page", () => {
@@ -167,7 +175,7 @@ describe("visual help guides", () => {
     expect(historyHtml).not.toContain("Data Contoh 1");
 
     expect(posHtml).toContain("ATK");
-    expect(posHtml).toContain("Percetakan");
+    expect(posHtml).toContain("PERCETAKAN");
     expect(posHtml).toContain("Cari produk");
     expect(posHtml).toContain("Keranjang");
     expect(posHtml).not.toContain("Data Contoh 1");
@@ -275,8 +283,10 @@ describe("visual help guides", () => {
         sources: [
           new URL("../../../app/(main)/pos/POSClientPage.tsx", import.meta.url),
           new URL("../../../components/CartSidebar.tsx", import.meta.url),
+          new URL("../../product-classification/components/CatalogClassificationFilter.tsx", import.meta.url),
+          new URL("../../../../../packages/db/src/catalog-seed.ts", import.meta.url),
         ],
-        markers: ["ATK", "Percetakan", "Cari produk, SKU, atau barcode...", "Keranjang"],
+        markers: ["ATK", "PERCETAKAN", "CETAK", "SPANDUK", "aria-pressed", "Satuan dipilih", "Cari produk, SKU, atau barcode...", "Keranjang"],
       },
       {
         page: "products" as const,
@@ -550,7 +560,7 @@ describe("visual help guides", () => {
     expect(posHtml).toContain('data-help-actual-page="pos"');
     expect(posHtml).toContain('data-help-fidelity-page="pos"');
     expect(posHtml).toContain("ATK");
-    expect(posHtml).toContain("Percetakan");
+    expect(posHtml).toContain("PERCETAKAN");
     expect(posHtml).toContain("Cari produk, SKU, atau barcode...");
     expect(posHtml).toContain("Stok tersedia");
     expect(posHtml).toContain("w-[340px]");

@@ -4,6 +4,16 @@ import HelpContent, { HELP_ROLE_CONTENT } from '../components/HelpContent';
 import { HELP_VISUAL_PAGE_CONFIG } from '../components/help-visual-registry';
 
 describe('HelpContent', () => {
+  it('explains the POS pill filters and active unit label', () => {
+    const text = JSON.stringify(HELP_ROLE_CONTENT.CASHIER);
+
+    expect(text).toContain('dua baris pill');
+    expect(text).toContain('CETAK');
+    expect(text).toContain('SPANDUK');
+    expect(text).toContain('Satuan dipilih');
+    expect(text).not.toContain('dropdown subkategori');
+  });
+
   it.each(['OWNER', 'ADMIN', 'CASHIER'])('explains manual receivable creation and payment for %s', role => {
     const text = JSON.stringify(HELP_ROLE_CONTENT[role]);
     for (const phrase of ['Piutang manual', 'Tambah Piutang', 'tanggal utang', 'jatuh tempo', 'customer.receivable.read', 'customer.receivable.create', 'customer.receivable.payment.create', 'customer.read', 'satu metode', 'Riwayat pembayaran']) expect(text).toContain(phrase);

@@ -21,6 +21,7 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
       rbac: { Icon: Check, title: "Izin Riwayat lebih jelas.", detail: "Halaman · Data · Tindakan" },
       "manual-receivables": { Icon: ChevronDown, title: "Lipat Piutang Manual", detail: "Pilihan tersimpan di browser yang sama" },
       "checkout-customer-type": { Icon: User, title: "Jenis pelanggan baru", detail: "UMUM · AGEN · INDUSTRI · PEMERINTAH" },
+      "pos-catalog": { Icon: Package, title: "Filter kategori di POS", detail: "Grup · Subkategori · Satuan aktif" },
     };
     const preview = previews[visual];
     return <div className="relative flex min-h-36 items-center gap-4 bg-brand-50 px-5 pb-5 pt-9 sm:min-h-44 sm:px-7"><span className="absolute left-5 top-3 text-[11px] font-medium text-brand-800">Ilustrasi fitur</span><span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-brand-100 bg-white"><preview.Icon className="h-7 w-7 text-brand-600" aria-hidden="true" /></span><div><p className="text-base font-extrabold leading-tight tracking-tight text-brand-950 sm:text-xl">{preview.title}</p><p className="mt-2 text-xs text-brand-800">{preview.detail}</p></div></div>;
@@ -126,6 +127,42 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
           </div>
           <ArrowRight className="h-6 w-6 shrink-0 text-brand-600" aria-hidden="true" />
           <div className={`${panel} flex-1 text-center`}><FolderInput className="mx-auto mb-3 h-9 w-9 text-brand-600" aria-hidden="true" /><p className="text-sm font-bold text-surface-900">Kategori tujuan</p><p className="mt-1 text-xs text-surface-500">Satu kali pemindahan</p></div>
+        </div>
+      )}
+      {visual === "pos-catalog" && (
+        <div className="mx-auto w-full max-w-lg space-y-3">
+          <div className={`${panel} space-y-4`}>
+            <div className="space-y-1">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-surface-500">01 · Kategori produk</p>
+              <div role="group" aria-label="Kategori produk" className="flex gap-2 overflow-x-auto py-1">
+                {["Semua kategori", "ATK", "PERCETAKAN"].map(label => {
+                  const selected = label === "PERCETAKAN";
+                  return <span key={label} data-selected={selected ? "true" : "false"} className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold ${selected ? "border-brand-700 bg-brand-700 text-white" : "border-surface-200 bg-white text-surface-700"}`}>
+                    {selected && <Check aria-hidden="true" className="h-3 w-3" />}{label}
+                  </span>;
+                })}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-surface-500">02 · Subkategori</p>
+              <div role="group" aria-label="Subkategori" className="flex gap-2 overflow-x-auto py-1">
+                {["Semua subkategori", "PLAT", "PRINT", "STEMPEL", "CETAK", "SPANDUK"].map(label => {
+                  const selected = label === "CETAK";
+                  return <span key={label} data-selected={selected ? "true" : "false"} className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold ${selected ? "border-brand-700 bg-brand-700 text-white" : "border-surface-200 bg-white text-surface-700"}`}>
+                    {selected && <Check aria-hidden="true" className="h-3 w-3" />}{label}
+                  </span>;
+                })}
+              </div>
+            </div>
+          </div>
+          <div className={`${panel} flex items-center justify-between gap-4`}>
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-brand-700">Satuan dipilih</span>
+              <p className="mt-1 text-lg font-extrabold text-surface-900">Rim</p>
+            </div>
+            <Package className="h-8 w-8 text-brand-700" aria-hidden="true" />
+          </div>
+          <p className="text-center text-xs font-medium text-brand-800">Nama satuan jual terlihat langsung pada baris keranjang.</p>
         </div>
       )}
       {visual === "units" && (
