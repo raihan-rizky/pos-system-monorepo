@@ -133,6 +133,7 @@ function render() {
 describe("POS pricing across unrelated renders", () => {
   it("passes category and subcategory choices to the POS product query for the current cashier", () => {
     const page = render();
+    expect(page.classification.presentation).toBe("pills");
     expect(page.classification.includeUnclassified).toBe(false);
     expect(page.classification.offlineIdentity).toEqual({ cashierId: "cashier-1", storeId: "store-main" });
     page.classification.onChange("PERCETAKAN", "print");
