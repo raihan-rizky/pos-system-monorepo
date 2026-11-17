@@ -19,7 +19,9 @@ describe("classification catalog API", () => {
     mocks.subcategories.mockResolvedValue([
       { id: "bot", group: "ATK", name: "BOT", legacyCategoryId: "legacy" },
       { id: "print", group: "PERCETAKAN", name: "PRINT", legacyCategoryId: null },
+      { id: "cetak", group: "PERCETAKAN", name: "CETAK", legacyCategoryId: null },
       { id: "spanduk", group: "PERCETAKAN", name: "SPANDUK", legacyCategoryId: null },
+      { id: "fotokopi", group: "PERCETAKAN", name: "FOTOKOPI", legacyCategoryId: null },
     ]);
     mocks.categories.mockResolvedValue([{ id: "legacy", name: "BOT" }]);
     mocks.products.mockResolvedValue({ groups: [], total: 0, page: 1, pageCount: 1 });
@@ -30,7 +32,7 @@ describe("classification catalog API", () => {
     expect(response.status).toBe(200);
     expect(mocks.permission).toHaveBeenCalledWith("product", "read");
     const body = await response.json();
-    expect(body.subcategories.map((row: { id: string }) => row.id)).toEqual(["bot", "print"]);
+    expect(body.subcategories.map((row: { id: string }) => row.id)).toEqual(["bot", "print", "cetak", "spanduk"]);
     expect(body.legacyCategories).toEqual([{ id: "legacy", name: "BOT" }]);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
   });

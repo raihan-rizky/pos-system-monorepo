@@ -74,7 +74,13 @@ describe("classification move", () => {
   });
 
   it("rejects a printing destination outside the supported choices", async () => {
+    fixture.state.subcategories.find((row) => row.id === "old-printing")!.name = "FOTOKOPI";
     await expect(previewClassificationMove(actor, { productIds: ["pcs"], subcategoryId: "old-printing" })).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("accepts SPANDUK as a supported printing destination", async () => {
+    const preview = await previewClassificationMove(actor, { productIds: ["pcs"], subcategoryId: "old-printing" });
+    expect(preview.target).toMatchObject({ group: "PERCETAKAN", name: "SPANDUK" });
   });
 
   it("requires a fresh preview if a selected product changes", async () => {

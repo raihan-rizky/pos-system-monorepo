@@ -92,7 +92,11 @@
 
 **Files:**
 - Modify: `packages/db/src/catalog-seed.ts`
+- Modify: `apps/web/features/product-classification/helpers/classification.ts`
 - Test: `apps/web/features/product-classification/helpers/__tests__/catalog-seed.test.ts`
+- Test: `apps/web/features/product-classification/helpers/__tests__/classification.test.ts`
+- Test: `apps/web/app/api/product-classification/__tests__/route.test.ts`
+- Test: `apps/web/features/product-classification/server/__tests__/classification-move.test.ts`
 - Create: `packages/db/prisma/migrations/20261117010000_add_printing_subcategories/migration.sql`
 
 - [ ] **Step 1: Jalankan GitNexus impact upstream pada `planCatalogSeed`** di `packages/db/src/catalog-seed.ts`; catat pemanggil, proses terdampak, dan risikonya.
@@ -100,8 +104,10 @@
 - [ ] **Step 3: Jalankan tes seed katalog** dan pastikan gagal karena dua default baru belum tersedia.
 - [ ] **Step 4: Tambahkan dua default stabil** (`catalog_printing_cetak` dan `catalog_printing_spanduk`) pada `planCatalogSeed`, dengan nama uppercase mengikuti data katalog saat ini.
 - [ ] **Step 5: Buat migrasi idempoten** yang menambahkan dua baris ke grup `PERCETAKAN` hanya jika nama yang sama belum ada setelah normalisasi spasi dan kapitalisasi.
-- [ ] **Step 6: Jalankan tes seed katalog** dan validasi Prisma untuk memastikan implementasi lolos.
-- [ ] **Step 7: Commit seed, tes, dan migrasi.**
+- [ ] **Step 6: Perluas allowlist klasifikasi percetakan** agar daftar katalog, validasi API, dan pemindahan produk mendukung kelima subkategori. Pertahankan penolakan untuk nama percetakan lain.
+- [ ] **Step 7: Uji helper dan API dengan lima pilihan yang didukung** serta pastikan nama yang tidak diizinkan tetap ditolak.
+- [ ] **Step 8: Jalankan tes klasifikasi/seed dan validasi Prisma.** Review independen menemukan kedua nama baru terfilter oleh allowlist lama; tambahkan kasus red-green untuk respons API dan pemindahan produk.
+- [ ] **Step 9: Commit seed, allowlist, tes, dan migrasi.**
 
 ### Final verification and release
 

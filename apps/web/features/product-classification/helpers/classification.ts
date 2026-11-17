@@ -1,6 +1,6 @@
 import type { CatalogGroup, CatalogSubcategory, LegacyCategory } from "../types";
 
-const PRINTING_SUBCATEGORIES = new Set(["print", "stempel", "plat"]);
+const PRINTING_SUBCATEGORIES = new Set(["print", "stempel", "plat", "cetak", "spanduk"]);
 
 export function normalizeSubcategoryName(name: string): string {
   return name.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("id-ID");
