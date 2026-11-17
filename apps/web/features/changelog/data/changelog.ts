@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "printing-receipt-additional-payment-20261117", date: "2026-11-17", revision: 1,
+    highlight: { title: "Pembayaran tambahan saat edit nota", summary: "Pecah pembayaran awal atau catat uang baru saat koreksi nota." },
+    title: "Atur pembayaran saat mengoreksi nota Percetakan.",
+    summary: "Bagi pembayaran awal ke beberapa metode tanpa mengubah waktu penerimaan, atau catat uang baru yang diterima. Total terbayar dan sisa piutang dihitung ulang setelah disimpan.",
+    kind: "improvement", impact: "major", area: "Kasir & Percetakan", href: "/pos", visual: "printing",
+    screenshot: { src: "/images/changelog/edit-nota-pembayaran-tambahan.png", alt: "Pecahan pembayaran awal dan pembayaran tambahan pada nota contoh." },
+    steps: [
+      { title: "Buka nota diproses", detail: "Dari Riwayat atau Kasir > Percetakan, pilih Edit nota diproses, baca peringatan, lalu klik Tetap edit nota." },
+      { title: "Atur metode dan nominal", detail: "Ubah Metode pembayaran awal. Klik Pecah pembayaran awal untuk membagi satu pembayaran ke beberapa metode. Untuk uang baru yang diterima, pilih Tambah pembayaran tambahan, lalu isi metode dan nominal; pembayaran memerlukan izin Lihat piutang dan Bayar piutang. Jika koreksi menaikkan sisa piutang, role juga memerlukan izin Ubah piutang." },
+      { title: "Tinjau dan simpan", detail: "Klik Tinjau perubahan, periksa jumlah pembayaran dan sisa piutang, lalu klik Simpan dan perbarui transaksi." },
+    ],
+  },
+  {
     id: "history-dp-multipayment-20261117", date: "2026-11-17", revision: 1,
     highlight: { title: "Metode pembayaran DP di Riwayat", summary: "Lihat metode dan nominal pembayaran awal serta pelunasan." },
     title: "Riwayat DP menampilkan metode awal dan pelunasan.",

@@ -88,6 +88,7 @@ function PrintingReceiptSession({ canCheckout = true, onRequireShift, isCurrentS
   const [previewReceipt, setPreviewReceipt] = useState<PrintingReceipt | null>(null);
   const [processedEditReceipt, setProcessedEditReceipt] = useState<PrintingReceipt | null>(null);
   const canEditProcessed = canPerform("printing_receipt.processed", "update");
+  const canAddProcessedPayment = canPerform("customer.receivable", "read") && canPerform("customer.receivable.payment", "create");
   const selectedBySubcategory = useRef<Partial<Record<PrintingSubcategory, string>>>({});
   const checkoutPending = useRef(false);
   const queryClient = useQueryClient();
@@ -373,7 +374,7 @@ function PrintingReceiptSession({ canCheckout = true, onRequireShift, isCurrentS
       if (!isCurrentSession()) return;
       setPreviewReceipt(saved); loadRecord(saved);
     }} receipt={previewReceipt} transaction={previewReceipt.transaction} />}
-    {processedEditReceipt && canEditProcessed && <ProcessedPrintingReceiptEditor key={processedEditReceipt.id} receipt={processedEditReceipt} onClose={() => setProcessedEditReceipt(null)} onSaved={savedProcessedEdit} />}
+    {processedEditReceipt && canEditProcessed && <ProcessedPrintingReceiptEditor key={processedEditReceipt.id} receipt={processedEditReceipt} onClose={() => setProcessedEditReceipt(null)} onSaved={savedProcessedEdit} canAddPayment={canAddProcessedPayment} />}
     <Modal open={Boolean(confirmAction)} onClose={() => { if (!busy) setConfirmAction(null); }} title={confirmAction === "delete" ? "Hapus draft nota?" : "Muat ulang versi tersimpan?"} size="sm">
       <p className="text-sm text-surface-600">{confirmAction === "delete" ? "Draft ini akan dihapus dari daftar nota. Nota yang sudah diproses tidak dapat dihapus di sini." : "Isian lokal yang belum tersimpan akan diganti dengan versi terbaru di server."}</p>
       <div className="mt-5 flex justify-end gap-2"><Button variant="secondary" disabled={busy} onClick={() => setConfirmAction(null)}>Batal</Button><Button variant={confirmAction === "delete" ? "danger" : "primary"} loading={busy} onClick={() => void confirm()}>{confirmAction === "delete" ? <Trash2 size={15} /> : <RotateCcw size={15} />}{confirmAction === "delete" ? "Hapus draft" : "Muat ulang"}</Button></div>

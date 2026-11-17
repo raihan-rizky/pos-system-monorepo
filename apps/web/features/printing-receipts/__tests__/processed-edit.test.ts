@@ -39,6 +39,7 @@ describe("atomic processed receipt correction", () => {
   beforeEach(() => {
     journalFails = false; calls = [];
     state = { receipt: { id: "receipt", storeId: "store", number: "NT-1", revision: 2, transactionId: "tx", document: document() }, transaction: transaction(), debt: 60, stock: 8, salespersons: [{ id: "sales-1", name: "Sales Lama" }, { id: "sales-2", name: "Sales Baru" }], products: [{ id: "paper", name: "Kertas", unit: "lembar", isActive: true, stockGroupId: null, unitMultiplierToBase: null, conversionNeedsReview: false, costPrice: 1 }], journal: [{ productId: "paper", transactionId: "tx", sourceTransactionRef: "tx", stockGroupIdSnapshot: null, unitMultiplierSnapshot: 1, stockBaseDelta: -2, status: "APPROVED" }] };
+    state.spent = 0;
     mocks.get.mockImplementation(async () => state.receipt);
     mocks.transaction.mockImplementation(async (fn: any) => {
       const local = structuredClone(state);
@@ -48,11 +49,12 @@ describe("atomic processed receipt correction", () => {
         $queryRawUnsafe: async (sql: string) => { calls.push(sql); return [{ id: "lock" }]; },
         printingReceipt: { findFirst: async ({ where }: any) => where.storeId === "store" ? structuredClone(local.receipt) : null, updateMany: async ({ data }: any) => { Object.assign(local.receipt, data, { revision: local.receipt.revision + 1 }); return { count: 1 }; } },
         transaction: { findFirst: async () => structuredClone(local.transaction), findFirstOrThrow: async () => ({ ...structuredClone(local.transaction), printingReceipt: structuredClone(local.receipt) }), updateMany: async ({ data }: any) => { Object.assign(local.transaction, data); return { count: 1 }; } },
-        transactionPayment: { updateMany: async ({ where, data }: any) => { const row = local.transaction.payments.find((payment: any) => payment.id === where.id); if (!row) return { count: 0 }; Object.assign(row, data); return { count: 1 }; } },
+        transactionPayment: { updateMany: async ({ where, data }: any) => { const row = local.transaction.payments.find((payment: any) => payment.id === where.id); if (!row) return { count: 0 }; Object.assign(row, data); return { count: 1 }; }, create: async ({ data }: any) => { const row = { id: "payment-new", ...data }; local.transaction.payments.push(row); return row; } },
+        debtPaymentLog: { create: async ({ data }: any) => { const log = { id: "debt-new", createdAt: new Date(), ...data }; local.transaction.debtPaymentLogs.push(log); return log; } },
         salesperson: { findFirst: async ({ where }: any) => where.storeId === "store" ? structuredClone(local.salespersons.find((salesperson: any) => salesperson.id === where.id) ?? null) : null },
         transactionItem: { deleteMany: vi.fn(), createMany: async ({ data }: any) => { local.transaction.items = data; } },
         product: { findMany: async () => local.products },
-        customer: { findFirst: async () => ({ id: "customer", totalDebt: local.debt }), updateMany: async ({ data }: any) => { local.debt += data.totalDebt.increment ?? -(data.totalDebt.decrement ?? 0); return { count: 1 }; } },
+        customer: { findFirst: async () => ({ id: "customer", totalDebt: local.debt, totalSpent: local.spent }), updateMany: async ({ data }: any) => { local.debt += data.totalDebt.increment ?? -(data.totalDebt.decrement ?? 0); local.spent += data.totalSpent?.increment ?? 0; return { count: 1 }; } },
         inventoryLog: { findMany: async () => local.journal, createMany: async ({ data }: any) => { if (journalFails) throw new Error("journal failed"); local.journal.push(...data); } },
         invoiceDateChangeLog: { create: async ({ data }: any) => { local.dateAudit = data; } },
         transactionReceiptChange: { create: async ({ data }: any) => { local.receiptChange = data; return { id: "receipt-change" }; } },
@@ -63,8 +65,16 @@ describe("atomic processed receipt correction", () => {
     });
     mocks.stock.mockImplementation(async (tx: any, { items }: any) => items.map((item: any) => { tx.local.stock += item.delta; return { productId: item.productId, stockGroupId: null, baseDelta: item.delta }; }));
   });
-  const transactionEdit = (paymentMethods: ProcessedPrintingReceiptTransactionInput["paymentMethods"], legacyPaymentMethod: ProcessedPrintingReceiptTransactionInput["legacyPaymentMethod"] = null, salespersonId: string | null = null): ProcessedPrintingReceiptTransactionInput => ({ paymentMethods, legacyPaymentMethod, salespersonId });
-  const input = (): ProcessedPrintingReceiptInput => ({ revision: 2, number: "NT-1", document: document(150, 3), transaction: { paymentMethods: state.transaction.payments.map(({ id, method }: any) => ({ id, method: method as ProcessedPaymentMethod })), legacyPaymentMethod: state.transaction.payments.length === 0 && state.transaction.paymentMethod !== "TEMPO" ? state.transaction.paymentMethod as ProcessedPaymentMethod : null, salespersonId: state.transaction.salespersonId ?? null } });
+  const transactionEdit = (initialPayments: ProcessedPrintingReceiptTransactionInput["initialPayments"], additionalPayments: ProcessedPrintingReceiptTransactionInput["additionalPayments"] = [], salespersonId: string | null = null): ProcessedPrintingReceiptTransactionInput => ({ initialPayments, additionalPayments, salespersonId });
+  const input = (): ProcessedPrintingReceiptInput => {
+    const paidBefore = Number(state.transaction.amountPaid) - Number(state.transaction.change) - state.transaction.debtPaymentLogs.reduce((sum: number, payment: any) => sum + Number(payment.amount), 0);
+    const initialPayments = state.transaction.payments.length
+      ? state.transaction.payments.map(({ id, method, amount }: any) => ({ sourcePaymentId: id, method: method as ProcessedPaymentMethod, amount: Number(amount) }))
+      : paidBefore > 0 && state.transaction.paymentMethod !== "TEMPO"
+        ? [{ sourcePaymentId: null, method: (state.transaction.paymentMethod ?? "CASH") as ProcessedPaymentMethod, amount: paidBefore }]
+        : [];
+    return { revision: 2, number: "NT-1", document: document(150, 3), transaction: { initialPayments, additionalPayments: [], salespersonId: state.transaction.salespersonId ?? null } };
+  };
   async function save() {
     const review = await reviewProcessedPrintingReceipt("store", "receipt", input());
     return saveProcessedPrintingReceipt("store", "receipt", { ...input(), acknowledged: true, reviewToken: review.reviewToken }, { id: "owner", name: "Owner" }, { canView: true, canEdit: true });
@@ -185,21 +195,21 @@ describe("atomic processed receipt correction", () => {
     state.transaction.payments = original;
     state.transaction.debtPaymentLogs = [{ id: "debt-pay", amount: 5, createdAt: new Date("2026-11-13T12:00:00Z") }];
     const debtPayments = structuredClone(state.transaction.debtPaymentLogs);
-    const next = { ...input(), transaction: transactionEdit([{ id: "p1", method: "DEBIT" }, { id: "p2", method: "QRIS" }]) };
+    const next = { ...input(), transaction: transactionEdit([{ sourcePaymentId: "p1", method: "DEBIT", amount: 40 }, { sourcePaymentId: "p2", method: "QRIS", amount: 60 }]) };
     const review = await reviewProcessedPrintingReceipt("store", "receipt", next);
     await saveProcessedPrintingReceipt("store", "receipt", { ...next, acknowledged: true, reviewToken: review.reviewToken }, { id: "owner" }, { canView: true, canEdit: true });
     expect(state.transaction.payments).toEqual([{ ...original[0], method: "DEBIT" }, { ...original[1], method: "QRIS" }]);
     expect(state.transaction.paymentMethod).toBe("QRIS");
     expect(state.transaction.debtPaymentLogs).toEqual(debtPayments);
-    expect(review.transaction.paymentMethods).toEqual([
-      { id: "p1", amount: 40, beforeMethod: "CASH", afterMethod: "DEBIT" },
-      { id: "p2", amount: 60, beforeMethod: "TRANSFER", afterMethod: "QRIS" },
+    expect(review.transaction.initialPayments).toEqual([
+      { sourcePaymentId: "p1", amount: 40, beforeMethod: "CASH", method: "DEBIT" },
+      { sourcePaymentId: "p2", amount: 60, beforeMethod: "TRANSFER", method: "QRIS" },
     ]);
   });
   it("keeps TEMPO as the summary method when an initial payment method changes", async () => {
     state.transaction.paymentMethod = "TEMPO";
     state.transaction.payments = [{ id: "p1", amount: 20, method: "CASH", createdAt: new Date("2026-11-13T10:00:00Z") }];
-    const next = { ...input(), transaction: transactionEdit([{ id: "p1", method: "TRANSFER" }]) };
+    const next = { ...input(), transaction: transactionEdit([{ sourcePaymentId: "p1", method: "TRANSFER", amount: 20 }]) };
     const review = await reviewProcessedPrintingReceipt("store", "receipt", next);
     await saveProcessedPrintingReceipt("store", "receipt", { ...next, acknowledged: true, reviewToken: review.reviewToken }, { id: "owner" }, { canView: true, canEdit: true });
     expect(state.transaction.paymentMethod).toBe("TEMPO");
@@ -207,14 +217,14 @@ describe("atomic processed receipt correction", () => {
   });
   it("updates a legacy method without creating payment rows", async () => {
     state.transaction.payments = [];
-    const next = { ...input(), transaction: transactionEdit([], "QRIS") };
+    const next = { ...input(), transaction: transactionEdit([{ sourcePaymentId: null, method: "QRIS", amount: 40 }]) };
     const review = await reviewProcessedPrintingReceipt("store", "receipt", next);
     await saveProcessedPrintingReceipt("store", "receipt", { ...next, acknowledged: true, reviewToken: review.reviewToken }, { id: "owner" }, { canView: true, canEdit: true });
     expect(state.transaction.paymentMethod).toBe("QRIS");
     expect(state.transaction.payments).toEqual([]);
   });
   it("updates a same-store salesperson assignment", async () => {
-    const next = { ...input(), transaction: transactionEdit([{ id: "pay", method: "CASH" }], null, "sales-2") };
+    const next = { ...input(), transaction: transactionEdit([{ sourcePaymentId: "pay", method: "CASH", amount: 40 }], [], "sales-2") };
     const review = await reviewProcessedPrintingReceipt("store", "receipt", next);
     await saveProcessedPrintingReceipt("store", "receipt", { ...next, acknowledged: true, reviewToken: review.reviewToken }, { id: "owner" }, { canView: true, canEdit: true });
     expect(state.transaction).toMatchObject({ salespersonId: "sales-2", salesName: "Sales Baru" });
@@ -231,18 +241,18 @@ describe("atomic processed receipt correction", () => {
   });
   it("rejects payment IDs outside the transaction without mutating records", async () => {
     const before = structuredClone(state);
-    const next = { ...input(), transaction: transactionEdit([{ id: "foreign", method: "QRIS" }]) };
+    const next = { ...input(), transaction: transactionEdit([{ sourcePaymentId: "foreign", method: "QRIS", amount: 40 }]) };
     await expect(reviewProcessedPrintingReceipt("store", "receipt", next)).rejects.toMatchObject({ status: 409 });
     expect(state).toEqual(before);
   });
   it("rejects salesperson IDs outside the store without mutating records", async () => {
     const before = structuredClone(state);
-    const next = { ...input(), transaction: transactionEdit([{ id: "pay", method: "CASH" }], null, "other-store-sales") };
+    const next = { ...input(), transaction: transactionEdit([{ sourcePaymentId: "pay", method: "CASH", amount: 40 }], [], "other-store-sales") };
     await expect(reviewProcessedPrintingReceipt("store", "receipt", next)).rejects.toThrow("Sales transaksi tidak ditemukan di toko ini.");
     expect(state).toEqual(before);
   });
   it("invalidates a reviewed payment correction if a payment changes before commit", async () => {
-    const next = { ...input(), transaction: transactionEdit([{ id: "pay", method: "QRIS" }]) };
+    const next = { ...input(), transaction: transactionEdit([{ sourcePaymentId: "pay", method: "QRIS", amount: 40 }]) };
     const review = await reviewProcessedPrintingReceipt("store", "receipt", next);
     state.transaction.payments[0].method = "DEBIT";
     const beforeCommit = structuredClone(state);
@@ -250,7 +260,7 @@ describe("atomic processed receipt correction", () => {
     expect(state).toEqual(beforeCommit);
   });
   it("invalidates a reviewed salesperson correction if the salesperson changes before commit", async () => {
-    const next = { ...input(), transaction: transactionEdit([{ id: "pay", method: "CASH" }], null, "sales-2") };
+    const next = { ...input(), transaction: transactionEdit([{ sourcePaymentId: "pay", method: "CASH", amount: 40 }], [], "sales-2") };
     const review = await reviewProcessedPrintingReceipt("store", "receipt", next);
     state.transaction.salespersonId = "sales-1";
     const beforeCommit = structuredClone(state);
@@ -258,7 +268,7 @@ describe("atomic processed receipt correction", () => {
     expect(state).toEqual(beforeCommit);
   });
   it("invalidates a reviewed salesperson correction if the selected salesperson is renamed", async () => {
-    const next = { ...input(), transaction: transactionEdit([{ id: "pay", method: "CASH" }], null, "sales-2") };
+    const next = { ...input(), transaction: transactionEdit([{ sourcePaymentId: "pay", method: "CASH", amount: 40 }], [], "sales-2") };
     const review = await reviewProcessedPrintingReceipt("store", "receipt", next);
     state.salespersons[1].name = "Nama Sales Baru";
     const beforeCommit = structuredClone(state);
@@ -268,7 +278,7 @@ describe("atomic processed receipt correction", () => {
   it("records payment and salesperson edits in the existing receipt audit", async () => {
     state.transaction.salespersonId = "sales-1";
     state.transaction.salesName = "Sales Lama";
-    const next = { ...input(), transaction: transactionEdit([{ id: "pay", method: "QRIS" }], null, "sales-2") };
+    const next = { ...input(), transaction: transactionEdit([{ sourcePaymentId: "pay", method: "QRIS", amount: 40 }], [], "sales-2") };
     const review = await reviewProcessedPrintingReceipt("store", "receipt", next);
     await saveProcessedPrintingReceipt("store", "receipt", { ...next, acknowledged: true, reviewToken: review.reviewToken }, { id: "sales-user", name: "Sales", role: "SALES" }, { canView: true, canEdit: true });
     expect(state.receiptChange.before.salespersonId).toBe("sales-1");
@@ -287,5 +297,152 @@ describe("atomic processed receipt correction", () => {
     await expect(saveProcessedPrintingReceipt("store", "receipt", { ...input(), acknowledged: false, reviewToken: "bad" }, { id: "owner" }, { canView: true, canEdit: true })).rejects.toThrow(/setujui/i);
     await expect(reviewProcessedPrintingReceipt("store", "receipt", { ...input(), number: "NT-2" })).rejects.toThrow(/nomor/i);
     await expect(reviewProcessedPrintingReceipt("store", "receipt", { ...input(), document: { ...document(), customerId: "other" } })).rejects.toThrow(/pelanggan/i);
+  });
+
+  it("splits an initial payment without changing its amount or received date", async () => {
+    const receivedAt = state.transaction.payments[0].createdAt;
+    const next: ProcessedPrintingReceiptInput = {
+      ...input(),
+      transaction: {
+        initialPayments: [
+          { sourcePaymentId: "pay", method: "CASH", amount: 25 },
+          { sourcePaymentId: "pay", method: "QRIS", amount: 15 },
+        ],
+        additionalPayments: [],
+        salespersonId: null,
+      },
+    };
+    const review = await reviewProcessedPrintingReceipt("store", "receipt", next);
+    await saveProcessedPrintingReceipt("store", "receipt", { ...next, acknowledged: true, reviewToken: review.reviewToken }, { id: "owner" }, { canView: true, canEdit: true, canCreatePayment: true });
+
+    expect(state.transaction.payments).toHaveLength(2);
+    expect(state.transaction.payments.reduce((sum: number, payment: any) => sum + payment.amount, 0)).toBe(40);
+    expect(state.transaction.payments.every((payment: any) => payment.createdAt.getTime() === receivedAt.getTime())).toBe(true);
+    expect(state.transaction.amountPaid).toBe(40);
+    expect(state.transaction.debtPaymentLogs).toHaveLength(0);
+  });
+
+  it("records a new partial payment as a dated debt log and updates balances atomically", async () => {
+    const receivedAt = state.transaction.payments[0].createdAt;
+    const next: ProcessedPrintingReceiptInput = {
+      ...input(),
+      transaction: {
+        initialPayments: [{ sourcePaymentId: "pay", method: "CASH", amount: 40 }],
+        additionalPayments: [{ method: "TRANSFER", amount: 25 }],
+        salespersonId: null,
+      },
+    };
+    const review = await reviewProcessedPrintingReceipt("store", "receipt", next);
+    await saveProcessedPrintingReceipt("store", "receipt", { ...next, acknowledged: true, reviewToken: review.reviewToken }, { id: "owner" }, { canView: true, canEdit: true, canCreatePayment: true });
+
+    expect(state.transaction.debtPaymentLogs).toHaveLength(1);
+    expect(state.transaction.debtPaymentLogs[0]).toMatchObject({ amount: 25, paymentMethod: "TRANSFER", customerId: "customer", storeId: "store" });
+    expect(state.transaction.debtPaymentLogs[0].createdAt.getTime()).toBeGreaterThan(receivedAt.getTime());
+    expect(state.transaction.amountPaid).toBe(65);
+    expect(state.transaction.status).toBe("DP");
+    expect(state.debt).toBe(85);
+    expect(state.spent).toBe(25);
+  });
+
+  it("completes the transaction when a new payment settles the recalculated total", async () => {
+    const next: ProcessedPrintingReceiptInput = {
+      ...input(),
+      transaction: {
+        initialPayments: [{ sourcePaymentId: "pay", method: "CASH", amount: 40 }],
+        additionalPayments: [{ method: "QRIS", amount: 110 }],
+        salespersonId: null,
+      },
+    };
+    const review = await reviewProcessedPrintingReceipt("store", "receipt", next);
+    await saveProcessedPrintingReceipt("store", "receipt", { ...next, acknowledged: true, reviewToken: review.reviewToken }, { id: "owner" }, { canView: true, canEdit: true, canCreatePayment: true });
+
+    expect(state.transaction.status).toBe("COMPLETED");
+    expect(state.transaction.amountPaid).toBe(150);
+    expect(state.debt).toBe(0);
+    expect(state.spent).toBe(110);
+  });
+
+  it("rejects a new payment without the receivable payment grant before mutating records", async () => {
+    const next: ProcessedPrintingReceiptInput = {
+      ...input(),
+      transaction: {
+        initialPayments: [{ sourcePaymentId: "pay", method: "CASH", amount: 40 }],
+        additionalPayments: [{ method: "QRIS", amount: 25 }],
+        salespersonId: null,
+      },
+    };
+    const review = await reviewProcessedPrintingReceipt("store", "receipt", next);
+    const before = structuredClone(state);
+
+    await expect(saveProcessedPrintingReceipt("store", "receipt", { ...next, acknowledged: true, reviewToken: review.reviewToken }, { id: "owner" }, { canView: true, canEdit: true, canCreatePayment: false })).rejects.toMatchObject({ statusCode: 403 });
+    expect(state).toEqual(before);
+  });
+});
+
+describe("processed receipt payment allocations", () => {
+  const planPayments = (tx: any, transactionInput: any) => planProcessedPrintingReceiptEdit(tx, document(150), transactionInput);
+
+  it("preserves the original paid total when one payment is split across methods", () => {
+    const plan = planPayments(transaction(), {
+      initialPayments: [
+        { sourcePaymentId: "pay", method: "CASH", amount: 25 },
+        { sourcePaymentId: "pay", method: "QRIS", amount: 15 },
+      ],
+      additionalPayments: [],
+      salespersonId: null,
+    });
+
+    expect(plan.after).toEqual({ subtotal: 150, total: 150, paid: 40, debt: 110, status: "DP" });
+    expect(plan.transaction).not.toBeNull();
+    expect(plan.transaction!.initialPayments).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sourcePaymentId: "pay", method: "CASH", amount: 25 }),
+      expect.objectContaining({ sourcePaymentId: "pay", method: "QRIS", amount: 15 }),
+    ]));
+  });
+
+  it("adds a partial new payment to paid amount and remaining debt", () => {
+    const plan = planPayments(transaction(), {
+      initialPayments: [{ sourcePaymentId: "pay", method: "CASH", amount: 40 }],
+      additionalPayments: [{ method: "TRANSFER", amount: 25 }],
+      salespersonId: null,
+    });
+
+    expect(plan.after).toEqual({ subtotal: 150, total: 150, paid: 65, debt: 85, status: "DP" });
+    expect(plan.transaction).not.toBeNull();
+    expect(plan.transaction!.additionalPayments).toEqual([{ method: "TRANSFER", amount: 25 }]);
+  });
+
+  it("marks the receipt completed when additional payments settle the new total", () => {
+    const plan = planPayments(transaction(), {
+      initialPayments: [{ sourcePaymentId: "pay", method: "CASH", amount: 40 }],
+      additionalPayments: [{ method: "QRIS", amount: 110 }],
+      salespersonId: null,
+    });
+
+    expect(plan.after).toEqual({ subtotal: 150, total: 150, paid: 150, debt: 0, status: "COMPLETED" });
+  });
+
+  it("rejects an initial allocation that does not preserve its source amount", () => {
+    expect(() => planPayments(transaction(), {
+      initialPayments: [{ sourcePaymentId: "pay", method: "CASH", amount: 39 }],
+      additionalPayments: [],
+      salespersonId: null,
+    })).toThrow(/pembagian pembayaran/i);
+  });
+
+  it("rejects additional payments above the recalculated debt", () => {
+    expect(() => planPayments(transaction(), {
+      initialPayments: [{ sourcePaymentId: "pay", method: "CASH", amount: 40 }],
+      additionalPayments: [{ method: "QRIS", amount: 111 }],
+      salespersonId: null,
+    })).toThrow(/melebihi/i);
+  });
+
+  it("rejects additional payments while approval is pending", () => {
+    expect(() => planPayments({ ...transaction(), status: "PENDING_APPROVAL" }, {
+      initialPayments: [{ sourcePaymentId: "pay", method: "CASH", amount: 40 }],
+      additionalPayments: [{ method: "QRIS", amount: 1 }],
+      salespersonId: null,
+    })).toThrow(/persetujuan/i);
   });
 });

@@ -39,6 +39,7 @@ export function PrintingReceiptModal({ open, onClose, onReceiptUpdated, receipt,
   const scope = getPrintingReceiptScopeKey({ userId, storeId, authorizationFingerprint });
   const canEdit = Boolean(receipt.transactionId && canPerform("printing_receipt.processed", "update") &&
     EDITABLE_PROCESSED_STATUSES.has(receipt.transaction?.status ?? transaction?.status ?? ""));
+  const canAddProcessedPayment = canPerform("customer.receivable", "read") && canPerform("customer.receivable.payment", "create");
   const latest = useRef({ open, canEdit, scope });
   latest.current = { open, canEdit, scope };
   const activeEdit = open && canEdit && editing?.scope === scope ? editing.receipt : null;
@@ -108,6 +109,6 @@ export function PrintingReceiptModal({ open, onClose, onReceiptUpdated, receipt,
         <PrintingReceiptView receipt={receipt} transaction={transaction} />
       </div>
     </Modal>
-    {activeEdit && <ProcessedPrintingReceiptEditor key={activeEdit.id} receipt={activeEdit} onClose={closeEdit} onSaved={savedEdit} />}
+    {activeEdit && <ProcessedPrintingReceiptEditor key={activeEdit.id} receipt={activeEdit} onClose={closeEdit} onSaved={savedEdit} canAddPayment={canAddProcessedPayment} />}
   </>;
 }

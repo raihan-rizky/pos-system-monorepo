@@ -54,6 +54,9 @@ describe("panduan koreksi nota Percetakan yang diproses", () => {
       expect(text).toContain("Metode pembayaran");
       expect(text).toContain("Sales transaksi");
       expect(text).toContain("Tinjau perubahan");
+      expect(text).toContain("Pecah pembayaran awal");
+      expect(text).toContain("Tambah pembayaran tambahan");
+      expect(text).toContain("customer.receivable.payment:create");
     }
     expect(faq).toContain("Nominal dan tanggal pembayaran awal tetap");
     expect(faq).toContain("Pembayaran lanjutan tetap");
@@ -63,5 +66,15 @@ describe("panduan koreksi nota Percetakan yang diproses", () => {
     expect(entry!.highlight.title.length).toBeLessThanOrEqual(40);
     expect(entry!.highlight.summary.length).toBeLessThanOrEqual(85);
     expect(entry!.screenshot?.alt).toContain("contoh");
+  });
+
+  it("publishes the additional-payment flow as a three-step release note", () => {
+    const entry = CHANGELOG.find(item => item.id === "printing-receipt-additional-payment-20261117");
+    expect(entry).toMatchObject({ date: "2026-11-17", revision: 1, href: "/pos", visual: "printing", screenshot: { src: "/images/changelog/edit-nota-pembayaran-tambahan.png" } });
+    expect(entry?.steps).toHaveLength(3);
+    expect(entry!.highlight.title.length).toBeLessThanOrEqual(40);
+    expect(entry!.highlight.summary.length).toBeLessThanOrEqual(85);
+    const steps = JSON.stringify(entry?.steps);
+    for (const term of ["Pecah pembayaran awal", "pembayaran tambahan", "Tinjau perubahan", "Simpan dan perbarui transaksi"]) expect(steps).toContain(term);
   });
 });
