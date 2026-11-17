@@ -72,9 +72,9 @@ describe("POST /api/products", () => {
   });
 
   it("rejects an unsupported subcategory before writing a product", async () => {
-    txSubcategoryFindUniqueMock.mockResolvedValueOnce({ id: "spanduk", group: "PERCETAKAN", name: "SPANDUK", legacyCategoryId: null });
+    txSubcategoryFindUniqueMock.mockResolvedValueOnce({ id: "fotokopi", group: "PERCETAKAN", name: "FOTOKOPI", legacyCategoryId: null });
     const response = await POST(new Request("http://localhost/api/products", {
-      method: "POST", body: JSON.stringify({ ...originalUnitInput, catalogSubcategoryId: "spanduk" }),
+      method: "POST", body: JSON.stringify({ ...originalUnitInput, catalogSubcategoryId: "fotokopi" }),
     }));
     expect(response.status).toBe(422);
     expect(productCreateMock).not.toHaveBeenCalled();
