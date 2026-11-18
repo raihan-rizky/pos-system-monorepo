@@ -561,7 +561,7 @@ export class InventoryInboundReceiptRepository
       actor: { id: string; name?: string | null };
       lines: Array<{ productId: string; stockGroupId: string | null; pricing: InboundPricingSnapshot }>;
     },
-  ): Promise<void> {
+  ): Promise<{ skippedProductIds: string[] }> {
     await tx.$executeRaw`SET LOCAL lock_timeout = '2s'`;
     const groupedIds = [...new Set(input.lines.flatMap((line) => line.stockGroupId ? [line.stockGroupId] : []))].sort();
     const standaloneIds = input.lines.filter((line) => !line.stockGroupId).map((line) => line.productId);
@@ -598,6 +598,33 @@ export class InventoryInboundReceiptRepository
       };
       return isSource(left) - isSource(right);
     });
+    const beforeByProduct = new Map<string, Prisma.ProductGetPayload<{}> | null>();
+    for (const id of new Set(orderedLines.flatMap((line) => line.pricing.productId ? [line.pricing.productId] : []))) {
+      beforeByProduct.set(id, await tx.product.findFirst({ where: { id, storeId: input.storeId, isActive: true } }));
+    }
+    const skippedGroups = new Set<string>();
+    const skippedStandalone = new Set<string>();
+    for (const line of orderedLines) {
+      const { collection, pricing } = line;
+      const before = pricing.productId ? beforeByProduct.get(pricing.productId) : null;
+      if (!collection || !before) continue;
+      const money = (value: unknown) => value === null ? null : Number(value);
+      const priceChanged = money(before.costPrice) !== collection.original.costPrice ||
+        money(before.price) !== collection.original.price ||
+        money(before.hargaAgen) !== collection.original.hargaAgen ||
+        money(before.hargaDinas) !== collection.original.hargaDinas;
+      const group = line.stockGroupId ? prepared.before.get(line.stockGroupId) : null;
+      const config = group ? initializeGroupPricing(group).config : null;
+      const rulesChanged = group && config && (
+        collection.pricingConfigRevision !== (group.config?.revision ?? null) ||
+        collection.pricingMode !== (config.members[collection.productId]?.mode ?? "MANUAL") ||
+        collection.pricingSourceProductId !== config.sourceProductId
+      );
+      if (priceChanged || rulesChanged) {
+        if (line.stockGroupId) skippedGroups.add(line.stockGroupId);
+        else skippedStandalone.add(line.productId);
+      }
+    }
     for (const line of orderedLines) {
       const { pricing, collection } = line;
       if (!pricing.productId || pricing.price === null || pricing.unitMultiplierToBase === null ||
@@ -605,19 +632,15 @@ export class InventoryInboundReceiptRepository
         throw new Error("Satuan dan harga produk belum lengkap.");
       }
 
-      const before = await tx.product.findFirst({ where: { id: pricing.productId, storeId: input.storeId, isActive: true } });
+      const before = beforeByProduct.get(pricing.productId);
       if (!before) throw new Error("Satuan produk sudah tidak tersedia.");
-      const money = (value: unknown) => value === null ? null : Number(value);
-      if (collection && (money(before.costPrice) !== collection.original.costPrice || money(before.price) !== collection.original.price ||
-        money(before.hargaAgen) !== collection.original.hargaAgen || money(before.hargaDinas) !== collection.original.hargaDinas)) {
-        throw new Error("Harga produk berubah. Periksa kembali penerimaan ini.");
-      }
 
       if (!line.stockGroupId) {
         if (before.stockGroupId || pricing.productId !== line.productId || pricing.unitMultiplierToBase !== pricing.orderedUnitMultiplierToBase ||
           before.unit !== pricing.unit || before.conversionNeedsReview || before.unitMultiplierToBase !== pricing.unitMultiplierToBase) {
           throw new Error("Satuan atau konversi produk berubah. Periksa kembali penerimaan ini.");
         }
+        if (skippedStandalone.has(line.productId)) continue;
       } else {
         const group = prepared.before.get(line.stockGroupId);
         const ordered = group?.members.find((member) => member.id === line.productId);
@@ -629,10 +652,7 @@ export class InventoryInboundReceiptRepository
         }
         const config = initializeGroupPricing(group).config;
         const isFollower = config.sourceProductId !== member.id && config.members[member.id]?.mode === "AUTO";
-        if (collection && (collection.pricingConfigRevision !== (group.config?.revision ?? null) ||
-          collection.pricingMode !== (config.members[member.id]?.mode ?? "MANUAL") || collection.pricingSourceProductId !== config.sourceProductId)) {
-          throw new Error("Aturan harga produk berubah. Periksa kembali penerimaan ini.");
-        }
+        if (skippedGroups.has(line.stockGroupId)) continue;
         const source = group.members.find((candidate) => candidate.id === config.sourceProductId && candidate.isActive);
         const costProduct = isFollower ? source : member;
         if (!costProduct || costProduct.conversionNeedsReview || Number(costProduct.unitMultiplierToBase) <= 0) {
@@ -710,6 +730,11 @@ export class InventoryInboundReceiptRepository
       }).filter((entry) => !before.stockGroupId || entry.field === "HARGA_AGEN" || entry.field === "HARGA_DINAS");
       if (logs.length) await tx.productPriceLog.createMany({ data: logs });
     }
+    return {
+      skippedProductIds: [...new Set(input.lines.filter((line) => line.stockGroupId
+        ? skippedGroups.has(line.stockGroupId)
+        : skippedStandalone.has(line.productId)).map((line) => line.productId))],
+    };
   }
 
   async removeReceiptLine(
@@ -1022,6 +1047,7 @@ export class InventoryInboundReceiptRepository
           variantImpactCount: input.variantImpacts.length,
           approvedByName: input.approvedByName,
           approvedAt: input.approvedAt.toISOString(),
+          ...(input.pricingWarningProductIds?.length ? { pricingWarningProductIds: input.pricingWarningProductIds } : {}),
         },
       },
       select: { id: true },
@@ -1631,7 +1657,7 @@ export class InventoryInboundReceiptRepository
       include: {
         supplier: { select: { id: true, name: true } },
         goodsPurchase: { select: { number: true, totalAmount: true, payments: { orderBy: { createdAt: "asc" }, select: { method: true, amount: true, dueDate: true, note: true } } } },
-        stockBundle: { select: { status: true } },
+        stockBundle: { select: { status: true, summary: true } },
         lines: {
           orderBy: { createdAt: "asc" },
           take: 100,
@@ -1639,29 +1665,36 @@ export class InventoryInboundReceiptRepository
         },
       },
     });
-    return receipts.map(({ goodsPurchase, stockBundle, ...receipt }) => ({
-      ...receipt,
-      goodsPurchaseNumber: goodsPurchase?.number ?? null,
-      stockReversed: stockBundle?.status === "UNDONE",
-      payments: Array.isArray(receipt.paymentSchedule) ? receipt.paymentSchedule as unknown as InboundPaymentInput[]
-        : (goodsPurchase?.payments ?? []).map(payment => ({
-            method: payment.method, amount: Number(payment.amount.toString()),
-            dueDate: payment.dueDate?.toISOString().slice(0, 10) ?? null, note: payment.note,
-          })),
-      lines: receipt.lines.map(({ product, ...line }) => ({
-        ...line,
-        imageUrl: product?.imageUrl ?? null,
-        pricingUnits: pricingUnitsForProduct(product),
-        costPriceSnapshot:
-          line.costPriceSnapshot === null
-            ? null
-            : Number(line.costPriceSnapshot.toString()),
-        supplierCostPrice:
-          line.supplierCostPrice === null
-            ? null
-            : Number(line.supplierCostPrice.toString()),
-      })),
-    }));
+    return receipts.map(({ goodsPurchase, stockBundle, ...receipt }) => {
+      const summary = stockBundle?.summary;
+      const warningIds = summary && typeof summary === "object" && !Array.isArray(summary)
+        ? (summary as Record<string, unknown>).pricingWarningProductIds
+        : null;
+      return {
+        ...receipt,
+        goodsPurchaseNumber: goodsPurchase?.number ?? null,
+        stockReversed: stockBundle?.status === "UNDONE",
+        pricingWarningProductIds: Array.isArray(warningIds) ? warningIds.filter((id): id is string => typeof id === "string") : [],
+        payments: Array.isArray(receipt.paymentSchedule) ? receipt.paymentSchedule as unknown as InboundPaymentInput[]
+          : (goodsPurchase?.payments ?? []).map(payment => ({
+              method: payment.method, amount: Number(payment.amount.toString()),
+              dueDate: payment.dueDate?.toISOString().slice(0, 10) ?? null, note: payment.note,
+            })),
+        lines: receipt.lines.map(({ product, ...line }) => ({
+          ...line,
+          imageUrl: product?.imageUrl ?? null,
+          pricingUnits: pricingUnitsForProduct(product),
+          costPriceSnapshot:
+            line.costPriceSnapshot === null
+              ? null
+              : Number(line.costPriceSnapshot.toString()),
+          supplierCostPrice:
+            line.supplierCostPrice === null
+              ? null
+              : Number(line.supplierCostPrice.toString()),
+        })),
+      };
+    });
   }
 
   async listReceivingQueue(

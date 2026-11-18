@@ -469,6 +469,7 @@ export interface InboundReceiptListItem {
   revisionReason: string | null;
   supplier: { name: string } | null;
   note: string | null;
+  pricingWarningProductIds?: string[];
   lines: InboundReceiptListLine[];
 }
 

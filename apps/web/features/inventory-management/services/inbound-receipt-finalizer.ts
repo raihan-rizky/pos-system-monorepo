@@ -432,6 +432,7 @@ async function executeFinalization(
       ? [{ productId: line.productId, stockGroupId: line.stockGroupId, pricing: line.pricingSnapshot }]
       : [],
   );
+  let pricingWarningProductIds: string[] = [];
   if (pricedLines.length) {
     try {
       if (!input.repository.applyInboundPricing) {
@@ -439,12 +440,13 @@ async function executeFinalization(
       }
       // Pricing-only group members are locked after stock groups; retry a lock
       // conflict instead of waiting behind another group mutation indefinitely.
-      await input.repository.applyInboundPricing(input.tx, {
+      const pricingResult = await input.repository.applyInboundPricing(input.tx, {
         storeId,
         receiptId: receipt.id,
         actor: input.user,
         lines: pricedLines,
       });
+      if (pricingResult) pricingWarningProductIds = pricingResult.skippedProductIds;
     } catch (error) {
       if (error instanceof InboundReceiptFinalizationError) throw error;
       const databaseError = error && typeof error === "object"
@@ -521,6 +523,7 @@ async function executeFinalization(
     goodsPurchaseNumber: receipt.goodsPurchaseNumber as string,
     supplierId: receipt.supplierId,
     supplierName: receipt.supplierName,
+    ...(pricingWarningProductIds.length ? { pricingWarningProductIds } : {}),
     canonicalImpacts,
     variantImpacts,
   }) : null;
@@ -552,6 +555,7 @@ async function executeFinalization(
   return {
     data,
     finalized: true,
+    ...(pricingWarningProductIds.length ? { pricingWarningProductIds } : {}),
     ...(bundle ? { bundle: {
       id: bundle.id,
       type: "INBOUND_RECEIPT",

@@ -140,7 +140,7 @@ const receipts = [
       matchStatus: "MATCHED",
       reviewStatus: "APPROVED",
     }),
-  ]),
+  ], { pricingWarningProductIds: ["ink"] }),
   receipt(
     "003",
     "Supplier Contoh Kemasan",
@@ -268,6 +268,10 @@ try {
   );
   await page.getByRole("button", { name: "Semua", exact: true }).click();
   await page.getByText("Supplier Contoh Tinta", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Lihat detail PB-202610-002", exact: true }).click();
+  await page.getByRole("region", { name: "Detail PB-202610-002" })
+    .getByText("Harga produk dipertahankan saat penerimaan disetujui.", { exact: true }).waitFor({ timeout: 3_000 });
+  await page.getByRole("button", { name: "Tutup detail PB-202610-002", exact: true }).click();
   const detail = page.getByRole("button", {
     name: "Lihat detail PB-202610-001",
     exact: true,

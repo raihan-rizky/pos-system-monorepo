@@ -41,7 +41,7 @@ function fixture() {
     productPriceLog: { createMany: async ({ data }: { data: Array<Record<string, unknown>> }) => { state.logs.push(...data); } },
     productStockGroupActivity: { create: async ({ data }: { data: Record<string, unknown> }) => { state.activities.push(data); } },
   } as unknown as Prisma.TransactionClient;
-  const transaction = async (callback: () => Promise<void>) => {
+  const transaction = async (callback: () => Promise<unknown>) => {
     const before = structuredClone(state);
     try { await callback(); } catch (error) { Object.assign(state, before); throw error; }
   };
@@ -69,6 +69,122 @@ async function enableManual(context: ReturnType<typeof fixture>) {
 }
 
 describe("receipt pricing repository", () => {
+  it("keeps current group prices and reports a warning when the saved rule revision is stale", async () => {
+    const context = fixture();
+    await enableManual(context);
+    const revision = (context.state.groups[0].pricingConfig as { revision: number }).revision;
+    const before = structuredClone(context.state);
+    const pricing = {
+      version: 2 as const,
+      orderedUnitMultiplierToBase: 1,
+      units: [
+        { productId: "pcs", unit: "pcs", unitMultiplierToBase: 1, costPrice: 3_000, price: 3_500,
+          hargaAgen: null, hargaDinas: null, priceEdited: true,
+          original: { costPrice: 2_000, price: 3_000, hargaAgen: null, hargaDinas: null },
+          pricingMode: "AUTO" as const, pricingSourceProductId: "pcs", pricingConfigRevision: revision - 1 },
+        { productId: "box", unit: "box", unitMultiplierToBase: 12, costPrice: 36_000, price: 40_000,
+          hargaAgen: null, hargaDinas: null, priceEdited: true,
+          original: { costPrice: 24_000, price: 32_400, hargaAgen: null, hargaDinas: null },
+          pricingMode: "MANUAL" as const, pricingSourceProductId: "pcs", pricingConfigRevision: revision - 1 },
+      ],
+    };
+
+    const result = await new InventoryInboundReceiptRepository().applyInboundPricing(context.tx, {
+      storeId: "store", receiptId: "receipt", actor,
+      lines: [{ productId: "pcs", stockGroupId: "group", pricing }],
+    });
+
+    expect(result).toEqual({ skippedProductIds: ["pcs"] });
+    expect(context.state).toEqual(before);
+  });
+
+  it("preserves changed group prices while applying pricing for an unrelated product", async () => {
+    const context = fixture();
+    await enableManual(context);
+    const revision = (context.state.groups[0].pricingConfig as { revision: number }).revision;
+    context.state.products.push({
+      id: "single", storeId: "store", stockGroupId: null, unit: "pcs", price: "500",
+      costPrice: "300", hargaAgen: null, hargaDinas: null, unitMultiplierToBase: 1,
+      isActive: true, conversionNeedsReview: false,
+    });
+    const pricing = {
+      version: 2 as const, orderedUnitMultiplierToBase: 1,
+      units: [
+        { productId: "pcs", unit: "pcs", unitMultiplierToBase: 1, costPrice: 3_000, price: 3_500,
+          hargaAgen: null, hargaDinas: null, priceEdited: true,
+          original: { costPrice: 2_000, price: 2_900, hargaAgen: null, hargaDinas: null },
+          pricingMode: "AUTO" as const, pricingSourceProductId: "pcs", pricingConfigRevision: revision },
+        { productId: "box", unit: "box", unitMultiplierToBase: 12, costPrice: 36_000, price: 40_000,
+          hargaAgen: null, hargaDinas: null, priceEdited: true,
+          original: { costPrice: 24_000, price: 32_400, hargaAgen: null, hargaDinas: null },
+          pricingMode: "MANUAL" as const, pricingSourceProductId: "pcs", pricingConfigRevision: revision },
+      ],
+    };
+    const singlePricing = {
+      version: 1 as const, productId: "single", unit: "pcs", unitMultiplierToBase: 1,
+      orderedUnitMultiplierToBase: 1, costPrice: 350, price: 600, hargaAgen: 550, hargaDinas: 525,
+    };
+
+    const result = await new InventoryInboundReceiptRepository().applyInboundPricing(context.tx, {
+      storeId: "store", receiptId: "receipt", actor,
+      lines: [
+        { productId: "pcs", stockGroupId: "group", pricing },
+        { productId: "single", stockGroupId: null, pricing: singlePricing },
+      ],
+    });
+
+    expect(result).toEqual({ skippedProductIds: ["pcs"] });
+    expect(context.state.products[0]).toMatchObject({ costPrice: "2000.00", price: "3000.00" });
+    expect(context.state.products[1]).toMatchObject({ costPrice: "24000.00", price: "32400.00" });
+    expect(context.state.products[2]).toMatchObject({ costPrice: 350, price: 600, hargaAgen: 550, hargaDinas: 525 });
+  });
+
+  it("retains every receipt line in a group when only one line has a stale price", async () => {
+    const context = fixture();
+    await enableManual(context);
+    const revision = (context.state.groups[0].pricingConfig as { revision: number }).revision;
+    const before = structuredClone(context.state);
+    const units = [
+      { productId: "pcs", unit: "pcs", unitMultiplierToBase: 1, costPrice: 3_000, price: 3_500,
+        hargaAgen: null, hargaDinas: null, priceEdited: true,
+        original: { costPrice: 2_000, price: 3_000, hargaAgen: null, hargaDinas: null },
+        pricingMode: "AUTO" as const, pricingSourceProductId: "pcs", pricingConfigRevision: revision },
+      { productId: "box", unit: "box", unitMultiplierToBase: 12, costPrice: 36_000, price: 40_000,
+        hargaAgen: null, hargaDinas: null, priceEdited: true,
+        original: { costPrice: 24_000, price: 32_400, hargaAgen: null, hargaDinas: null },
+        pricingMode: "MANUAL" as const, pricingSourceProductId: "pcs", pricingConfigRevision: revision },
+    ];
+    const result = await new InventoryInboundReceiptRepository().applyInboundPricing(context.tx, {
+      storeId: "store", receiptId: "receipt", actor,
+      lines: [
+        { productId: "pcs", stockGroupId: "group", pricing: { version: 2, orderedUnitMultiplierToBase: 1, units } },
+        { productId: "box", stockGroupId: "group", pricing: { version: 2, orderedUnitMultiplierToBase: 12,
+          units: [units[0], { ...units[1], original: { ...units[1].original, price: 30_000 } }] } },
+      ],
+    });
+
+    expect(result).toEqual({ skippedProductIds: ["pcs", "box"] });
+    expect(context.state).toEqual(before);
+  });
+
+  it("retains a standalone product's current prices when its saved baseline is stale", async () => {
+    const context = fixture();
+    context.state.products[1].stockGroupId = null;
+    const before = structuredClone(context.state);
+    const result = await new InventoryInboundReceiptRepository().applyInboundPricing(context.tx, {
+      storeId: "store", receiptId: "receipt", actor,
+      lines: [{ productId: "box", stockGroupId: null, pricing: { version: 2, orderedUnitMultiplierToBase: 12, units: [{
+        productId: "box", unit: "box", unitMultiplierToBase: 12, costPrice: 36_000, price: 40_000,
+        hargaAgen: null, hargaDinas: null, priceEdited: true,
+        original: { costPrice: 24_000, price: 30_000, hargaAgen: null, hargaDinas: null },
+        pricingMode: "MANUAL", pricingSourceProductId: null, pricingConfigRevision: null,
+      }] } }],
+    });
+
+    expect(result).toEqual({ skippedProductIds: ["box"] });
+    expect(context.state).toEqual(before);
+  });
+
   it("updates a standalone unit and records all four price changes", async () => {
     const context = fixture();
     context.state.products[1].stockGroupId = null;

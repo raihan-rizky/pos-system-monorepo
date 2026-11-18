@@ -911,6 +911,23 @@ describe("pricing during receipt finalization", () => {
     expect(repository.applyInboundPricing.mock.invocationCallOrder[0]).toBeLessThan(repository.markReceiptApproved.mock.invocationCallOrder[0]);
   });
 
+  it("approves stock and reports retained product prices when pricing has changed", async () => {
+    const repository = Object.assign(createRepository(receipt({ lines: [line({ pricingSnapshot: pricing })] })), {
+      applyInboundPricing: vi.fn(async () => ({ skippedProductIds: ["dus"] })),
+    });
+
+    const result = await finalizeInboundReceiptIfReady(finalizerInput(repository));
+
+    expect(result).toMatchObject({ finalized: true, pricingWarningProductIds: ["dus"] });
+    expect(repository.createCanonicalInventoryLog).toHaveBeenCalledWith(
+      tx, expect.objectContaining({ productId: "dus", quantity: 2, unitCost: 99_000 }),
+    );
+    expect(repository.createReceiptStockBundle).toHaveBeenCalledWith(
+      tx, expect.objectContaining({ pricingWarningProductIds: ["dus"] }),
+    );
+    expect(repository.markReceiptApproved).toHaveBeenCalled();
+  });
+
   it("does not apply prices on mismatched or legacy lines", async () => {
     for (const candidate of [line({ matchStatus: "MISMATCHED", pricingSnapshot: pricing }), line()]) {
       const repository = withPricing(receipt({ lines: [candidate] }));

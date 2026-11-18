@@ -99,7 +99,46 @@ export function receiptPricingInputForEdit(line: InboundReceiptListLine, drafts:
     const selected = drafts.find((draft) => draft.productId === units[0]?.productId);
     return inboundPricingInputFromDraft(selected ?? pricingDraftForUnit());
   }
-  return inboundPricingInputFromDrafts(units, drafts);
+  const pricing = inboundPricingInputFromDrafts(units, drafts);
+  return {
+    ...pricing,
+    units: pricing.units.map((proposal) => {
+      const unit = units.find((candidate) => candidate.productId === proposal.productId)!;
+      return { ...proposal, baseline: {
+        unit: unit.unit, unitMultiplierToBase: unit.unitMultiplierToBase,
+        costPrice: unit.costPrice, price: unit.price, hargaAgen: unit.hargaAgen, hargaDinas: unit.hargaDinas,
+        pricingMode: unit.pricingMode ?? "MANUAL", pricingSourceProductId: unit.pricingSourceProductId ?? null,
+        pricingConfigRevision: unit.pricingConfigRevision ?? null,
+      } };
+    }),
+  };
+}
+
+function hasChangedReceiptUnits(line: InboundReceiptListLine): boolean {
+  const snapshot = line.pricingSnapshot;
+  if (snapshot?.version !== 2 || line.matchStatus !== "MATCHED" || line.receivedQuantity <= 0) return false;
+  const units = (line.pricingUnits ?? []).filter((unit) => unit.isActive !== false &&
+    !unit.conversionNeedsReview && Number.isFinite(unit.unitMultiplierToBase) && unit.unitMultiplierToBase > 0);
+  const ordered = units.find((unit) => unit.productId === line.productId);
+  return !ordered || snapshot.orderedUnitMultiplierToBase !== ordered.unitMultiplierToBase ||
+    snapshot.units.length !== units.length || new Set(snapshot.units.map((unit) => unit.productId)).size !== snapshot.units.length ||
+    snapshot.units.some((saved) => {
+      const current = units.find((unit) => unit.productId === saved.productId);
+      return !current || current.unit !== saved.unit || current.unitMultiplierToBase !== saved.unitMultiplierToBase;
+    });
+}
+
+function hasChangedReceiptPricing(line: InboundReceiptListLine): boolean {
+  const snapshot = line.pricingSnapshot;
+  if (snapshot?.version !== 2 || line.matchStatus !== "MATCHED" || line.receivedQuantity <= 0) return false;
+  return hasChangedReceiptUnits(line) || snapshot.units.some((saved) => {
+    const current = (line.pricingUnits ?? []).find((unit) => unit.productId === saved.productId);
+    return !current || current.costPrice !== saved.original.costPrice || current.price !== saved.original.price ||
+      current.hargaAgen !== saved.original.hargaAgen || current.hargaDinas !== saved.original.hargaDinas ||
+      (current.pricingMode ?? "MANUAL") !== saved.pricingMode ||
+      (current.pricingSourceProductId ?? null) !== saved.pricingSourceProductId ||
+      (current.pricingConfigRevision ?? null) !== saved.pricingConfigRevision;
+  });
 }
 
 export interface InboundReceiptReviewModalProps {
@@ -122,6 +161,8 @@ type EditInput = {
   supplierCostPrice: string;
   pricing: InboundPricingDraft[];
   targetPricingUnits?: InboundPricingUnit[];
+  requiresPricingReview: boolean;
+  confirmedPricingReview: boolean;
   note: string;
 };
 
@@ -187,7 +228,10 @@ export function InboundReceiptReviewModal({
   ) => {
     if (result.finalized) {
       onClose();
-      onSuccess("Penerimaan Barang Telah Disetujui");
+      const count = result.pricingWarningProductIds?.length ?? 0;
+      onSuccess(count > 0
+        ? `Penerimaan disetujui. Harga produk terkini dipertahankan untuk ${count} produk; lihat rincian penerimaan.`
+        : "Penerimaan Barang Telah Disetujui");
       return;
     }
     try {
@@ -247,6 +291,9 @@ export function InboundReceiptReviewModal({
       expectedUpdatedAt: line.updatedAt,
       matchStatus: line.matchStatus ?? "MATCHED",
       receivedQuantity: String(line.receivedQuantity),
+      targetPricingUnits: (line.pricingUnits ?? []).map((unit) => ({ ...unit })),
+      requiresPricingReview: hasChangedReceiptPricing(line),
+      confirmedPricingReview: false,
       supplierCostPrice: String(
         line.supplierCostPrice ?? line.costPriceSnapshot ?? "",
       ),
@@ -293,12 +340,16 @@ export function InboundReceiptReviewModal({
       return;
     }
     const requiredPricing = editInput.matchStatus === "MATCHED" && receivedQuantity > 0;
-    const editUnits = replacement ? pricingUnits : receiptPricingUnitsForEdit(line);
+    const editUnits = replacement ? pricingUnits : receiptPricingUnitsForEdit({ ...line, pricingUnits });
     const pricingValid = !replacement && line.pricingSnapshot?.version === 1
       ? isInboundPricingDraftValid(editInput.pricing.find((draft) => draft.productId === editUnits[0]?.productId) ?? pricingDraftForUnit(), requiredPricing, line.pricingUnits)
       : isInboundPricingDraftsValid(editUnits, editInput.pricing, requiredPricing);
     if (line.pricingSnapshot && !pricingValid) {
       setError("Lengkapi harga jual setiap satuan aktif dan periksa nilai harga lainnya.");
+      return;
+    }
+    if (!replacement && editInput.requiresPricingReview && !editInput.confirmedPricingReview) {
+      setError("Periksa harga produk terbaru dan centang persetujuan sebelum menyimpan.");
       return;
     }
     if (
@@ -336,7 +387,7 @@ export function InboundReceiptReviewModal({
           receivedQuantity,
           expectedUpdatedAt: editInput.expectedUpdatedAt,
           ...(line.pricingSnapshot
-            ? { pricing: replacementPricing ?? receiptPricingInputForEdit(line, editInput.pricing) }
+            ? { pricing: replacementPricing ?? receiptPricingInputForEdit({ ...line, pricingUnits }, editInput.pricing) }
             : { supplierCostPrice, ...(replacementPricing ? { pricing: replacementPricing } : {}) }),
           note: editInput.note.trim() || null,
         }),
@@ -427,6 +478,12 @@ export function InboundReceiptReviewModal({
               comparison,
             });
             const isEditing = editingId === line.id && editInput;
+            const pricingChanged = receipt.status === "SUBMITTED" && hasChangedReceiptPricing(line);
+            const unitsChanged = pricingChanged && hasChangedReceiptUnits(line);
+            const priceRetained = receipt.pricingWarningProductIds?.includes(line.productId) ?? false;
+            const reviewUnits = isEditing && editInput.productId === line.productId
+              ? editInput.targetPricingUnits ?? []
+              : line.pricingUnits ?? [];
             return (
               <div
                 key={line.id}
@@ -449,6 +506,12 @@ export function InboundReceiptReviewModal({
                           <p>Harga Jual: {formatCostPrice(pricing.price)}</p>
                           <p>Harga Jual Agen: {formatCostPrice(pricing.hargaAgen)}</p>
                           <p>Harga Jual Dinas: {formatCostPrice(pricing.hargaDinas)}</p>
+                          {pricingChanged && "pricingMode" in pricing && <p>
+                            Aturan saat diajukan: {pricing.pricingMode === "AUTO" ? "Otomatis" : "Manual"}
+                            {pricing.pricingMode === "AUTO" && line.pricingSnapshot?.version === 2
+                              ? ` · Acuan: ${line.pricingSnapshot.units.find((unit) => unit.productId === pricing.pricingSourceProductId)?.unit ?? "tidak tersedia"}`
+                              : ""} · Konversi: {pricing.unitMultiplierToBase} satuan dasar
+                          </p>}
                         </div>)}
                         {line.pricingSnapshot.version === 2 && (line.pricingUnits ?? []).filter((unit) =>
                           line.pricingSnapshot?.version === 2 && !line.pricingSnapshot.units.some((saved) => saved.productId === unit.productId),
@@ -490,6 +553,35 @@ export function InboundReceiptReviewModal({
                     )}
                   </div>
                 </div>
+
+                {pricingChanged && (
+                  <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                    <p className="font-bold">Tinjau harga</p>
+                    <p className="mt-1">{unitsChanged
+                      ? "Satuan atau konversi perlu diperiksa sebelum penerimaan disetujui."
+                      : "Data harga atau aturannya diperbarui setelah penerimaan diajukan. Penerimaan tetap dapat disetujui; harga produk terkini dipertahankan untuk grup atau produk ini. HPP penerimaan tetap dicatat untuk stok."}
+                      {canEdit ? " Pilih Edit jika ingin meninjau penerimaan." : ""}</p>
+                    {reviewUnits.map((unit) => (
+                      <div key={unit.productId} className="mt-2">
+                        <p className="font-bold">Harga produk saat ini: {unit.unit} ({unit.unitMultiplierToBase} satuan dasar)</p>
+                        <p>
+                          Aturan saat ini: {unit.pricingMode === "AUTO" ? "Otomatis" : "Manual"}
+                          {unit.pricingMode === "AUTO"
+                            ? ` · Acuan: ${reviewUnits.find((candidate) => candidate.productId === unit.pricingSourceProductId)?.unit ?? "tidak tersedia"}`
+                            : ""}{unit.isActive === false ? " · Tidak aktif" : unit.conversionNeedsReview ? " · Konversi perlu ditinjau" : ""}
+                        </p>
+                        <p>HPP Unit: {formatCostPrice(unit.costPrice)} · Harga Jual: {formatCostPrice(unit.price)}</p>
+                        <p>Harga Jual Agen: {formatCostPrice(unit.hargaAgen)} · Harga Jual Dinas: {formatCostPrice(unit.hargaDinas)}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {priceRetained && (
+                  <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs font-semibold text-amber-900">
+                    Harga produk dipertahankan saat penerimaan disetujui karena data harga telah berubah.
+                  </p>
+                )}
 
                 {conflict.otherPendingQuantity > 0 && (
                   <p className="mt-2 text-xs font-semibold text-amber-700">
@@ -591,12 +683,23 @@ export function InboundReceiptReviewModal({
                         <InboundPricingFields
                           units={editInput.productId !== line.productId
                             ? editInput.targetPricingUnits ?? []
-                            : receiptPricingUnitsForEdit(line)}
+                            : receiptPricingUnitsForEdit({ ...line, pricingUnits: editInput.targetPricingUnits ?? line.pricingUnits })}
                           value={editInput.pricing}
                           onChange={(pricing) => setEditInput({ ...editInput, pricing })}
                           required={editInput.matchStatus === "MATCHED" && Number(editInput.receivedQuantity) > 0}
                           namePrefix={`reviewLines.${line.id}.pricing`}
                         />
+                        {editInput.productId === line.productId && editInput.requiresPricingReview && (
+                          <label className="mt-3 flex items-start gap-2 text-sm font-semibold text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={editInput.confirmedPricingReview}
+                              onChange={(event) => setEditInput({ ...editInput, confirmedPricingReview: event.target.checked })}
+                              className="mt-1"
+                            />
+                            Saya sudah memeriksa harga produk terbaru dan harga penerimaan yang akan disimpan.
+                          </label>
+                        )}
                       </div>
                     )}
                     <div className="flex gap-2 md:col-span-3">
