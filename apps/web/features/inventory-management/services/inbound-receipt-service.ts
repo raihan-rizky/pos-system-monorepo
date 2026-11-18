@@ -821,7 +821,16 @@ export async function editInboundReceiptItem(
       }
 
       const note = input.input.note?.trim() || null;
-      requireUnchangedReceiptPricing(line);
+      const reviewedPricing = !replacement && line.pricingSnapshot?.version === 2 &&
+        isCollectionPricing(input.input.pricing) &&
+        input.input.pricing.units.some((unit) => unit.baseline !== undefined)
+        ? input.input.pricing
+        : null;
+      if (reviewedPricing) {
+        requireCurrentSubmissionPricing(reviewedPricing, line.pricingUnits);
+      } else {
+        requireUnchangedReceiptPricing(line);
+      }
       if (replacement && (line.pricingSnapshot || targetItem.pricingUnits.length > 0)) {
         const pricing = input.input.pricing;
         const units = targetItem.pricingUnits.filter((unit) => unit.isActive !== false &&
@@ -952,7 +961,11 @@ export async function editInboundReceiptItem(
             const stockGroupId = replacement ? replacement.stockGroupId : line.stockGroupId;
             const sameGroup = stockGroupId ? sibling.stockGroupId === stockGroupId : sibling.productId === targetItem.productId;
             if (sibling.id === line.id || !sameGroup || sibling.receivedQuantity <= 0 || sibling.matchStatus !== "MATCHED" || sibling.pricingSnapshot?.version !== 2) continue;
-            requireUnchangedReceiptPricing(sibling);
+            if (reviewedPricing) {
+              requireCurrentSubmissionPricing(reviewedPricing, sibling.pricingUnits);
+            } else {
+              requireUnchangedReceiptPricing(sibling);
+            }
             let siblingPricing;
             try {
               siblingPricing = createInboundPricingCollectionSnapshot(input.input.pricing, sibling.pricingUnits, sibling.matchStatus === "MATCHED" && sibling.receivedQuantity > 0, sibling.unitMultiplierToBase);

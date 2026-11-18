@@ -188,6 +188,7 @@ export interface InboundReceiptMutationResult {
   data: InboundReceiptData;
   finalized: boolean;
   conflict?: boolean;
+  pricingWarningProductIds?: string[];
   bundle?: InboundReceiptStockBundleResult;
 }
 
@@ -306,6 +307,7 @@ export interface CreateInboundReceiptStockBundleInput {
   goodsPurchaseNumber: string;
   supplierId: string | null;
   supplierName: string;
+  pricingWarningProductIds?: string[];
   canonicalImpacts: InboundReceiptStockImpact[];
   variantImpacts: InboundReceiptStockImpact[];
 }
@@ -674,7 +676,7 @@ export interface InventoryInboundReceiptRepository {
         pricing: InboundPricingSnapshot;
       }>;
     },
-  ): Promise<void>;
+  ): Promise<void | { skippedProductIds: string[] }>;
   removeReceiptLine(
     tx: unknown,
     input: { storeId: string; receiptId: string; itemId: string },

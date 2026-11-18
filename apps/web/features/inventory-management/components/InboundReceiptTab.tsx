@@ -538,6 +538,11 @@ export const InboundReceiptTab: React.FC<InboundReceiptTabProps> = ({
                                                 SKU: {line.skuSnapshot}
                                               </p>
                                             )}
+                                            {receipt.pricingWarningProductIds?.includes(line.productId) && (
+                                              <p className="mt-1 text-xs font-semibold text-amber-800">
+                                                Harga produk dipertahankan saat penerimaan disetujui.
+                                              </p>
+                                            )}
                                           </div>
                                         </dd>
                                       </div>

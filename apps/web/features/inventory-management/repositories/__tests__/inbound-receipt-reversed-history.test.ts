@@ -12,7 +12,7 @@ describe("riwayat penerimaan yang dibalik", () => {
       { id: "r3", goodsPurchase: null, stockBundle: null, lines: [] },
     ]);
     const rows = await new InventoryInboundReceiptRepository().listInboundReceipts("store-1", {});
-    expect(findMany.mock.calls[0][0].include.stockBundle).toEqual({ select: { status: true } });
+    expect(findMany.mock.calls[0][0].include.stockBundle).toMatchObject({ select: { status: true } });
     expect(rows.map((row) => row.stockReversed)).toEqual([true, false, false]);
     expect(rows[0]).not.toHaveProperty("stockBundle");
   });

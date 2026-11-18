@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "peringatan-harga-penerimaan-20261118", date: "2026-11-18", revision: 1,
+    highlight: { title: "Peringatan harga penerimaan", summary: "Setujui penerimaan sambil mempertahankan harga produk terkini." },
+    title: "Penerimaan tetap bisa disetujui saat harga berubah.",
+    summary: "Perubahan harga atau aturan produk ditampilkan sebagai peringatan. Penerimaan tetap dapat disetujui dengan mempertahankan harga produk terkini.",
+    kind: "fix", impact: "major", area: "Penerimaan Barang", href: "/inventory?tab=transactions&subtab=inbound", visual: "shopping",
+    steps: [
+      { title: "Buka penerimaan", detail: "Di Inventaris > Transaksi > Penerimaan Barang, buka Proses atau Ubah Penerimaan." },
+      { title: "Periksa peringatan", detail: "Bandingkan harga pada penerimaan dengan harga produk terkini, lalu setujui setiap item." },
+      { title: "Lihat riwayat", detail: "Setelah penerimaan disetujui, buka detail riwayat untuk melihat produk yang harga terkininya dipertahankan." },
+    ],
+  },
+  {
     id: "history-dp-multipayment-20261117", date: "2026-11-17", revision: 1,
     highlight: { title: "Metode pembayaran DP di Riwayat", summary: "Lihat metode dan nominal pembayaran awal serta pelunasan." },
     title: "Riwayat DP menampilkan metode awal dan pelunasan.",
