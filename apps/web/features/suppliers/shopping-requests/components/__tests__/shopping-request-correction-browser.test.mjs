@@ -110,6 +110,14 @@ try {
     await page.getByLabel("Alasan perubahan", { exact: true }).fill("Periksa nominal");
     await page.getByRole("button", { name: "Tinjau dampak", exact: true }).click();
     await page.getByRole("alert").filter({ hasText: "Total jadwal harus sesuai" }).waitFor();
+    const amount = page.getByLabel("Nominal Pembayaran 1", { exact: true });
+    await amount.focus();
+    await amount.press("End");
+    await amount.press("2");
+    assert.equal(await amount.evaluate(element => document.activeElement === element), true, "correcting validation does not steal input focus");
+    await amount.fill("1");
+    await page.getByRole("button", { name: "Tinjau dampak", exact: true }).click();
+    await page.getByRole("alert").filter({ hasText: "Total jadwal harus sesuai" }).waitFor();
     assert.equal(await page.getByLabel("Alasan perubahan", { exact: true }).inputValue(), "Periksa nominal");
     await page.getByRole("button", { name: "Periksa pembayaran", exact: true }).click();
     assert.equal(await page.getByRole("region", { name: "Jadwal pembayaran", exact: true }).evaluate(element => element === document.activeElement), true);
