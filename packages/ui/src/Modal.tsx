@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect, useCallback } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { BASE_MODAL_Z_INDEX, registerModalLayer, unregisterModalLayer } from "./modal-stack";
 
 interface ModalProps {
   open: boolean;
@@ -44,6 +45,16 @@ export function Modal({
   className = "",
   portalRoot,
 }: ModalProps) {
+  const modalToken = useRef(Symbol("modal"));
+  const [modalZIndex, setModalZIndex] = useState(BASE_MODAL_Z_INDEX);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+
+    setModalZIndex(registerModalLayer(modalToken.current));
+    return () => unregisterModalLayer(modalToken.current);
+  }, [open]);
+
   const handleEscape = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -67,7 +78,7 @@ export function Modal({
   const titleId = title ? titleToId(title) : undefined;
 
   const modal = (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+    <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-6" style={{ zIndex: modalZIndex }}>
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in"
