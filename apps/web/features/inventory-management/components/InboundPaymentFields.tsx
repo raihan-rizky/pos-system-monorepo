@@ -18,19 +18,21 @@ export function InboundPaymentSummary({ payments }: { payments: InboundPaymentIn
   </div>;
 }
 
-export function InboundPaymentFields({ payments, totalAmount, disabled = false, allowZeroAmounts = false, onChange }: {
+export function InboundPaymentFields({ payments, totalAmount, disabled = false, allowZeroAmounts = false, context = "receiving", error, onChange }: {
   payments: InboundPaymentInput[];
   totalAmount: number;
   disabled?: boolean;
   allowZeroAmounts?: boolean;
+  context?: "receiving" | "correction";
+  error?: string | null;
   onChange: (payments: InboundPaymentInput[]) => void;
 }) {
   const update = (index: number, patch: Partial<InboundPaymentInput>) =>
     onChange(payments.map((row, candidate) => candidate === index ? { ...row, ...patch } : row));
   const allocated = payments.reduce((sum, row) => sum + Math.round((row.amount || 0) * 100), 0) / 100;
   const remaining = (Math.round(totalAmount * 100) - Math.round(allocated * 100)) / 100;
-  return <fieldset disabled={disabled} className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-    <legend className="px-1 text-sm font-bold text-slate-800">Pembayaran Pembelian</legend>
+  return <fieldset disabled={disabled} aria-invalid={error ? true : undefined} aria-describedby={error ? "correction-schedule-error" : undefined} className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+    <legend className="px-1 text-sm font-bold text-slate-800">{context === "correction" ? "Rincian jadwal" : "Pembayaran Pembelian"}</legend>
     <p className="text-sm text-slate-600">Bagi nominal ke beberapa giro dengan tanggal jatuh tempo masing-masing. Totalnya harus sesuai nilai pembelian.</p>
     {payments.map((payment, index) => <fieldset key={index} className="rounded-lg border border-slate-200 bg-white p-3">
       <legend className="px-1 text-sm font-semibold text-slate-800">Pembayaran {index + 1}</legend>
@@ -58,12 +60,13 @@ export function InboundPaymentFields({ payments, totalAmount, disabled = false, 
         onClick={() => onChange(payments.filter((_, candidate) => candidate !== index))}>Hapus Pembayaran {index + 1}</button>}
     </fieldset>)}
     {!disabled && payments.length < 50 && <button type="button" className="min-h-12 rounded-lg border border-cyan-700 bg-white px-4 text-sm font-semibold text-cyan-800 hover:bg-cyan-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-700"
-      onClick={() => onChange([...payments, { method: "GIRO", amount: Math.max(0, remaining), dueDate: null, note: null }])}>Tambah Giro</button>}
+      onClick={() => onChange([...payments, { method: "GIRO", amount: Math.max(0, remaining), dueDate: null, note: null }])}>{context === "correction" ? "Tambah jadwal" : "Tambah Giro"}</button>}
     <dl className="space-y-1 text-sm tabular-nums">
       <div className="flex justify-between gap-3"><dt>Total Pembelian</dt><dd>{money(totalAmount)}</dd></div>
-      <div className="flex justify-between gap-3"><dt>Total Pembayaran</dt><dd className="font-semibold">{money(allocated)}</dd></div>
+      <div className="flex justify-between gap-3"><dt>{context === "correction" ? "Total jadwal" : "Total Pembayaran"}</dt><dd className="font-semibold">{money(allocated)}</dd></div>
       <div className={`flex justify-between gap-3 ${remaining === 0 ? "text-emerald-800" : "font-semibold text-amber-800"}`}><dt>{remaining < 0 ? "Kelebihan alokasi" : "Sisa alokasi"}</dt><dd>{money(Math.abs(remaining))}</dd></div>
     </dl>
-    <p className="text-xs text-slate-600">{disabled ? "Pembayaran sudah ditetapkan dan digunakan kembali pada penerimaan berikutnya." : "Pengeluaran pembelian dicatat saat penerimaan pertama disetujui."}</p>
+    {error && <p id="correction-schedule-error" className="text-sm font-semibold text-rose-800">{error}</p>}
+    <p className="text-xs text-slate-600">{context === "correction" ? "Rincian ini membetulkan jadwal pembelian, bukan mencatat pembayaran baru." : disabled ? "Pembayaran sudah ditetapkan dan digunakan kembali pada penerimaan berikutnya." : "Pengeluaran pembelian dicatat saat penerimaan pertama disetujui."}</p>
   </fieldset>;
 }

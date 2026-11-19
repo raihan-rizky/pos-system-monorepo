@@ -24,6 +24,8 @@ type EditorItem = CorrectionLine & {
 export type ShoppingRequestCorrectionEditor = {
   requestId: string;
   purchaseId: string;
+  totalAmount: string;
+  expenseMismatch?: boolean;
   version: string;
   header: { name: string; number: string; businessDate: string; supplierId: string | null; requestedByName: string | null; note: string | null };
   items: EditorItem[];
@@ -46,7 +48,7 @@ export async function loadShoppingRequestCorrectionEditor(
     select: {
       id: true, status: true, name: true, number: true, businessDate: true, supplierId: true,
       requestedByName: true, note: true, createdAt: true, updatedAt: true,
-      expense: { select: { id: true, storeId: true, deletedAt: true, amount: true, occurredAt: true, updatedAt: true } },
+      expense: { select: { id: true, storeId: true, deletedAt: true, amount: true, changeAmount: true, occurredAt: true, updatedAt: true } },
       items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: {
         id: true, productId: true, productName: true, unit: true, requestedQty: true, approvedQty: true,
         costPriceSnapshot: true, removedAt: true, updatedAt: true, product: { select: productSelect },
@@ -67,7 +69,7 @@ export async function loadShoppingRequestCorrectionEditor(
     select: {
       id: true, status: true, totalAmount: true, totalBasis: true, paymentMethod: true, paymentDueDate: true, updatedAt: true,
       payments: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { method: true, amount: true, dueDate: true, note: true } },
-      expense: { select: { id: true, storeId: true, deletedAt: true, amount: true, occurredAt: true, updatedAt: true } },
+      expense: { select: { id: true, storeId: true, deletedAt: true, amount: true, changeAmount: true, occurredAt: true, updatedAt: true } },
       supplierPayable: { select: { id: true, storeId: true, amount: true, debtDate: true, dueDate: true, giroHistoryVerifiedAt: true } },
       items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: {
         id: true, shoppingRequestItemId: true, productId: true, productNameSnapshot: true, skuSnapshot: true,
@@ -132,7 +134,8 @@ export async function loadShoppingRequestCorrectionEditor(
   }).format(request.createdAt);
   const version = createHash("sha256").update(JSON.stringify({ request, purchase, receiptSources, paymentState })).digest("hex");
   return {
-    requestId: request.id, purchaseId: purchase.id, version,
+    requestId: request.id, purchaseId: purchase.id, totalAmount: purchase.totalAmount.toFixed(2),
+    expenseMismatch: expense ? !expense.amount.minus(expense.changeAmount).equals(purchase.totalAmount) : false, version,
     header: { name: request.name, number: request.number, businessDate, supplierId: request.supplierId, requestedByName: request.requestedByName, note: request.note },
     items, payment: { method: purchase.paymentMethod, dueDate: purchase.paymentDueDate?.toISOString().slice(0, 10) ?? null,
       schedule: purchase.payments.map(row => ({ ...row, amount: row.amount.toFixed(2), dueDate: row.dueDate?.toISOString().slice(0, 10) ?? null })),

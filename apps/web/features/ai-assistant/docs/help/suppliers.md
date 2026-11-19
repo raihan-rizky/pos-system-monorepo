@@ -33,6 +33,14 @@ Klik **Setujui dan Catat Pembelian** sekali. Sistem menyetujui Daftar Belanja, m
 
 Persetujuan tidak mengubah stok. Setelah barang datang, pilih **Catat Penerimaan** pada kartu pembelian yang disetujui. Riwayat dan perbandingan penerimaan ada di **Tindakan lainnya**. Stok baru bertambah ketika penerimaan disetujui.
 
+## Koreksi daftar yang sudah diproses
+
+Owner atau role dengan izin `supplier.shopping_request.correct_processed:update` dapat membuka **Tindakan lainnya > Ubah pembayaran** pada pembelian yang disetujui, sebelum, selama, atau setelah penerimaan. Pilih **Edit daftar** untuk mengoreksi data, barang, jumlah diterima, atau harga. Arsip dibatalkan tetap terkunci; pilihan HPP serta harga jual katalog tetap terpisah.
+
+Di **Jadwal pembayaran**, bagi nominal ke Transfer dan satu atau beberapa Giro dengan tanggal jatuh tempo masing-masing. **Total jadwal** harus sama dengan total pembelian; koreksi pembayaran saja mempertahankan total yang tersimpan. Jika ada penerimaan menunggu, peringatan muncul dan koreksi pembayaran tetap dapat disimpan; selesaikan penerimaan sebelum mengoreksi barang terkait. Jadwal adalah rencana, sedangkan **Pembayaran tercatat dan alokasi** menunjukkan uang yang sudah tercatat. Total alokasi setiap sumber harus sesuai nominal sumber setelah koreksi; perubahan ini tidak membuat pelunasan atau pengembalian uang otomatis.
+
+Isi alasan, pilih **Tinjau dampak**, lalu periksa **Sebelum** dan **Sesudah**: total, nominal serta tanggal jadwal, dampak stok, periode laporan, dan peringatan kelebihan pembayaran. Gunakan **Kembali mengedit** bila perlu, tinjau ulang, lalu **Simpan perubahan**. Jika gagal, isian dan tinjauan tetap tersedia. Badge **Diubah** atau **Stok berubah** membuka riwayat dengan rincian koreksi.
+
 ## Belanja terdahulu
 
 Di **Daftar Belanja**, pilih **Catat Belanja Terdahulu** untuk pembelian dari bulan sebelumnya. Isi tanggal pembelian, metode Giro atau Transfer, tanggal jatuh tempo, nomor, nominal, serta pembayaran yang sudah dilakukan beserta tanggalnya. Catatan ini tidak mengubah stok. Gunakan filter jenis catatan atau status pembayaran dan buka **Riwayat pembayaran** untuk mencatat pembayaran berikutnya.

@@ -9,7 +9,7 @@ const requestId = `correction-request-${suffix}`;
 describe.skipIf(!enabled)("penyimpanan audit koreksi di PostgreSQL sementara", () => {
   beforeAll(async () => {
     const url = new URL(process.env.DATABASE_URL ?? "");
-    if (url.hostname !== "127.0.0.1" || url.port !== "55439" || url.pathname !== "/shopping_correction_test") {
+    if (url.hostname !== "127.0.0.1" || url.port !== "55439" || !["/shopping_correction_test", "/shopping_correction_prod_test"].includes(url.pathname)) {
       throw new Error("Pengujian hanya boleh memakai database sementara khusus.");
     }
     await db.store.create({ data: { id: storeId, name: "Toko Koreksi Uji" } });

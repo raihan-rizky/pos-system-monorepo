@@ -453,7 +453,24 @@ export function InboundReceiptReviewModal({
               {receipt.goodsPurchaseNumber}
             </p>
           )}
-          {receipt.payments?.length ? <div className="mt-3"><InboundPaymentSummary payments={receipt.payments} /></div> : receipt.paymentMethod && <p className="mt-1 text-xs text-slate-600">
+          {receipt.paymentScheduleChanged && (
+            <div role="status" className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+              <p className="font-semibold">Jadwal pembayaran telah diperbarui</p>
+              <p className="mt-1">Saat penerimaan disetujui, sistem memakai rincian pembelian yang terbaru.</p>
+              {Boolean(receipt.currentPurchasePayments?.length) && (
+                <div className="mt-2"><InboundPaymentSummary payments={receipt.currentPurchasePayments!} /></div>
+              )}
+            </div>
+          )}
+          {receipt.firstReceiptTransferAmount != null && (
+            <p role="status" className="mt-3 rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-sm text-cyan-950">
+              {`Transfer ${formatCostPrice(receipt.firstReceiptTransferAmount)} akan tercatat sebagai pembayaran saat penerimaan pertama disetujui.`}
+            </p>
+          )}
+          {receipt.payments?.length ? <div className="mt-3">
+            {receipt.paymentScheduleChanged && <p className="mb-1 text-xs font-semibold text-slate-500">Saat diajukan</p>}
+            <InboundPaymentSummary payments={receipt.payments} />
+          </div> : receipt.paymentMethod && <p className="mt-1 text-xs text-slate-600">
             Metode pembayaran: {receipt.paymentMethod === "GIRO" ? "Giro" : "Transfer"}
             {receipt.paymentMethod === "GIRO" && receipt.paymentDueDate ? ` · Jatuh tempo ${receipt.paymentDueDate.slice(0, 10)}` : ""}
           </p>}

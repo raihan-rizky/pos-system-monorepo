@@ -14,7 +14,7 @@ type GiroRow = {
   debtDate: string | null; dueDate: string | null; payableId: string | null; payableDebtDate: string | null;
   historyVerifiedAt: Date | null; payableNote: string | null; payments: Payment[];
   schedule?: { id: string; amount: string; dueDate: string; note: string | null }[];
-  correctionId: string | null;
+  correctionId: string | null; payableAmount: string | null; effectivePaid: string;
 };
 type ManualRow = {
   id: string; supplierName: string; amount: string; debtDate: string;
@@ -35,17 +35,19 @@ export async function GET(_request: Request): Promise<Response> {
     const rows = await db.$queryRaw<GiroRow[]>`
       SELECT g."id" AS "goodsPurchaseId", g."number", g."supplierNameSnapshot" AS "supplierName",
         (CASE WHEN s."count" > 0 THEN s."giroAmount" ELSE g."totalAmount" END)::text AS "amount", e."debtDate", (CASE WHEN s."count" > 0 THEN s."dueDate" ELSE g."paymentDueDate" END)::text AS "dueDate",
-        d."id" AS "payableId", d."debtDate"::text AS "payableDebtDate", d."note" AS "payableNote", d."giroHistoryVerifiedAt" AS "historyVerifiedAt", correction."id" AS "correctionId", p."payments", s."schedule"
+        d."id" AS "payableId", d."amount"::text AS "payableAmount", d."debtDate"::text AS "payableDebtDate", d."note" AS "payableNote", d."giroHistoryVerifiedAt" AS "historyVerifiedAt", correction."id" AS "correctionId", p."payments", effective."effectivePaid", s."schedule"
       FROM "pos_goods_purchases" g
       LEFT JOIN LATERAL (
         SELECT COUNT(*) AS "count", SUM(pay."amount") FILTER (WHERE pay."method"::text = 'GIRO') AS "giroAmount",
+          COUNT(*) FILTER (WHERE pay."method"::text = 'TRANSFER') AS "transferCount",
+          SUM(pay."amount") FILTER (WHERE pay."method"::text = 'TRANSFER') AS "transferAmount",
           MIN(pay."dueDate") FILTER (WHERE pay."method"::text = 'GIRO') AS "dueDate",
           COALESCE(json_agg(json_build_object('id', pay."id", 'amount', pay."amount"::text, 'dueDate', pay."dueDate"::text, 'note', pay."note")
             ORDER BY pay."dueDate", pay."id") FILTER (WHERE pay."method"::text = 'GIRO'), '[]'::json) AS "schedule"
         FROM "pos_goods_purchase_payments" pay WHERE pay."goodsPurchaseId" = g."id"
       ) s ON true
       LEFT JOIN LATERAL (
-        SELECT (((x."occurredAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta')::date)::text AS "debtDate"
+        SELECT x."id", x."amount", (((x."occurredAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta')::date)::text AS "debtDate"
         FROM "pos_expenses" x
         WHERE x."storeId" = g."storeId" AND x."deletedAt" IS NULL AND x."amount" = g."totalAmount"
           AND (x."goodsPurchaseId" = g."id" OR (x."goodsPurchaseId" IS NULL AND x."shoppingRequestId" = g."shoppingRequestId"
@@ -76,6 +78,27 @@ export async function GET(_request: Request): Promise<Response> {
           )
         ) pay
       ) p ON true
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(SUM(paid."amount"), 0)::text AS "effectivePaid"
+        FROM (
+          SELECT a."amount" FROM "pos_shopping_request_correction_allocations" a WHERE a."correctionId" = correction."id"
+          UNION ALL
+          SELECT pay."amount" FROM "pos_supplier_payable_payments" pay
+          WHERE pay."payableId" = d."id" AND NOT EXISTS (
+            SELECT 1 FROM jsonb_array_elements(COALESCE(correction."afterSnapshot" #> '{paymentSnapshot,sources}', '[]'::jsonb)) source
+            WHERE source->>'sourceKind' = 'PAYABLE_PAYMENT' AND source->>'paymentId' = pay."id"
+          )
+          UNION ALL
+          SELECT COALESCE(g."initialTransferAmount", CASE
+            WHEN s."transferCount" > 0 THEN s."transferAmount"
+            WHEN g."paymentMethod" = 'TRANSFER' AND g."totalBasis" = 'ORDERED' THEN e."amount"
+            ELSE 0 END)
+          WHERE correction."id" IS NOT NULL AND e."id" IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM jsonb_array_elements(COALESCE(correction."afterSnapshot" #> '{paymentSnapshot,sources}', '[]'::jsonb)) source
+            WHERE source->>'sourceKind' = 'TRANSFER_EXPENSE' AND source->>'paymentId' = e."id"
+          )
+        ) paid
+      ) effective ON true
       WHERE g."storeId" = ${user.storeId} AND (g."status" = 'APPROVED' OR (g."status" = 'CANCELLED' AND g."statusBeforeCancellation" = 'APPROVED')) AND ((s."count" > 0 AND s."giroAmount" > 0) OR (s."count" = 0 AND g."paymentMethod" = 'GIRO'))
         AND (e."debtDate" IS NOT NULL OR EXISTS (
           SELECT 1 FROM "pos_expenses" legacy WHERE legacy."storeId" = g."storeId" AND legacy."deletedAt" IS NULL
@@ -97,13 +120,18 @@ export async function GET(_request: Request): Promise<Response> {
       ORDER BY d."debtDate" DESC, d."createdAt" DESC, d."id"
     ` : [];
     const today = jakartaToday();
-    const items = rows.map(({ amount, historyVerifiedAt, correctionId, payments: rawPayments, schedule: rawSchedule, ...row }) => {
+    const items = rows.map(({ amount, historyVerifiedAt, correctionId, payableAmount, effectivePaid, payments: rawPayments, schedule: rawSchedule, ...row }) => {
       const schedule = (rawSchedule ?? []).map(payment => ({ ...payment, amount: Number(payment.amount) }));
       const payments = rawPayments.map(payment => ({ ...payment, amount: Number(payment.amount) }));
       if (!row.debtDate) return { ...row, schedule, amount: Number(amount), payments, status: 'UNKNOWN', paid: null, remaining: null, historyIssue: true };
       try {
-        const balance = summarizeGiro(Number(amount), payments, Boolean(historyVerifiedAt), today, { allowCorrection: Boolean(correctionId) });
-        return { ...row, schedule, amount: Number(amount), payments, ...balance, historyIssue: false };
+        const corrected = Boolean(correctionId);
+        if (corrected && (payableAmount === null || payableAmount === undefined || effectivePaid === undefined)) throw new Error('Saldo pembelian terkoreksi tidak tersedia.');
+        const total = corrected ? Number(payableAmount) : Number(amount);
+        const effective = corrected ? Number(effectivePaid) : 0;
+        const balance = summarizeGiro(total, corrected ? effective ? [{ amount: effective, paidAt: today }] : [] : payments, Boolean(historyVerifiedAt), today, { allowCorrection: corrected });
+        const giroPaid = corrected ? summarizeGiro(Number(amount), payments, Boolean(historyVerifiedAt), today, { allowCorrection: true }).paid : balance.paid;
+        return { ...row, schedule, amount: Number(amount), payments, ...balance, paid: giroPaid, ...(corrected ? { totalPaid: balance.paid } : {}), balanceIncludesOtherMethods: corrected, historyIssue: false };
       } catch (error) {
         log.error('Riwayat pembayaran giro tidak konsisten', error);
         return { ...row, schedule, amount: Number(amount), payments, status: 'UNKNOWN', paid: null, remaining: null, historyIssue: true };

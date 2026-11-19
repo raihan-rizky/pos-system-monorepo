@@ -1029,9 +1029,9 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     iconKey: "shopping-cart",
     requiredCapabilities: [{ resource: "supplier.shopping_request.correct_processed", action: "update" }],
     steps: [
-      { title: "Buka daftar diproses", description: "Masuk ke Supplier > Daftar Belanja, buka Tindakan lainnya pada daftar yang sudah diproses, lalu pilih Edit daftar." },
-      { title: "Tinjau dampak koreksi", description: "Ubah barang, jumlah diterima, harga, pembayaran, atau pilihan katalog; masukkan alasan dan pilih Tinjau dampak untuk melihat stok, total, periode laporan, serta kelebihan pembayaran." },
-      { title: "Simpan perubahan", description: "Periksa ringkasan lalu pilih Simpan perubahan. Badge Diubah atau Stok berubah membuka riwayat koreksi." },
+      { title: "Buka koreksi pembelian", description: "Masuk ke Supplier > Daftar Belanja, buka Tindakan lainnya pada pembelian yang disetujui, lalu pilih Ubah pembayaran. Pilih Edit daftar jika juga perlu mengoreksi barang atau data daftar." },
+      { title: "Atur jadwal dan tinjau dampak", description: "Bagi jadwal ke Transfer dan satu atau beberapa Giro dengan tanggal masing-masing; samakan Total jadwal dengan total pembelian. Penerimaan yang menunggu ditampilkan sebagai peringatan dan tidak menghalangi koreksi pembayaran. Pembayaran tercatat serta alokasinya terpisah dari jadwal dan tidak membuat pelunasan otomatis. Masukkan alasan dan pilih Tinjau dampak untuk membandingkan Sebelum dan Sesudah, stok, total, periode laporan, serta kelebihan pembayaran." },
+      { title: "Simpan perubahan", description: "Periksa nominal dan jatuh tempo setiap jadwal, lalu pilih Simpan perubahan. Jika perlu, pilih Kembali mengedit dan tinjau ulang. Bila penyimpanan gagal, isian tetap tersedia untuk diperbaiki atau dicoba lagi. Badge Diubah atau Stok berubah membuka riwayat koreksi dengan rincian yang sama." },
     ],
   }),
   workflow({

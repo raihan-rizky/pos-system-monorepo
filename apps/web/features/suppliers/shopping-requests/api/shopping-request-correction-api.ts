@@ -9,7 +9,7 @@ async function correctionRequest<T>(id: string, suffix = "", input?: ShoppingReq
     ...(input ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) } : {}),
   });
   const payload = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(payload?.message || "Koreksi belum dapat diproses. Muat ulang dan coba lagi.");
+  if (!response.ok) throw Object.assign(new Error(payload?.message || "Koreksi belum dapat diproses. Muat ulang dan coba lagi."), { status: response.status });
   return payload.data;
 }
 export const getCorrectionEditor = (id: string) => correctionRequest<ShoppingRequestCorrectionEditor>(id);

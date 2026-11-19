@@ -22,14 +22,17 @@ export async function refreshReceivedPurchaseTotal(
     },
   });
   if (!purchase) throw new Error("Pembelian tidak tersedia.");
-  const audit = await tx.shoppingRequestCorrection.findFirst({
+  const audits = await tx.shoppingRequestCorrection.findMany({
     where: { storeId: input.storeId, shoppingRequestId: purchase.shoppingRequestId },
-    select: { id: true },
+    select: { afterSnapshot: true },
   });
-  if (!audit) {
+  if (!audits.length) {
     if (purchase.totalBasis === "ORDERED") return;
     throw new Error("Riwayat koreksi pembayaran tidak tersedia. Periksa pembelian secara manual.");
   }
+  if (purchase.totalBasis === "ORDERED" && audits.every(({ afterSnapshot }) =>
+    afterSnapshot && typeof afterSnapshot === "object" && !Array.isArray(afterSnapshot) &&
+    afterSnapshot.kind === "PAYMENT_ONLY")) return;
   if (purchase.totalBasis === "ORDERED") {
     const received = await tx.inventoryInboundReceipt.count({ where: { goodsPurchaseId: purchase.id, storeId: input.storeId, status: "APPROVED" } });
     if (!received) return;

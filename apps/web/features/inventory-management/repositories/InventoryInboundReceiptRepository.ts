@@ -155,7 +155,21 @@ export class InventoryInboundReceiptRepository
     if (!purchase) throw new Error("Pembelian Barang tidak tersedia.");
     const existingExpense = purchase.expense ?? purchase.shoppingRequest?.expense;
     const hasScheduledPayments = (purchase.payments?.length ?? 0) > 0;
-    if (!input.payments && input.paymentMethod && hasScheduledPayments) {
+    let receiptPayments = input.payments;
+    const resolveCorrectedSchedule = async (
+      established: InboundPaymentInput[],
+      message = "Pembayaran pembelian telah berubah. Tolak penerimaan ini dan gunakan jadwal terbaru.",
+    ) => {
+      const corrected = await tx.shoppingRequestCorrection.count({
+        where: {
+          storeId: input.storeId, shoppingRequestId: purchase.shoppingRequestId,
+          afterSnapshot: { path: ["kind"], equals: "PAYMENT_ONLY" },
+        },
+      });
+      if (!corrected) throw new Error(message);
+      return established;
+    };
+    if (!receiptPayments && input.paymentMethod && hasScheduledPayments) {
       const totalAmount = Number(purchase.totalAmount.toString());
       const established = normalizeInboundPayments({ totalAmount, legacy: null,
         payments: purchase.payments.map(row => ({ method: row.method, amount: Number(row.amount.toString()),
@@ -165,19 +179,20 @@ export class InventoryInboundReceiptRepository
         legacy: { method: input.paymentMethod, dueDate: input.paymentDueDate?.toISOString().slice(0, 10) ?? null },
       }).payments;
       if (!sameInboundPayments(established, legacyProposal)) {
-        throw new Error("Pembayaran pembelian telah berubah. Tolak penerimaan ini dan gunakan jadwal terbaru.");
+        receiptPayments = await resolveCorrectedSchedule(established);
       }
     }
-    if (input.payments !== undefined) {
+    if (receiptPayments !== undefined) {
       const total = Number(purchase.totalAmount.toString());
-      const proposal = validateInboundPayments(total, input.payments, { allowZeroTotalLegacy: true, allowEstablishedZeroRows: hasScheduledPayments }).payments;
+      let proposal = validateInboundPayments(total, receiptPayments, { allowZeroTotalLegacy: true, allowEstablishedZeroRows: hasScheduledPayments }).payments;
       const established = hasScheduledPayments || purchase.paymentMethod
         ? normalizeInboundPayments({ totalAmount: total, payments: purchase.payments?.map(row => ({
             method: row.method, amount: Number(row.amount.toString()), dueDate: row.dueDate?.toISOString().slice(0, 10) ?? null, note: row.note,
           })), legacy: purchase.paymentMethod ? { method: purchase.paymentMethod, dueDate: purchase.paymentDueDate?.toISOString().slice(0, 10) } : null }).payments
         : null;
       if (established && !sameInboundPayments(established, proposal)) {
-        throw new Error("Pembayaran pembelian telah berubah. Tolak penerimaan ini dan gunakan jadwal terbaru.");
+        proposal = await resolveCorrectedSchedule(established);
+        receiptPayments = proposal;
       }
       if (!hasScheduledPayments) {
         await tx.goodsPurchasePayment.createMany({ data: proposal.map(row => ({
@@ -191,23 +206,25 @@ export class InventoryInboundReceiptRepository
         paymentMethod: summary.paymentMethod, paymentDueDate: summary.paymentDueDate ? new Date(`${summary.paymentDueDate}T00:00:00Z`) : null,
       } });
     }
-    if (!input.payments && !input.paymentMethod && !purchase.paymentMethod && !hasScheduledPayments && !existingExpense) {
+    if (!receiptPayments && !input.paymentMethod && !purchase.paymentMethod && !hasScheduledPayments && !existingExpense) {
       throw new Error("Metode pembayaran belum diisi pada penerimaan barang.");
     }
-    if (!input.payments && purchase.paymentMethod && input.paymentMethod &&
+    if (!receiptPayments && purchase.paymentMethod && input.paymentMethod &&
       (purchase.paymentMethod !== input.paymentMethod ||
         (purchase.paymentMethod === "GIRO" &&
           purchase.paymentDueDate?.toISOString().slice(0, 10) !== input.paymentDueDate?.toISOString().slice(0, 10)))) {
-      throw new Error("Metode pembayaran pembelian telah berubah. Tolak penerimaan ini dan buat kembali dengan metode terbaru.");
+      const established = normalizeInboundPayments({ totalAmount: Number(purchase.totalAmount.toString()),
+        legacy: { method: purchase.paymentMethod, dueDate: purchase.paymentDueDate?.toISOString().slice(0, 10) ?? null } }).payments;
+      receiptPayments = await resolveCorrectedSchedule(established, "Metode pembayaran pembelian telah berubah. Tolak penerimaan ini dan buat kembali dengan metode terbaru.");
     }
-    if (!input.payments && !purchase.paymentMethod && input.paymentMethod && !hasScheduledPayments) {
+    if (!receiptPayments && !purchase.paymentMethod && input.paymentMethod && !hasScheduledPayments) {
       await tx.goodsPurchase.update({
         where: { id: purchase.id },
         data: { paymentMethod: input.paymentMethod, paymentDueDate: input.paymentDueDate },
       });
     }
     if (!existingExpense) {
-      const establishedPayments = input.payments ?? (purchase.payments.length ? purchase.payments.map(row => ({ method: row.method, amount: Number(row.amount), dueDate: row.dueDate?.toISOString().slice(0, 10) ?? null, note: row.note }))
+      const establishedPayments = receiptPayments ?? (purchase.payments.length ? purchase.payments.map(row => ({ method: row.method, amount: Number(row.amount), dueDate: row.dueDate?.toISOString().slice(0, 10) ?? null, note: row.note }))
         : [{ method: purchase.paymentMethod ?? input.paymentMethod!, amount: Number(purchase.totalAmount), dueDate: (purchase.paymentDueDate ?? input.paymentDueDate)?.toISOString().slice(0, 10) ?? null, note: null }]);
       const receiptDate = new Date(input.now.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
       if (purchase.initialTransferAmount == null) await tx.goodsPurchase.update({ where: { id: purchase.id }, data: {
@@ -1656,7 +1673,15 @@ export class InventoryInboundReceiptRepository
       take: 50,
       include: {
         supplier: { select: { id: true, name: true } },
-        goodsPurchase: { select: { number: true, totalAmount: true, payments: { orderBy: { createdAt: "asc" }, select: { method: true, amount: true, dueDate: true, note: true } } } },
+        goodsPurchase: { select: {
+          number: true, totalAmount: true, paymentMethod: true, paymentDueDate: true,
+          expense: { select: { id: true } },
+          payments: { orderBy: { createdAt: "asc" }, select: { method: true, amount: true, dueDate: true, note: true } },
+          shoppingRequest: { select: { expense: { select: { id: true } }, corrections: {
+            where: { afterSnapshot: { path: ["kind"], equals: "PAYMENT_ONLY" } },
+            select: { id: true }, take: 1,
+          } } },
+        } },
         stockBundle: { select: { status: true, summary: true } },
         lines: {
           orderBy: { createdAt: "asc" },
@@ -1670,11 +1695,41 @@ export class InventoryInboundReceiptRepository
       const warningIds = summary && typeof summary === "object" && !Array.isArray(summary)
         ? (summary as Record<string, unknown>).pricingWarningProductIds
         : null;
+      const currentPurchasePayments: InboundPaymentInput[] = (goodsPurchase?.payments ?? []).map(payment => ({
+        method: payment.method, amount: Number(payment.amount.toString()),
+        dueDate: payment.dueDate?.toISOString().slice(0, 10) ?? null, note: payment.note,
+      }));
+      if (!currentPurchasePayments.length && goodsPurchase?.paymentMethod) currentPurchasePayments.push({
+        method: goodsPurchase.paymentMethod, amount: Number(goodsPurchase.totalAmount.toString()),
+        dueDate: goodsPurchase.paymentDueDate?.toISOString().slice(0, 10) ?? null, note: null,
+      });
+      const submittedPayments: InboundPaymentInput[] = Array.isArray(receipt.paymentSchedule)
+        ? receipt.paymentSchedule as unknown as InboundPaymentInput[]
+        : receipt.paymentMethod && goodsPurchase ? [{
+          method: receipt.paymentMethod, amount: Number(goodsPurchase.totalAmount.toString()),
+          dueDate: receipt.paymentDueDate?.toISOString().slice(0, 10) ?? null, note: null,
+        }] : [];
+      let paymentScheduleChanged = false;
+      if (["SUBMITTED", "NEEDS_REVISION"].includes(receipt.status) &&
+          goodsPurchase?.shoppingRequest.corrections.length && currentPurchasePayments.length && submittedPayments.length) {
+        try { paymentScheduleChanged = !sameInboundPayments(currentPurchasePayments, submittedPayments); }
+        catch { paymentScheduleChanged = false; }
+      }
+      const effectivePayments = currentPurchasePayments.length ? currentPurchasePayments : submittedPayments;
+      const transferCents = effectivePayments.filter(payment => payment.method === "TRANSFER")
+        .reduce((sum, payment) => sum + Math.round(Number(payment.amount) * 100), 0);
+      const firstReceiptTransferAmount = goodsPurchase &&
+        ["SUBMITTED", "NEEDS_REVISION"].includes(receipt.status) &&
+        !goodsPurchase.expense && !goodsPurchase.shoppingRequest.expense && transferCents > 0
+        ? transferCents / 100 : null;
       return {
         ...receipt,
         goodsPurchaseNumber: goodsPurchase?.number ?? null,
         stockReversed: stockBundle?.status === "UNDONE",
         pricingWarningProductIds: Array.isArray(warningIds) ? warningIds.filter((id): id is string => typeof id === "string") : [],
+        currentPurchasePayments,
+        paymentScheduleChanged,
+        firstReceiptTransferAmount,
         payments: Array.isArray(receipt.paymentSchedule) ? receipt.paymentSchedule as unknown as InboundPaymentInput[]
           : (goodsPurchase?.payments ?? []).map(payment => ({
               method: payment.method, amount: Number(payment.amount.toString()),

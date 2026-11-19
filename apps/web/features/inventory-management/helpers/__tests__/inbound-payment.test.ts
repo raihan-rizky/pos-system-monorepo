@@ -2,9 +2,27 @@ import { describe, expect, it } from "vitest";
 import {
   normalizeInboundPayments,
   validateInboundPayments,
+  inboundPaymentSummary,
 } from "../inbound-payment";
 
 describe("inbound payment validation", () => {
+  it("retains the earliest Giro date when Transfer and several Giro rows are mixed", () => {
+    expect(inboundPaymentSummary([
+      { method: "TRANSFER", amount: 4947500, dueDate: null },
+      { method: "GIRO", amount: 1868656, dueDate: "2026-12-20" },
+      { method: "GIRO", amount: 2000000, dueDate: "2026-12-05" },
+    ])).toEqual({ paymentMethod: null, paymentDueDate: "2026-12-05" });
+  });
+
+  it("keeps single-method and empty summaries unambiguous", () => {
+    expect(inboundPaymentSummary([])).toEqual({ paymentMethod: null, paymentDueDate: null });
+    expect(inboundPaymentSummary([{ method: "TRANSFER", amount: 100, dueDate: null }]))
+      .toEqual({ paymentMethod: "TRANSFER", paymentDueDate: null });
+    expect(inboundPaymentSummary([
+      { method: "GIRO", amount: 40, dueDate: "2026-12-20" },
+      { method: "GIRO", amount: 60, dueDate: "2026-12-05" },
+    ])).toEqual({ paymentMethod: "GIRO", paymentDueDate: "2026-12-05" });
+  });
   it("accepts two giro rows with different due dates when their total matches", () => {
     const payments = [
       { method: "GIRO" as const, amount: 700_000, dueDate: "2026-11-14", note: "7 hari" },

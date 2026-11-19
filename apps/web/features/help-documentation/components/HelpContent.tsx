@@ -559,9 +559,9 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
       description: "Owner atau role yang diberi izin dapat mengubah daftar belanja setelah diproses, termasuk jumlah diterima, harga, barang, pembayaran, dan pilihan katalog.",
       icon: <History className="w-5 h-5 text-brand-600" />,
       steps: [
-        { title: "Buka koreksi", description: "Di Supplier > Daftar Belanja, buka Tindakan lainnya pada daftar yang sudah diproses lalu pilih Edit daftar. Arsip yang dibatalkan tetap terkunci.", icon: <Pencil className="w-8 h-8" /> },
-        { title: "Tinjau dampak", description: "Ubah data yang diperlukan, masukkan alasan, lalu pilih Tinjau dampak. Periksa stok, total berdasarkan jumlah diterima, periode laporan, dan peringatan kelebihan pembayaran.", icon: <GitCompareArrows className="w-8 h-8" /> },
-        { title: "Simpan dan cek riwayat", description: "Jika harga beli berubah, pilih HPP atau harga jual katalog secara terpisah. Simpan perubahan, lalu buka badge Diubah atau Stok berubah untuk melihat pelaku, alasan, dan nilai sebelum-sesudah.", icon: <History className="w-8 h-8" /> },
+        { title: "Buka koreksi", description: "Di Supplier > Daftar Belanja, buka Tindakan lainnya pada pembelian yang disetujui lalu pilih Ubah pembayaran. Pilih Edit daftar untuk mengoreksi barang atau data daftar. Arsip yang dibatalkan tetap terkunci.", icon: <Pencil className="w-8 h-8" /> },
+        { title: "Atur jadwal dan tinjau dampak", description: "Bagi jadwal ke Transfer dan satu atau beberapa Giro dengan tanggal masing-masing; Total jadwal harus sesuai total pembelian. Penerimaan yang menunggu ditampilkan sebagai peringatan dan tidak menghalangi koreksi pembayaran. Pembayaran tercatat dan alokasi ditampilkan terpisah, bukan pelunasan otomatis. Masukkan alasan, lalu pilih Tinjau dampak untuk membandingkan nilai Sebelum dan Sesudah, stok, periode laporan, serta kelebihan pembayaran.", icon: <GitCompareArrows className="w-8 h-8" /> },
+        { title: "Simpan dan cek riwayat", description: "Jika harga beli berubah, pilih HPP atau harga jual katalog secara terpisah. Gunakan Kembali mengedit bila perlu, lalu tinjau ulang dan Simpan perubahan. Bila penyimpanan gagal, isian tetap tersedia untuk diperbaiki atau dicoba lagi. Buka badge Diubah atau Stok berubah untuk melihat pelaku, alasan, dan nilai sebelum-sesudah, termasuk nominal serta tanggal setiap jadwal.", icon: <History className="w-8 h-8" /> },
       ]
     },
     {

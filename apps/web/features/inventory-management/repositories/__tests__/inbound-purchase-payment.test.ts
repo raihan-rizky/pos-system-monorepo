@@ -103,6 +103,32 @@ describe("purchase payment at receipt finalization", () => {
     expect(tx.expense.create).not.toHaveBeenCalled();
   });
 
+  it("uses the corrected purchase schedule when an older pending receipt is approved", async () => {
+    const corrected = [
+      { method: "TRANSFER" as const, amount: "16000.00", dueDate: null, note: null },
+      { method: "GIRO" as const, amount: "60000.00", dueDate: new Date("2026-12-05T00:00:00Z"), note: null },
+    ];
+    const tx = transaction({ payments: corrected, paymentMethod: null, expense: null, supplierPayable: null });
+    tx.shoppingRequestCorrection.count.mockResolvedValue(1);
+
+    await new InventoryInboundReceiptRepository().settleGoodsPurchasePayment(tx as never, {
+      ...input, paymentMethod: "TRANSFER", paymentDueDate: null,
+      payments: [{ method: "TRANSFER", amount: 76_000, dueDate: null }],
+    });
+
+    expect(tx.goodsPurchasePayment.createMany).not.toHaveBeenCalled();
+    expect(tx.goodsPurchase.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ initialTransferAmount: expect.objectContaining({}) }),
+    }));
+    const initialTransfer = tx.goodsPurchase.update.mock.calls
+      .map(([call]) => call.data.initialTransferAmount)
+      .find(value => value != null);
+    expect(Number(initialTransfer)).toBe(16_000);
+    expect(tx.supplierPayable.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      amount: 76_000, dueDate: new Date("2026-12-05T00:00:00Z"),
+    }) }));
+  });
+
   it("submission saves a proposal on the receipt without changing the purchase", async () => {
     let saved: Record<string, unknown> | undefined;
     const tx = {

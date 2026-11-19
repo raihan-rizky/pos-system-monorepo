@@ -94,6 +94,10 @@ describe("panel giro di Keuangan", () => {
     const html = renderToStaticMarkup(<GiroAction item={state.items[3] as never} canUpdate pending onReview={() => {}} onPay={() => {}} />);
     expect(html).toContain("Pastikan pembayaran");
   });
+  it("tidak menawarkan pembayaran baru ketika pembelian telah lebih bayar", () => {
+    const html = renderToStaticMarkup(<GiroAction item={{ ...state.items[3], status: "OVERPAID", remaining: 0 } as never} canUpdate pending={false} onReview={() => {}} onPay={() => {}} />);
+    expect(html).not.toContain("Catat pembayaran");
+  });
 
   it("menawarkan penautan hutang manual pada giro terverifikasi, termasuk yang lunas", () => {
     const props = { canUpdate: true, pending: false, hasManualPayables: true, onReview: () => {}, onPay: () => {}, onLink: () => {} };
