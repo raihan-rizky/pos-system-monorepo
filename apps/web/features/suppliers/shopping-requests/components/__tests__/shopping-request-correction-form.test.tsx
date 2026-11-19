@@ -32,6 +32,67 @@ it("pintasan pembayaran menampilkan ringkasan tanpa mencampurkan formulir barang
   expect(tree.map(text).join(" ")).toContain("Ringkasan perubahan");
   expect(tree.some(n => n.type === InboundPaymentFields)).toBe(true);
 });
+
+it("menerima total setengah sen yang dibulatkan seperti server untuk jumlah pecahan", async () => {
+  const data = { ...editor, totalAmount: "1.00", items: [{ ...editor.items[0], unitPrice: "2.00", receipts: [{ receiptLineId: "receipt1", receivedQty: 0.5 }] }], payment: { ...editor.payment, sources: [], allocations: [], schedule: [{ method: "TRANSFER" as const, amount: "1.01", dueDate: null, note: null }] } };
+  let tree = render(data);
+  tree.find(n => n.props["aria-label"] === "Harga beli Kertas A4")!.props.onChange({ target: { value: "2.01" } });
+  tree.find(n => n.props["aria-label"] === "Alasan perubahan")!.props.onChange({ target: { value: "Koreksi harga pecahan" } });
+  tree = render(data);
+  await tree.find(n => n.type === "form")!.props.onSubmit({ preventDefault() {} });
+  tree = render(data);
+  await tree.find(n => n.type === "button" && text(n) === "Lanjutkan tinjau dampak")!.props.onClick();
+  expect(preview).toHaveBeenCalledWith(expect.objectContaining({ payment: expect.objectContaining({ schedule: [{ method: "TRANSFER", amount: "1.01", dueDate: null, note: null }] }) }));
+});
+
+it("mempertahankan kunci retry saat kembali tanpa perubahan dan menggantinya hanya untuk draft baru", async () => {
+  input("Alasan perubahan").props.onChange({ target: { value: "Periksa jadwal" } });
+  await submit();
+  const firstKey = preview.mock.calls[0][0].idempotencyKey;
+  render().find(n => n.type === "button" && text(n) === "Kembali mengedit")!.props.onClick();
+  await submit();
+  expect(preview.mock.calls[1][0].idempotencyKey).toBe(firstKey);
+  render().find(n => n.type === "button" && text(n) === "Kembali mengedit")!.props.onClick();
+  input("Alasan perubahan").props.onChange({ target: { value: "Draft berubah" } });
+  await submit();
+  expect(preview.mock.calls[2][0].idempotencyKey).not.toBe(firstKey);
+});
+
+it("meminta konfirmasi pemuatan ulang data barang saat konflik pada editor lengkap", async () => {
+  const latest = { ...editor, version: "v2", header: { ...editor.header, name: "Data terbaru" } };
+  const reload = vi.fn().mockResolvedValue(latest);
+  preview.mockRejectedValueOnce(Object.assign(new Error("Data berubah. Muat ulang."), { status: 409 }));
+  let tree = render(editor, "details", reload);
+  tree.find(n => n.props["aria-label"] === "Alasan perubahan")!.props.onChange({ target: { value: "Perbaiki data" } });
+  await render(editor, "details", reload).find(n => n.type === "form")!.props.onSubmit({ preventDefault() {} });
+  tree = render(editor, "details", reload);
+  await tree.find(n => n.type === "button" && text(n) === "Muat data terbaru")!.props.onClick();
+  expect(reload).not.toHaveBeenCalled();
+  tree = render(editor, "details", reload);
+  expect(tree.map(text).join(" ")).toMatch(/barang.*katalog.*dimuat ulang/i);
+  await tree.find(n => n.type === "button" && text(n) === "Lanjut muat data terbaru")!.props.onClick();
+  tree = render(editor, "details", reload);
+  expect(tree.find(n => n.props["aria-label"] === "Nama daftar")!.props.value).toBe("Data terbaru");
+  expect(tree.find(n => n.props["aria-label"] === "Alasan perubahan")!.props.value).toBe("Perbaiki data");
+  await tree.find(n => n.type === "form")!.props.onSubmit({ preventDefault() {} });
+  expect(preview).toHaveBeenLastCalledWith(expect.objectContaining({ expectedVersion: "v2" }));
+});
+it("mempertahankan pilihan katalog jika pemuatan ulang gagal", async () => {
+  const reload = vi.fn().mockRejectedValue(new Error("Koneksi terputus"));
+  const form = () => render(editor, "details", reload);
+  form().find(n => n.props["aria-label"] === "Harga beli Kertas A4")!.props.onChange({ target: { value: "90" } });
+  form().find(n => n.props["aria-label"] === "Alasan perubahan")!.props.onChange({ target: { value: "Harga benar" } });
+  await form().find(n => n.type === "form")!.props.onSubmit({ preventDefault() {} });
+  form().find(n => n.props["aria-label"] === "Ubah HPP Kertas A4")!.props.onChange({ target: { checked: true } });
+  preview.mockRejectedValueOnce(Object.assign(new Error("Data berubah"), { status: 409 }));
+  await form().find(n => n.type === "button" && text(n) === "Lanjutkan tinjau dampak")!.props.onClick();
+  await form().find(n => n.type === "button" && text(n) === "Muat data terbaru")!.props.onClick();
+  await form().find(n => n.type === "button" && text(n) === "Lanjut muat data terbaru")!.props.onClick();
+  expect(form().map(text).join(" ")).toContain("Koneksi terputus");
+  await form().find(n => n.type === "form")!.props.onSubmit({ preventDefault() {} });
+  await form().find(n => n.type === "button" && text(n) === "Lanjutkan tinjau dampak")!.props.onClick();
+  expect(preview).toHaveBeenLastCalledWith(expect.objectContaining({ catalog: [{ productId: "pr1", costPrice: "90", salePrice: null, expectedUpdatedAt: editor.items[0].catalogUpdatedAt }] }));
+});
 it("memperingatkan nilai pengeluaran historis yang tidak sama dengan total pembelian", () => {
   const data = { ...editor, expenseMismatch: true };
   expect(render(data, "payment").map(text).join(" ")).toMatch(/pengeluaran.*tidak sesuai.*laporan/i);

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { Decimal } from "@pos/db/decimal";
 import { Modal } from "@pos/ui";
 import type { Product } from "@/hooks/useProducts";
 import { SupplierSelector } from "@/features/suppliers/components/SupplierSelector";
@@ -81,19 +82,19 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
   const [review, setReview] = useState<{ preview: CorrectionPreview; input: ShoppingRequestCorrectionInput } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
+  const [confirmReload, setConfirmReload] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshNotice, setRefreshNotice] = useState<string | null>(null);
   const [paymentDraft, setPaymentDraft] = useState<PaymentDraft | null>(null);
   const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraft | null>(null);
   const [adding, setAdding] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
+  const [previewedDraft, setPreviewedDraft] = useState<{ signature: string; key: string } | null>(null);
   const errorRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLHeadingElement>(null);
   const paymentRef = useRef<HTMLElement>(null);
-  useEffect(() => {
-    if (error) errorRef.current?.focus();
-    else stageRef.current?.focus();
-  }, [error, stage]);
+  useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
+  useEffect(() => { if (!errorRef.current) stageRef.current?.focus(); }, [stage]);
   useEffect(() => {
     if (initialSection === "payment") paymentRef.current?.focus();
   }, [initialSection]);
@@ -104,7 +105,10 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
   const hasReceipts = editor.items.some(item => item.receipts.length) || items.some(item => item.receipts.some(receipt => receipt.receivedQty > 0));
   const purchaseUnchanged = JSON.stringify(header) === JSON.stringify(editor.header) && JSON.stringify(items) === JSON.stringify(editor.items) &&
     !catalog.some(entry => entry.costPrice !== null || entry.salePrice !== null);
-  const scheduledTotal = purchaseUnchanged ? Number(editor.totalAmount) : items.reduce((sum, item) => sum + Math.round(Number(item.unitPrice) * (hasReceipts ? item.receipts.reduce((qty, receipt) => qty + receipt.receivedQty, 0) : item.orderedQty) * 100), 0) / 100;
+  const scheduledTotal = purchaseUnchanged ? Number(editor.totalAmount) : items.reduce((sum, item) => {
+    const quantity = hasReceipts ? item.receipts.reduce((qty, receipt) => qty.plus(String(receipt.receivedQty)), new Decimal(0)).toNumber() : item.orderedQty;
+    return sum.plus(new Decimal(item.unitPrice || "0").mul(String(quantity)).toDecimalPlaces(2, Decimal.ROUND_HALF_UP));
+  }, new Decimal(0)).toNumber();
   const plannedPayments = schedule ?? (method ? [{ method, amount: scheduledTotal, dueDate: dueDate || null, note: null }] : []);
   const plannedTransfer = plannedPayments.filter(row => row.method === "TRANSFER").reduce((sum, row) => sum + Math.round(row.amount * 100), 0) / 100;
   const plannedGiro = plannedPayments.filter(row => row.method === "GIRO").reduce((sum, row) => sum + Math.round(row.amount * 100), 0) / 100;
@@ -164,6 +168,10 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
       payment: { method, dueDate: dueDate || null, ...(schedule ? { schedule: schedule.map(row => ({ ...row, amount: row.amount.toFixed(2), dueDate: row.dueDate ?? null, note: row.note ?? null })) } : {}), allocations: allocations.filter(entry => Number(entry.amount) > 0), corrections },
       catalog: catalog.filter(entry => items.some(item => item.productId === entry.productId) && (entry.costPrice !== null || entry.salePrice !== null)),
     };
+    const signature = JSON.stringify({ ...input, idempotencyKey: undefined });
+    const key = previewedDraft && previewedDraft.signature !== signature ? crypto.randomUUID() : previewedDraft?.key ?? idempotencyKey;
+    input.idempotencyKey = key;
+    setIdempotencyKey(key); setPreviewedDraft({ signature, key });
     try { const preview = await previewMutation.mutateAsync(input); setReview({ preview, input: { ...input, expectedPreviewVersion: preview.version } }); setStage("review"); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Dampak perubahan belum dapat ditinjau."); setConflict(cause instanceof Error && "status" in cause && cause.status === 409); setStage("edit"); }
   };
@@ -197,9 +205,10 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
       }
       setPaymentDraft(changedKeys.size ? { keys: [...changedKeys], allocations: allocations.filter(row => changedKeys.has(paymentSourceKey(row))), corrections: corrections.filter(row => changedKeys.has(paymentSourceKey(row))) } : null);
       setEditor(latest); setHeader(latest.header); setItems(latest.items);
+      if (initialSection === "details") setCatalog([]);
       setAllocations(latest.payment.allocations); setCorrections([]);
       setReview(null); setStage("edit"); setIdempotencyKey(crypto.randomUUID());
-      setError(null); setConflict(false);
+      setError(null); setConflict(false); setConfirmReload(false);
       setRefreshNotice("Data terbaru dimuat. Alasan Anda tetap tersedia; periksa jadwal dan pembayaran tercatat sebelum meninjau dampak.");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Data terbaru belum dapat dimuat. Coba lagi."); }
     finally { setRefreshing(false); }
@@ -223,7 +232,12 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
       {stage === "catalog" && <li aria-current="step" className="text-cyan-800">Pilihan harga katalog</li>}
       <li aria-current={stage === "review" ? "step" : undefined} className={stage === "review" ? "text-cyan-800" : "text-slate-600"}>2. Tinjau dampak</li>
     </ol>
-    {error && <div ref={errorRef} tabIndex={-1} role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-700"><p className="font-semibold">{stage === "review" ? "Perubahan belum tersimpan" : "Periksa data koreksi"}</p><p className="mt-1">{error}</p><p className="mt-2">Isian Anda tetap tersedia.</p>{conflict && initialSection === "payment" && onReload && <button type="button" className={`${action} mt-2`} disabled={busy} onClick={reloadLatest}>Muat data terbaru</button>}{stage === "edit" && <button type="button" className={`${action} mt-2`} onClick={() => paymentRef.current?.focus()}>Periksa pembayaran</button>}</div>}
+    {error && <div ref={errorRef} tabIndex={-1} role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-700"><p className="font-semibold">{stage === "review" ? "Perubahan belum tersimpan" : "Periksa data koreksi"}</p><p className="mt-1">{error}</p><p className="mt-2">Isian Anda tetap tersedia.</p>{conflict && onReload && <button type="button" className={`${action} mt-2`} disabled={busy} onClick={() => initialSection === "payment" ? reloadLatest() : setConfirmReload(true)}>Muat data terbaru</button>}{stage === "edit" && <button type="button" className={`${action} mt-2`} onClick={() => paymentRef.current?.focus()}>Periksa pembayaran</button>}</div>}
+    {confirmReload && <section aria-label="Konfirmasi data terbaru" className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+      <h3 className="font-semibold">Periksa perubahan sebelum memuat ulang</h3>
+      <p>Data daftar, barang, dan pilihan katalog akan dimuat ulang dari server. Salin perubahan penting sebelum melanjutkan. Alasan dan perubahan jadwal pembayaran Anda tetap tersedia untuk diperiksa.</p>
+      <div className="flex flex-wrap gap-2"><button type="button" className={action} disabled={busy} onClick={() => { setConfirmReload(false); setError(null); }}>Kembali periksa isian</button><button type="button" className={action} disabled={busy} onClick={reloadLatest}>Lanjut muat data terbaru</button></div>
+    </section>}
     {refreshNotice && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">{refreshNotice}</p>}
     {scheduleDraft && <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
       <p>Jadwal berubah saat Anda mengedit. Jadwal terbaru ditampilkan; jadwal Anda sebelumnya:</p>
