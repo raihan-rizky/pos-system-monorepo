@@ -37,7 +37,7 @@ describe.skipIf(!enabled)("sumber pembayaran koreksi di PostgreSQL sementara", (
     const purchaseId = `payment-purchase-${key}`;
     const expenseId = `payment-expense-${key}`;
     await db.shoppingRequest.create({ data: { id: requestId, storeId, number: `DPB-${key}`, name: `Daftar ${key}`, sequence: next, status: "APPROVED" } });
-    await db.goodsPurchase.create({ data: { id: purchaseId, storeId, number: `PB-${key}`, sequence: next, shoppingRequestId: requestId, activeShoppingRequestKey: requestId, supplierNameSnapshot: "Pemasok Uji", status: "APPROVED", totalAmount: amount, paymentMethod: method, createdById: userId } });
+    await db.goodsPurchase.create({ data: { id: purchaseId, storeId, number: `PB-${key}`, sequence: next, shoppingRequestId: requestId, activeShoppingRequestKey: requestId, supplierNameSnapshot: "Pemasok Uji", status: "APPROVED", totalAmount: amount, paymentMethod: method, paymentDueDate: method === "GIRO" ? new Date("2026-12-01") : null, createdById: userId } });
     await db.expense.create({ data: { id: expenseId, storeId, recordedById: userId, shoppingRequestId: requestId, goodsPurchaseId: purchaseId, applicantName: "Pemasok Uji", category: "SUPPLIES", amount, occurredAt: new Date("2026-10-01T19:00:00.000Z") } });
     return { requestId, purchaseId, expenseId, key };
   }

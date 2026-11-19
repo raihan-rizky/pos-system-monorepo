@@ -40,7 +40,8 @@ describe.skipIf(!connection)('giro endpoints on isolated PostgreSQL', () => {
     await client.$executeRawUnsafe(`CREATE TABLE "pos_goods_purchases" (
       "id" text PRIMARY KEY, "storeId" text NOT NULL, "number" text NOT NULL, "supplierNameSnapshot" text NOT NULL,
       "totalAmount" numeric(12,2) NOT NULL, "shoppingRequestId" text NOT NULL, "paymentDueDate" date,
-      "status" text NOT NULL, "paymentMethod" text, "statusBeforeCancellation" text
+      "status" text NOT NULL, "paymentMethod" text, "statusBeforeCancellation" text,
+      "totalBasis" text DEFAULT 'ORDERED', "initialTransferAmount" numeric(12,2)
     )`);
     await client.$executeRawUnsafe(`CREATE TABLE "pos_goods_purchase_payments" (
       "id" text PRIMARY KEY, "goodsPurchaseId" text NOT NULL REFERENCES "pos_goods_purchases"("id"),
@@ -238,7 +239,7 @@ describe.skipIf(!connection)('giro endpoints on isolated PostgreSQL', () => {
 
   it('lists every scheduled giro, excludes transfer-only purchases, and caps mixed debt at its giro subtotal', async () => {
     try {
-      await client.$executeRawUnsafe(`INSERT INTO "pos_goods_purchases" VALUES
+      await client.$executeRawUnsafe(`INSERT INTO "pos_goods_purchases" ("id", "storeId", "number", "supplierNameSnapshot", "totalAmount", "shoppingRequestId", "paymentDueDate", "status", "paymentMethod") VALUES
         ('multi-giro','store-1','PB-MG','Contoh',100000,'shopping-mg','2026-11-14','APPROVED','GIRO'),
         ('multi-mixed','store-1','PB-MX','Contoh',100000,'shopping-mx',null,'APPROVED',null),
         ('multi-transfer','store-1','PB-MT','Contoh',100000,'shopping-mt',null,'APPROVED','TRANSFER')`);

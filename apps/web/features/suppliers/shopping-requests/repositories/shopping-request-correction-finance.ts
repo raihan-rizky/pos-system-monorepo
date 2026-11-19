@@ -70,6 +70,7 @@ export async function applyCorrectionFinance(tx: Prisma.TransactionClient, input
   method: "TRANSFER" | "GIRO" | null;
   schedule?: CorrectionPaymentSchedule[];
   totalBasis?: "ORDERED" | "RECEIVED";
+  preservePurchaseTotal?: boolean;
   dueDate: Date | null;
   businessDate?: string;
   supplierName?: string;
@@ -94,10 +95,15 @@ export async function applyCorrectionFinance(tx: Prisma.TransactionClient, input
   if (expense && (expense.deletedAt || expense.storeId !== input.storeId)) throw new Error("Pengeluaran pembelian tidak tersedia di toko ini.");
   if (purchase.supplierPayable && purchase.supplierPayable.storeId !== input.storeId) throw new Error("Utang pembelian tidak tersedia di toko ini.");
 
-  const plan = buildCorrectionFinancePlan({
+  const calculatedPlan = buildCorrectionFinancePlan({
     oldTotal: purchase.totalAmount.toFixed(2), lines: input.lines,
     sources: state.sources, allocations: input.allocations, corrections: input.corrections,
   });
+  const plan = input.preservePurchaseTotal ? {
+    ...calculatedPlan,
+    newTotal: purchase.totalAmount.toFixed(2),
+    ...summarizeCorrectionPayment(purchase.totalAmount.toFixed(2), calculatedPlan.paid),
+  } : calculatedPlan;
   const savedSnapshot = readCorrectionPaymentSnapshot(audit.afterSnapshot);
   const sourceKeys = (sources: CorrectionPaymentSource[]) => sources
     .map((source) => JSON.stringify([source.sourceKind, source.paymentId, source.amount, source.paidAt])).sort();
@@ -123,7 +129,8 @@ export async function applyCorrectionFinance(tx: Prisma.TransactionClient, input
     method: input.method, dueDate: input.dueDate?.toISOString().slice(0, 10) ?? null });
   const method = schedule.length && schedule.every(row => row.method === schedule[0].method) ? schedule[0].method : null;
   const dueDate = schedule.filter(row => row.method === "GIRO").map(row => row.dueDate!).sort()[0];
-  const paymentDueDate = dueDate ? new Date(`${dueDate}T00:00:00.000Z`) : null;
+  const giroDueDate = dueDate ? new Date(`${dueDate}T00:00:00.000Z`) : null;
+  const paymentDueDate = giroDueDate;
   for (const [index, row] of schedule.entries()) {
     const data = { method: row.method, amount: row.amount, note: row.note, dueDate: row.dueDate ? new Date(`${row.dueDate}T00:00:00.000Z`) : null };
     if (purchase.payments[index]) await tx.goodsPurchasePayment.update({ where: { id: purchase.payments[index].id }, data });
@@ -145,21 +152,23 @@ export async function applyCorrectionFinance(tx: Prisma.TransactionClient, input
   const shiftedOccurredAt = input.businessDate
     ? new Date(expense.occurredAt.getTime() + Date.parse(`${input.businessDate}T00:00:00.000Z`) - Date.parse(`${currentExpenseDate}T00:00:00.000Z`))
     : undefined;
-  const updatedExpense = await tx.expense.updateMany({ where: { id: expense.id, storeId: input.storeId, deletedAt: null }, data: {
-    amount: plan.newTotal, ...(shiftedOccurredAt ? { occurredAt: shiftedOccurredAt } : {}),
-    ...(input.supplierName !== undefined ? { applicantName: input.supplierName } : {}),
-  } });
-  if (updatedExpense.count !== 1) throw new Error("Pengeluaran pembelian berubah. Muat ulang dan coba lagi.");
+  if (!input.preservePurchaseTotal) {
+    const updatedExpense = await tx.expense.updateMany({ where: { id: expense.id, storeId: input.storeId, deletedAt: null }, data: {
+      amount: plan.newTotal, ...(shiftedOccurredAt ? { occurredAt: shiftedOccurredAt } : {}),
+      ...(input.supplierName !== undefined ? { applicantName: input.supplierName } : {}),
+    } });
+    if (updatedExpense.count !== 1) throw new Error("Pengeluaran pembelian berubah. Muat ulang dan coba lagi.");
+  }
   if (purchase.supplierPayable) {
     const updatedPayable = await tx.supplierPayable.updateMany({ where: { id: purchase.supplierPayable.id, storeId: input.storeId, goodsPurchaseId: purchase.id }, data: {
-      amount: plan.newTotal, dueDate: paymentDueDate,
+      amount: plan.newTotal, dueDate: giroDueDate,
       ...(input.businessDate ? { debtDate: new Date(`${input.businessDate}T00:00:00.000Z`) } : {}),
       ...(input.supplierName !== undefined ? { supplierName: input.supplierName } : {}),
     } });
     if (updatedPayable.count !== 1) throw new Error("Utang pembelian berubah. Muat ulang dan coba lagi.");
   } else if (schedule.some(row => row.method === "GIRO")) {
     const debtDate = input.businessDate ?? currentExpenseDate;
-    await tx.supplierPayable.create({ data: { id: randomUUID(), storeId: input.storeId, goodsPurchaseId: purchase.id, supplierName: input.supplierName ?? purchase.supplierNameSnapshot, amount: plan.newTotal, debtDate: new Date(`${debtDate}T00:00:00.000Z`), dueDate: paymentDueDate, giroHistoryVerifiedAt: new Date(), createdById: input.actorId } });
+    await tx.supplierPayable.create({ data: { id: randomUUID(), storeId: input.storeId, goodsPurchaseId: purchase.id, supplierName: input.supplierName ?? purchase.supplierNameSnapshot, amount: plan.newTotal, debtDate: new Date(`${debtDate}T00:00:00.000Z`), dueDate: giroDueDate, giroHistoryVerifiedAt: new Date(), createdById: input.actorId } });
   }
   return plan;
 }

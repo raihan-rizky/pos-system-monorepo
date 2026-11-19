@@ -29,11 +29,22 @@ it("membuka koreksi setelah seluruh barang diterima dengan izin khusus", () => {
   expect(action).toBeDefined(); action!.props.onClick();
   expect(render().some(n => typeof n.type === "function" && n.type.name === "ShoppingRequestCorrectionModal")).toBe(true);
 });
+it("membuka langsung bagian pembayaran pada pembelian yang disetujui di setiap tahap penerimaan", () => {
+  for (const status of ["NOT_RECEIVED", "PARTIALLY_RECEIVED", "RECEIVED"]) {
+    state.values = []; state.row.purchase.fulfillmentStatus = status;
+    const action = render().find(n => n.type === "button" && text(n) === "Ubah pembayaran");
+    expect(action).toBeDefined(); action!.props.onClick();
+    const modal = render().find(n => typeof n.type === "function" && n.type.name === "ShoppingRequestCorrectionModal");
+    expect(modal?.props).toMatchObject({ requestId: "r1", initialSection: "payment" });
+  }
+});
 it("izin draft tidak memberikan akses koreksi dan arsip tetap terkunci", () => {
   state.correct = false; state.draft = true;
   expect(render().some(n => n.type === "button" && text(n) === "Edit daftar")).toBe(false);
+  expect(render().some(n => n.type === "button" && text(n) === "Ubah pembayaran")).toBe(false);
   state.correct = true; state.row.status = "CANCELLED";
   expect(render().some(n => n.type === "button" && text(n) === "Edit daftar")).toBe(false);
+  expect(render().some(n => n.type === "button" && text(n) === "Ubah pembayaran")).toBe(false);
 });
 it("badge perubahan dan stok membuka riwayat yang dapat diakses pembaca", () => {
   state.correct = false;

@@ -298,7 +298,7 @@ describe.skipIf(!enabled)("penyesuaian stok koreksi di PostgreSQL sementara", ()
     await db.inventoryLog.delete({ where: { id: ids.log } });
     await db.goodsPurchase.update({ where: { id: ids.purchase }, data: { totalBasis: "ORDERED", paymentMethod: null, fulfillmentStatus: "NOT_RECEIVED" } });
     const editor = await db.$transaction(tx => loadShoppingRequestCorrectionEditor(tx, { storeId: actor.storeId, requestId: ids.request }));
-    await db.$transaction(tx => commitShoppingRequestCorrectionRecord(tx, { requestId: ids.request, actor, data: { idempotencyKey: "zero-first", expectedVersion: editor.version, reason: "Koreksi pesanan", header: editor.header, items: editor.items, payment: { method: null, dueDate: null, allocations: [], corrections: [] }, catalog: [] } }));
+    await db.$transaction(tx => commitShoppingRequestCorrectionRecord(tx, { requestId: ids.request, actor, data: { idempotencyKey: "zero-first", expectedVersion: editor.version, reason: "Koreksi pesanan", header: { ...editor.header, note: "Koreksi pesanan" }, items: editor.items, payment: { method: null, dueDate: null, allocations: [], corrections: [] }, catalog: [] } }));
     await db.inventoryInboundReceipt.create({ data: { id: ids.receipt, storeId: actor.storeId, goodsPurchaseId: ids.purchase, shoppingRequestId: ids.request, status: "APPROVED", lines: { create: { productId: ids.product, goodsPurchaseItemId: ids.purchaseItem, shoppingRequestItemId: ids.requestItem, status: "RECEIVED", expectedQuantity: 10, receivedQuantity: 0, expectedQuantitySnapshot: 10, receivedQuantitySnapshot: 0, productNameSnapshot: "Kertas", skuSnapshot: ids.product } } } });
     await db.$transaction(tx => refreshReceivedPurchaseTotal(tx, { storeId: actor.storeId, purchaseId: ids.purchase }));
     const purchase = await db.goodsPurchase.findUniqueOrThrow({ where: { id: ids.purchase } });
@@ -343,6 +343,41 @@ describe.skipIf(!enabled)("penyesuaian stok koreksi di PostgreSQL sementara", ()
     expect(rows.find(row => row.note === "Diubah")!.amount.toFixed(2)).toBe("4000.00");
     expect((await db.batchOperation.findUniqueOrThrow({ where: { id: batchId } })).summary).toMatchObject({ paymentScheduleAdjustment: { policy: "LATEST_GIRO_FIRST", before: corrected } });
     expect((await db.$transaction(tx => loadCorrectionPaymentState(tx, { storeId: actor.storeId, purchaseId: ids.purchase }))).paid).toBe("3000.00");
+  });
+
+  it("menyimpan koreksi contoh Transfer dan Giro setelah preview serta mengulangnya tanpa audit ganda", async () => {
+    const ids = await fixture(20);
+    await db.shoppingRequest.update({ where: { id: ids.request }, data: { businessDate: new Date("2026-11-12") } });
+    await db.goodsPurchase.update({ where: { id: ids.purchase }, data: { totalAmount: "8936156.00", paymentMethod: "TRANSFER", totalBasis: "RECEIVED", initialTransferAmount: "8936156.00", initialTransferPaidAt: new Date("2026-11-17") } });
+    await db.goodsPurchaseItem.update({ where: { id: ids.purchaseItem }, data: { latestUnitPrice: "893615.60", lineTotal: "8936156.00" } });
+    await db.expense.create({ data: { id: `screenshot-${ids.purchase}`, storeId: actor.storeId, recordedById: actor.id, goodsPurchaseId: ids.purchase, shoppingRequestId: ids.request, category: "SUPPLIES", applicantName: "Pemasok Uji", amount: "8936156.00", occurredAt: new Date("2026-11-17") } });
+    await db.goodsPurchasePayment.create({ data: { goodsPurchaseId: ids.purchase, method: "TRANSFER", amount: "8936156.00" } });
+    const editor = await db.$transaction(tx => loadShoppingRequestCorrectionEditor(tx, { storeId: actor.storeId, requestId: ids.request }));
+    const data: ShoppingRequestCorrectionInput = {
+      idempotencyKey: "contoh-jadwal-campuran", expectedVersion: editor.version, reason: "Koreksi nilai pembelian dan pembayaran yang belum terjadi", header: editor.header,
+      items: editor.items.map(item => ({ ...item, unitPrice: "881615.60" })),
+      payment: { method: null, dueDate: "2026-12-05", schedule: [
+        { method: "TRANSFER", amount: "4947500.00", dueDate: null, note: null },
+        { method: "GIRO", amount: "3868656.00", dueDate: "2026-12-05", note: null },
+      ], allocations: [], corrections: editor.payment.sources.map(source => ({ ...source, amount: "0.00" })) }, catalog: [],
+    };
+    await expect(db.$transaction(tx => planShoppingRequestCorrection(tx, { storeId: actor.storeId, requestId: ids.request, data: { ...data, payment: { ...data.payment, corrections: [] } } })))
+      .rejects.toMatchObject({ status: 422, message: expect.stringMatching(/alokasi/i) });
+    const plan = await db.$transaction(tx => planShoppingRequestCorrection(tx, { storeId: actor.storeId, requestId: ids.request, data }));
+    expect(plan.preview).toMatchObject({ oldTotal: "8936156.00", newTotal: "8816156.00", paid: "0.00", affectedDates: ["2026-11-12", "2026-11-17"] });
+    data.expectedPreviewVersion = plan.preview.version;
+    const result = await db.$transaction(tx => commitShoppingRequestCorrectionRecord(tx, { requestId: ids.request, actor, data }), { timeout: 30000 });
+    const retry = await db.$transaction(tx => commitShoppingRequestCorrectionRecord(tx, { requestId: ids.request, actor, data }));
+    expect(retry.correctionId).toBe(result.correctionId);
+    expect(await db.shoppingRequestCorrection.count({ where: { shoppingRequestId: ids.request } })).toBe(1);
+    const purchase = await db.goodsPurchase.findUniqueOrThrow({ where: { id: ids.purchase }, include: { payments: true, supplierPayable: { include: { payments: true } } } });
+    expect(purchase.paymentMethod).toBeNull();
+    expect(purchase.paymentDueDate?.toISOString().slice(0, 10)).toBe("2026-12-05");
+    expect(purchase.totalAmount.toFixed(2)).toBe("8816156.00");
+    expect(purchase.payments.map(row => ({ method: row.method, amount: row.amount.toFixed(2), dueDate: row.dueDate?.toISOString().slice(0, 10) ?? null }))).toEqual(expect.arrayContaining(data.payment.schedule!.map(({ note: _note, ...row }) => row)));
+    expect(purchase.supplierPayable?.payments).toHaveLength(0);
+    expect((await db.$transaction(tx => loadCorrectionPaymentState(tx, { storeId: actor.storeId, purchaseId: ids.purchase }))).paid).toBe("0.00");
+    expect((await db.product.findUniqueOrThrow({ where: { id: ids.product } })).stock).toBe(20);
   });
 
   it("memperingatkan kelebihan pembayaran tanpa mengubah stok atau pengeluaran saat pratinjau", async () => {

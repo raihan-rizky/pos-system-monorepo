@@ -85,12 +85,28 @@ function correctedPurchasePayments(purchase: Purchase, expense: Expense): Purcha
     stored.add(pair);
   }
   const payablePayments = new Map((purchase.supplierPayable?.payments ?? []).map(payment => [payment.id, payment]));
+  const hasExplicitCorrection = (source: { sourceKind: string; paymentId: string; amount: string; paidAt: string }) => {
+    for (const entry of purchase.shoppingRequest.corrections) {
+      const snapshot = entry.afterSnapshot;
+      if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) continue;
+      const data = "data" in snapshot ? snapshot.data : null;
+      const payment = data && typeof data === "object" && !Array.isArray(data) && "payment" in data ? data.payment : null;
+      const corrections = payment && typeof payment === "object" && !Array.isArray(payment) && "corrections" in payment ? payment.corrections : null;
+      if (!Array.isArray(corrections)) continue;
+      const match = corrections.find((row: unknown) => row && typeof row === "object" &&
+        "sourceKind" in row && "paymentId" in row && row.sourceKind === source.sourceKind && row.paymentId === source.paymentId);
+      if (match) return "amount" in match && "paidAt" in match &&
+        (typeof match.amount === "string" || typeof match.amount === "number") && typeof match.paidAt === "string" &&
+        cents(match.amount) === cents(source.amount) && match.paidAt === source.paidAt;
+    }
+    return false;
+  };
   for (const source of snapshot.sources) {
     const actual = payablePayments.get(source.paymentId);
     if ((source.sourceKind === "TRANSFER_EXPENSE" && (source.paymentId !== expense.id ||
       (purchase.initialTransferAmount !== null && (cents(purchase.initialTransferAmount) !== cents(source.amount) ||
-        !purchase.initialTransferPaidAt || calendarDate(purchase.initialTransferPaidAt) !== source.paidAt)))) ||
-      (source.sourceKind === "PAYABLE_PAYMENT" && (!actual || cents(actual.amount) !== cents(source.amount) || calendarDate(actual.paidAt) !== source.paidAt))) {
+        !purchase.initialTransferPaidAt || calendarDate(purchase.initialTransferPaidAt) !== source.paidAt) && !hasExplicitCorrection(source)))) ||
+      (source.sourceKind === "PAYABLE_PAYMENT" && (!actual || ((cents(actual.amount) !== cents(source.amount) || calendarDate(actual.paidAt) !== source.paidAt) && !hasExplicitCorrection(source))))) {
       throw new Error("Sumber pembayaran koreksi tidak sesuai.");
     }
   }
@@ -274,7 +290,7 @@ export async function loadRecognizedExpenses(storeId: string, month: string, now
     paymentMethod: true, paymentDueDate: true, initialTransferAmount: true, initialTransferPaidAt: true, supplierNameSnapshot: true,
     payments: { select: { id: true, method: true, amount: true, dueDate: true } },
     supplierPayable: { select: { storeId: true, giroHistoryVerifiedAt: true, payments: { select: { id: true, amount: true, paidAt: true } } } },
-    shoppingRequest: { select: { corrections: { where: { storeId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1,
+    shoppingRequest: { select: { corrections: { where: { storeId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       select: { afterSnapshot: true, allocations: { select: { sourceKind: true, paymentId: true, method: true, amount: true, sourceAmount: true, paidAt: true } } } } } },
   } satisfies Prisma.GoodsPurchaseSelect;
   const [expenses, backdatedPurchases] = await db.$transaction(async tx => Promise.all([

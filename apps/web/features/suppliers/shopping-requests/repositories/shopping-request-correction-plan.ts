@@ -8,6 +8,7 @@ import { ShoppingRequestCorrectionError } from "../services/shopping-request-cor
 import { loadShoppingRequestCorrectionEditor } from "./shopping-request-correction-editor";
 import { resolveCorrectionSchedule } from "./shopping-request-correction-schedule";
 import { planCorrectionCatalog } from "./shopping-request-correction-catalog";
+import { hasPaymentChanges, isPaymentOnlyCorrection } from "./shopping-request-correction-kind";
 
 export async function planShoppingRequestCorrection(
   tx: Prisma.TransactionClient,
@@ -16,7 +17,11 @@ export async function planShoppingRequestCorrection(
   const data = parseShoppingRequestCorrection(input.data);
   const editor = await loadShoppingRequestCorrectionEditor(tx, input);
   if (data.expectedVersion !== editor.version) throw new ShoppingRequestCorrectionError("Data daftar belanja berubah. Muat ulang dan coba lagi.", 409);
-  if (editor.pendingReceipts.length) throw new ShoppingRequestCorrectionError("Masih ada penerimaan yang menunggu persetujuan. Selesaikan penerimaan terlebih dahulu.", 409);
+  const paymentOnly = isPaymentOnlyCorrection(editor, data);
+  if (paymentOnly && !hasPaymentChanges(editor.payment, data.payment)) {
+    throw new ShoppingRequestCorrectionError("Tidak ada perubahan untuk disimpan.", 422);
+  }
+  if (editor.pendingReceipts.length && !paymentOnly) throw new ShoppingRequestCorrectionError("Masih ada penerimaan yang menunggu persetujuan. Selesaikan penerimaan terlebih dahulu.", 409);
 
   const original = editor.items.flatMap((item) => item.purchaseItemId ? [{
     requestItemId: item.requestItemId, purchaseItemId: item.purchaseItemId, productId: item.productId, receipts: item.receipts,
@@ -27,15 +32,22 @@ export async function planShoppingRequestCorrection(
     }
   }
   const receiptChanges = planCorrectionReceiptChanges(original, data.items);
-  const paymentPlan = planCorrectionPayments(editor.payment.sources, data.payment.allocations, data.payment.corrections);
+  let paymentPlan: ReturnType<typeof planCorrectionPayments>;
+  try {
+    paymentPlan = planCorrectionPayments(editor.payment.sources, data.payment.allocations, data.payment.corrections);
+  } catch (error) {
+    if (error instanceof Error) throw new ShoppingRequestCorrectionError(error.message, 422);
+    throw error;
+  }
   const purchase = await tx.goodsPurchase.findFirst({
     where: { id: editor.purchaseId, storeId: input.storeId, status: "APPROVED" },
     select: { totalAmount: true, totalBasis: true, expense: { select: { occurredAt: true } }, shoppingRequest: { select: { expense: { select: { occurredAt: true } } } } },
   });
   if (!purchase) throw new ShoppingRequestCorrectionError("Pembelian tidak tersedia.", 409);
-  const useReceived = purchase.totalBasis === "RECEIVED" || editor.items.some((item) => item.receipts.length > 0) ||
-    data.items.some((item) => item.receipts.some((receipt) => receipt.receivedQty > 0));
-  const newTotal = calculateCorrectionTotal(data.items.map((item) => ({
+  const useReceived = paymentOnly ? purchase.totalBasis === "RECEIVED" :
+    purchase.totalBasis === "RECEIVED" || editor.items.some((item) => item.receipts.length > 0) ||
+      data.items.some((item) => item.receipts.some((receipt) => receipt.receivedQty > 0));
+  const newTotal = paymentOnly ? purchase.totalAmount.toFixed(2) : calculateCorrectionTotal(data.items.map((item) => ({
     receivedQty: useReceived ? item.receipts.reduce((sum, receipt) => sum.plus(String(receipt.receivedQty)), new Prisma.Decimal(0)).toNumber() : item.orderedQty,
     unitPrice: item.unitPrice,
   })));
@@ -55,7 +67,7 @@ export async function planShoppingRequestCorrection(
   const productById = new Map(products.map((product) => [product.id, product]));
   for (const item of data.items) {
     const product = productById.get(item.productId)!;
-    if ((!item.purchaseItemId && !product.isActive) || product.conversionNeedsReview || (product.stockGroup && product.stockGroup.storeId !== input.storeId)) {
+    if (!paymentOnly && ((!item.purchaseItemId && !product.isActive) || product.conversionNeedsReview || (product.stockGroup && product.stockGroup.storeId !== input.storeId))) {
       throw new ShoppingRequestCorrectionError("Produk atau konversi satuan tidak dapat digunakan. Periksa kembali barang.", 409);
     }
   }
@@ -114,5 +126,5 @@ export async function planShoppingRequestCorrection(
     catalogVersions: catalogPlan.versions,
   })).digest("hex");
   const preview: CorrectionPreview = { version, stock, oldTotal: purchase.totalAmount.toFixed(2), newTotal, paid: paymentPlan.paid, overpaid: payment.overpaid, affectedDates, changes };
-  return { editor, data, receiptChanges, paymentPlan, useReceived, preview, catalogPlan };
+  return { editor, data, receiptChanges, paymentPlan, paymentOnly, useReceived, preview, catalogPlan };
 }

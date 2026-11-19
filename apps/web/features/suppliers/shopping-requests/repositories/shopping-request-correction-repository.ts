@@ -89,13 +89,22 @@ export async function commitShoppingRequestCorrectionRecord(
       storeId, shoppingRequestId: input.requestId, actorId: input.actor.id, actorName: input.actor.name,
       reason: data.reason, idempotencyKey: data.idempotencyKey, requestFingerprint: fingerprint,
       beforeSnapshot: editor as unknown as Prisma.InputJsonObject,
-      afterSnapshot: { data: data as unknown as Prisma.InputJsonObject, paymentSnapshot: {
+      afterSnapshot: { kind: plan.paymentOnly ? "PAYMENT_ONLY" : "PURCHASE", data: data as unknown as Prisma.InputJsonObject, paymentSnapshot: {
         sources: plan.paymentPlan.sources, allocations: plan.paymentPlan.allocations,
       } },
       preview: plan.preview as unknown as Prisma.InputJsonObject,
     },
     select: { id: true },
   });
+  if (plan.paymentOnly) {
+    await applyCorrectionFinance(tx, {
+      storeId, purchaseId: editor.purchaseId, correctionId: audit.id, actorId: input.actor.id,
+      lines: [], preservePurchaseTotal: true, totalBasis: plan.useReceived ? "RECEIVED" : "ORDERED",
+      schedule: plan.data.payment.schedule, allocations: data.payment.allocations, corrections: data.payment.corrections,
+      method: plan.data.payment.method, dueDate: plan.data.payment.dueDate ? new Date(`${plan.data.payment.dueDate}T00:00:00.000Z`) : null,
+    });
+    return { requestId: input.requestId, correctionId: audit.id, preview: plan.preview };
+  }
   const resolvedName = resolveShoppingRequestName(data.header.name, data.header.number);
   if (data.header.number !== editor.header.number) {
     const occupied = await tx.shoppingRequest.findFirst({ where: { storeId, number: data.header.number, id: { not: input.requestId } }, select: { id: true } });

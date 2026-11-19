@@ -1,12 +1,18 @@
 import { Prisma } from "@pos/db";
 import type { CorrectionPaymentSchedule } from "../types/shopping-request-correction";
+import { ShoppingRequestCorrectionError } from "../services/shopping-request-correction-error";
 
 export function resolveCorrectionSchedule(input: { total: string; schedule?: CorrectionPaymentSchedule[]; previous: CorrectionPaymentSchedule[]; method: "TRANSFER" | "GIRO" | null; dueDate: string | null }): CorrectionPaymentSchedule[] {
-  if (!input.schedule && input.previous.length > 1) throw new Error("Isi rincian seluruh jadwal pembayaran untuk koreksi ini.");
+  if (!input.schedule && input.previous.length > 1) throw new ShoppingRequestCorrectionError("Isi rincian seluruh jadwal pembayaran untuk koreksi ini.", 422);
   const rows = input.schedule ?? (input.method ? [{ method: input.method, amount: input.total, dueDate: input.dueDate, note: input.previous[0]?.note ?? null }] : []);
-  if (!rows.length) return [];
-  if (rows.some(row => row.method === "GIRO" && !row.dueDate)) throw new Error("Tanggal jatuh tempo Giro wajib diisi.");
-  if (!rows.reduce((sum, row) => sum.plus(row.amount), new Prisma.Decimal(0)).equals(input.total)) throw new Error("Total jadwal pembayaran harus sama dengan biaya pembelian terkoreksi.");
+  if (!rows.length) {
+    if (input.previous.length && new Prisma.Decimal(input.total).greaterThan(0)) {
+      throw new ShoppingRequestCorrectionError("Jadwal pembayaran yang sudah ada tidak dapat dikosongkan. Isi rincian pembayaran.", 422);
+    }
+    return [];
+  }
+  if (rows.some(row => row.method === "GIRO" && !row.dueDate)) throw new ShoppingRequestCorrectionError("Tanggal jatuh tempo Giro wajib diisi.", 422);
+  if (!rows.reduce((sum, row) => sum.plus(row.amount), new Prisma.Decimal(0)).equals(input.total)) throw new ShoppingRequestCorrectionError("Total jadwal pembayaran harus sama dengan biaya pembelian terkoreksi.", 422);
   return rows.map(row => ({ ...row, amount: new Prisma.Decimal(row.amount).toFixed(2), dueDate: row.method === "GIRO" ? row.dueDate : null }));
 }
 

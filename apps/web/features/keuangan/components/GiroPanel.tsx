@@ -23,7 +23,8 @@ type Giro = {
   payableNote?: string | null;
   dueDate: string | null;
   payableId: string | null;
-  status: "UNKNOWN" | "UNPAID" | "PARTIAL" | "PAID";
+  status: "UNKNOWN" | "UNPAID" | "PARTIAL" | "PAID" | "OVERPAID";
+  balanceIncludesOtherMethods?: boolean;
   historyIssue?: boolean;
   paid: number | null;
   remaining: number | null;
@@ -44,7 +45,7 @@ export function GiroAction({ item, canUpdate, pending, blocked = false, hasManua
   if (item.historyIssue) return null;
   if (item.status === "UNKNOWN") return <button type="button" onClick={onReview} className={className}>Periksa riwayat</button>;
   return <div className="flex flex-wrap gap-2">
-    {item.status !== "PAID" && <button type="button" onClick={onPay} className={className}>Catat pembayaran</button>}
+    {item.remaining !== null && item.remaining > 0 && <button type="button" onClick={onPay} className={className}>Catat pembayaran</button>}
     {item.payableId && hasManualPayables && onLink && <button type="button" onClick={onLink} className={className}>Hubungkan hutang manual</button>}
   </div>;
 }
@@ -54,6 +55,7 @@ const statusLabel: Record<Giro["status"], string> = {
   UNPAID: "Belum lunas",
   PARTIAL: "Sebagian",
   PAID: "Lunas",
+  OVERPAID: "Lebih bayar",
 };
 
 async function responseJson<T>(response: Response): Promise<T> {
@@ -291,7 +293,7 @@ function GiroPanelState({ canUpdate }: { canUpdate: boolean }) {
             <li key={item.goodsPurchaseId} className="flex flex-wrap items-start justify-between gap-3 py-3 text-sm">
               <div className="min-w-0">
                 <p className="break-words font-semibold text-surface-900">{item.number} · {item.supplierName}</p>
-                <p className="mt-1 text-xs text-surface-600">Nominal {formatRupiah(item.amount)} · Jatuh tempo {item.dueDate ?? "Belum tersedia"}</p>
+                <p className="mt-1 text-xs text-surface-600">Nominal Giro {formatRupiah(item.amount)} · Jatuh tempo {item.dueDate ?? "Belum tersedia"}</p>
                 {Boolean(item.schedule?.length) && <div className="mt-2 text-xs text-surface-600">
                   <p className="font-semibold">Jadwal giro</p>
                   <ul className="mt-1 space-y-1">{item.schedule?.map((giro, index) => <li key={giro.id}>
@@ -300,6 +302,7 @@ function GiroPanelState({ canUpdate }: { canUpdate: boolean }) {
                 </div>}
                 {!item.debtDate && <p className="mt-1 text-xs text-red-700">Tanggal kewajiban belum tersedia.</p>}
                 <p className="mt-1 text-xs text-surface-600">{statusLabel[item.status]}{item.remaining !== null ? ` · Sisa ${formatRupiah(item.remaining)}` : " · Sisa belum diketahui"}</p>
+                {item.balanceIncludesOtherMethods && <p className="mt-1 text-xs text-surface-600">Sisa memperhitungkan seluruh pembayaran pembelian yang tercatat.</p>}
                 {item.historyIssue && <p className="mt-1 text-xs text-red-700">Riwayat pembayaran tidak sesuai. Hubungi pengelola untuk memeriksa data giro ini.</p>}
                 {storageError && <p role="alert" className="mt-1 text-xs text-red-700">{storageError}</p>}
                 {item.status !== "UNKNOWN" && item.payments.length > 0 && <details className="mt-2 text-xs text-surface-600"><summary className="cursor-pointer">Riwayat pembayaran</summary><ul className="mt-1 space-y-1">{item.payments.map((payment, index) => <li key={`${payment.paidAt}-${index}`}>{payment.paidAt} · {formatRupiah(payment.amount)}</li>)}</ul></details>}

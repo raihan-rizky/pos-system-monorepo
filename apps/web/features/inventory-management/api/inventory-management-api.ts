@@ -459,6 +459,9 @@ export interface InboundReceiptListItem {
   paymentMethod?: "TRANSFER" | "GIRO" | null;
   paymentDueDate?: string | null;
   payments?: import("../types/inventory-management").InboundPaymentInput[];
+  currentPurchasePayments?: import("../types/inventory-management").InboundPaymentInput[];
+  paymentScheduleChanged?: boolean;
+  firstReceiptTransferAmount?: number | null;
   status: InboundReceiptStatus;
   stockReversed?: boolean;
   createdAt: string;

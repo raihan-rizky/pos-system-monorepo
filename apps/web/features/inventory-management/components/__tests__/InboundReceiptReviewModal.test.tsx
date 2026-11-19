@@ -103,6 +103,34 @@ const comparison = {
 };
 
 describe("InboundReceiptReviewModal", () => {
+  it("warns about a corrected payment schedule and shows the current details without blocking review", () => {
+    const changedReceipt = {
+      ...receipt,
+      payments: [{ method: "TRANSFER" as const, amount: 8936156, dueDate: null }],
+      currentPurchasePayments: [
+        { method: "TRANSFER" as const, amount: 4947500, dueDate: null },
+        { method: "GIRO" as const, amount: 3988656, dueDate: "2026-12-05" },
+      ],
+      paymentScheduleChanged: true,
+    };
+    const html = renderToStaticMarkup(
+      <InboundReceiptReviewModal open receipt={changedReceipt} comparison={comparison} canApprove canEdit canReject onClose={vi.fn()} onSuccess={vi.fn()} />,
+    );
+    expect(html).toContain("Jadwal pembayaran telah diperbarui");
+    expect(html).toContain("Rp 4.947.500");
+    expect(html).toContain("Rp 3.988.656");
+    expect(html).toContain("Setujui Item");
+  });
+
+  it("explains the transfer that will be recorded when the first receipt is approved", () => {
+    const firstReceipt = { ...receipt, firstReceiptTransferAmount: 4947500 };
+    const html = renderToStaticMarkup(
+      <InboundReceiptReviewModal open receipt={firstReceipt} comparison={comparison} canApprove canEdit canReject onClose={vi.fn()} onSuccess={vi.fn()} />,
+    );
+    expect(html).toContain("Transfer Rp 4.947.500 akan tercatat sebagai pembayaran");
+    expect(html).toContain("Setujui Item");
+  });
+
   it("keeps an older single-unit snapshot single-unit when edited", () => {
     const units = [
       { productId: "product-1", unit: "dus", unitMultiplierToBase: 12, costPrice: 1200, price: 1500, hargaAgen: 1400, hargaDinas: 1300 },

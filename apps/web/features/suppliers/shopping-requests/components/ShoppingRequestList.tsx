@@ -114,7 +114,7 @@ export function ShoppingRequestList({
   const [purchaseRejectId, setPurchaseRejectId] = useState<string | null>(null);
   const [legacyCreateOpen, setLegacyCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ShoppingRequestDetail | null>(null);
-  const [correctionId, setCorrectionId] = useState<string | null>(null);
+  const [correctionTarget, setCorrectionTarget] = useState<{ id: string; section: "details" | "payment" } | null>(null);
   const [correctionHistoryId, setCorrectionHistoryId] = useState<string | null>(initialCorrectionHistoryId ?? null);
   const { canPerform } = useRole();
   const canApproveStock = canPerform(
@@ -380,7 +380,10 @@ export function ShoppingRequestList({
                     <details className="group rounded-xl border border-slate-200 bg-slate-50/60 text-sm open:border-cyan-200 open:bg-white">
                       <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-xl px-3 py-2 font-semibold text-slate-700 transition-colors hover:bg-cyan-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 [&::-webkit-details-marker]:hidden"><Ellipsis aria-hidden="true" className="h-4 w-4 text-cyan-700" />Tindakan lainnya<ChevronDown aria-hidden="true" className="ml-auto h-4 w-4 transition-transform group-open:rotate-180" /></summary>
                       <div className="flex flex-col gap-1 border-t border-slate-100 p-2">
-                        {row.status !== "CANCELLED" && row.purchase?.status === "APPROVED" && canCorrectProcessed && <button type="button" onClick={() => setCorrectionId(row.id)} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent bg-amber-50 px-3 py-2 text-left text-sm font-medium text-amber-800 hover:border-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"><Pencil aria-hidden="true" className="h-4 w-4" />Edit daftar</button>}
+                        {row.status !== "CANCELLED" && row.purchase?.status === "APPROVED" && canCorrectProcessed && <>
+                          <button type="button" onClick={() => setCorrectionTarget({ id: row.id, section: "payment" })} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent bg-emerald-50 px-3 py-2 text-left text-sm font-medium text-emerald-800 hover:border-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600"><Pencil aria-hidden="true" className="h-4 w-4" />Ubah pembayaran</button>
+                          <button type="button" onClick={() => setCorrectionTarget({ id: row.id, section: "details" })} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent bg-amber-50 px-3 py-2 text-left text-sm font-medium text-amber-800 hover:border-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"><Pencil aria-hidden="true" className="h-4 w-4" />Edit daftar</button>
+                        </>}
                         <button type="button" onClick={() => setPrintTarget({ ...row, items: [] })} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 bg-sky-50 text-sky-800 hover:border-sky-200 hover:bg-sky-100"><Printer aria-hidden="true" className="h-4 w-4 shrink-0" />Lihat / cetak daftar</button>
                         {row.status === "REQUESTED" && row.decidedItemCount === 0 && canEditRequest && <button type="button" onClick={() => setEditTarget({ ...row, items: [] })} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 bg-amber-50 text-amber-800 hover:border-amber-200 hover:bg-amber-100"><Pencil aria-hidden="true" className="h-4 w-4 shrink-0" />Edit daftar</button>}
                         {row.status === "REQUESTED" && row.approvalFlowVersion !== 2 && row.pendingItemCount > 0 && canSetApprovedQty && <button type="button" onClick={() => setApprovedQtyTarget({ ...row, items: [] })} className="flex min-h-11 items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-1 bg-emerald-50 text-emerald-800 hover:border-emerald-200 hover:bg-emerald-100"><CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0" />Isi Jumlah yang Di-ACC</button>}
@@ -470,7 +473,7 @@ export function ShoppingRequestList({
         onClose={() => setCancelTarget(null)}
       />
       {deleteTarget && <ShoppingRequestDeletionDialog detail={deleteTarget} onClose={() => setDeleteTarget(null)} />}
-      {correctionId && <ShoppingRequestCorrectionModal requestId={correctionId} onClose={() => setCorrectionId(null)} />}
+      {correctionTarget && <ShoppingRequestCorrectionModal requestId={correctionTarget.id} initialSection={correctionTarget.section} onClose={() => setCorrectionTarget(null)} />}
       {correctionHistoryId && <ShoppingRequestCorrectionHistoryModal requestId={correctionHistoryId} onClose={() => setCorrectionHistoryId(null)} />}
     </div>
   );

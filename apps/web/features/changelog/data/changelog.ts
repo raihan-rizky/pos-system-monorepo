@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "koreksi-belanja-jadwal-campuran-20261120", date: "2026-11-20", revision: 1,
+    highlight: { title: "Ubah pembayaran lebih fleksibel", summary: "Koreksi Transfer dan Giro meski ada penerimaan menunggu." },
+    title: "Koreksi pembayaran tanpa menunggu penerimaan.",
+    summary: "Pembayaran Transfer dan Giro dapat dikoreksi dari daftar belanja meski ada penerimaan tertunda. Rencana dan pembayaran tercatat ditampilkan terpisah.",
+    kind: "fix", impact: "major", area: "Supplier", href: "/suppliers?tab=shopping-requests", visual: "shopping",
+    steps: [
+      { title: "Buka koreksi", detail: "Di Supplier > Daftar Belanja, pilih Tindakan lainnya > Ubah pembayaran pada pembelian yang disetujui." },
+      { title: "Atur dan tinjau", detail: "Sesuaikan jadwal Transfer/Giro serta jatuh temponya, isi alasan, lalu pilih Tinjau dampak dan bandingkan Sebelum dengan Sesudah." },
+      { title: "Simpan perubahan", detail: "Simpan koreksi atau kembali mengedit bila perlu. Jika gagal, isian tetap tersedia; lihat rincian hasilnya melalui badge Diubah atau Stok berubah." },
+    ],
+  },
+  {
     id: "peringatan-harga-penerimaan-20261118", date: "2026-11-18", revision: 1,
     highlight: { title: "Peringatan harga penerimaan", summary: "Setujui penerimaan sambil mempertahankan harga produk terkini." },
     title: "Penerimaan tetap bisa disetujui saat harga berubah.",

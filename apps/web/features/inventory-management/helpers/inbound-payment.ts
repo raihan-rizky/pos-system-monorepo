@@ -64,8 +64,9 @@ export function inboundPaymentSummary(payments: InboundPaymentInput[]): {
   paymentMethod: "TRANSFER" | "GIRO" | null; paymentDueDate: string | null;
 } {
   const method = payments.length && payments.every(row => row.method === payments[0].method) ? payments[0].method : null;
-  return { paymentMethod: method || null, paymentDueDate: method === "GIRO"
-    ? payments.map(row => row.dueDate!).sort()[0] : null };
+  return { paymentMethod: method || null, paymentDueDate: payments
+    .filter(row => row.method === "GIRO" && row.dueDate)
+    .map(row => row.dueDate!).sort()[0] ?? null };
 }
 
 export function normalizeInboundPayments(input: {
