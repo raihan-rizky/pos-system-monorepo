@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "koreksi-transaksi-pengeluaran-20261120", date: "2026-11-20", revision: 1,
+    highlight: { title: "Koreksi pembelian dari Keuangan", summary: "Ubah atau batalkan pembelian dan pembayaran langsung dari Pengeluaran." },
+    title: "Ubah atau batalkan pembelian dari Keuangan",
+    summary: "Menu Pengeluaran membuka koreksi pembelian dan pembayaran sesuai izin. Tinjau perubahan nominal, sisa tagihan, dan stok sebelum konfirmasi.",
+    kind: "feature", impact: "major", area: "Keuangan", href: "/keuangan", visual: "financial",
+    steps: [
+      { title: "Buka Pengeluaran", detail: "Di Keuangan, buka menu tiga titik pada baris transaksi yang ingin dikoreksi." },
+      { title: "Pilih tindakan", detail: "Pilih tindakan pembelian atau pembayaran, isi alasan, lalu tinjau dampaknya." },
+      { title: "Konfirmasi koreksi", detail: "Periksa kembali hasil pratinjau. Jika membatalkan pembayaran, catat pengembalian dana atau kredit yang sudah dikonfirmasi bila berlaku." },
+    ],
+  },
+  {
     id: "koreksi-belanja-jadwal-campuran-20261120", date: "2026-11-20", revision: 1,
     highlight: { title: "Ubah pembayaran lebih fleksibel", summary: "Koreksi Transfer dan Giro meski ada penerimaan menunggu." },
     title: "Koreksi pembayaran tanpa menunggu penerimaan.",

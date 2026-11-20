@@ -14,7 +14,8 @@ export type CorrectedReportPurchase = {
     id: string; number: string; totalAmount: unknown; paymentMethod: string | null;
     initialTransferAmount?: unknown; initialTransferPaidAt?: Date | null;
     paymentDueDate: Date | null; supplierNameSnapshot: string;
-    supplierPayable?: { id: string; amount: unknown; debtDate: Date; dueDate: Date | null; note: string | null; payments: Array<{ id: string; amount: unknown; paidAt: Date }> } | null;
+    supplierPayable?: { id: string; amount: unknown; debtDate: Date; dueDate: Date | null; note: string | null;
+      payments: Array<{ id: string; amount: unknown; paidAt: Date }>; creditApplications?: Array<{ amount: unknown }> } | null;
   };
 };
 
@@ -88,7 +89,8 @@ export function applyShoppingCorrectionReportPayments(report: MonthlyFinancialRe
       if (payable) debts.delete(payable.id);
       const debtDate = payable?.debtDate.toISOString().slice(0, 10) ?? new Date(input.occurredAt.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const paidCents = effective.filter(payment => payment.date <= report.to).reduce((sum, payment) => sum + Math.round(payment.amount * 100), 0);
-      const remaining = Math.max(0, Math.round(Number(payable?.amount ?? input.purchase.totalAmount) * 100) - paidCents) / 100;
+      const creditedCents = (payable?.creditApplications ?? []).reduce((sum, credit) => sum + Math.round(Number(credit.amount) * 100), 0);
+      const remaining = Math.max(0, Math.round(Number(payable?.amount ?? input.purchase.totalAmount) * 100) - paidCents - creditedCents) / 100;
       if (debtDate <= report.to && remaining > 0) {
         const id = payable?.id ?? `corrected-purchase:${input.purchase.id}`;
         debts.set(id, { id, date: debtDate, dueDate: (payable?.dueDate ?? input.purchase.paymentDueDate)?.toISOString().slice(0, 10) ?? null, supplier: input.purchase.supplierNameSnapshot, note: payable?.note ?? null, amount: remaining });

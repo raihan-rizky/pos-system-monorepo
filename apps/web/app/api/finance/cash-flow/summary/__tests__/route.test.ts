@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ permission: vi.fn(), authError: vi.fn(), report: vi.fn() }));
+const mocks = vi.hoisted(() => ({ permission: vi.fn(), authError: vi.fn(), report: vi.fn(), recognize: vi.fn() }));
 vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.permission, handleAuthError: mocks.authError }));
 vi.mock("@/features/financial-report/services/monthly-report", () => ({ getMonthlyFinancialReport: mocks.report }));
+vi.mock("@/features/keuangan/services/recognized-finance", () => ({ loadRecognizedExpenses: mocks.recognize }));
 vi.mock("@/lib/logger", () => ({ getLogger: () => ({ error: vi.fn() }) }));
 import { GET } from "../route";
 
@@ -15,6 +16,10 @@ describe("combined cash-flow summary", () => {
     vi.clearAllMocks();
     mocks.permission.mockResolvedValue({ id: "user-1", storeId: "store-1" });
     mocks.authError.mockReturnValue(null);
+    mocks.recognize.mockResolvedValue({
+      monthlyTotal: 45_000, incomplete: false, components: {}, entryCount: 3, byCategory: [],
+      daily: [{ date: "2026-11-04", total: 10_000 }, { date: "2026-11-05", total: 5_000 }, { date: "2026-11-10", total: 30_000 }],
+    });
     mocks.report.mockResolvedValue({
       income: [
         { date: "2026-11-02", amounts: { CETAK: 120_000.25, ATK: 49_999.75 } },
@@ -31,12 +36,12 @@ describe("combined cash-flow summary", () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it("reads both cash sides from one report and excludes the giro schedule", async () => {
+  it("reads reported income and the recognized expense projection", async () => {
     const response = await GET(request());
     expect(response.status).toBe(200);
     expect(mocks.permission.mock.calls).toEqual([["income", "read"], ["expense", "read"]]);
     expect(mocks.report).toHaveBeenCalledExactlyOnceWith("store-1", 2026, 11);
-    expect(await response.json()).toEqual({
+    expect(await response.json()).toMatchObject({
       month: "2026-11",
       income: { total: 200_000, daily: [{ date: "2026-11-02", total: 170_000 }, { date: "2026-11-03", total: 30_000 }] },
       expense: { total: 45_000, incomplete: false, daily: [
@@ -46,24 +51,9 @@ describe("combined cash-flow summary", () => {
   });
 
   it("keeps known daily payments while marking incomplete cash unavailable", async () => {
-    mocks.report.mockResolvedValueOnce({ income: [], expenses: [{ date: "2026-11-04", amount: 10_000 }], purchaseExpenses: [], giroPayments: [], cashIncomplete: true });
+    mocks.recognize.mockResolvedValueOnce({ monthlyTotal: null, incomplete: true, daily: [{ date: "2026-11-04", total: 10_000 }] });
     const response = await GET(request());
-    expect((await response.json()).expense).toEqual({ total: null, incomplete: true, daily: [{ date: "2026-11-04", total: 10_000 }] });
-  });
-
-  it("uses actual purchase payments instead of corrected purchase totals and giro rows", async () => {
-    mocks.report.mockResolvedValueOnce({
-      income: [],
-      expenses: [{ date: "2026-11-04", amount: 10_000 }],
-      purchaseExpenses: [{ date: "2026-11-05", amount: 50_000, purchase: { method: "TRANSFER" } }],
-      giroPayments: [{ date: "2026-11-10", amount: 30_000 }],
-      purchasePayments: [{ date: "2026-11-06", amount: 3_000 }, { date: "2026-11-11", amount: 17_000 }],
-      cashIncomplete: false,
-    });
-    const response = await GET(request());
-    expect((await response.json()).expense).toEqual({ total: 30_000, incomplete: false, daily: [
-      { date: "2026-11-04", total: 10_000 }, { date: "2026-11-06", total: 3_000 }, { date: "2026-11-11", total: 17_000 },
-    ] });
+    expect((await response.json()).expense).toMatchObject({ total: null, incomplete: true, daily: [{ date: "2026-11-04", total: 10_000 }] });
   });
 
   it.each(["income", "expense"])("rejects callers without %s permission before reading data", async (denied) => {

@@ -30,10 +30,17 @@ import {
 } from "@/features/keuangan/helpers/category-meta";
 import type { ExpenseFormInitial } from "@/features/keuangan/components/ExpenseFormModal";
 import { DeferredCashFlowChart } from "@/features/keuangan/components/DeferredCashFlowChart";
+import { FinanceCalculationDetails } from "@/features/keuangan/components/FinanceCalculationDetails";
 import { SupplierPayablesPanel } from "@/features/keuangan/components/SupplierPayablesPanel";
 import { ManualIncomePanel } from "@/features/keuangan/components/ManualIncomePanel";
 import { ManualFinanceFormModal, type ManualFinanceInitial } from "@/features/keuangan/components/ManualFinanceFormModal";
-import { formatRupiah } from "@/lib/utils";
+import { formatRupiah, formatRupiahPrecise } from "@/lib/utils";
+import { getExpenseCorrectionActions, type ExpenseCorrectionAction } from "@/features/keuangan/helpers/expense-correction-actions";
+
+const ExpenseCorrectionPanel = dynamic(
+  () => import("@/features/keuangan/components/ExpenseCorrectionPanel").then(module => module.ExpenseCorrectionPanel),
+  { ssr: false },
+);
 
 const ExpenseFormModal = dynamic(
   () =>
@@ -114,6 +121,12 @@ export default function KeuanganDashboardPage() {
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [editing, setEditing] = useState<ExpenseFormInitial | undefined>();
   const [transferModal, setTransferModal] = useState<{ initial?: ManualFinanceInitial } | null>(null);
+  const [expenseCorrection, setExpenseCorrection] = useState<{
+    action: ExpenseCorrectionAction;
+    record: { name: string; reference: string; amount: number; sourceLabel: string };
+    scope: string;
+  } | null>(null);
+  const correctionScope = JSON.stringify([month, userId, storeId, authorizationFingerprint]);
   const [page, setPage] = useState(1);
   const [filterCategory, setFilterCategory] = useState<ExpenseCategoryKey | null>(null);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
@@ -133,6 +146,12 @@ export default function KeuanganDashboardPage() {
     () => queryClient.invalidateQueries({ queryKey: ["finance"] }),
     [queryClient],
   );
+  const refreshAfterCorrection = useCallback(() => {
+    for (const key of ["finance", "financial-report", "shopping-requests", "goods-purchases", "supplier-payables",
+      "inventory-management", "inventory-logs", "products", "product-stats", "stock-group", "dashboard"]) {
+      void queryClient.invalidateQueries({ queryKey: [key] });
+    }
+  }, [queryClient]);
 
   const openCreateExpense = useCallback(() => {
     if (!canCreate) return;
@@ -226,6 +245,7 @@ export default function KeuanganDashboardPage() {
                 </span>
               </p>
             )}
+            {!summaryLoading && cashFlowData && <FinanceCalculationDetails income={cashFlowData.income} expense={cashFlowData.expense} />}
             {!summaryLoading && cashIncomplete && (
               <p role="status" className="mt-1 text-xs text-amber-700">Riwayat giro atau belanja belum lengkap. Periksa riwayat giro untuk menghitung sisa kas.</p>
             )}
@@ -473,6 +493,21 @@ export default function KeuanganDashboardPage() {
                         : item.source.type === "MANUAL_TRANSFER_PURCHASE"
                           ? "Belanja Transfer Manual"
                           : "Manual";
+                  const correctionActions = isAutomaticExpense ? getExpenseCorrectionActions(item, canPerform) : [];
+                  const manualEdit = item.source.type === "MANUAL_TRANSFER_PURCHASE" ? canEditTransfer : canEdit;
+                  const manualDelete = item.source.type === "MANUAL_TRANSFER_PURCHASE" ? canDeleteTransfer : canDelete;
+                  const reference = "number" in item.source ? item.source.number : "";
+                  const rowActions = isAutomaticExpense ? correctionActions.map(action => ({
+                    label: action.label,
+                    destructive: action.operation === "cancel",
+                    select: () => setExpenseCorrection({
+                      action, scope: correctionScope,
+                      record: { name: item.applicantName, reference, amount: item.netAmount, sourceLabel },
+                    }),
+                  })) : [
+                    ...(manualEdit ? [{ label: "Ubah", destructive: false, select: () => handleEdit(item) }] : []),
+                    ...(manualDelete ? [{ label: "Hapus", destructive: true, select: () => void handleDelete(item) }] : []),
+                  ];
                   return (
                   <li
                     key={item.id}
@@ -579,14 +614,7 @@ export default function KeuanganDashboardPage() {
                         );
                       })()}
                     </div>
-                    {((item.source.type === "MANUAL_TRANSFER_PURCHASE" ? canEditTransfer || canDeleteTransfer : canEdit || canDelete)) && !isAutomaticExpense && (
-                      <RowActions
-                        canEdit={item.source.type === "MANUAL_TRANSFER_PURCHASE" ? canEditTransfer : canEdit}
-                        canDelete={item.source.type === "MANUAL_TRANSFER_PURCHASE" ? canDeleteTransfer : canDelete}
-                        onEdit={() => handleEdit(item)}
-                        onDelete={() => handleDelete(item)}
-                      />
-                    )}
+                    {rowActions.length > 0 && <RowActions actions={rowActions} label={isAutomaticExpense ? reference || item.applicantName : undefined} />}
                   </li>
                   );
                 })}
@@ -633,6 +661,12 @@ export default function KeuanganDashboardPage() {
         />
       )}
       {transferModal && <ManualFinanceFormModal key={transferModal.initial?.id ?? 'transfer-create'} open kind="transfer" initial={transferModal.initial} onClose={() => setTransferModal(null)} onSaved={() => { void refresh(); }} />}
+      {expenseCorrection && expenseCorrection.scope === correctionScope && canReadExpense && <ExpenseCorrectionPanel
+        action={expenseCorrection.action}
+        record={expenseCorrection.record}
+        onClose={() => setExpenseCorrection(null)}
+        onSaved={refreshAfterCorrection}
+      />}
 
       {selectedImageUrl && (
         <Modal
@@ -667,16 +701,9 @@ export default function KeuanganDashboardPage() {
   );
 }
 
-function RowActions({
-  canEdit,
-  canDelete,
-  onEdit,
-  onDelete,
-}: {
-  canEdit: boolean;
-  canDelete: boolean;
-  onEdit: () => void;
-  onDelete: () => void;
+function RowActions({ actions, label }: {
+  actions: { label: string; destructive: boolean; select: () => void }[];
+  label?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -685,6 +712,7 @@ function RowActions({
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(
     null,
   );
+  const menuPositioned = menuPos !== null;
 
   useEffect(() => {
     setMounted(true);
@@ -696,8 +724,8 @@ function RowActions({
     const trigger = triggerRef.current;
     if (!trigger) return;
 
-    const MENU_W = 156;
-    const MENU_H = 88;
+    const MENU_W = 224;
+    const MENU_H = actions.length * 44 + 8;
     const GAP = 4;
 
     const place = () => {
@@ -722,7 +750,11 @@ function RowActions({
       window.removeEventListener("resize", onResize);
       window.removeEventListener("scroll", onResize, true);
     };
-  }, [open]);
+  }, [open, actions.length]);
+
+  useEffect(() => {
+    if (open && menuPositioned) menuRef.current?.querySelector("button")?.focus();
+  }, [open, menuPositioned]);
 
   // Close on outside click / Escape.
   useEffect(() => {
@@ -739,7 +771,10 @@ function RowActions({
       setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
     };
     document.addEventListener("mousedown", onPointer);
     document.addEventListener("touchstart", onPointer, { passive: true });
@@ -758,7 +793,7 @@ function RowActions({
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="min-h-9 min-w-9 inline-flex items-center justify-center p-1.5 rounded-lg text-surface-400 hover:text-surface-700 hover:bg-surface-100 cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
-        aria-label="Aksi"
+        aria-label={label ? `Aksi ${label}` : "Aksi"}
         aria-haspopup="menu"
         aria-expanded={open}
       >
@@ -769,35 +804,36 @@ function RowActions({
           <div
             ref={menuRef}
             role="menu"
-            style={{ top: menuPos.top, left: menuPos.left, width: 156 }}
+            aria-label={label ? `Aksi ${label}` : "Aksi"}
+            style={{ top: menuPos.top, left: menuPos.left, width: 224 }}
+            onKeyDown={event => {
+              const items = Array.from(menuRef.current?.querySelectorAll("button") ?? []);
+              const focused = items.indexOf(document.activeElement as HTMLButtonElement);
+              const last = items.length - 1;
+              const positions: Record<string, number> = { ArrowDown: (focused + 1) % items.length, ArrowUp: focused <= 0 ? last : focused - 1, Home: 0, End: last };
+              const next = positions[event.key];
+              if (typeof next === "number") { event.preventDefault(); items[next]?.focus(); }
+              if (event.key === "Tab") { setOpen(false); triggerRef.current?.focus(); }
+            }}
             className="fixed z-50 bg-white border border-surface-200 rounded-xl shadow-lg py-1"
           >
-            {canEdit && (
+            {actions.map(action => (
               <button
+                key={action.label}
                 type="button"
                 role="menuitem"
+                tabIndex={-1}
                 onClick={() => {
                   setOpen(false);
-                  onEdit();
+                  triggerRef.current?.focus();
+                  action.select();
                 }}
-                className="w-full text-left px-3 py-2 text-sm text-surface-700 hover:bg-surface-50 cursor-pointer focus:outline-none focus:bg-surface-50"
+                className={`min-h-11 w-full px-3 py-2 text-left text-sm focus:outline-none ${action.destructive
+                  ? "text-red-700 hover:bg-red-50 focus:bg-red-50" : "text-surface-700 hover:bg-surface-50 focus:bg-surface-50"}`}
               >
-                Ubah
+                {action.label}
               </button>
-            )}
-            {canDelete && (
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setOpen(false);
-                  onDelete();
-                }}
-                className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 cursor-pointer focus:outline-none focus:bg-red-50"
-              >
-                Hapus
-              </button>
-            )}
+            ))}
           </div>,
           document.body,
         )}

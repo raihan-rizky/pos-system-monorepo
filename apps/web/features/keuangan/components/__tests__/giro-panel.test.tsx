@@ -40,6 +40,16 @@ const scope = { storeId: "store-1", userId: "user-1", payableId: "d3" };
 const lock = async (_name: string, work: () => Promise<void>) => work();
 
 describe("panel giro di Keuangan", () => {
+  it("menawarkan pemakaian kredit di dialog pembayaran dengan tagihan aktif", () => {
+    const html = renderToStaticMarkup(<giroComponents.GiroDialog
+      item={state.items[1] as never} mode="payment" manualPayables={[]} scope={null} initialPending={null}
+      onPendingChange={vi.fn()} onClose={vi.fn()} onSaved={vi.fn()} onRefreshReview={vi.fn()}
+    />);
+    expect(html).toContain("Pakai kredit pemasok");
+    expect(html.match(/<form/g)).toHaveLength(2);
+    expect(html.indexOf("</form>")).toBeLessThan(html.lastIndexOf("<form"));
+  });
+
   it("menampilkan semua status, jatuh tempo, sisa, dan aksi yang sesuai", () => {
     const html = renderToStaticMarkup(<SupplierPayablesPanel canCreate canUpdate />);
     expect(html).toContain("PB-001");

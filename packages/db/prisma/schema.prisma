@@ -73,6 +73,7 @@ model Store {
   customers                    Customer[]
   customerReceivables           CustomerReceivable[]
   backdatedPurchases            BackdatedPurchase[]
+  expenseCorrections           ExpenseCorrection[]
   supplierPayables              SupplierPayable[]
   inventoryValuationBaseline    InventoryValuationBaseline[]
   inventoryValuationChanges     InventoryValuationChange[]
@@ -249,7 +250,9 @@ model SupplierPayable {
   goodsPurchase GoodsPurchase?          @relation(fields: [goodsPurchaseId], references: [id], onDelete: Restrict)
   payments     SupplierPayablePayment[]
   manualLinks  SupplierPayableManualLink[]
+  creditApplications ExpenseSupplierCreditApplication[]
 
+  @@unique([id, storeId])
   @@index([storeId, debtDate])
   @@map("pos_supplier_payables")
 }
@@ -303,6 +306,7 @@ model BackdatedPurchase {
   createdByName  String?
   createdAt      DateTime                   @default(now())
   updatedAt      DateTime                   @updatedAt
+  cancelledAt    DateTime?
   store          Store                      @relation(fields: [storeId], references: [id], onDelete: Restrict)
   payments       BackdatedPurchasePayment[]
   dueExpense     Expense?                   @relation("backdated_purchase_due_expense")
@@ -321,6 +325,7 @@ model BackdatedPurchasePayment {
   paidAt       DateTime          @db.Date
   createdById  String
   createdAt    DateTime          @default(now())
+  cancelledAt  DateTime?
   purchase     BackdatedPurchase @relation(fields: [purchaseId], references: [id], onDelete: Restrict)
   expense      Expense?          @relation("backdated_purchase_payment_expense")
 
@@ -679,6 +684,7 @@ model Supplier {
   productSuppliers ProductSupplier[]
   shoppingRequests ShoppingRequest[]
   goodsPurchases   GoodsPurchase[]
+  expenseCredits   ExpensePaymentSettlement[]
 
   @@index([isActive])
   @@index([type])
@@ -1866,6 +1872,97 @@ model RolePermissionAudit {
 
   @@index([createdAt])
   @@map("pos_role_permission_audits")
+}
+
+model ExpenseCorrection {
+  id          String                       @id @default(cuid())
+  storeId     String
+  requestId   String                       @db.Uuid
+  actorId     String
+  actorName   String
+  action      ExpenseCorrectionAction
+  subjectKind ExpenseCorrectionSubjectKind
+  subjectId   String
+  paymentKind ExpenseCorrectionPaymentKind?
+  paymentId   String?
+  reason      String                       @db.VarChar(500)
+  inputHash   String                       @db.VarChar(64)
+  version     String                       @db.VarChar(64)
+  before      Json
+  after       Json
+  createdAt   DateTime                     @default(now())
+  store       Store                        @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  settlements ExpensePaymentSettlement[]
+
+  @@unique([id, storeId])
+  @@unique([storeId, requestId])
+  @@index([storeId, subjectKind, subjectId, createdAt], map: "pos_expense_corrections_subject_idx")
+  @@map("pos_expense_corrections")
+}
+
+model ExpensePaymentSettlement {
+  id           String                       @id @default(cuid())
+  correctionId String
+  storeId      String
+  paymentKind  ExpenseCorrectionPaymentKind
+  paymentId    String
+  kind         ExpensePaymentSettlementKind
+  amount       Decimal                      @db.Decimal(12, 2)
+  reference    String                       @db.VarChar(160)
+  receivedAt   DateTime?                    @db.Date
+  supplierId   String?
+  correction   ExpenseCorrection            @relation(fields: [correctionId, storeId], references: [id, storeId], onDelete: Restrict)
+  supplier     Supplier?                    @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  applications ExpenseSupplierCreditApplication[]
+
+  @@unique([id, storeId])
+  @@index([correctionId])
+  @@index([storeId, paymentKind, paymentId], map: "pos_expense_settlements_payment_idx")
+  @@index([storeId, kind, receivedAt], map: "pos_expense_settlements_refund_idx")
+  @@index([storeId, supplierId, kind], map: "pos_expense_settlements_credit_idx")
+  @@map("pos_expense_payment_settlements")
+}
+
+model ExpenseSupplierCreditApplication {
+  id        String                   @id @default(cuid())
+  storeId   String
+  requestId String                   @db.Uuid
+  creditId  String
+  payableId String
+  actorId   String
+  amount    Decimal                  @db.Decimal(12, 2)
+  appliedAt DateTime                 @default(now())
+  releasedAt DateTime?
+  credit    ExpensePaymentSettlement @relation(fields: [creditId, storeId], references: [id, storeId], onDelete: Restrict)
+  payable   SupplierPayable          @relation(fields: [payableId, storeId], references: [id, storeId], onDelete: Restrict)
+
+  @@unique([storeId, requestId], map: "pos_expense_credit_applications_request_key")
+  @@index([creditId], map: "pos_expense_credit_applications_credit_idx")
+  @@index([payableId], map: "pos_expense_credit_applications_payable_idx")
+  @@map("pos_expense_supplier_credit_applications")
+}
+
+enum ExpenseCorrectionAction {
+  EDIT
+  CANCEL
+}
+
+enum ExpenseCorrectionSubjectKind {
+  GOODS_PURCHASE
+  BACKDATED_PURCHASE
+  SHOPPING_REQUEST
+}
+
+enum ExpenseCorrectionPaymentKind {
+  GOODS_INITIAL_TRANSFER
+  SUPPLIER_PAYABLE_PAYMENT
+  BACKDATED_PAYMENT
+}
+
+enum ExpensePaymentSettlementKind {
+  REFUND
+  CREDIT
+  ENTRY_ERROR
 }
 
 model CustomExpenseCategory {

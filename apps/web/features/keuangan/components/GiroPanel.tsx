@@ -9,6 +9,7 @@ import { useRole } from "@/components/providers/RoleProvider";
 import { GiroPaymentError, giroPaymentStorageKey, postGiroPayment, readPendingGiroPayment, type GiroPaymentScope, type PendingGiroPayment, type StorageLike, type WithLock } from "../helpers/giro-payment-request";
 import { jakartaToday } from "../helpers/supplier-payable-input";
 import { GiroLinkDialog } from "./GiroLinkDialog";
+import { GiroSupplierCredit } from "./GiroSupplierCredit";
 export { planGiroLink, postGiroLink } from "../helpers/giro-link";
 export { GiroLinkDialog, GiroLinkFields } from "./GiroLinkDialog";
 
@@ -27,6 +28,7 @@ type Giro = {
   balanceIncludesOtherMethods?: boolean;
   historyIssue?: boolean;
   paid: number | null;
+  creditApplied?: number;
   remaining: number | null;
   payments: GiroPayment[];
   schedule?: { id: string; amount: number; dueDate: string; note: string | null }[];
@@ -144,6 +146,7 @@ export function GiroDialog({ item, mode, manualPayables, scope, initialPending, 
   const [reviewStale, setReviewStale] = useState(false);
   const [reviewUnavailable, setReviewUnavailable] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [applyingCredit, setApplyingCredit] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -176,7 +179,7 @@ export function GiroDialog({ item, mode, manualPayables, scope, initialPending, 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const selected = reviewPayables.find(value => value.id === payableId);
-    if (submitting.current || (mode === "payment" && !item.payableId) || (mode === "review" && (!historyComplete || reviewStale || reviewUnavailable || (!reviewItem.payableId && payableId && !selected)))) return;
+    if (submitting.current || applyingCredit || (mode === "payment" && !item.payableId) || (mode === "review" && (!historyComplete || reviewStale || reviewUnavailable || (!reviewItem.payableId && payableId && !selected)))) return;
     submitting.current = true; setBusy(true); setError(null);
     try {
       const expectedPayments = reviewItem.payableId ? reviewItem.payments : selected?.payments;
@@ -209,16 +212,19 @@ export function GiroDialog({ item, mode, manualPayables, scope, initialPending, 
     } finally { submitting.current = false; if (active.current) setBusy(false); }
   }
 
-  return <dialog ref={dialogRef} aria-labelledby={titleId} onCancel={event => { if (busy) event.preventDefault(); else onClose(); }} className="fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-xl overflow-y-auto rounded-2xl border border-surface-200 bg-white p-0 text-surface-900 shadow-xl backdrop:bg-surface-950/45">
-    <header className="flex items-center justify-between border-b border-surface-200 px-5 py-4"><h2 id={titleId} className="text-lg font-semibold">{mode === "review" ? "Periksa Riwayat Giro" : "Catat Pembayaran Giro"}</h2><button type="button" onClick={onClose} disabled={busy} aria-label="Tutup" className="rounded-lg p-2 text-surface-500 hover:bg-surface-100 focus-visible:outline-2 focus-visible:outline-brand-500"><X className="h-5 w-5" aria-hidden="true" /></button></header>
+  return <dialog ref={dialogRef} aria-labelledby={titleId} onCancel={event => { if (busy || applyingCredit) event.preventDefault(); else onClose(); }} className="fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-xl overflow-y-auto rounded-2xl border border-surface-200 bg-white p-0 text-surface-900 shadow-xl backdrop:bg-surface-950/45">
+    <header className="flex items-center justify-between border-b border-surface-200 px-5 py-4"><h2 id={titleId} className="text-lg font-semibold">{mode === "review" ? "Periksa Riwayat Giro" : "Catat Pembayaran Giro"}</h2><button type="button" onClick={onClose} disabled={busy || applyingCredit} aria-label="Tutup" className="rounded-lg p-2 text-surface-500 hover:bg-surface-100 focus-visible:outline-2 focus-visible:outline-brand-500"><X className="h-5 w-5" aria-hidden="true" /></button></header>
     <form onSubmit={event => void submit(event)} className="space-y-4 p-5" aria-busy={busy}>
       {mode === "review" ? <GiroReviewFields item={reviewItem} manualPayables={reviewPayables} selectedPayableId={payableId} onSelectPayable={value => { setPayableId(value); setHistoryComplete(false); }} payments={payments} onPaymentsChange={setPayments} historyComplete={historyComplete} onHistoryCompleteChange={setHistoryComplete} /> : <GiroPaymentFields item={item} amount={amount} onAmountChange={setAmount} paidAt={paidAt} onPaidAtChange={setPaidAt} pending={Boolean(pending)} />}
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {storageError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{storageError}</p>}
       {balanceStale && <p className="text-sm text-surface-700">Tutup formulir dan periksa saldo terbaru sebelum melanjutkan.</p>}
       {mode === "review" && reviewStale && !reviewUnavailable && <button type="button" disabled={busy} onClick={() => { setBusy(true); void refreshReview().finally(() => setBusy(false)); }} className="min-h-11 text-sm font-medium text-brand-700 underline">Muat ulang riwayat</button>}
-      <Button type="submit" loading={busy} disabled={busy || Boolean(storageError) || balanceStale || (mode === "review" && (reviewStale || reviewUnavailable || Boolean(!reviewItem.payableId && payableId && !reviewPayables.some(value => value.id === payableId))))} className="w-full">{busy ? "Menyimpan..." : mode === "review" ? "Simpan hasil pemeriksaan" : pending ? "Pastikan pembayaran" : "Simpan pembayaran"}</Button>
+      <Button type="submit" loading={busy} disabled={busy || applyingCredit || Boolean(storageError) || balanceStale || (mode === "review" && (reviewStale || reviewUnavailable || Boolean(!reviewItem.payableId && payableId && !reviewPayables.some(value => value.id === payableId))))} className="w-full">{busy ? "Menyimpan..." : mode === "review" ? "Simpan hasil pemeriksaan" : pending ? "Pastikan pembayaran" : "Simpan pembayaran"}</Button>
     </form>
+    {mode === "payment" && item.payableId && !pending && !balanceStale &&
+      <GiroSupplierCredit payableId={item.payableId} control={control} disabled={busy} onBusy={setApplyingCredit}
+        onApplied={async () => { await onSaved(); if (active.current) onClose(); }} />}
   </dialog>;
 }
 
@@ -303,6 +309,8 @@ function GiroPanelState({ canUpdate }: { canUpdate: boolean }) {
                 {!item.debtDate && <p className="mt-1 text-xs text-red-700">Tanggal kewajiban belum tersedia.</p>}
                 <p className="mt-1 text-xs text-surface-600">{statusLabel[item.status]}{item.remaining !== null ? ` · Sisa ${formatRupiah(item.remaining)}` : " · Sisa belum diketahui"}</p>
                 {item.balanceIncludesOtherMethods && <p className="mt-1 text-xs text-surface-600">Sisa memperhitungkan seluruh pembayaran pembelian yang tercatat.</p>}
+                {typeof item.creditApplied === "number" && item.creditApplied > 0 &&
+                  <p className="mt-1 text-xs text-surface-600">Kredit terpakai {formatRupiah(item.creditApplied)}</p>}
                 {item.historyIssue && <p className="mt-1 text-xs text-red-700">Riwayat pembayaran tidak sesuai. Hubungi pengelola untuk memeriksa data giro ini.</p>}
                 {storageError && <p role="alert" className="mt-1 text-xs text-red-700">{storageError}</p>}
                 {item.status !== "UNKNOWN" && item.payments.length > 0 && <details className="mt-2 text-xs text-surface-600"><summary className="cursor-pointer">Riwayat pembayaran</summary><ul className="mt-1 space-y-1">{item.payments.map((payment, index) => <li key={`${payment.paidAt}-${index}`}>{payment.paidAt} · {formatRupiah(payment.amount)}</li>)}</ul></details>}

@@ -8,16 +8,18 @@ const mocks = vi.hoisted(() => {
   const manualIncome = vi.fn();
   const balances = vi.fn();
   const tx = { transaction: { findMany: transactions }, expense: { findMany: expenses }, customerReceivable: { findMany: receivables }, backdatedPurchase: { findMany: backdated }, manualIncome: { findMany: manualIncome } };
-  return { transactions, expenses, receivables, backdated, manualIncome, balances, tx, run: vi.fn() };
+  return { transactions, expenses, receivables, backdated, manualIncome, balances, tx, run: vi.fn(), correctionCash: vi.fn() };
 });
 vi.mock('@pos/db', () => ({ db: { $transaction: mocks.run } }));
 vi.mock('../monthly-balances', () => ({ getMonthlyBalances: mocks.balances }));
+vi.mock('@/features/keuangan/repositories/expense-correction-cash-repository', () => ({ loadExpenseCorrectionCash: mocks.correctionCash }));
 import { getMonthlyFinancialReport } from '../monthly-report';
 
 describe('pembacaan ledger belanja terdahulu', () => {
   beforeEach(() => {
     [mocks.transactions, mocks.expenses, mocks.receivables, mocks.backdated, mocks.manualIncome].forEach(mock => mock.mockReset().mockResolvedValue([]));
     mocks.balances.mockReset().mockResolvedValue({ openingInventoryBalance: 100, inventoryBalance: 90, supplierDebts: [{ id: 'manual', date: '2026-10-01', dueDate: null, supplier: 'Pemasok', note: null, amount: 5 }], supplierDebtBalance: 5 });
+    mocks.correctionCash.mockReset().mockResolvedValue({ outflow: [], refunds: [] });
     mocks.run.mockReset().mockImplementation(callback => callback(mocks.tx));
   });
 
@@ -46,5 +48,17 @@ describe('pembacaan ledger belanja terdahulu', () => {
     expect(result.supplierDebts).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'manual', amount: 5 }), expect.objectContaining({ amount: 50 })]));
     expect(result.supplierDebts).toHaveLength(2);
     expect(mocks.balances.mock.calls[0][3]).toBe(mocks.tx);
+  });
+
+  it('memisahkan arus kas pembelian yang dibatalkan dari saldo hutang', async () => {
+    mocks.correctionCash.mockResolvedValueOnce({
+      outflow: [{ date: '2026-11-08', total: 800_000 }],
+      refunds: [{ date: '2026-11-20', total: 800_000 }],
+    });
+    const report = await getMonthlyFinancialReport('store-1', 2026, 11, new Date('2026-12-01T00:00:00Z'));
+    expect(report.income).toMatchObject([{ date: '2026-11-20', description: 'Pengembalian dana pemasok', amounts: { UNMAPPED: 800_000 } }]);
+    expect(report.expenses).toMatchObject([{ date: '2026-11-08', description: 'Pembayaran pembelian yang dibatalkan', amount: 800_000 }]);
+    expect(report.supplierDebtBalance).toBe(5);
+    expect(mocks.correctionCash).toHaveBeenCalledWith(mocks.tx, 'store-1', '2026-11', expect.any(Date));
   });
 });

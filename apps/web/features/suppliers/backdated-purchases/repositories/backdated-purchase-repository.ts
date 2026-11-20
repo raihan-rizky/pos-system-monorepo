@@ -14,7 +14,7 @@ export class BackdatedPurchaseError extends Error {
 }
 
 const purchaseInclude = {
-  payments: { orderBy: [{ paidAt: "asc" }, { createdAt: "asc" }, { id: "asc" }] },
+  payments: { where: { cancelledAt: null }, orderBy: [{ paidAt: "asc" }, { createdAt: "asc" }, { id: "asc" }] },
 } satisfies Prisma.BackdatedPurchaseInclude;
 
 type PurchaseRow = Prisma.BackdatedPurchaseGetPayload<{ include: typeof purchaseInclude }>;
@@ -102,7 +102,7 @@ async function syncPaymentExpense(tx: Transaction, row: PurchaseRow, payment: Pa
       occurredAt,
       backdatedPurchasePaymentId: payment.id,
     },
-    update: { amount, occurredAt, deletedAt: null },
+    update: { amount, occurredAt, description: `Pembayaran belanja terdahulu ${row.reference}`, deletedAt: null },
   });
 }
 
@@ -130,8 +130,32 @@ async function syncDueExpense(tx: Transaction, row: PurchaseRow) {
       occurredAt,
       backdatedPurchaseDueId: row.id,
     },
-    update: { amount, occurredAt, deletedAt: null },
+    update: { amount, occurredAt, description: `Jatuh tempo belanja terdahulu ${row.reference}`, deletedAt: null },
   });
+}
+
+export async function syncBackdatedPurchaseCorrectionExpenses(
+  tx: Transaction,
+  purchaseId: string,
+  storeId: string,
+  now: Date,
+) {
+  const row = await tx.backdatedPurchase.findFirstOrThrow({ where: { id: purchaseId, storeId }, include: purchaseInclude });
+  const paymentScope = { storeId, deletedAt: null, backdatedPurchasePayment: { is: { purchaseId } } } as const;
+  if (row.cancelledAt) {
+    await tx.expense.updateMany({
+      where: { storeId, deletedAt: null, OR: [{ backdatedPurchaseDueId: purchaseId }, paymentScope] },
+      data: { deletedAt: now },
+    });
+    return;
+  }
+  const recognizedPayments = row.payments.filter(payment => dateKey(payment.paidAt) <= dateKey(row.dueDate));
+  await tx.expense.updateMany({
+    where: { ...paymentScope, backdatedPurchasePaymentId: { notIn: recognizedPayments.map(payment => payment.id) } },
+    data: { deletedAt: now },
+  });
+  for (const payment of recognizedPayments) await syncPaymentExpense(tx, row, payment);
+  await syncDueExpense(tx, row);
 }
 
 export async function createBackdatedPurchase(input: BackdatedPurchaseInput, actor: BackdatedPurchaseActor) {
@@ -199,8 +223,12 @@ export async function addBackdatedPurchasePayment(
     if (!locked.length) throw new BackdatedPurchaseError("Belanja terdahulu tidak ditemukan.", 404);
     const row = await tx.backdatedPurchase.findFirst({ where: { id, storeId: actor.storeId }, include: purchaseInclude });
     if (!row) throw new BackdatedPurchaseError("Belanja terdahulu tidak ditemukan.", 404);
-    const existing = row.payments.find((payment) => payment.requestId === input.requestId);
+    if (row.cancelledAt) throw new BackdatedPurchaseError("Belanja terdahulu sudah dibatalkan.", 409);
+    const existing = await tx.backdatedPurchasePayment.findUnique({
+      where: { purchaseId_requestId: { purchaseId: row.id, requestId: input.requestId } },
+    });
     if (existing) {
+      if (existing.cancelledAt) throw new BackdatedPurchaseError("Pembayaran tersebut sudah dibatalkan.", 409);
       if (centsFromDecimal(existing.amount) !== input.amountCents || dateKey(existing.paidAt) !== input.paidAt) {
         throw new BackdatedPurchaseError("Permintaan pembayaran sudah digunakan. Muat ulang formulir.", 409);
       }

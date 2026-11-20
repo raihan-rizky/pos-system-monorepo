@@ -7,7 +7,10 @@ vi.mock('@/features/financial-report/services/monthly-report',()=>({getMonthlyFi
 
 const mocks=vi.hoisted(()=>({expenseCreate:vi.fn(),expenseUpdate:vi.fn(),expenseFind:vi.fn(),expenseList:vi.fn(),expenseCount:vi.fn(),transaction:vi.fn(),manual:vi.fn()}));
 vi.mock('@/lib/rbac/guard',()=>({requireRole:async()=>({id:'user-1',storeId:'store-1'}),requirePermission:async()=>({id:'user-1',storeId:'store-1'}),handleAuthError:()=>null}));
-vi.mock('@pos/db',()=>({db:{expense:{create:mocks.expenseCreate,update:mocks.expenseUpdate,findFirst:mocks.expenseFind,findMany:mocks.expenseList,count:mocks.expenseCount},transaction:{findMany:mocks.transaction},manualIncome:{findMany:mocks.manual}}}));
+vi.mock('@pos/db',()=>{
+  const tx={$queryRaw:async()=>[],expense:{create:mocks.expenseCreate,update:mocks.expenseUpdate,findFirst:mocks.expenseFind,findMany:mocks.expenseList,count:mocks.expenseCount},transaction:{findMany:mocks.transaction},manualIncome:{findMany:mocks.manual},backdatedPurchase:{findMany:async()=>[]}};
+  return {db:{...tx,$transaction:(callback:(client:typeof tx)=>unknown)=>callback(tx)}};
+});
 const payload={applicantName:'Pemasok contoh',description:'Belanja kertas',category:'SUPPLIES',amount:25000,changeAmount:0,occurredAt:'2026-11-02',manualPurchasePaymentMethod:'TRANSFER'};
 const expense={...payload,id:'expense-1',storeId:'store-1',occurredAt:new Date('2026-11-01T17:00:00Z'),createdAt:new Date(),deletedAt:null,recordedBy:{id:'user-1',name:'Contoh'},goodsPurchase:null,shoppingRequest:null};
 const req=(method:string,data:unknown=payload)=>new Request('http://localhost',{method,body:JSON.stringify(data)});

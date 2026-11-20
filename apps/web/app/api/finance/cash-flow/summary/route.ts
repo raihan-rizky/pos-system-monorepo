@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getMonthlyFinancialReport } from "@/features/financial-report/services/monthly-report";
+import { loadRecognizedExpenses } from "@/features/keuangan/services/recognized-finance";
+import { applyExpenseCashRows, totalExpenseCash } from "@/features/keuangan/helpers/expense-correction-cash";
 import { apiError } from "@/lib/api/responses";
 import { getLogger } from "@/lib/logger";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
@@ -27,33 +29,42 @@ export async function GET(request: Request) {
       return apiError("Pilih bulan yang valid dan tidak melewati bulan ini.", 422, { code: "ValidationError" });
     }
     const [year, monthNumber] = month.split("-").map(Number);
-    const report = await getMonthlyFinancialReport(incomeUser.storeId, year, monthNumber);
-    const incomeDays = new Map<string, number>();
-    const expenseDays = new Map<string, number>();
-    const add = (days: Map<string, number>, date: string, amount: number) => {
-      days.set(date, (days.get(date) ?? 0) + Math.round(amount * 100));
-    };
+    const [report, expenses] = await Promise.all([
+      getMonthlyFinancialReport(incomeUser.storeId, year, monthNumber),
+      loadRecognizedExpenses(incomeUser.storeId, month, undefined, true),
+    ]);
+    const incomeDays = new Map<string, { totalCents: number; receivableCents: number }>();
+    let salesCents = 0;
+    let manualIncomeCents = 0;
+    let manualReceivableCents = 0;
+    let refundCents = 0;
     for (const row of report.income) {
-      for (const amount of Object.values(row.amounts)) add(incomeDays, row.date, amount);
+      const cents = Object.values(row.amounts).reduce((sum, amount) => sum + Math.round(amount * 100), 0);
+      const day = incomeDays.get(row.date) ?? { totalCents: 0, receivableCents: 0 };
+      day.totalCents += cents;
+      if (row.id?.startsWith("manual:")) {
+        day.receivableCents += cents;
+        manualReceivableCents += cents;
+      } else if (row.id?.startsWith("manual-income:")) manualIncomeCents += cents;
+      else if (row.id?.startsWith("supplier-refund:")) refundCents += cents;
+      else salesCents += cents;
+      incomeDays.set(row.date, day);
     }
-    for (const row of report.expenses) add(expenseDays, row.date, row.amount);
-    if (report.purchasePayments != null) {
-      for (const row of report.purchasePayments) add(expenseDays, row.date, row.amount);
-    } else {
-      for (const row of report.purchaseExpenses ?? []) {
-        if (row.purchase?.method === "TRANSFER") add(expenseDays, row.date, row.amount);
-      }
-      for (const row of report.giroPayments ?? []) add(expenseDays, row.date, row.amount);
-    }
-    const daily = (days: Map<string, number>) => [...days.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, cents]) => ({ date, total: cents / 100 }));
-    const total = (days: Map<string, number>) => [...days.values()].reduce((sum, cents) => sum + cents, 0) / 100;
-    const incomplete = report.cashIncomplete === true;
+    const incomeDaily = [...incomeDays.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([date, day]) => ({ date, total: day.totalCents / 100, manualReceivable: day.receivableCents / 100 }));
+    const components = { sales: salesCents / 100, manualIncome: manualIncomeCents / 100, manualReceivable: manualReceivableCents / 100 };
+    const supplierRefund = refundCents / 100;
+    const outflows = expenses.correctionCash?.outflow ?? [];
+    const correctionOutflow = totalExpenseCash(outflows);
+    const expenseDaily = applyExpenseCashRows(expenses.daily.map(({ date, total }) => ({ date, total })),
+      outflows, date => ({ date, total: 0 }));
     return NextResponse.json({
       month,
-      income: { total: total(incomeDays), daily: daily(incomeDays) },
-      expense: { total: incomplete ? null : total(expenseDays), incomplete, daily: daily(expenseDays) },
+      income: { total: totalExpenseCash(incomeDaily), daily: incomeDaily, components, supplierRefund },
+      expense: { total: expenses.monthlyTotal === null ? null : totalExpenseCash(expenseDaily),
+        incomplete: expenses.incomplete, daily: expenseDaily, components: expenses.components,
+        correctionOutflow, byCategory: expenses.byCategory, entryCount: expenses.entryCount },
     });
   } catch (error) {
     const authError = handleAuthError(error);

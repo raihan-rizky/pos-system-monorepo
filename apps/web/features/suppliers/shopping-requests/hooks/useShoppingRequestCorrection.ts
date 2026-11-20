@@ -15,6 +15,6 @@ export function usePreviewCorrection(id: string) {
 export function useSaveCorrection(id: string) {
   const client = useQueryClient();
   return useMutation({ mutationFn: (input: ShoppingRequestCorrectionInput) => saveCorrection(id, input), onSuccess: async () => {
-    await Promise.all(["shopping-requests", "goods-purchases", "inventory-management", "inventory-logs", "inventory-bulk", "products", "product-stats", "stock-group", "dashboard", "financial-report", "expenses", "supplier-payables", "suppliers", "product-price-logs"].map(key => client.invalidateQueries({ queryKey: [key] })));
+    await Promise.all(["shopping-requests", "goods-purchases", "inventory-management", "inventory-logs", "inventory-bulk", "products", "product-stats", "stock-group", "dashboard", "financial-report", "finance", "expenses", "supplier-payables", "suppliers", "product-price-logs"].map(key => client.invalidateQueries({ queryKey: [key] })));
   } });
 }

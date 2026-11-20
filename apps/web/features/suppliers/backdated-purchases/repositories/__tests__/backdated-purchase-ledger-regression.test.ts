@@ -27,11 +27,15 @@ describe("pengakuan ulang pembayaran belanja terdahulu", () => {
     const tx = {
       $queryRaw: async () => [{ id: row.id }],
       backdatedPurchase: { findFirst: async () => ({ ...row, payments: [...row.payments] }) },
-      backdatedPurchasePayment: { create: async ({ data }: { data: Omit<(typeof row.payments)[number], "id" | "createdAt"> }) => {
-        const payment = { ...data, id: `new-${++sequence}`, createdAt: date("2026-12-15") };
-        row.payments.push(payment);
-        return payment;
-      } },
+      backdatedPurchasePayment: {
+        findUnique: async ({ where }: { where: { purchaseId_requestId: { requestId: string } } }) =>
+          row.payments.find(payment => payment.requestId === where.purchaseId_requestId.requestId) ?? null,
+        create: async ({ data }: { data: Omit<(typeof row.payments)[number], "id" | "createdAt"> }) => {
+          const payment = { ...data, id: `new-${++sequence}`, createdAt: date("2026-12-15") };
+          row.payments.push(payment);
+          return payment;
+        },
+      },
       expense: {
         upsert: async ({ where, create, update }: { where: { backdatedPurchasePaymentId?: string; backdatedPurchaseDueId?: string }; create: { amount: string; occurredAt: Date }; update: { amount: string; occurredAt: Date; deletedAt: null } }) => {
           const key = where.backdatedPurchasePaymentId ? `payment:${where.backdatedPurchasePaymentId}` : `due:${where.backdatedPurchaseDueId}`;
@@ -55,7 +59,7 @@ describe("pengakuan ulang pembayaran belanja terdahulu", () => {
     const recordedLater = await addBackdatedPurchasePayment("purchase-1", { requestId: "historical", amountCents: 100_000_000, paidAt: "2026-11-10" }, actor);
     expect(recordedLater).toMatchObject({ paidCents: 900_000_000, remainingCents: 100_000_000, paymentStatus: "PARTIAL" });
     expect(expenses.get("payment:new-2")).toEqual({ amount: "1000000.00", occurredAt: new Date("2026-11-09T17:00:00Z"), deletedAt: null });
-    expect(expenses.get("due:purchase-1")).toEqual({ amount: "3000000.00", occurredAt: new Date("2026-11-09T17:00:00Z"), deletedAt: null });
+    expect(expenses.get("due:purchase-1")).toEqual({ amount: "3000000.00", occurredAt: new Date("2026-11-09T17:00:00Z"), deletedAt: null, description: "Jatuh tempo belanja terdahulu GIRO-123" });
     expect([...expenses.values()].reduce((sum, expense) => sum + Number(expense.amount), 0)).toBe(10_000_000);
   });
 });

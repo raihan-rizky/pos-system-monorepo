@@ -2,7 +2,6 @@ import { db } from "@pos/db";
 import { handleAuthError, requirePermission, requireRole } from "@/lib/rbac/guard";
 import {
   EXPENSE_CATEGORIES,
-  buildKeuanganMonthRange,
   computeNetExpense,
   validateExpensePayload,
   type ExpenseCategory,
@@ -10,14 +9,13 @@ import {
 import { getLogger } from "@/lib/logger";
 import {
   apiError,
-  apiList,
   buildPaginationMeta,
   parsePagination,
 } from "@/lib/api/responses";
 import { NextResponse } from "next/server";
-import { recognizedExpenseFilter } from "@/features/keuangan/helpers/recognized-expense-filter";
 import { validateManualTransferExpense } from "@/features/keuangan/helpers/manual-transfer-expense";
 import { customExpenseCategoryId, customExpenseCategoryKey } from "@/features/keuangan/helpers/category-meta";
+import { loadRecognizedExpenses } from "@/features/keuangan/services/recognized-finance";
 
 const log = getLogger("api:finance:expenses");
 export const dynamic = "force-dynamic";
@@ -51,8 +49,6 @@ export async function GET(request: Request) {
       });
     }
     const month = monthParam ?? currentJakartaMonth();
-    const range = buildKeuanganMonthRange(month);
-
     const { page, limit, skip } = parsePagination(searchParams, {
       defaultLimit: 50,
       maxLimit: 100,
@@ -64,86 +60,10 @@ export async function GET(request: Request) {
       return apiError("Kategori tidak valid.", 422, { code: "ValidationError" });
     }
 
-    const where = {
-      deletedAt: null,
-      storeId,
-      ...recognizedExpenseFilter(),
-      occurredAt: { gte: range.start, lt: range.end },
-      ...(customCategoryId ? { customCategoryId } : category ? { category, customCategoryId: null } : {}),
-    } as const;
-
-    const [items, total] = await Promise.all([
-      db.expense.findMany({
-        where,
-        orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
-        skip,
-        take: limit,
-        select: {
-          id: true,
-          applicantName: true,
-          category: true,
-          customCategoryId: true,
-          description: true,
-          amount: true,
-          changeAmount: true,
-          occurredAt: true,
-          createdAt: true,
-          transactionId: true,
-          attachmentUrl: true,
-          manualPurchasePaymentMethod: true,
-          hasMissingCostSnapshot: true,
-          shoppingRequest: { select: { id: true, number: true } },
-          goodsPurchase: { select: { id: true, number: true } },
-          backdatedPurchaseDue: { select: { id: true, reference: true } },
-          backdatedPurchasePayment: { select: { purchase: { select: { id: true, reference: true } } } },
-          recordedBy: { select: { id: true, name: true } },
-        },
-      }),
-      db.expense.count({ where }),
-    ]);
-
-    const data = items.map((row) => {
-      const amount = Number(row.amount.toString());
-      const changeAmount = Number(row.changeAmount.toString());
-      return {
-        id: row.id,
-        applicantName: row.applicantName,
-        category: row.customCategoryId ? customExpenseCategoryKey(row.customCategoryId) : row.category,
-        description: row.description,
-        amount,
-        changeAmount,
-        netAmount: computeNetExpense(amount, changeAmount),
-        occurredAt: row.occurredAt.toISOString(),
-        createdAt: row.createdAt.toISOString(),
-        transactionId: row.transactionId,
-        attachmentUrl: row.attachmentUrl,
-        hasMissingCostSnapshot: row.hasMissingCostSnapshot,
-        source: row.backdatedPurchaseDue || row.backdatedPurchasePayment
-          ? {
-              type: "BACKDATED_PURCHASE" as const,
-              id: (row.backdatedPurchaseDue ?? row.backdatedPurchasePayment!.purchase).id,
-              number: (row.backdatedPurchaseDue ?? row.backdatedPurchasePayment!.purchase).reference,
-            }
-          : row.goodsPurchase
-          ? {
-              type: "GOODS_PURCHASE" as const,
-              id: row.goodsPurchase.id,
-              number: row.goodsPurchase.number,
-            }
-          : row.shoppingRequest
-          ? {
-              type: "SHOPPING_REQUEST" as const,
-              id: row.shoppingRequest.id,
-              number: row.shoppingRequest.number,
-            }
-          : row.manualPurchasePaymentMethod === "TRANSFER"
-          ? { type: "MANUAL_TRANSFER_PURCHASE" as const }
-          : { type: "MANUAL" as const },
-        recordedBy: row.recordedBy,
-      };
-    });
-
-    return apiList(data, buildPaginationMeta(total, page, limit));
+    const recognized = await loadRecognizedExpenses(storeId, month);
+    const filtered = categoryParam ? recognized.rows.filter(row => row.category === categoryParam) : recognized.rows;
+    return NextResponse.json({ data: filtered.slice(skip, skip + limit),
+      pagination: buildPaginationMeta(filtered.length, page, limit), incomplete: recognized.incomplete });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

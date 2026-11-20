@@ -63,8 +63,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }
       if (debt.goodsPurchaseId && !debt.giroHistoryVerifiedAt) return 'history-unknown' as const;
       if (paidAt < debt.debtDate) return 'invalid' as const;
-      const [total] = await tx.$queryRaw<{ paid: string; corrected: boolean; purchaseMethod: string | null }[]>`
+      const [total] = await tx.$queryRaw<{ paid: string; credited: string; financeCancelled: boolean; corrected: boolean; purchaseMethod: string | null }[]>`
         SELECT COALESCE(SUM(p."amount"), 0)::text AS paid,
+          (SELECT COALESCE(SUM(credit."amount"), 0)::text FROM "pos_expense_supplier_credit_applications" credit
+           WHERE credit."storeId" = ${storeId} AND credit."payableId" = ${id} AND credit."releasedAt" IS NULL) AS credited,
+          EXISTS (
+            SELECT 1 FROM "pos_expense_corrections" finance_cancel
+            WHERE finance_cancel."storeId" = ${storeId} AND finance_cancel."action" = 'CANCEL'
+              AND finance_cancel."paymentId" IS NULL
+              AND finance_cancel."before"->>'purchaseId' = ${debt.goodsPurchaseId}
+          ) AS "financeCancelled",
           EXISTS (
             SELECT 1 FROM "pos_shopping_request_corrections" c
             JOIN "pos_goods_purchases" g ON g."shoppingRequestId" = c."shoppingRequestId" AND g."storeId" = c."storeId"
@@ -74,6 +82,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
            WHERE g."id" = ${debt.goodsPurchaseId} AND g."storeId" = ${user.storeId}) AS "purchaseMethod"
         FROM "pos_supplier_payable_payments" p WHERE p."payableId" = ${id}
       `;
+      if (total.financeCancelled) return 'balance-changed' as const;
       if (total.corrected && total.purchaseMethod !== 'GIRO') {
         const giroSchedule = await tx.goodsPurchasePayment.count({ where: { goodsPurchaseId: debt.goodsPurchaseId!, method: 'GIRO', amount: { gt: 0 } } });
         if (!giroSchedule) return 'balance-changed' as const;
@@ -81,7 +90,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const paid = total.corrected && debt.goodsPurchaseId
         ? (await loadCorrectionPaymentState(tx, { storeId, purchaseId: debt.goodsPurchaseId })).paid
         : total.paid;
-      const remainingCents = Math.round(Number(debt.amount) * 100) - Math.round(Number(paid) * 100);
+      const remainingCents = Math.round(Number(debt.amount) * 100) - Math.round(Number(paid) * 100)
+        - Math.round(Number(total.credited ?? 0) * 100);
       if (debt.goodsPurchaseId && Math.round(expectedBalance! * 100) !== remainingCents) return 'balance-changed' as const;
       if (Math.round(amount * 100) > remainingCents) return 'invalid' as const;
       if (requestScope) {

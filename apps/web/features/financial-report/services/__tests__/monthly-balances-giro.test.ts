@@ -19,6 +19,9 @@ describe('saldo hutang pemasok bulanan', () => {
     const sql = (mocks.query.mock.calls[1][0] as TemplateStringsArray).join('?');
     expect(sql).toContain('payment."paidAt" <= ?::date');
     expect(sql).toContain('d."goodsPurchaseId" IS NULL OR d."giroHistoryVerifiedAt" IS NOT NULL');
+    expect(sql).toContain('pos_expense_supplier_credit_applications');
+    expect(sql).toContain('credit."appliedAt" < ?');
+    expect(sql).toContain('finance_cancel."paymentId" IS NULL');
   });
 
   it('membaca inventaris dan hutang melalui transaksi yang diberikan', async () => {

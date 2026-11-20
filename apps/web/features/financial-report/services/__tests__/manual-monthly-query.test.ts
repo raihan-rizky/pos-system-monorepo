@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getMonthlyFinancialReport } from '../monthly-report';
+vi.mock('@/features/keuangan/repositories/expense-correction-cash-repository', () => ({ loadExpenseCorrectionCash: async () => ({ outflow: [], refunds: [] }) }));
 const mocks = vi.hoisted(() => ({ manualIncome: vi.fn(), expense: vi.fn(), transaction: vi.fn(), customerReceivable: vi.fn(), backdatedPurchase: vi.fn(), transactionScope: vi.fn() }));
 vi.mock('@pos/db', () => {
   const scoped = { transaction: { findMany: mocks.transaction }, customerReceivable: { findMany: mocks.customerReceivable }, expense: { findMany: mocks.expense }, manualIncome: { findMany: mocks.manualIncome }, backdatedPurchase: { findMany: mocks.backdatedPurchase } };
