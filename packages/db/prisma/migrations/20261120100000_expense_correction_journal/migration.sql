@@ -110,4 +110,18 @@ ALTER TABLE "pos_expense_payment_settlements"
 ALTER TABLE "pos_expense_supplier_credit_applications"
     ADD CONSTRAINT "pos_expense_credit_application_positive_amount" CHECK ("amount" > 0);
 
+-- The finance API accesses the audit journal through server-side Prisma.
+ALTER TABLE "pos_expense_corrections" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "pos_expense_payment_settlements" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "pos_expense_supplier_credit_applications" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE "pos_expense_corrections", "pos_expense_payment_settlements", "pos_expense_supplier_credit_applications" FROM PUBLIC;
+DO $$
+DECLARE api_role TEXT;
+BEGIN
+  FOR api_role IN SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated', 'service_role') LOOP
+    EXECUTE format('REVOKE ALL ON TABLE "pos_expense_corrections", "pos_expense_payment_settlements", "pos_expense_supplier_credit_applications" FROM %I', api_role);
+  END LOOP;
+END;
+$$;
+
 COMMIT;

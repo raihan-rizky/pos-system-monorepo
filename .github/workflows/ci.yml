@@ -65,7 +65,7 @@ jobs:
       - name: Tes keamanan packaging dan database
         env:
           POS_COMPARISON_TEST_URL: postgresql://postgres:postgres@127.0.0.1:5432/pos_ci
-        run: node --test scripts/tests/vps-artifact-package.test.mjs packages/db/tests/clear-locks-safety.test.cjs packages/db/tests/daily-income-comparison-migration.test.cjs
+        run: node --test scripts/tests/vps-artifact-package.test.mjs packages/db/tests/clear-locks-safety.test.cjs packages/db/tests/daily-income-comparison-migration.test.cjs packages/db/tests/expense-correction-migration.test.mjs
       - name: Tes fingerprint pada PostgreSQL sementara
         env:
           POS_CI_DATABASE_TEST: '1'
