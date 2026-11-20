@@ -299,8 +299,8 @@ export default function ProductFormModal({ isOpen, onClose, productId, categorie
               </select>
             </div>
           </div>
-          {classification.isError && <p role="status" className="text-sm text-red-700">Kategori belum dapat dimuat. Anda tetap dapat mengaturnya nanti di Penataan kategori.</p>}
-        </fieldset> : <p className="text-sm text-surface-600">Kategori produk: {initialData?.catalogSubcategory ? `${initialData.catalogSubcategory.group} / ${initialData.catalogSubcategory.name}` : "Belum diatur"}. Ubah satuan melalui Penataan kategori.</p>}
+          {classification.isError && <p role="status" className="text-sm text-red-700">Kategori belum dapat dimuat. Anda tetap dapat mengaturnya nanti di tab Kategori pada halaman Produk.</p>}
+        </fieldset> : <p className="text-sm text-surface-600">Kategori produk: {initialData?.catalogSubcategory ? `${initialData.catalogSubcategory.group} / ${initialData.catalogSubcategory.name}` : "Belum diatur"}. Atur kategori per satuan di tab Kategori pada halaman Produk.</p>}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>

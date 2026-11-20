@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { invalidatePricingQueries } from "@/features/product-stock-groups/invalidate-pricing-queries";
 import { ClassificationSubcategoryManager, type ClassificationManagementAction } from "./ClassificationSubcategoryManager";
@@ -34,10 +34,20 @@ function sameIds(ids: readonly string[], selected: ReadonlySet<string>) {
   return ids.length === selected.size && new Set(ids).size === ids.length && ids.every(id => selected.has(id));
 }
 
-export function ProductClassificationContainer({ canUpdate, canCreate = false, canDelete = false }: { canUpdate: boolean; canCreate?: boolean; canDelete?: boolean }) {
+export function ProductClassificationContainer({
+  canUpdate,
+  canCreate = false,
+  canDelete = false,
+  headingAction,
+}: {
+  canUpdate: boolean;
+  canCreate?: boolean;
+  canDelete?: boolean;
+  headingAction?: ReactNode;
+}) {
   const client = useQueryClient();
   const [search, setSearch] = useState("");
-  const [legacyCategory, setLegacyCategory] = useState("");
+  const [legacyCategoryFilter, setLegacyCategory] = useState("");
   const [status, setStatus] = useState<ClassificationStatusFilter>("all");
   const [group, setGroup] = useState<ProductClassificationGroup | "">("");
   const [subcategory, setSubcategory] = useState("");
@@ -61,6 +71,9 @@ export function ProductClassificationContainer({ canUpdate, canCreate = false, c
     queryKey: ["product-classification", "catalog"],
     queryFn: ({ signal }) => requestJson<CatalogResponse>("/api/product-classification", { signal }),
   });
+  const legacyCategory = catalog.data && !catalog.data.legacyCategories.some(category => category.id === legacyCategoryFilter)
+    ? ""
+    : legacyCategoryFilter;
   const products = useQuery({
     queryKey: ["product-classification", "products", { search, legacyCategory, status, group, subcategory, page }],
     queryFn: ({ signal }) => {
@@ -200,6 +213,7 @@ export function ProductClassificationContainer({ canUpdate, canCreate = false, c
 
   const requestError = catalog.error || products.error;
   return <><ProductClassificationPanel
+    headingAction={headingAction}
     groups={products.data?.groups ?? []} subcategories={catalog.data?.subcategories ?? []}
     selectedUnitIds={selection} onSelectionChange={changeSelection} canUpdate={canUpdate}
     search={search} onSearchChange={value => { setSearch(value); setPage(1); }}

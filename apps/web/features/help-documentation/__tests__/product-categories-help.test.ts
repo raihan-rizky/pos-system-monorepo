@@ -17,7 +17,7 @@ describe("category management help and workflow guidance", () => {
     const guide = HELP_ROLE_CONTENT[role].find(entry => entry.id === (role === "OWNER" ? "owner-categories" : "admin-categories"));
     const text = JSON.stringify(guide!.steps);
     for (const phrase of [
-      "Penataan kategori", "Kategori lama", "Belum diatur", "satuan yang dipilih",
+      "Produk > Kategori", "Kelola kategori lama", "Kategori lama", "Belum diatur", "satuan yang dipilih",
       "tertutup dan tidak aktif", "ATK", "PERCETAKAN", "PRINT", "STEMPEL", "PLAT", "CETAK", "SPANDUK",
       "Tinjau pemindahan", "Dampak harga pelanggan", "Pindahkan satuan", "stok bersama",
     ]) expect(text.toLowerCase()).toContain(phrase.toLowerCase());
@@ -27,7 +27,8 @@ describe("category management help and workflow guidance", () => {
   it("guides an editor through classification without claiming the old category is replaced", () => {
     const guide = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 55)!;
     const text = JSON.stringify(guide.steps);
-    for (const phrase of ["Penataan kategori", "Kategori lama", "Belum diatur", "satuan yang dipilih", "Tinjau pemindahan", "Pindahkan satuan", "Dampak harga pelanggan", "CETAK", "SPANDUK"]) {
+    expect(guide.route).toBe("/products?tab=categories");
+    for (const phrase of ["Produk > Kategori", "Kategori lama", "Belum diatur", "satuan yang dipilih", "Tinjau pemindahan", "Pindahkan satuan", "Dampak harga pelanggan", "CETAK", "SPANDUK"]) {
       expect(text.toLowerCase()).toContain(phrase.toLowerCase());
     }
     expect(text).toContain("kategori lama tetap tersimpan");
@@ -52,7 +53,7 @@ describe("category management help and workflow guidance", () => {
 
   it("keeps the assistant FAQ source aligned with the per-unit guidance", () => {
     const faq = readFileSync(new URL("../../ai-assistant/docs/help/faq.md", import.meta.url), "utf8");
-    for (const phrase of ["Penataan kategori", "kategori lama tetap tersimpan", "Tinjau pemindahan", "Pindahkan satuan", "CETAK", "SPANDUK"]) {
+    for (const phrase of ["Produk > Kategori", "kategori lama tetap tersimpan", "Tinjau pemindahan", "Pindahkan satuan", "CETAK", "SPANDUK"]) {
       expect(faq).toContain(phrase);
     }
   });
