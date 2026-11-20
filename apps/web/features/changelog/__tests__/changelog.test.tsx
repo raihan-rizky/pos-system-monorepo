@@ -25,7 +25,7 @@ describe("manual changelog", () => {
   it("announces and illustrates daily receipt subtotals in the monthly RC sheet", () => {
     const update = CHANGELOG.find(change => change.id === "total-harian-rc-bulan-20261121");
     expect(update).toMatchObject({
-      date: "2026-11-20",
+      date: "2026-11-21",
       revision: 1,
       kind: "improvement",
       impact: "minor",
@@ -45,6 +45,8 @@ describe("manual changelog", () => {
     expect(html).toContain("30/09/2026");
     for (const color of ["#DFF3ED", "#14564F", "#15816F"]) expect(html).toContain(color);
     expect(renderToStaticMarkup(<ChangeIllustration visual={"daily-subtotal" as ChangeEntry["visual"]} compact />))
+      .toContain("Subtotal harian di RC Bulan");
+    expect(renderToStaticMarkup(<WhatsNewDialog entries={update ? [update] : []} onClose={() => {}} canAccess={() => true} />))
       .toContain("Subtotal harian di RC Bulan");
   });
 

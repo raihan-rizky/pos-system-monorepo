@@ -7,7 +7,7 @@ import { formatChangeDate } from "../helpers/changelog";
 import { ChangeBadges } from "./ChangeBadges";
 import { ChangeDialog } from "./ChangeDialog";
 
-const icons = { changelog: History, tax: ReceiptText, categories: FolderInput, units: Package, quotation: FileText, "stock-groups": Layers, printing: FileText, shopping: ShoppingBag, "history-table": History, "receipt-audit": FileClock, financial: FileText, rbac: ShieldCheck, "manual-receivables": ChevronDown, "checkout-customer-type": User, "pos-catalog": Package };
+const icons = { changelog: History, tax: ReceiptText, categories: FolderInput, units: Package, quotation: FileText, "stock-groups": Layers, printing: FileText, shopping: ShoppingBag, "history-table": History, "receipt-audit": FileClock, financial: FileText, rbac: ShieldCheck, "manual-receivables": ChevronDown, "checkout-customer-type": User, "pos-catalog": Package, "daily-subtotal": FileText };
 const badgeDate = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" });
 
 export function WhatsNewDialog({ entries, onClose, canAccess }: {
