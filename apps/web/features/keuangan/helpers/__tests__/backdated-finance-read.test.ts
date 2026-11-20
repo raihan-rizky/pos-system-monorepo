@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@pos/db", () => {
   const tx = {
+    $queryRaw: async () => [],
     expense: { findMany: mocks.findExpenses, count: mocks.countExpenses, aggregate: mocks.aggregateExpenses },
     transaction: { findMany: mocks.findTransactions },
     customerReceivable: { findMany: mocks.findReceivables },

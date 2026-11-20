@@ -9,14 +9,16 @@ describe("penjelasan perhitungan keuangan", () => {
     expect(Component).toBeTypeOf("function");
     if (!Component) return;
     const html = renderToStaticMarkup(createElement(Component, {
-      income: { total: 150_000, components: { sales: 100_000, manualIncome: 20_000, manualReceivable: 30_000 } },
-      expense: { total: 90_000, incomplete: false, components: { manual: 10_000, transfer: 20_000, giroPayment: 30_000, giroDue: 25_000, overpayment: 5_000 } },
+      income: { total: 160_000, supplierRefund: 10_000, components: { sales: 100_000, manualIncome: 20_000, manualReceivable: 30_000 } },
+      expense: { total: 100_000, incomplete: false, correctionOutflow: 10_000, components: { manual: 10_000, transfer: 20_000, giroPayment: 30_000, giroDue: 25_000, overpayment: 5_000 } },
     }));
     expect(html).toContain("<details");
     expect(html).toContain("Pemasukan − Pengeluaran");
     expect(html).toContain("Pelunasan piutang manual");
     expect(html).toContain("Sisa giro jatuh tempo");
     expect(html).toContain("Kelebihan pembayaran");
+    expect(html).toContain("Pengembalian dana pemasok");
+    expect(html).toContain("Pembayaran pembelian yang dibatalkan");
     expect(html).toContain("60.000");
   });
 

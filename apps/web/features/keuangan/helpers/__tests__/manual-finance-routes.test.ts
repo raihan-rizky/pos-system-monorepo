@@ -8,7 +8,7 @@ vi.mock('@/features/financial-report/services/monthly-report',()=>({getMonthlyFi
 const mocks=vi.hoisted(()=>({expenseCreate:vi.fn(),expenseUpdate:vi.fn(),expenseFind:vi.fn(),expenseList:vi.fn(),expenseCount:vi.fn(),transaction:vi.fn(),manual:vi.fn(),receivablePayments:vi.fn()}));
 vi.mock('@/lib/rbac/guard',()=>({requireRole:async()=>({id:'user-1',storeId:'store-1'}),requirePermission:async()=>({id:'user-1',storeId:'store-1'}),handleAuthError:()=>null}));
 vi.mock('@pos/db',()=>{
-  const tx={expense:{create:mocks.expenseCreate,update:mocks.expenseUpdate,findFirst:mocks.expenseFind,findMany:mocks.expenseList,count:mocks.expenseCount},transaction:{findMany:mocks.transaction},manualIncome:{findMany:mocks.manual},customerReceivablePayment:{findMany:mocks.receivablePayments},backdatedPurchase:{findMany:async()=>[]}};
+  const tx={$queryRaw:async()=>[],expense:{create:mocks.expenseCreate,update:mocks.expenseUpdate,findFirst:mocks.expenseFind,findMany:mocks.expenseList,count:mocks.expenseCount},transaction:{findMany:mocks.transaction},manualIncome:{findMany:mocks.manual},customerReceivablePayment:{findMany:mocks.receivablePayments},backdatedPurchase:{findMany:async()=>[]}};
   return {db:{...tx,$transaction:(callback:(client:typeof tx)=>unknown)=>callback(tx)}};
 });
 const payload={applicantName:'Pemasok contoh',description:'Belanja kertas',category:'SUPPLIES',amount:25000,changeAmount:0,occurredAt:'2026-11-02',manualPurchasePaymentMethod:'TRANSFER'};

@@ -16,7 +16,9 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
   const recognizedPurchase = { OR: [{ status: 'APPROVED' }, { status: 'CANCELLED', statusBeforeCancellation: 'APPROVED' }] } satisfies Prisma.GoodsPurchaseWhereInput;
   const purchaseSelect = { id: true, storeId: true, number: true, status: true, statusBeforeCancellation: true, totalAmount: true, paymentMethod: true, paymentDueDate: true, supplierNameSnapshot: true, initialTransferAmount: true, initialTransferPaidAt: true,
     payments: { select: { id: true, method: true, amount: true, dueDate: true }, orderBy: [{ dueDate: 'asc' }, { id: 'asc' }] },
-    supplierPayable: { select: { id: true, storeId: true, amount: true, debtDate: true, dueDate: true, note: true, giroHistoryVerifiedAt: true, payments: { select: { id: true, amount: true, paidAt: true }, orderBy: [{ paidAt: 'asc' }, { id: 'asc' }] } } },
+    supplierPayable: { select: { id: true, storeId: true, amount: true, debtDate: true, dueDate: true, note: true, giroHistoryVerifiedAt: true,
+      payments: { select: { id: true, amount: true, paidAt: true }, orderBy: [{ paidAt: 'asc' }, { id: 'asc' }] },
+      creditApplications: { where: { storeId, appliedAt: { lt: period.end } }, select: { amount: true } } } },
     shoppingRequest: { select: { corrections: { where: { storeId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 1, select: { afterSnapshot: true, allocations: { select: { sourceKind: true, paymentId: true, method: true, amount: true, sourceAmount: true, paidAt: true } } } } } },
   } satisfies Prisma.GoodsPurchaseSelect;
   // All inputs must see the same committed state, including giro payments and

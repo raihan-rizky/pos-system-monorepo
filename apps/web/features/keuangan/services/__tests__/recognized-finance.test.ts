@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({ expenses: vi.fn(), backdated: vi.fn() }));
 vi.mock("@pos/db", async (loadOriginal) => {
   const actual = await loadOriginal<typeof import("@pos/db")>();
   return { ...actual, db: { $transaction: (callback: (tx: unknown) => unknown) => callback({
+    $queryRaw: async () => [],
     expense: { findMany: mocks.expenses }, backdatedPurchase: { findMany: mocks.backdated },
   }) } };
 });
@@ -34,6 +35,21 @@ type Build = (input: { storeId: string; month: string; now: Date; expenses: unkn
 const build = () => (finance as { buildRecognizedExpenses?: Build }).buildRecognizedExpenses;
 
 describe("sumber koreksi pengeluaran otomatis", () => {
+  it("mempertahankan identitas daftar lama dan menautkan pembayaran ke pembelian yang terverifikasi", () => {
+    const legacy = {
+      ...expense, goodsPurchaseId: null, goodsPurchase: null,
+      shoppingRequest: { id: "request-1", number: "DPB-1", goodsPurchases: [expense.goodsPurchase] },
+    };
+    const result = build()!({
+      storeId: "store-1", month: "2026-11", now: date("2026-11-30"),
+      expenses: [legacy], backdatedPurchases: [],
+    });
+    expect(result.rows).toMatchObject([{
+      source: { type: "SHOPPING_REQUEST", id: "request-1", number: "DPB-1", goodsPurchaseId: "purchase-1" },
+      paymentSource: { kind: "SUPPLIER_PAYABLE_PAYMENT", id: "payment-1" },
+    }]);
+  });
+
   it("tetap menunjuk pembayaran yang sama saat nominalnya terbagi ke dua jadwal giro", () => {
     const split = {
       ...expense,

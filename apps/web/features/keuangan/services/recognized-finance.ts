@@ -12,7 +12,7 @@ type Purchase = {
   totalAmount: Money; paymentMethod: PaymentMethod | null; paymentDueDate: Date | null;
   initialTransferAmount: Money | null; initialTransferPaidAt: Date | null; supplierNameSnapshot: string;
   payments: Array<{ id: string; method: PaymentMethod; amount: Money; dueDate: Date | null }>;
-  supplierPayable: { storeId: string; giroHistoryVerifiedAt: Date | null; payments: Array<{ id: string; amount: Money; paidAt: Date }> } | null;
+  supplierPayable: { storeId: string; giroHistoryVerifiedAt: Date | null; payments: Array<{ id: string; amount: Money; paidAt: Date }>; creditApplications?: Array<{ id: string; amount: Money; appliedAt: Date }> } | null;
   shoppingRequest: { corrections: Array<{ afterSnapshot: unknown; allocations: Array<{
     sourceKind: string; paymentId: string; method: string; amount: Money; sourceAmount: Money; paidAt: Date;
   }> }> };
@@ -37,7 +37,9 @@ export type RecognizedExpenseRow = {
   amount: number; changeAmount: number; netAmount: number; occurredAt: string; createdAt: string;
   transactionId: string | null; attachmentUrl: string | null; hasMissingCostSnapshot: boolean;
   recordedBy: { id: string; name: string };
-  source: { type: "MANUAL" | "MANUAL_TRANSFER_PURCHASE" } | { type: "GOODS_PURCHASE" | "SHOPPING_REQUEST" | "BACKDATED_PURCHASE"; id: string; number: string };
+  source: { type: "MANUAL" | "MANUAL_TRANSFER_PURCHASE" }
+    | { type: "GOODS_PURCHASE" | "BACKDATED_PURCHASE"; id: string; number: string }
+    | { type: "SHOPPING_REQUEST"; id: string; number: string; goodsPurchaseId: string };
   recognitionKind: "manual" | "transfer" | "giro_payment" | "giro_due" | "overpayment";
   paymentSource?: ExpensePaymentSource;
   allocation?: { scheduleId: string; dueDate: string | null; source: "stored" | "automatic" | null };
@@ -206,13 +208,20 @@ export function buildRecognizedExpenses(input: {
       incomplete = true;
       continue;
     }
-    const projected = recognizePurchaseExpenses({ asOf, schedule, payments,
+    const credits: PurchaseExpensePayment[] = (purchase.supplierPayable?.creditApplications ?? []).map(credit => ({
+      id: `credit:${credit.id}`, amountCents: cents(credit.amount), paidAt: jakartaDate(credit.appliedAt),
+      method: "GIRO", nonCash: true,
+    }));
+    const projected = recognizePurchaseExpenses({ asOf, schedule, payments: [...payments, ...credits],
       historyVerified: (!purchase.supplierPayable || Boolean(purchase.supplierPayable.giroHistoryVerifiedAt)) &&
         (!schedule.some(row => row.method === "GIRO") || Boolean(purchase.supplierPayable?.storeId === input.storeId)) });
     if (projected.incomplete) {
       incomplete = true;
       continue;
     }
+    const source: RecognizedExpenseRow["source"] = !expense.goodsPurchaseId && expense.shoppingRequest
+      ? { type: "SHOPPING_REQUEST", id: expense.shoppingRequest.id, number: expense.shoppingRequest.number, goodsPurchaseId: purchase.id }
+      : { type: "GOODS_PURCHASE", id: purchase.id, number: purchase.number };
     const paymentSources = new Map(payments.map(payment => [payment.id, payment.paymentSource]));
     for (const entry of projected.rows) {
       if (!entry.date.startsWith(input.month)) continue;
@@ -220,7 +229,7 @@ export function buildRecognizedExpenses(input: {
       rows.push({ ...base, id: JSON.stringify([expense.id, entry.kind, entry.scheduleId ?? null, entry.paymentId ?? null]),
         amount: entry.amountCents / 100, changeAmount: 0, netAmount: entry.amountCents / 100,
         occurredAt: new Date(`${entry.date}T00:00:00+07:00`).toISOString(),
-        source: { type: "GOODS_PURCHASE", id: purchase.id, number: purchase.number }, recognitionKind: entry.kind,
+        source, recognitionKind: entry.kind,
         ...(paymentSource ? { paymentSource } : {}),
         ...(entry.scheduleId ? { allocation: { scheduleId: entry.scheduleId,
           dueDate: schedule.find(item => item.id === entry.scheduleId)?.dueDate ?? null, source: entry.allocationSource ?? null } } : {}) });
@@ -312,7 +321,8 @@ export async function loadRecognizedExpenses(
     id: true, storeId: true, number: true, status: true, statusBeforeCancellation: true, totalAmount: true,
     paymentMethod: true, paymentDueDate: true, initialTransferAmount: true, initialTransferPaidAt: true, supplierNameSnapshot: true,
     payments: { select: { id: true, method: true, amount: true, dueDate: true } },
-    supplierPayable: { select: { storeId: true, giroHistoryVerifiedAt: true, payments: { select: { id: true, amount: true, paidAt: true } } } },
+    supplierPayable: { select: { storeId: true, giroHistoryVerifiedAt: true, payments: { select: { id: true, amount: true, paidAt: true } },
+      creditApplications: { where: { storeId }, select: { id: true, amount: true, appliedAt: true } } } },
     shoppingRequest: { select: { corrections: { where: { storeId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       select: { afterSnapshot: true, allocations: { select: { sourceKind: true, paymentId: true, method: true, amount: true, sourceAmount: true, paidAt: true } } } } } },
   } satisfies Prisma.GoodsPurchaseSelect;

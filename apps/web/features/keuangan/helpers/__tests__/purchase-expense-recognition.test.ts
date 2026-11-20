@@ -9,6 +9,16 @@ type Input = {
 type Result = { incomplete: boolean; rows: Array<{ kind: string; date: string; amountCents: number }> };
 
 describe("pengakuan pengeluaran pembelian", () => {
+  it("mengurangi sisa jatuh tempo dengan kredit tanpa membuat pengeluaran kas", () => {
+    const credit = { id: "credit-1", method: "GIRO" as const, amountCents: 7_000, paidAt: "2026-11-10", nonCash: true };
+    const result = recognition.recognizePurchaseExpenses({
+      asOf: "2026-11-30",
+      schedule: [{ id: "giro-1", method: "GIRO", amountCents: 10_000, dueDate: "2026-11-15" }],
+      payments: [credit],
+    });
+    expect(result.rows).toMatchObject([{ kind: "giro_due", date: "2026-11-15", amountCents: 3_000 }]);
+  });
+
   it("mencatat pembayaran awal dan sisa pada jatuh tempo tanpa mencatat ulang pembayaran terlambat", () => {
     const calculate = (recognition as { recognizePurchaseExpenses?: (input: Input) => Result }).recognizePurchaseExpenses;
     expect(calculate).toBeTypeOf("function");

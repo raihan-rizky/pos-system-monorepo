@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@pos/db";
+import { loadExpenseCorrectionCash } from "../expense-correction-cash-repository";
 
 const enabled = process.env.POS_EXPENSE_CORRECTION_INTEGRATION === "1";
 const namespace = crypto.randomUUID();
@@ -85,5 +86,26 @@ describe.skipIf(!enabled)("jurnal koreksi pengeluaran di PostgreSQL", () => {
         amount: "1000000.00", requestId: crypto.randomUUID(),
       },
     })).rejects.toMatchObject({ code: "P2003" });
+  });
+
+  it("menggunakan tanggal pembayaran dari audit Pembelian Barang untuk laporan kas", async () => {
+    const paymentId = `giro-${namespace}`;
+    await db.expenseCorrection.create({
+      data: {
+        ...correction(), subjectKind: "GOODS_PURCHASE",
+        before: { payments: [{ id: paymentId, amountCents: 100_000, paidAt: "2026-11-03", kind: "SUPPLIER_PAYABLE_PAYMENT" }] },
+        settlements: { create: [
+          { paymentKind: "SUPPLIER_PAYABLE_PAYMENT", paymentId, kind: "REFUND", amount: "1000", reference: "REF-2", receivedAt: new Date("2026-12-02") },
+        ] },
+      },
+    });
+    const now = new Date("2026-12-20T07:00:00Z");
+    await expect(loadExpenseCorrectionCash(db, storeId, "2026-11", now)).resolves.toMatchObject({
+      outflow: [{ date: "2026-11-03", total: 1000 }], refunds: [],
+    });
+    await expect(loadExpenseCorrectionCash(db, storeId, "2026-12", now)).resolves.toMatchObject({
+      outflow: [], refunds: [{ date: "2026-12-02", total: 1000 }],
+    });
+    await expect(loadExpenseCorrectionCash(db, otherStoreId, "2026-12", now)).resolves.toEqual({ outflow: [], refunds: [] });
   });
 });

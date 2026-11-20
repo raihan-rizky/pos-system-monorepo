@@ -1987,6 +1987,7 @@ model ExpenseSupplierCreditApplication {
   actorId   String
   amount    Decimal                  @db.Decimal(12, 2)
   appliedAt DateTime                 @default(now())
+  releasedAt DateTime?
   credit    ExpensePaymentSettlement @relation(fields: [creditId, storeId], references: [id, storeId], onDelete: Restrict)
   payable   SupplierPayable          @relation(fields: [payableId, storeId], references: [id, storeId], onDelete: Restrict)
 

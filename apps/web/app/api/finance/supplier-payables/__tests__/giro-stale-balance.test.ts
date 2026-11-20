@@ -45,6 +45,20 @@ describe('expected balance for giro payments', () => {
     expect(mocks.query).toHaveBeenCalledTimes(4);
   });
 
+  it('subtracts supplier credit before accepting a new cash payment', async () => {
+    mocks.query.mockReset().mockResolvedValueOnce([debt]).mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ paid: '200.00', credited: '550.00' }]);
+    expect((await POST(request('250'), context)).status).toBe(422);
+    expect(mocks.query).toHaveBeenCalledTimes(3);
+  });
+
+  it('blocks a new payment after the purchase was cancelled in finance', async () => {
+    mocks.query.mockReset().mockResolvedValueOnce([debt]).mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ paid: '200.00', financeCancelled: true }]);
+    expect((await POST(request('800'), context)).status).toBe(409);
+    expect(mocks.query).toHaveBeenCalledTimes(3);
+  });
+
   it('returns success for the same previously saved request before checking its now-zero balance', async () => {
     mocks.query.mockReset().mockResolvedValueOnce([debt]).mockResolvedValueOnce([{ payableId: 'debt-1', amount: '300.00', paidAt: '2026-10-10', requestExpectedBalance: '1000.00' }]);
     const response = await POST(request('1000'), context);

@@ -9,6 +9,7 @@ type Tx = Prisma.TransactionClient;
 
 type LockedDeletionContext = {
   request: { id: string; number: string; name: string; status: "REQUESTED" | "APPROVED" | "REJECTED" };
+  purchase?: { id: string; number: string };
   receipts: Array<{ id: string; stockBundleId: string | null; status: string }>;
   movements: ShoppingRequestDeletionMovement[];
   products: Array<{ id: string; sku: string; costPrice: Prisma.Decimal | null }>;
@@ -25,7 +26,7 @@ function sameQuantity(left: number, right: number): boolean {
     Math.abs(left - right) <= Math.min(1e-9, Number.EPSILON * 8 * Math.max(Math.abs(left), Math.abs(right)));
 }
 
-async function loadLockedDeletionContext(tx: Tx, id: string, storeId: string): Promise<LockedDeletionContext> {
+async function loadLockedDeletionContext(tx: Tx, id: string, storeId: string, purchaseId?: string): Promise<LockedDeletionContext> {
   await tx.$executeRaw`SET LOCAL lock_timeout = '3s'`;
   const locked = await tx.$queryRaw<Array<{ id: string }>>`
     SELECT "id" FROM "pos_shopping_requests"
@@ -57,6 +58,10 @@ async function loadLockedDeletionContext(tx: Tx, id: string, storeId: string): P
     WHERE "storeId" = ${storeId} AND "shoppingRequestId" = ${id}
     ORDER BY "id" FOR UPDATE
   `;
+  const purchase = purchaseId ? await tx.goodsPurchase.findFirst({
+    where: { id: purchaseId, storeId, shoppingRequestId: id, status: "APPROVED" }, select: { id: true, number: true },
+  }) : undefined;
+  if (purchaseId && !purchase) throw new ShoppingRequestDeletionError("Pembelian Barang aktif tidak ditemukan.", 404);
   await tx.$queryRaw<Array<{ id: string }>>`
     SELECT "id" FROM "pos_inventory_inbound_receipts"
     WHERE "storeId" = ${storeId} AND (
@@ -64,11 +69,15 @@ async function loadLockedDeletionContext(tx: Tx, id: string, storeId: string): P
         SELECT "id" FROM "pos_goods_purchases" WHERE "storeId" = ${storeId} AND "shoppingRequestId" = ${id}
       )
     )
+    AND (${purchaseId ?? null}::text IS NULL OR "goodsPurchaseId" = ${purchaseId ?? null}::text
+      OR ("shoppingRequestId" = ${id} AND "goodsPurchaseId" IS NULL))
     ORDER BY "id" FOR UPDATE
   `;
   const receiptWhere: Prisma.InventoryInboundReceiptWhereInput = {
     storeId,
-    OR: [{ shoppingRequestId: id }, { goodsPurchase: { is: { shoppingRequestId: id, storeId } } }],
+    OR: purchaseId
+      ? [{ goodsPurchaseId: purchaseId }, { shoppingRequestId: id, goodsPurchaseId: null }]
+      : [{ shoppingRequestId: id }, { goodsPurchase: { is: { shoppingRequestId: id, storeId } } }],
   };
   const receiptSelect = {
     id: true, goodsPurchaseId: true, status: true, createdAt: true, stockBundleId: true,
@@ -76,6 +85,15 @@ async function loadLockedDeletionContext(tx: Tx, id: string, storeId: string): P
     stockBundle: { select: { id: true, type: true, status: true, undoOfBatchId: true, summary: true, items: { select: { productId: true, inventoryLogId: true, afterSnapshot: true } } } },
   } satisfies Prisma.InventoryInboundReceiptSelect;
   let receipts = await tx.inventoryInboundReceipt.findMany({ where: receiptWhere, select: receiptSelect });
+  const purchaseItems = purchaseId
+    ? new Set((await tx.goodsPurchaseItem.findMany({ where: { goodsPurchaseId: purchaseId }, select: { id: true } })).map(item => item.id))
+    : undefined;
+  if (purchaseItems && receipts.some(receipt => receipt.goodsPurchaseId === null
+    ? receipt.status === "APPROVED" || Boolean(receipt.stockBundleId)
+    : receipt.lines.some(line => line.goodsPurchaseItemId && !purchaseItems.has(line.goodsPurchaseItemId)))) {
+    throw new ShoppingRequestDeletionError("Penerimaan berisi stok yang belum dapat dipisahkan per pembelian.");
+  }
+  if (purchaseId) receipts = receipts.filter(receipt => receipt.goodsPurchaseId === purchaseId);
   const batchIds = [...new Set(receipts.flatMap((receipt) => receipt.stockBundleId ? [receipt.stockBundleId] : []))].sort();
   for (const batchId of batchIds) {
     const rows = await tx.$queryRaw<Array<{ id: string }>>`
@@ -87,7 +105,9 @@ async function loadLockedDeletionContext(tx: Tx, id: string, storeId: string): P
   }
   // Re-read bundle status after its row lock; generic undo may have completed
   // while this transaction waited for the lock.
-  if (batchIds.length) receipts = await tx.inventoryInboundReceipt.findMany({ where: receiptWhere, select: receiptSelect });
+  if (batchIds.length) receipts = await tx.inventoryInboundReceipt.findMany({
+    where: purchaseId ? { storeId, goodsPurchaseId: purchaseId } : receiptWhere, select: receiptSelect,
+  });
 
   const sourceReceipts: Array<{
     id: string;
@@ -157,12 +177,16 @@ async function loadLockedDeletionContext(tx: Tx, id: string, storeId: string): P
     sourceReceipts.push({ id: receipt.id, bundleStatus: receipt.stockBundle.status, items: receipt.stockBundle.items });
   }
 
-  const corrections = await tx.shoppingRequestCorrectionMovement.findMany({
+  const requestCorrections = await tx.shoppingRequestCorrectionMovement.findMany({
     where: { correction: { storeId, shoppingRequestId: id } },
     select: { id: true, productId: true, goodsPurchaseItemId: true, receiptLineId: true, inventoryLogId: true, stockGroupId: true,
       oldReceivedQty: true, newReceivedQty: true, baseDelta: true, details: true, correction: { select: { createdAt: true } } },
     orderBy: [{ correction: { createdAt: "asc" } }, { id: "asc" }],
   });
+  const selectedReceiptLines = purchaseId ? new Set(receipts.flatMap(receipt => receipt.lines.map(line => line.id))) : undefined;
+  const corrections = purchaseItems ? requestCorrections.filter(correction =>
+    (correction.goodsPurchaseItemId && purchaseItems.has(correction.goodsPurchaseItemId)) ||
+    (correction.receiptLineId && selectedReceiptLines?.has(correction.receiptLineId))) : requestCorrections;
   const correctionLogIds = corrections.flatMap((correction) => correction.inventoryLogId ? [correction.inventoryLogId] : []);
   if (correctionLogIds.length !== corrections.length || new Set(correctionLogIds).size !== corrections.length) {
     throw new ShoppingRequestDeletionError("Riwayat koreksi stok tidak dapat dipastikan.");
@@ -267,6 +291,7 @@ async function loadLockedDeletionContext(tx: Tx, id: string, storeId: string): P
   }
   return {
     request: { id: request.id, number: request.number, name: request.name, status: request.status },
+    ...(purchase ? { purchase } : {}),
     receipts,
     movements,
     products,
@@ -286,9 +311,41 @@ export async function previewShoppingRequestDeletionRecord(id: string, storeId: 
 }
 
 export async function deleteShoppingRequestRecord(id: string, reason: string, actor: ShoppingRequestActor) {
-  return db.$transaction(async (tx) => {
-    const context = await loadLockedDeletionContext(tx, id, actor.storeId);
-    const now = new Date();
+  return db.$transaction(tx => cancelShoppingRequestWithStock(tx, id, reason, actor, new Date()), { timeout: 60_000 });
+}
+
+export async function previewShoppingRequestStockCancellation(tx: Tx, requestId: string, storeId: string) {
+  const context = await loadLockedDeletionContext(tx, requestId, storeId);
+  return context.movements.map(({ productId, productName, stockGroupId, baseQuantity, unit }) =>
+    ({ productId, productName, stockGroupId, baseQuantity, unit }));
+}
+
+export async function cancelShoppingRequestWithStock(tx: Tx, requestId: string, reason: string, actor: ShoppingRequestActor, now: Date) {
+  return applyLockedStockCancellation(tx, await loadLockedDeletionContext(tx, requestId, actor.storeId), reason, actor, now);
+}
+
+export async function previewGoodsPurchaseStockCancellation(tx: Tx, requestId: string, purchaseId: string, storeId: string) {
+  const context = await loadLockedDeletionContext(tx, requestId, storeId, purchaseId);
+  return {
+    id: context.purchase!.id,
+    number: context.purchase!.number,
+    movements: context.movements.map(({ productId, productName, stockGroupId, baseQuantity, unit }) =>
+      ({ productId, productName, stockGroupId, baseQuantity, unit })),
+  };
+}
+
+export async function cancelGoodsPurchaseWithStock(
+  tx: Tx, requestId: string, purchaseId: string, reason: string, actor: ShoppingRequestActor, now: Date,
+) {
+  const context = await loadLockedDeletionContext(tx, requestId, actor.storeId, purchaseId);
+  return applyLockedStockCancellation(tx, context, reason, actor, now);
+}
+
+async function applyLockedStockCancellation(
+  tx: Tx, context: LockedDeletionContext, reason: string, actor: ShoppingRequestActor, now: Date,
+) {
+    const id = context.request.id;
+    const purchase = context.purchase;
     const reversalLogs: Array<{ receiptId: string; productId: string; sourceLogId: string; reversalLogId: string; quantity: number; baseQuantity: number }> = [];
     for (const movement of context.movements) {
       const decrement = Math.min(movement.baseQuantity, movement.availableBaseStock);
@@ -322,11 +379,12 @@ export async function deleteShoppingRequestRecord(id: string, reason: string, ac
         const log = await tx.inventoryLog.create({
           data: {
             productId: source.productId, type: "OUT", reason: "RESTOCK", quantity,
-            note: `Pembatalan daftar ${context.request.number}: ${reason}`, createdBy: actor.id, person: actor.name,
+            note: purchase ? `Pembatalan pembelian ${purchase.number}: ${reason}` : `Pembatalan daftar ${context.request.number}: ${reason}`,
+            createdBy: actor.id, person: actor.name,
             status: "APPROVED", approvedBy: actor.id, approverName: actor.name, decidedAt: now,
             unitCost: product.costPrice, stockGroupIdSnapshot: movement.stockGroupId,
             unitMultiplierSnapshot: movement.stockGroupId ? source.baseQuantity / source.quantity : 1,
-            stockBaseDelta: -baseQuantity, sourceTransactionRef: `shopping-request:${id}`,
+            stockBaseDelta: -baseQuantity, sourceTransactionRef: purchase ? `goods-purchase:${purchase.id}` : `shopping-request:${id}`,
           }, select: { id: true },
         });
         reversalLogs.push({ receiptId: source.receiptId, productId: source.productId, sourceLogId: source.inventoryLogId, reversalLogId: log.id, quantity, baseQuantity });
@@ -339,7 +397,8 @@ export async function deleteShoppingRequestRecord(id: string, reason: string, ac
         data: {
           type: "UNDO", status: "COMMITTED", storeId: actor.storeId, createdBy: actor.id,
           undoOfBatchId: receipt.stockBundleId,
-          summary: { source: "SHOPPING_REQUEST_DELETION", shoppingRequestId: id, receiptId: receipt.id, reason },
+          summary: { source: purchase ? "GOODS_PURCHASE_CANCELLATION" : "SHOPPING_REQUEST_DELETION", shoppingRequestId: id,
+            ...(purchase ? { goodsPurchaseId: purchase.id } : {}), receiptId: receipt.id, reason },
         }, select: { id: true },
       });
       const logs = reversalLogs.filter((entry) => entry.receiptId === receipt.id);
@@ -362,6 +421,14 @@ export async function deleteShoppingRequestRecord(id: string, reason: string, ac
       where: { id: { in: context.receipts.map((receipt) => receipt.id) }, storeId: actor.storeId, status: { in: ["DRAFT", "SUBMITTED", "NEEDS_REVISION"] } },
       data: { status: "CANCELLED", cancelledAt: now },
     });
+    if (purchase) {
+      const updated = await tx.goodsPurchase.updateMany({
+        where: { id: purchase.id, storeId: actor.storeId, shoppingRequestId: id, status: "APPROVED" },
+        data: { status: "CANCELLED", statusBeforeCancellation: "APPROVED", activeShoppingRequestKey: null },
+      });
+      if (updated.count !== 1) throw new ShoppingRequestDeletionError("Pembelian berubah. Tinjau kembali pengeluaran.");
+      return { id: purchase.id, status: "CANCELLED" as const };
+    }
     for (const previousStatus of ["PENDING", "APPROVED"] as const) {
       await tx.goodsPurchase.updateMany({
         where: { shoppingRequestId: id, storeId: actor.storeId, status: previousStatus },
@@ -376,5 +443,4 @@ export async function deleteShoppingRequestRecord(id: string, reason: string, ac
       },
     });
     return { id, status: "CANCELLED" as const };
-  }, { timeout: 60_000 });
 }

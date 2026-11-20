@@ -1,0 +1,23 @@
+.panel {
+  inset: 0 0 0 auto;
+  margin: 0;
+  width: min(100%, 36rem);
+  max-width: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  overscroll-behavior: contain;
+}
+
+.panel[open] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.panel::backdrop {
+  background: rgb(15 23 42 / 35%);
+  overscroll-behavior: contain;
+}
+
+.footer {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}

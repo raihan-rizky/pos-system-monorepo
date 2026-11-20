@@ -70,6 +70,16 @@ describe('giro endpoints', () => {
     expect((mocks.query.mock.calls[1][0] as TemplateStringsArray).join(' ')).toContain('d."note"');
   });
 
+  it('mengurangi saldo giro dengan kredit pemasok dan mempertahankan riwayat kas', async () => {
+    const payments = [{ id: 'payment-1', amount: '30000.00', paidAt: '2026-10-20' }];
+    mocks.query.mockResolvedValueOnce([
+      { ...purchase, goodsPurchaseId: purchase.id, payableId: 'linked', historyVerifiedAt: new Date(), payments, credited: '70000.00' },
+    ]).mockResolvedValueOnce([]);
+    const result = await (await GET(new Request('http://localhost/api/finance/giro'))).json();
+    expect(result.items[0]).toMatchObject({ status: 'PAID', remaining: 0, paid: 30000, creditApplied: 70000, payments: [{ ...payments[0], amount: 30000 }] });
+    expect(mocks.query.mock.calls[0][0].join(' ')).toContain('finance_cancel."paymentId" IS NULL');
+  });
+
   it('membaca dan merekonsiliasi giro dari pembelian yang sebelumnya disetujui', async () => {
     mocks.query.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     await GET(new Request('http://localhost/api/finance/giro'));

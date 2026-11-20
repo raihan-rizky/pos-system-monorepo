@@ -18,16 +18,16 @@ export async function loadExpenseCorrectionCash(
   const entries = await tx.$queryRaw<Array<{
     kind: "REFUND" | "CREDIT"; amount: Prisma.Decimal; paidAt: Date; receivedAt: Date | null;
   }>>`
-    SELECT settlement."kind", settlement."amount", payment."paidAt", settlement."receivedAt"
+    SELECT settlement."kind", settlement."amount", payment."paidAt"::date AS "paidAt", settlement."receivedAt"
     FROM "pos_expense_payment_settlements" settlement
-    JOIN "pos_backdated_purchase_payments" payment
-      ON settlement."paymentKind" = 'BACKDATED_PAYMENT' AND payment.id = settlement."paymentId"
-    JOIN "pos_backdated_purchases" purchase
-      ON purchase.id = payment."purchaseId" AND purchase."storeId" = settlement."storeId"
+    JOIN "pos_expense_corrections" correction
+      ON correction.id = settlement."correctionId" AND correction."storeId" = settlement."storeId"
+    JOIN LATERAL jsonb_to_recordset(correction."before" -> 'payments') AS payment(id text, "paidAt" text, kind text)
+      ON payment.id = settlement."paymentId" AND COALESCE(payment.kind, 'BACKDATED_PAYMENT') = settlement."paymentKind"::text
     WHERE settlement."storeId" = ${storeId}
       AND settlement."kind" IN ('REFUND', 'CREDIT')
-      AND (payment."cancelledAt" IS NOT NULL OR purchase."cancelledAt" IS NOT NULL)
-      AND ((payment."paidAt" >= ${calendarStart}::date AND payment."paidAt" < ${calendarEnd}::date)
+      AND correction."action" = 'CANCEL'
+      AND ((payment."paidAt"::date >= ${calendarStart}::date AND payment."paidAt"::date < ${calendarEnd}::date)
         OR (settlement."receivedAt" >= ${calendarStart}::date AND settlement."receivedAt" < ${calendarEnd}::date))
   `;
   return buildExpenseCorrectionCash(entries.map(entry => ({

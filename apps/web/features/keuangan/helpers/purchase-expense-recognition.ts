@@ -9,6 +9,7 @@ export type PurchaseExpensePayment = {
   id: string;
   method: "GIRO" | "TRANSFER";
   sourceMethod?: "GIRO" | "TRANSFER";
+  nonCash?: boolean;
   amountCents: number;
   paidAt: string;
 };
@@ -84,7 +85,7 @@ export function recognizePurchaseExpenses(input: {
       const isGiro = state.schedule.method === "GIRO";
       if (!isGiro || (state.schedule.dueDate && payment.paidAt <= state.schedule.dueDate)) {
         if (isGiro) state.paidByDue += amount;
-        rows.push({ kind: (payment.sourceMethod ?? payment.method) === "TRANSFER" ? "transfer" : "giro_payment", date: payment.paidAt, amountCents: amount, scheduleId: state.schedule.id, paymentId: payment.id, allocationSource });
+        if (!payment.nonCash) rows.push({ kind: (payment.sourceMethod ?? payment.method) === "TRANSFER" ? "transfer" : "giro_payment", date: payment.paidAt, amountCents: amount, scheduleId: state.schedule.id, paymentId: payment.id, allocationSource });
       }
     };
     for (const allocation of allocationsByPayment.get(payment.id) ?? []) {
@@ -95,7 +96,7 @@ export function recognizePurchaseExpenses(input: {
     }
     for (const sameMethod of [true, false]) {
       for (const state of states) {
-        if ((state.schedule.method === payment.method) !== sameMethod) continue;
+        if ((state.schedule.method === payment.method) !== sameMethod || (payment.nonCash && !sameMethod)) continue;
         const amount = Math.min(available, Math.max(0, state.schedule.amountCents - state.paid - state.reserved));
         if (amount <= 0) continue;
         record(state, amount, "automatic");
@@ -103,7 +104,7 @@ export function recognizePurchaseExpenses(input: {
       }
       if (available === 0) break;
     }
-    if (available > 0) {
+    if (available > 0 && !payment.nonCash) {
       rows.push({ kind: "overpayment", date: payment.paidAt, amountCents: available, paymentId: payment.id });
     }
   }

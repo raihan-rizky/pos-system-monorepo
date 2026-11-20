@@ -40,8 +40,8 @@ export type ExpenseSummary = {
 
 export type CashFlowSummary = {
   month: string;
-  income: { total: number; daily: { date: string; total: number; manualReceivable: number }[]; components: IncomeComponents | null };
-  expense: { total: number | null; incomplete: boolean; daily: { date: string; total: number }[]; components: ExpenseComponents; byCategory: CategoryBucket[]; entryCount: number };
+  income: { total: number; daily: { date: string; total: number; manualReceivable: number }[]; components: IncomeComponents | null; supplierRefund?: number };
+  expense: { total: number | null; incomplete: boolean; daily: { date: string; total: number }[]; components: ExpenseComponents; byCategory: CategoryBucket[]; entryCount: number; correctionOutflow?: number };
 };
 
 export type ExpenseListItem = {
@@ -60,7 +60,7 @@ export type ExpenseListItem = {
   source:
     | { type: "MANUAL" }
     | { type: "MANUAL_TRANSFER_PURCHASE" }
-    | { type: "SHOPPING_REQUEST"; id: string; number: string }
+    | { type: "SHOPPING_REQUEST"; id: string; number: string; goodsPurchaseId?: string }
     | { type: "BACKDATED_PURCHASE"; id: string; number: string }
     | { type: "GOODS_PURCHASE"; id: string; number: string };
   recordedBy: { id: string; name: string };

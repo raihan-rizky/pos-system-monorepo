@@ -55,11 +55,21 @@ export async function getMonthlyBalances(storeId: string, period: MonthlyPeriod,
         (d."amount" - COALESCE(p."paid", 0))::text AS amount
       FROM "pos_supplier_payables" d
       LEFT JOIN LATERAL (
-        SELECT SUM(payment."amount") AS paid FROM "pos_supplier_payable_payments" payment
-        WHERE payment."payableId" = d."id" AND payment."paidAt" <= ${period.to}::date
+        SELECT SUM(applied."amount") AS paid FROM (
+          SELECT payment."amount" FROM "pos_supplier_payable_payments" payment
+          WHERE payment."payableId" = d."id" AND payment."paidAt" <= ${period.to}::date
+          UNION ALL
+          SELECT credit."amount" FROM "pos_expense_supplier_credit_applications" credit
+          WHERE credit."payableId" = d."id" AND credit."storeId" = d."storeId" AND credit."appliedAt" < ${period.end}
+        ) applied
       ) p ON true
       WHERE d."storeId" = ${storeId} AND d."debtDate" <= ${period.to}::date
         AND (d."goodsPurchaseId" IS NULL OR d."giroHistoryVerifiedAt" IS NOT NULL)
+        AND NOT EXISTS (
+          SELECT 1 FROM "pos_expense_corrections" finance_cancel
+          WHERE finance_cancel."storeId" = d."storeId" AND finance_cancel."action" = 'CANCEL'
+            AND finance_cancel."paymentId" IS NULL AND finance_cancel."before"->>'purchaseId' = d."goodsPurchaseId"
+        )
         AND d."amount" - COALESCE(p."paid", 0) > 0
       ORDER BY d."debtDate", d."id"
     `,
