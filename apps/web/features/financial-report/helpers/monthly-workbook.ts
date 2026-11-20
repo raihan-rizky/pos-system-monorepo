@@ -103,6 +103,11 @@ function sumFormula(sheet: WorkSheet, row: number, column: number, start: number
   put(sheet, row, column, cache, `SUM(${address(start, column)}:${address(end, column)})`);
 }
 
+function sumDatedReceipts(sheet: WorkSheet, row: number, column: number, end: number, cache: number): void {
+  const columnName = XLSX.utils.encode_col(column - 1);
+  put(sheet, row, column, cache, `SUMIF(A7:A${end},">0",${columnName}7:${columnName}${end})`);
+}
+
 function insight(sheet: WorkSheet, row: number, columns: number, text: string, formula: string): void {
   heading(sheet, row, text, columns, COLORS.soft);
   const cell = sheet[address(row, 1)];
@@ -167,18 +172,48 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
 
   const rc = makeSheet(`RINCIAN PENDAPATAN BULAN ${month} ${report.year}`, report, [14, 13, 13, 13, 13, 13, 13, 15, 16]);
   tableHeader(rc, 5, ["Tanggal", "Cetak", "Plat", "Stempel", "Spanduk", "ATK", "Print", "Perlu pemetaan", "TOTAL"]);
-  const rcEnd = 6 + Math.max(1, income.length);
-  income.forEach((entry, index) => {
-    const row = index + 7;
-    comment(dateCell(rc, row, 1, entry.date), `${entry.reference}\n${entry.description}`);
-    INCOME.forEach((group, column) => put(rc, row, column + 2, entry.amounts[group]));
-    put(rc, row, 9, moneySum(INCOME.map((group) => entry.amounts[group])), `SUM(B${row}:H${row})`);
-  });
-  if (!income.length) { put(rc, 7, 1, "Belum ada penerimaan"); for (let col = 2; col <= 9; col++) put(rc, 7, col, 0); }
+  const dailySubtotalRows: number[] = [];
+  let nextIncomeRow = 7;
+  if (!income.length) {
+    put(rc, 7, 1, "Belum ada penerimaan");
+    for (let col = 2; col <= 9; col++) put(rc, 7, col, 0);
+  } else {
+    let index = 0;
+    while (index < income.length) {
+      const firstEntry = income[index];
+      if (!firstEntry) break;
+      const date = firstEntry.date;
+      const dailyIncome: typeof income = [];
+      const firstReceiptRow = nextIncomeRow;
+      while (index < income.length) {
+        const entry = income[index];
+        if (!entry || entry.date !== date) break;
+        dailyIncome.push(entry);
+        comment(dateCell(rc, nextIncomeRow, 1, entry.date), `${entry.reference}\n${entry.description}`);
+        INCOME.forEach((group, column) => put(rc, nextIncomeRow, column + 2, entry.amounts[group]));
+        put(rc, nextIncomeRow, 9, moneySum(INCOME.map((group) => entry.amounts[group])), `SUM(B${nextIncomeRow}:H${nextIncomeRow})`);
+        nextIncomeRow++;
+        index++;
+      }
+
+      const lastReceiptRow = nextIncomeRow - 1;
+      const subtotalRow = nextIncomeRow;
+      dailySubtotalRows.push(subtotalRow);
+      put(rc, subtotalRow, 1, "TOTAL HARIAN");
+      INCOME.forEach((group, column) => {
+        const cache = moneySum(dailyIncome.map((entry) => entry.amounts[group]));
+        sumFormula(rc, subtotalRow, column + 2, firstReceiptRow, lastReceiptRow, cache);
+      });
+      const dailyTotal = moneySum(dailyIncome.map((entry) => moneySum(INCOME.map((group) => entry.amounts[group]))));
+      sumFormula(rc, subtotalRow, 9, firstReceiptRow, lastReceiptRow, dailyTotal);
+      nextIncomeRow++;
+    }
+  }
+  const rcEnd = Math.max(7, nextIncomeRow - 1);
   const rcTotal = rcEnd + 2;
   put(rc, rcTotal, 1, "TOTAL PENDAPATAN");
-  INCOME.forEach((group, index) => sumFormula(rc, rcTotal, index + 2, 7, rcEnd, incomeTotals[group]));
-  sumFormula(rc, rcTotal, 9, 7, rcEnd, totalIncome);
+  INCOME.forEach((group, index) => sumDatedReceipts(rc, rcTotal, index + 2, rcEnd, incomeTotals[group]));
+  sumDatedReceipts(rc, rcTotal, 9, rcEnd, totalIncome);
   band(rc, rcTotal, 1, 9, COLORS.accent);
   heading(rc, rcTotal + 2, "Perlu pemetaan tetap dihitung dalam TOTAL. Arahkan ke tanggal untuk melihat referensi.", 9, COLORS.soft);
   rc["!rows"]![rcTotal + 1] = { hpt: 30 };
@@ -432,7 +467,7 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
     applySheetTheme(sheet, index);
     XLSX.utils.book_append_sheet(wb, sheet, names[index]);
   });
-  colorMonthlyWorkbookContent(wb, { dailyTotal, rcEnd, rcTotal, rpEnd, rpTotal, balanceEnd, balanceTotal, debtRow, debtTotal, purchaseSections });
+  colorMonthlyWorkbookContent(wb, { dailyTotal, dailySubtotalRows, rcEnd, rcTotal, rpEnd, rpTotal, balanceEnd, balanceTotal, debtRow, debtTotal, purchaseSections });
   const guide = buildMonthlyGuide({ monthName: month, debtRow, period: `${report.from} s.d. ${report.to}` });
   XLSX.utils.book_append_sheet(wb, guide, names[7]);
   sheets.push(guide);
