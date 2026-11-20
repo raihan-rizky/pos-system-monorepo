@@ -39,11 +39,11 @@ describe("panduan giro dan laporan bulanan", () => {
     for (const phrase of ["Lihat cara perhitungan", "Pemasukan − Pengeluaran", "pelunasan piutang manual", "Rp30.000", "Rp70.000", "jatuh tempo terbaru", "kelebihan pembayaran"]) expect(guide).toContain(phrase);
   });
 
-  it("menyelaraskan panduan asisten dan catatan perubahan arus kas", () => {
+  it("menyelaraskan panduan asisten dan catatan koreksi pengeluaran", () => {
     const guide = JSON.stringify(FAQ_WORKFLOWS.find(item => item.faqNumber === 20));
     for (const phrase of ["Lihat cara perhitungan", "Pemasukan − Pengeluaran", "jatuh tempo terbaru"]) expect(guide).toContain(phrase);
-    const change = CHANGELOG.find(item => item.id === "rekonsiliasi-arus-kas-jatuh-tempo-20261116");
-    expect(change).toMatchObject({ date: "2026-11-16", kind: "fix", impact: "major", href: "/keuangan", revision: 1 });
+    const change = CHANGELOG.find(item => item.id === "koreksi-transaksi-pengeluaran-20261120");
+    expect(change).toMatchObject({ date: "2026-11-21", kind: "feature", impact: "major", href: "/keuangan", revision: 1 });
     expect(change?.steps).toHaveLength(3);
   });
 });
