@@ -1,6 +1,6 @@
 export type ChangeKind = "feature" | "improvement" | "fix";
 export type ChangeImpact = "major" | "minor";
-export type ChangeVisual = "tax" | "categories" | "units" | "quotation" | "stock-groups" | "changelog" | "printing" | "shopping" | "history-table" | "receipt-audit" | "financial" | "rbac";
+export type ChangeVisual = "tax" | "categories" | "units" | "quotation" | "stock-groups" | "changelog" | "printing" | "shopping" | "history-table" | "receipt-audit" | "financial" | "rbac" | "daily-subtotal";
 
 export interface ChangeEntry {
   id: string;
