@@ -329,6 +329,7 @@ model BackdatedPurchase {
   createdByName  String?
   createdAt      DateTime                   @default(now())
   updatedAt      DateTime                   @updatedAt
+  cancelledAt    DateTime?
   store          Store                      @relation(fields: [storeId], references: [id], onDelete: Restrict)
   payments       BackdatedPurchasePayment[]
   dueExpense     Expense?                   @relation("backdated_purchase_due_expense")
@@ -347,6 +348,7 @@ model BackdatedPurchasePayment {
   paidAt       DateTime          @db.Date
   createdById  String
   createdAt    DateTime          @default(now())
+  cancelledAt  DateTime?
   purchase     BackdatedPurchase @relation(fields: [purchaseId], references: [id], onDelete: Restrict)
   expense      Expense?          @relation("backdated_purchase_payment_expense")
 

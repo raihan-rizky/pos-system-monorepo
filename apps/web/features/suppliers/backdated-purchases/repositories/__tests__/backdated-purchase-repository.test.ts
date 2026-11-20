@@ -25,6 +25,7 @@ function makeTransaction(purchase: typeof row | null = row) {
     $queryRaw: vi.fn().mockResolvedValue(purchase ? [{ id: purchase.id }] : []),
     backdatedPurchase: { findFirst: vi.fn().mockResolvedValue(purchase) },
     backdatedPurchasePayment: {
+      findUnique: vi.fn().mockResolvedValue(null),
       create: vi.fn().mockImplementation(async ({ data }) => ({
         id: "payment-1",
         ...data,
@@ -89,6 +90,7 @@ describe("addBackdatedPurchasePayment", () => {
       paidAt: new Date("2026-11-10T00:00:00.000Z"), createdById: "user-1", createdAt: row.createdAt,
     };
     const tx = makeTransaction({ ...row, payments: [existing] } as unknown as typeof row);
+    tx.backdatedPurchasePayment.findUnique.mockResolvedValue(existing);
     transaction.mockImplementation((callback) => callback(tx));
 
     await expect(addBackdatedPurchasePayment("purchase-1", {
