@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import styles from "./ProductClassificationPanel.module.css";
 
 export type ProductClassificationGroup = "ATK" | "PERCETAKAN";
@@ -44,6 +44,7 @@ export interface ClassificationPreview {
 }
 
 export interface ProductClassificationPanelProps {
+  headingAction?: ReactNode;
   groups: ClassificationProductGroup[];
   subcategories: ClassificationSubcategory[];
   selectedUnitIds: ReadonlySet<string>;
@@ -257,7 +258,7 @@ function ReviewDialog({ preview, selected, destinationId, destinationGroup, busy
 }
 
 export function ProductClassificationPanel({
-  groups, subcategories, selectedUnitIds, onSelectionChange, canUpdate = true, search, onSearchChange,
+  headingAction, groups, subcategories, selectedUnitIds, onSelectionChange, canUpdate = true, search, onSearchChange,
   legacyCategories = [], legacyCategory = "", onLegacyCategoryChange,
   classificationStatus = "all", onClassificationStatusChange,
   filterMainCategory = "", onFilterMainCategoryChange, filterSubcategoryId = "", onFilterSubcategoryChange,
@@ -291,7 +292,7 @@ export function ProductClassificationPanel({
   return <div className={styles.panel}>
     <header className={styles.heading}>
       <div><span className={styles.eyebrow}>Katalog produk</span><h1>Tempat yang tepat untuk setiap produk.</h1><p>Pilih beberapa satuan, tentukan tujuannya, dan tinjau sebelum dipindahkan.</p></div>
-      <p className={styles.headingNote}>Mulai dengan mencari produk atau menyaring berdasarkan kategori.</p>
+      {headingAction ?? <p className={styles.headingNote}>Mulai dengan mencari produk atau menyaring berdasarkan kategori.</p>}
     </header>
     <div className={styles.workspace}>
       <section className={styles.catalog} aria-labelledby={`${id}-catalog-title`}>

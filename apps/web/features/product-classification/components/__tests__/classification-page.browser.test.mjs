@@ -17,10 +17,10 @@ const bundle=await build({
   `},bundle:true,write:false,outdir:'out',platform:'browser',format:'iife',jsx:'automatic',
   alias:{'@':web,'@pos/ui':path.join(repo,'packages/ui/src/index.ts')},define:{'process.env.NODE_ENV':'"production"'},
   plugins:[{name:'fixtures',setup(builder){
-    builder.onResolve({filter:/.*/},args=>args.kind==='dynamic-import' && !args.path.includes('ProductClassificationContainer')?{path:args.path,namespace:'unused'}:undefined);
+    builder.onResolve({filter:/.*/},args=>args.kind==='dynamic-import' && !/ProductClassificationContainer|CategoryManagementTab/.test(args.path)?{path:args.path,namespace:'unused'}:undefined);
     builder.onLoad({filter:/.*/,namespace:'unused'},()=>({contents:`
       const Empty=()=>null; export default Empty;
-      export const CategoryManagementTab=Empty,MoveProductsDialog=Empty,StockGroupWorkspaceModal=Empty,
+      export const MoveProductsDialog=Empty,StockGroupWorkspaceModal=Empty,
       CustomerCategoryPricingRulesTab=Empty,ProductImportDrawer=Empty,ProductImportProgressModal=Empty,
       BulkStockImportDrawer=Empty,BulkStockImportProgressModal=Empty,BulkStockDrawer=Empty,BulkStockGroupDrawer=Empty,
       BulkPhotoImportDrawer=Empty,SupplierCodeImportDrawer=Empty;
@@ -41,25 +41,30 @@ const bundle=await build({
 });
 const browser=await chromium.launch({channel:'chrome',headless:true});
 try {
-  for(const direct of [false,true]){
+  for (const { tab, permissions } of [
+    { tab: '', permissions: [] },
+    { tab: 'classification', permissions: ['create', 'delete'] },
+    { tab: 'categories', permissions: ['create', 'update', 'delete'] },
+  ]) {
     const page=await browser.newPage({viewport:{width:1200,height:850}}); page.setDefaultTimeout(4000); const errors=[];
     page.on('pageerror',error=>errors.push(error.message));
     await page.setContent('<html lang="id"><body><div id="root"></div></body></html>');
-    await page.evaluate(isDirect=>{
-      window.tabSearch=isDirect?'tab=classification':'';
-      window.permissions=isDirect?['create','delete']:[];
+    await page.evaluate(({ tab, permissions }) => {
+      window.tabSearch = tab ? `tab=${tab}` : '';
+      window.permissions = permissions;
       window.fetch=async input=>{
         const url=new URL(String(input),'http://localhost');
         const value=url.pathname==='/api/product-classification' ? {subcategories:[{id:'atk',group:'ATK',name:'Alat Tulis',legacyCategoryId:null}],legacyCategories:[]}
+          : url.pathname==='/api/categories' ? []
           : url.pathname==='/api/product-classification/products' ? {groups:[{id:'p',name:'Pulpen',imageUrl:null,units:[{id:'p1',name:'Pulpen pcs',unit:'pcs',isActive:true,legacyCategoryName:'ATK',catalogSubcategory:null}]}],total:1,page:1,pageCount:1} : {};
         return new Response(JSON.stringify(value),{status:200,headers:{'Content-Type':'application/json'}});
       };
-    },direct);
+    }, { tab, permissions });
     const css=bundle.outputFiles.find(file=>file.path.endsWith('.css')); if(css)await page.addStyleTag({content:css.text});
     await page.addScriptTag({content:bundle.outputFiles.find(file=>file.path.endsWith('.js')).text});
-    if(!direct) {
+    if (!tab) {
       await page.getByLabel('Kategori produk',{exact:true}).selectOption('ATK');
-      await page.getByLabel('Subkategori produk',{exact:true}).selectOption('atk');
+      await page.getByLabel('Subkategori',{exact:true}).selectOption('atk');
       assert.equal(await page.evaluate(()=>window.productQuery[2].catalogGroup),'ATK');
       assert.equal(await page.evaluate(()=>window.productQuery[2].catalogSubcategoryId),'atk');
       await page.getByLabel('Kategori produk',{exact:true}).selectOption('PERCETAKAN');
@@ -67,18 +72,48 @@ try {
       await page.setViewportSize({width:375,height:800});
       await page.getByLabel('Kategori produk',{exact:true}).focus();
       assert.equal(await page.getByLabel('Kategori produk',{exact:true}).evaluate(element=>document.activeElement===element),true);
-      assert.equal(await page.getByLabel('Subkategori produk',{exact:true}).isVisible(),true);
-      await page.getByRole('button',{name:'Penataan kategori'}).click();
+      assert.equal(await page.getByLabel('Subkategori',{exact:true}).isVisible(),true);
+      await page.getByRole('button', { name: 'Kategori', exact: true }).click();
     }
-    await page.getByRole('heading',{name:'Tempat yang tepat untuk setiap produk.'}).waitFor();
-    assert.equal(await page.getByRole('checkbox',{name:'Pilih semua satuan Pulpen'}).isDisabled(),true);
-    const manager=page.getByRole('region',{name:'Kelola subkategori ATK'});
-    if(direct){
-      assert.equal(await manager.getByRole('button',{name:'Tambah subkategori'}).count(),1);
-      assert.equal(await manager.getByRole('button',{name:'Hapus Alat Tulis'}).count(),1);
-      assert.equal(await manager.getByRole('button',{name:'Ubah Alat Tulis'}).count(),0);
-    } else assert.equal(await manager.count(),0);
-    assert.deepEqual(errors,[]); await page.close();
+    await page.getByRole('heading', { name: 'Daftar produk' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Kategori', exact: true }).count(), 1);
+    assert.equal(await page.getByRole('button', { name: 'Kategori', exact: true, pressed: true }).count(), 1);
+    assert.equal(await page.getByRole('button', { name: 'Penataan kategori', exact: true }).count(), 0);
+
+    const selectUnit = page.getByRole('checkbox', { name: 'Pilih semua satuan Pulpen' });
+    const canUpdate = permissions.includes('update');
+    assert.equal(await selectUnit.isDisabled(), !canUpdate);
+    const manager = page.getByRole('region', { name: 'Kelola subkategori ATK' });
+    if (permissions.includes('create')) {
+      assert.equal(await manager.getByRole('button', { name: 'Tambah subkategori' }).count(), 1);
+      assert.equal(await manager.getByRole('button', { name: 'Hapus Alat Tulis' }).count(), 1);
+      assert.equal(await manager.getByRole('button', { name: 'Ubah Alat Tulis' }).count(), Number(canUpdate));
+    } else {
+      assert.equal(await manager.count(), 0);
+    }
+
+    const search = page.getByRole('searchbox', { name: 'Cari produk' });
+    const status = page.getByRole('combobox', { name: 'Status klasifikasi' });
+    await search.fill('Pulpen');
+    await status.selectOption('unclassified');
+    if (canUpdate) await selectUnit.check();
+
+    const openLegacy = page.getByRole('button', { name: 'Kelola kategori lama' });
+    await openLegacy.click();
+    await page.getByRole('heading', { name: 'Kategori Produk' }).waitFor();
+    assert.equal(await search.isVisible(), false);
+    assert.equal(await page.getByRole('button', { name: 'Tambah Kategori', exact: true }).count(), Number(permissions.includes('create')));
+
+    const backToProducts = page.getByRole('button', { name: 'Kembali ke daftar produk' });
+    assert.equal(await backToProducts.evaluate(button => document.activeElement === button), true);
+    await backToProducts.press('Enter');
+    await search.waitFor();
+    assert.equal(await search.inputValue(), 'Pulpen');
+    assert.equal(await status.inputValue(), 'unclassified');
+    assert.equal(await selectUnit.isChecked(), canUpdate);
+    assert.equal(await openLegacy.evaluate(button => document.activeElement === button), true);
+    assert.deepEqual(errors, []);
+    await page.close();
   }
-  process.stdout.write('PASS product page: classification tab, direct link and read-only permission\n');
+  process.stdout.write('PASS product page: merged categories, legacy and canonical links, permissions and preserved selection\n');
 } finally {await browser.close()}

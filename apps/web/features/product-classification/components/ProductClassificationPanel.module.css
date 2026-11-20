@@ -17,7 +17,7 @@
   outline: 3px solid #1683ae;
   outline-offset: 3px;
 }
-.heading { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin: 0 0 22px; }
+.heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 16px; margin: 0 0 22px; }
 .heading h1 { margin: 6px 0 7px; font-size: clamp(1.45rem, 2.4vw, 1.8rem); line-height: 1.2; letter-spacing: -.035em; }
 .heading p { margin: 0; color: var(--muted); font-size: .875rem; line-height: 1.6; }
 .heading .headingNote { max-width: 260px; font-size: .75rem; }

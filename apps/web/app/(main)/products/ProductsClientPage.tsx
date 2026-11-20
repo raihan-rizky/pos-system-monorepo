@@ -70,13 +70,8 @@ import { CUSTOMER_TYPES, isSpecialCategoryPricing, type CategoryPricingRule, typ
 import { SpecialPriceBadge } from "@/features/customer-category-pricing/components/SpecialPriceBadge";
 import { CatalogClassificationFilter } from "@/features/product-classification/components/CatalogClassificationFilter";
 import type { UseProductsOptions } from "@/hooks/useProducts";
+import { ProductCategoriesWorkspace } from "./ProductCategoriesWorkspace";
 
-const CategoryManagementTab = lazy(() =>
-  import("@/features/product-categories/components/CategoryManagementTab").then(module => ({ default: module.CategoryManagementTab })),
-);
-const ProductClassificationContainer = lazy(() =>
-  import("@/features/product-classification/components/ProductClassificationContainer").then(module => ({ default: module.ProductClassificationContainer })),
-);
 const MoveProductsDialog = lazy(() =>
   import("@/features/product-categories/components/MoveProductsDialog").then(module => ({ default: module.MoveProductsDialog })),
 );
@@ -148,7 +143,6 @@ const SupplierCodeImportDrawer = lazy(() =>
 type PageTab =
   | "products"
   | "categories"
-  | "classification"
   | "prices"
   | "special-prices"
   | "group-activity";
@@ -156,7 +150,6 @@ type PageTab =
 const PRODUCT_TABS: PageTab[] = [
   "products",
   "categories",
-  "classification",
   "prices",
   "special-prices",
   "group-activity",
@@ -273,17 +266,13 @@ export default function ProductsClientPage() {
 
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const initialTab = (tabParam && PRODUCT_TABS.includes(tabParam as PageTab)
-    ? tabParam
-    : "products") as PageTab;
-  const [activeTab, setActiveTab] = useState<PageTab>(initialTab);
+  const requestedTab = tabParam === "classification" ? "categories" : tabParam as PageTab | null;
+  const linkedTab = requestedTab && PRODUCT_TABS.includes(requestedTab) ? requestedTab : null;
+  const [activeTab, setActiveTab] = useState<PageTab>(linkedTab ?? "products");
 
   useEffect(() => {
-    const tab = searchParams.get("tab");
-    if (tab && PRODUCT_TABS.includes(tab as PageTab)) {
-      setActiveTab(tab as PageTab);
-    }
-  }, [searchParams]);
+    if (linkedTab) setActiveTab(linkedTab);
+  }, [linkedTab, searchParams]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -804,11 +793,6 @@ export default function ProductsClientPage() {
               label: "Kategori",
               icon: <LayoutGrid className="w-4 h-4" />,
             },
-            {
-              id: "classification" as PageTab,
-              label: "Penataan kategori",
-              icon: <SlidersHorizontal className="w-4 h-4" />,
-            },
             ...(canViewPriceHistory
               ? [
                   {
@@ -831,6 +815,8 @@ export default function ProductsClientPage() {
           ].map((tab) => (
             <button
               key={tab.id}
+              type="button"
+              aria-pressed={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 shrink-0 whitespace-nowrap ${
                 activeTab === tab.id
@@ -864,15 +850,13 @@ export default function ProductsClientPage() {
               }
             >
               {activeTab === "categories" && (
-                <CategoryManagementTab
+                <ProductCategoriesWorkspace
+                  key={tabParam}
                   canCreate={canCreateProducts}
                   canUpdate={canUpdateProducts}
                   canDelete={canDeleteProducts}
-                  onDeleted={(ids) => { if (ids.includes(categoryId)) setCategoryId(""); }}
+                  onLegacyCategoriesDeleted={(ids) => { if (ids.includes(categoryId)) setCategoryId(""); }}
                 />
-              )}
-              {activeTab === "classification" && (
-                <ProductClassificationContainer canCreate={canCreateProducts} canUpdate={canUpdateProducts} canDelete={canDeleteProducts} />
               )}
               {activeTab === "group-activity" && (
                 <StockGroupActivityTab onOpenStockGroup={openStockGroup} />
