@@ -102,6 +102,11 @@ function makeDatabase() {
       }),
     },
     backdatedPurchasePayment: {
+      findUnique: vi.fn(async ({ where }: { where: { purchaseId_requestId: { purchaseId: string; requestId: string } } }) => {
+        const { purchaseId, requestId } = where.purchaseId_requestId;
+        const purchase = purchases.find(row => row.id === purchaseId);
+        return copy(purchase?.payments.find(payment => payment.requestId === requestId) ?? null);
+      }),
       create: vi.fn(async ({ data }: { data: PaymentData }) => {
         const payment = { ...data, id: `payment-${++paymentNumber}`, createdAt: new Date() };
         const purchase = purchases.find((row) => row.id === data.purchaseId);

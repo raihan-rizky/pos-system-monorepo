@@ -340,7 +340,7 @@ describe("FAQ workflow catalog", () => {
     expect(JSON.stringify(shopping)).toContain("Harga Beli aktual");
     expect(JSON.stringify(shopping)).toContain("satu Pengeluaran kategori Bahan");
     expect(JSON.stringify(expense)).toContain("Badge Pembelian Barang");
-    expect(JSON.stringify(expense)).toContain("tidak dapat diedit atau dihapus");
+    expect(JSON.stringify(expense)).toContain("memilih tindakan pembelian atau pembayaran sesuai izin");
     expect(JSON.stringify(report)).toContain("Laba Bersih (Estimasi)");
     expect(JSON.stringify(report)).toContain("pengeluaran manual dan Pembelian Barang");
     expect(JSON.stringify(purchase)).toContain("Pengeluaran kategori Bahan");
