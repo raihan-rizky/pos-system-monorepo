@@ -230,12 +230,28 @@ try {
   await ppn.fill("");
   assert.equal(await page.getByRole("button", { name: "Cetak Nota Penawaran", exact: true }).isDisabled(), true);
   await ppn.fill("0");
+  assert.match(await preview.innerText(), /DPP Nilai Lain\s+Rp 550\.000/);
+  assert.match(await preview.innerText(), /PPN\s+Rp 0/);
+  assert.match(await preview.innerText(), /Total\s+Rp 600\.000/);
   await page.getByRole("button", { name: "Cetak Nota Penawaran", exact: true }).click();
   await page.waitForFunction(() => window.prints.length === 5);
   assert.match(await page.evaluate(() => window.prints[4]), /DPP Nilai Lain\s*Rp 550\.000/);
   assert.match(await page.evaluate(() => window.prints[4]), /PPN\s*Rp 0\s*Total\s*Rp 600\.000/);
   assert.match(await page.evaluate(() => window.prints[4]), /600\.000/);
+  await page.emulateMedia({ media: "print" });
+  const printedDppRow = preview.locator(".total-row").filter({ hasText: "DPP Nilai Lain" });
+  const printedPpnRow = preview.locator(".total-row").filter({ hasText: "PPN" });
+  const printedTotalRow = preview.locator(".total-row").filter({ hasText: "Total" });
+  assert.equal(await printedDppRow.isVisible(), true, "DPP row must remain visible in printed quotations at 0% tax");
+  assert.equal(await printedPpnRow.isVisible(), true, "PPN row must remain visible in printed quotations at 0% tax");
+  assert.equal(await printedTotalRow.isVisible(), true, "total row must remain visible in printed quotations at 0% tax");
+  assert.match(await printedDppRow.innerText(), /Rp 550\.000/);
+  assert.match(await printedPpnRow.innerText(), /Rp 0/);
+  assert.match(await printedTotalRow.innerText(), /Rp 600\.000/);
+  await page.emulateMedia({ media: "screen" });
   assert.equal(rows["discount-draft"].taxRate, 0);
+  assert.equal(rows["discount-draft"].tax, 0);
+  assert.equal(rows["discount-draft"].total, 600000);
   assert.equal(writes, 7);
   await page.getByRole("button", { name: "Tutup", exact: true }).click();
 
