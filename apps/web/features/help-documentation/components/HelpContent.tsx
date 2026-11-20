@@ -254,7 +254,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "owner-export-reports",
       title: "Ekspor Laporan Keuangan (Excel & PDF)",
-      description: "Unduh laporan bulanan Excel 8 sheet atau jurnal transaksi Excel/PDF. Saldo inventaris dan hutang tercatat diisi otomatis.",
+      description: "Unduh laporan bulanan Excel 8 sheet atau jurnal transaksi Excel/PDF. Saldo inventaris dan hutang tercatat diisi otomatis. Sheet RC bulan menampilkan TOTAL HARIAN setelah transaksi tiap tanggal; Perlu pemetaan tetap termasuk.",
       icon: <FileText className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Laporan Keuangan", description: "Dari sidebar kiri, masuk ke menu 'Laporan Keuangan' (di bawah kategori Keuangan).", icon: <TrendingUp className="w-8 h-8" /> },
@@ -495,7 +495,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     {
       id: "admin-export-reports",
       title: "Ekspor Laporan Keuangan (Excel & PDF)",
-      description: "Unduh laporan bulanan Excel 8 sheet atau jurnal transaksi Excel/PDF. Saldo inventaris dan hutang tercatat diisi otomatis.",
+      description: "Unduh laporan bulanan Excel 8 sheet atau jurnal transaksi Excel/PDF. Saldo inventaris dan hutang tercatat diisi otomatis. Sheet RC bulan menampilkan TOTAL HARIAN setelah transaksi tiap tanggal; Perlu pemetaan tetap termasuk.",
       icon: <FileText className="w-5 h-5 text-brand-600" />,
       steps: [
         { title: "Buka Laporan Keuangan", description: "Dari sidebar kiri, masuk ke menu 'Laporan Keuangan' (di bawah kategori Keuangan).", icon: <TrendingUp className="w-8 h-8" /> },

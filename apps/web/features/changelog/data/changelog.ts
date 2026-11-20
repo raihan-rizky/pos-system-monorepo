@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "total-harian-rc-bulan-20261121", date: "2026-11-21", revision: 1,
+    highlight: { title: "Subtotal harian di RC Bulan", summary: "Lihat penerimaan per tanggal langsung di sheet RC Bulan." },
+    title: "Lihat penerimaan per tanggal di RC Bulan.",
+    summary: "Sheet RC Bulan menampilkan subtotal per tanggal menurut kategori, termasuk Perlu pemetaan. Total bulan tetap menghitung transaksi satu kali.",
+    kind: "improvement", impact: "minor", area: "Laporan Keuangan", href: "/financial-report", visual: "daily-subtotal",
+    steps: [
+      { title: "Buka Ekspor", detail: "Di Laporan Keuangan, klik Ekspor dan pilih Laporan bulanan · Excel 8 sheet." },
+      { title: "Pilih periode", detail: "Pilih bulan dan tahun, periksa rentang tanggal WIB, lalu unduh Excel." },
+      { title: "Periksa total harian", detail: "Buka sheet RC bulan yang dipilih. Baris TOTAL HARIAN muncul setelah transaksi tiap tanggal dan mencakup Perlu pemetaan; total bulanan tidak menjumlahkannya lagi." },
+    ],
+  },
+  {
     id: "koreksi-transaksi-pengeluaran-20261120", date: "2026-11-20", revision: 1,
     highlight: { title: "Koreksi pembelian dari Keuangan", summary: "Ubah atau batalkan pembelian dan pembayaran langsung dari Pengeluaran." },
     title: "Ubah atau batalkan pembelian dari Keuangan",

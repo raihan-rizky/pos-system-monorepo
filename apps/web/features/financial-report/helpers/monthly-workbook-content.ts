@@ -10,6 +10,7 @@ const EXPENSES = [accent, accentSoft, success, warning, brandDeep];
 export type PurchaseColorSection = { firstRow: number; totalRow: number; method: string };
 type ContentLayout = {
   dailyTotal: number;
+  dailySubtotalRows: number[];
   rcEnd: number;
   rcTotal: number;
   rpEnd: number;
@@ -33,6 +34,19 @@ function paint(sheet: WorkSheet, top: number, left: number, bottom: number, righ
         font: { ...cell.s?.font, color: { rgb: solid ? "FFFFFF" : color.ink }, ...(solid ? { bold: true } : {}) },
       };
     }
+  }
+}
+
+function paintDailySubtotalRow(sheet: WorkSheet, row: number): void {
+  for (let column = 1; column <= 9; column++) {
+    const cell = sheet[utils.encode_cell({ r: row - 1, c: column - 1 })];
+    if (!cell) continue;
+    cell.s = {
+      ...cell.s,
+      fill: { fgColor: { rgb: "DFF3ED" } },
+      font: { ...cell.s?.font, color: { rgb: "14564F" }, bold: true },
+      border: { ...cell.s?.border, top: { style: "thin", color: { rgb: "15816F" } } },
+    };
   }
 }
 
@@ -100,6 +114,7 @@ export function colorMonthlyWorkbookContent(workbook: WorkBook, layout: ContentL
   paint(rc, 5, 9, 5, 9, success, true);
   paint(rc, 7, 9, layout.rcEnd, 9, success);
   paint(rc, layout.rcTotal, 9, layout.rcTotal, 9, success, true);
+  layout.dailySubtotalRows.forEach(row => paintDailySubtotalRow(rc, row));
 
   paint(rp, 5, 1, 5, 1, surface, true);
   paint(rp, 7, 1, layout.rpEnd, 1, surface);

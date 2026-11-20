@@ -22,6 +22,7 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
       "manual-receivables": { Icon: ChevronDown, title: "Lipat Piutang Manual", detail: "Pilihan tersimpan di browser yang sama" },
       "checkout-customer-type": { Icon: User, title: "Jenis pelanggan baru", detail: "UMUM · AGEN · INDUSTRI · PEMERINTAH" },
       "pos-catalog": { Icon: Package, title: "Filter kategori di POS", detail: "Grup · Subkategori · Satuan aktif" },
+      "daily-subtotal": { Icon: FileText, title: "Subtotal harian di RC Bulan", detail: "Per tanggal · Per kategori · Mint" },
     };
     const preview = previews[visual];
     return <div className="relative flex min-h-36 items-center gap-4 bg-brand-50 px-5 pb-5 pt-9 sm:min-h-44 sm:px-7"><span className="absolute left-5 top-3 text-[11px] font-medium text-brand-800">Ilustrasi fitur</span><span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-brand-100 bg-white"><preview.Icon className="h-7 w-7 text-brand-600" aria-hidden="true" /></span><div><p className="text-base font-extrabold leading-tight tracking-tight text-brand-950 sm:text-xl">{preview.title}</p><p className="mt-2 text-xs text-brand-800">{preview.detail}</p></div></div>;
@@ -163,6 +164,34 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
             <Package className="h-8 w-8 text-brand-700" aria-hidden="true" />
           </div>
           <p className="text-center text-xs font-medium text-brand-800">Nama satuan jual terlihat langsung pada baris keranjang.</p>
+        </div>
+      )}
+      {visual === "daily-subtotal" && (
+        <div className="mx-auto w-full max-w-2xl">
+          <div className={panel}>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2"><FileText className={icon} aria-hidden="true" /><span className="text-sm font-bold">RC Bulan September</span></div>
+              <span className="rounded-full bg-brand-50 px-2.5 py-1 text-[10px] font-semibold text-brand-800">Ilustrasi contoh</span>
+            </div>
+            <div className="overflow-hidden rounded-lg border border-surface-200 text-[10px] sm:text-xs">
+              <div className="grid grid-cols-[minmax(92px,1.1fr)_1fr_1.3fr_1fr] bg-surface-50 font-semibold text-surface-600">
+                {["Tanggal", "Cetak", "Perlu pemetaan", "TOTAL"].map(label => <span key={label} className="border-b border-surface-200 px-2 py-2 sm:px-3">{label}</span>)}
+              </div>
+              <div className="grid grid-cols-[minmax(92px,1.1fr)_1fr_1.3fr_1fr] text-surface-700">
+                {["01/09/2026", "Rp100.000", "Rp10.000", "Rp110.000"].map((value, index) => <span key={`${index}-${value}`} className={`border-b border-surface-100 px-2 py-2 sm:px-3 ${index === 0 ? "font-medium" : "text-right tabular-nums"}`}>{value}</span>)}
+              </div>
+              <div className="grid grid-cols-[minmax(92px,1.1fr)_1fr_1.3fr_1fr] border-t-2 text-[10px] font-bold sm:text-xs" style={{ backgroundColor: "#DFF3ED", borderTopColor: "#15816F", color: "#14564F" }}>
+                <span className="px-2 py-2 sm:px-3">TOTAL HARIAN</span><span className="px-2 py-2 text-right tabular-nums sm:px-3">Rp100.000</span><span className="px-2 py-2 text-right tabular-nums sm:px-3">Rp10.000</span><span className="px-2 py-2 text-right tabular-nums sm:px-3">Rp110.000</span>
+              </div>
+              <div className="grid grid-cols-[minmax(92px,1.1fr)_1fr_1.3fr_1fr] text-surface-700">
+                {["30/09/2026", "Rp30.000", "Rp0", "Rp30.000"].map((value, index) => <span key={`${index}-${value}`} className={`border-b border-surface-100 px-2 py-2 sm:px-3 ${index === 0 ? "font-medium" : "text-right tabular-nums"}`}>{value}</span>)}
+              </div>
+              <div className="grid grid-cols-[minmax(92px,1.1fr)_1fr_1.3fr_1fr] border-t-2 text-[10px] font-bold sm:text-xs" style={{ backgroundColor: "#DFF3ED", borderTopColor: "#15816F", color: "#14564F" }}>
+                <span className="px-2 py-2 sm:px-3">TOTAL HARIAN</span><span className="px-2 py-2 text-right tabular-nums sm:px-3">Rp30.000</span><span className="px-2 py-2 text-right tabular-nums sm:px-3">Rp0</span><span className="px-2 py-2 text-right tabular-nums sm:px-3">Rp30.000</span>
+              </div>
+            </div>
+            <p className="mt-3 text-[11px] text-surface-500">Total bulan menghitung transaksi satu kali.</p>
+          </div>
         </div>
       )}
       {visual === "units" && (

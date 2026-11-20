@@ -83,6 +83,44 @@ describe("monthly workbook", () => {
     expect(daily["!ref"]).not.toContain("1890");
   });
 
+  it("adds colored daily subtotal rows without double-counting monthly totals", () => {
+    const data = report();
+    data.income.push({
+      id: "sale-1b",
+      date: "2026-09-01",
+      reference: "INV-TIGA",
+      description: "Penerimaan tambahan",
+      amounts: { CETAK: 5, PLAT: 3, STEMPEL: 2, SPANDUK: 1, ATK: 4, PRINT: 6, UNMAPPED: 7 },
+    });
+
+    const wb = buildMonthlyWorkbook(data);
+    const rc = wb.Sheets["RC SEPTEMBER"];
+    expect(rc.A9.v).toBe("TOTAL HARIAN");
+    expect(rc.A10.v).toBeTypeOf("number");
+    expect(rc.A11.v).toBe("TOTAL HARIAN");
+    expect(rc.A13.v).toBe("TOTAL PENDAPATAN");
+    const dailyTotals = { B: 105, C: 23, D: 12, E: 41, F: 54, G: 66, H: 14.25, I: 315.25 };
+    for (const [column, total] of Object.entries(dailyTotals)) {
+      expect(rc[`${column}9`].f).toBe(`SUM(${column}7:${column}8)`);
+      expect(rc[`${column}9`].v).toBe(total);
+    }
+    const monthlyTotals = { B: 105, C: 23, D: 12, E: 41, F: 66.35, G: 66, H: 14.25, I: 327.6 };
+    for (const [column, total] of Object.entries(monthlyTotals)) {
+      expect(rc[`${column}13`].f).toBe(`SUMIF(A7:A11,">0",${column}7:${column}11)`);
+      expect(rc[`${column}13`].v).toBe(total);
+    }
+
+    for (const column of "ABCDEFGHI") {
+      const cell = rc[`${column}9`];
+      expect(cell.s.fill.fgColor.rgb).toBe("DFF3ED");
+      expect(cell.s.font.color.rgb).toBe("14564F");
+      expect(cell.s.border.top.color.rgb).toBe("15816F");
+    }
+
+    expect(wb.Sheets.SEPTEMBER.B9.v).toBe(105);
+    expect(wb.Sheets.SEPTEMBER.F38.v).toBe(12.35);
+  });
+
   it("retains salary expense, counts purchases once, and keeps input-like text as strings", () => {
     const wb = buildMonthlyWorkbook(report());
     const expense = wb.Sheets["RP SEPTEMBER"];
@@ -102,6 +140,7 @@ describe("monthly workbook", () => {
     expect(wb.Sheets.BERSIH.F25.v).toBe(0);
     expect(wb.Sheets.SEPTEMBER.A12.v).toBeTypeOf("number");
     expect(wb.Sheets.SEPTEMBER.A13.v).toBe("TOTAL");
+    expect(wb.Sheets["RC SEPTEMBER"].A9.v).toBe("TOTAL PENDAPATAN");
     expect(wb.Sheets["LAP KEU"].D9.v).toBe(0);
   });
 
@@ -125,6 +164,9 @@ describe("monthly workbook", () => {
     const colors = sharedTheme.theme!.extend!.colors as Record<string, Record<string, string>>;
     const allowed = new Set([
       "FFFFFF",
+      "DFF3ED",
+      "14564F",
+      "15816F",
       ...Object.values(colors).flatMap(scale => Object.values(scale).map(hex => hex.slice(1).toUpperCase())),
       ...[tailwindColors.emerald, tailwindColors.amber, tailwindColors.red].flatMap(scale => Object.values(scale).map(hex => hex.slice(1).toUpperCase())),
     ]);

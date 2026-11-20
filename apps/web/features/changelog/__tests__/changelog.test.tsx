@@ -22,6 +22,32 @@ const entry = (id: string, date: string, revision = 1): ChangeEntry => ({
 const now = new Date("2026-10-18T03:00:00Z");
 
 describe("manual changelog", () => {
+  it("announces and illustrates daily receipt subtotals in the monthly RC sheet", () => {
+    const update = CHANGELOG.find(change => change.id === "total-harian-rc-bulan-20261121");
+    expect(update).toMatchObject({
+      date: "2026-11-20",
+      revision: 1,
+      kind: "improvement",
+      impact: "minor",
+      area: "Laporan Keuangan",
+      href: "/financial-report",
+      visual: "daily-subtotal",
+    });
+    expect(update?.highlight.title.length).toBeLessThanOrEqual(40);
+    expect(update?.highlight.summary.length).toBeLessThanOrEqual(85);
+    expect(update?.steps).toHaveLength(3);
+
+    const html = renderToStaticMarkup(<ChangeIllustration visual={"daily-subtotal" as ChangeEntry["visual"]} />);
+    for (const detail of ["RC Bulan September", "Tanggal", "Cetak", "Perlu pemetaan", "TOTAL", "TOTAL HARIAN", "Rp110.000"]) {
+      expect(html).toContain(detail);
+    }
+    expect(html.match(/TOTAL HARIAN/g)).toHaveLength(2);
+    expect(html).toContain("30/09/2026");
+    for (const color of ["#DFF3ED", "#14564F", "#15816F"]) expect(html).toContain(color);
+    expect(renderToStaticMarkup(<ChangeIllustration visual={"daily-subtotal" as ChangeEntry["visual"]} compact />))
+      .toContain("Subtotal harian di RC Bulan");
+  });
+
   it("announces the POS catalog pills and active cart unit", () => {
     const update = CHANGELOG.find(change => change.id === "pos-catalog-pill-unit-awareness-20261117");
     expect(update).toMatchObject({
