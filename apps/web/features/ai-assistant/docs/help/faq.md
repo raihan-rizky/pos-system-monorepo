@@ -250,7 +250,8 @@ Transaksi lama dengan sumber stok SURAT_JALAN tetap mengikuti alur stok historis
 2. Klik tombol **Tambah Pengeluaran** untuk memasukkan pengeluaran baru.
 3. Isi nama pemohon, nominal, kategori, dan catatan bila perlu. Untuk membuat kategori baru, pilih **Tambah kategori**, isi nama, dan klik **Simpan kategori**. Kategori dapat digunakan kembali dan dipilih di **Filter kategori**.
 4. **Unggah Bukti Pengeluaran:** Klik **Pilih gambar bukti** untuk mengunggah foto nota ke R2 dan periksa pratinjaunya. Jika penyimpanan R2 gagal, input prnt.sc akan muncul sebagai fallback. Setelah bukti siap, klik **Simpan**.
-5. Kenali sumbernya: badge **Manual** berasal dari form, badge **Pembelian Barang** dibuat otomatis setelah approval final dan tidak dapat diedit atau dihapus dari Keuangan, sedangkan badge **Daftar Belanja (Legacy)** hanya menandai data lama.
+5. Buka menu tiga titik pada baris pengeluaran. Gunakan **Ubah** atau **Hapus** untuk catatan manual. Untuk pembelian otomatis, pilih tindakan pada pembelian atau pembayarannya sesuai izin, isi alasan, lalu tinjau dampaknya sebelum konfirmasi.
+6. Saat membatalkan pembayaran, catat pengembalian dana yang sudah diterima atau kredit yang sudah dikonfirmasi pemasok. Pilih salah catat jika uang tidak berpindah. Kredit dapat digunakan melalui **Catat pembayaran → Pakai kredit pemasok** pada giro pemasok yang sama.
 
 ### Q21: Bagaimana cara mengekspor data Laporan Keuangan ke format Excel atau PDF?
 **A:** Anda dapat mengunduh salinan data laporan keuangan ke perangkat Anda:
