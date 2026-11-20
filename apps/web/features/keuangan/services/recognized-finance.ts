@@ -1,6 +1,7 @@
 import { db, type Prisma } from "@pos/db";
 import { recognizePurchaseExpenses, type PurchaseExpensePayment, type PurchaseExpenseSchedule } from "../helpers/purchase-expense-recognition";
 import type { ExpensePaymentSource } from "../helpers/expense-correction-contract";
+import { loadExpenseCorrectionCash } from "../repositories/expense-correction-cash-repository";
 import { buildKeuanganMonthRange, type ExpenseCategoryKey } from "../helpers/keuangan-core";
 import { readCorrectionPaymentSnapshot } from "@/features/suppliers/shopping-requests/repositories/shopping-request-correction-payment-snapshot";
 
@@ -48,6 +49,7 @@ export type RecognizedExpenses = {
   daily: Array<{ date: string; total: number; byCategory: Partial<Record<ExpenseCategoryKey, number>> }>;
   byCategory: Array<{ category: ExpenseCategoryKey; total: number }>;
   components: { manual: number; transfer: number; giroPayment: number; giroDue: number; overpayment: number };
+  correctionCash?: Awaited<ReturnType<typeof loadExpenseCorrectionCash>>;
 };
 
 function cents(value: Money): number {
@@ -280,7 +282,12 @@ export function buildRecognizedExpenses(input: {
   };
 }
 
-export async function loadRecognizedExpenses(storeId: string, month: string, now = new Date()): Promise<RecognizedExpenses> {
+export async function loadRecognizedExpenses(
+  storeId: string,
+  month: string,
+  now = new Date(),
+  includeCorrectionCash = false,
+): Promise<RecognizedExpenses> {
   if (!storeId) throw new Error("Toko pengguna belum tersedia.");
   const range = buildKeuanganMonthRange(month);
   // Backdated purchase dates are PostgreSQL DATE values, represented at UTC midnight.
@@ -309,7 +316,7 @@ export async function loadRecognizedExpenses(storeId: string, month: string, now
     shoppingRequest: { select: { corrections: { where: { storeId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       select: { afterSnapshot: true, allocations: { select: { sourceKind: true, paymentId: true, method: true, amount: true, sourceAmount: true, paidAt: true } } } } } },
   } satisfies Prisma.GoodsPurchaseSelect;
-  const [expenses, backdatedPurchases] = await db.$transaction(async tx => Promise.all([
+  const [expenses, backdatedPurchases, correctionCash] = await db.$transaction(async tx => Promise.all([
     tx.expense.findMany({
       where: { storeId, deletedAt: null, backdatedPurchaseDueId: null, backdatedPurchasePaymentId: null,
         OR: [{ occurredAt: { gte: range.start, lt: range.end } },
@@ -322,11 +329,13 @@ export async function loadRecognizedExpenses(storeId: string, month: string, now
         shoppingRequest: { select: { id: true, number: true, goodsPurchases: { where: { storeId }, select: purchaseSelect } } },
       },
     }),
-    tx.backdatedPurchase.findMany({ where: { storeId, OR: [
-      { dueDate: calendarRange }, { payments: { some: { paidAt: calendarRange } } },
+    tx.backdatedPurchase.findMany({ where: { storeId, cancelledAt: null, OR: [
+      { dueDate: calendarRange }, { payments: { some: { paidAt: calendarRange, cancelledAt: null } } },
     ] }, select: { id: true, storeId: true, purchaseDate: true, dueDate: true,
       reference: true, amount: true, paymentMethod: true, createdById: true, createdByName: true, createdAt: true,
-      payments: { select: { id: true, amount: true, paidAt: true } } } }),
+      payments: { where: { cancelledAt: null }, select: { id: true, amount: true, paidAt: true } } } }),
+    includeCorrectionCash ? loadExpenseCorrectionCash(tx, storeId, month, now) : undefined,
   ]), { isolationLevel: "RepeatableRead", timeout: 30_000 });
-  return buildRecognizedExpenses({ storeId, month, now, expenses, backdatedPurchases });
+  const recognized = buildRecognizedExpenses({ storeId, month, now, expenses, backdatedPurchases });
+  return correctionCash ? { ...recognized, correctionCash } : recognized;
 }

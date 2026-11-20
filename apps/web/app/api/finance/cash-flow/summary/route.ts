@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { loadIncomePeriod } from "@/features/financial-report/services/daily-income";
 import { buildIncomeCalculation } from "@/features/keuangan/helpers/income-calculation";
 import { loadRecognizedExpenses } from "@/features/keuangan/services/recognized-finance";
+import { applyExpenseCashRows, totalExpenseCash } from "@/features/keuangan/helpers/expense-correction-cash";
 import { apiError } from "@/lib/api/responses";
 import { getLogger } from "@/lib/logger";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
@@ -32,13 +33,27 @@ export async function GET(request: Request) {
     const lastDay = String(new Date(Date.UTC(year, monthNumber, 0)).getUTCDate()).padStart(2, "0");
     const [incomePeriod, expenses] = await Promise.all([
       loadIncomePeriod(incomeUser.storeId, `${month}-01`, `${month}-${lastDay}`),
-      loadRecognizedExpenses(incomeUser.storeId, month),
+      loadRecognizedExpenses(incomeUser.storeId, month, undefined, true),
     ]);
+    const calculatedIncome = buildIncomeCalculation(incomePeriod);
+    const refunds = expenses.correctionCash?.refunds ?? [];
+    const outflows = expenses.correctionCash?.outflow ?? [];
+    const supplierRefund = totalExpenseCash(refunds);
+    const correctionOutflow = totalExpenseCash(outflows);
+    const income = supplierRefund === 0 ? calculatedIncome : {
+      ...calculatedIncome,
+      daily: applyExpenseCashRows(calculatedIncome.daily, refunds, date => ({ date, total: 0, manualReceivable: 0 })),
+      total: totalExpenseCash([calculatedIncome, { total: supplierRefund }]),
+      supplierRefund,
+    };
+    const expenseDaily = expenses.daily.map(({ date, total }) => ({ date, total }));
+    const daily = outflows.length ? applyExpenseCashRows(expenseDaily, outflows, date => ({ date, total: 0 })) : expenseDaily;
     return NextResponse.json({
       month,
-      income: buildIncomeCalculation(incomePeriod),
-      expense: { total: expenses.monthlyTotal, incomplete: expenses.incomplete,
-        daily: expenses.daily.map(({ date, total }) => ({ date, total })), components: expenses.components,
+      income,
+      expense: { total: expenses.monthlyTotal === null || correctionOutflow === 0 ? expenses.monthlyTotal : totalExpenseCash(daily),
+        incomplete: expenses.incomplete, daily, components: expenses.components,
+        ...(correctionOutflow ? { correctionOutflow } : {}),
         byCategory: expenses.byCategory, entryCount: expenses.entryCount },
     });
   } catch (error) {

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getMonthlyFinancialReport } from '../monthly-report';
+vi.mock('@/features/keuangan/repositories/expense-correction-cash-repository', () => ({ loadExpenseCorrectionCash: async () => ({ outflow: [], refunds: [] }) }));
 
 const mocks = vi.hoisted(() => {
   const transaction = vi.fn();

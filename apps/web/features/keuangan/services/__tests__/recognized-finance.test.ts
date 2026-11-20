@@ -234,9 +234,10 @@ describe("pembacaan pengeluaran per toko", () => {
     await finance.loadRecognizedExpenses("store-1", "2026-11", new Date("2026-11-30T12:00:00Z"));
     expect(mocks.backdated).toHaveBeenCalledWith(expect.objectContaining({ where: {
       storeId: "store-1",
+      cancelledAt: null,
       OR: [
         { dueDate: { gte: date("2026-11-01"), lt: date("2026-12-01") } },
-        { payments: { some: { paidAt: { gte: date("2026-11-01"), lt: date("2026-12-01") } } } },
+        { payments: { some: { paidAt: { gte: date("2026-11-01"), lt: date("2026-12-01") }, cancelledAt: null } } },
       ],
     } }));
   });

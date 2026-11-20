@@ -38,4 +38,26 @@ describe("ringkasan arus kas berdasarkan pengeluaran yang diakui", () => {
     });
     expect(body.income.total - body.expense.total).toBe(100_000);
   });
+
+  it("menghitung pembayaran yang sudah keluar dan refund berdasarkan tanggal masing-masing", async () => {
+    mocks.expenses.mockResolvedValueOnce({
+      monthlyTotal: 30_000, incomplete: false,
+      daily: [{ date: "2026-11-10", total: 30_000 }],
+      components: { manual: 20_000, transfer: 0, giroPayment: 0, giroDue: 10_000, overpayment: 0 },
+      correctionCash: {
+        outflow: [{ date: "2026-11-10", total: 800_000 }],
+        refunds: [{ date: "2026-11-20", total: 800_000 }],
+      },
+    });
+    const response = await GET(new Request("http://localhost/api/finance/cash-flow/summary?month=2026-11"));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.expense).toMatchObject({
+      total: 830_000, daily: [{ date: "2026-11-10", total: 830_000 }], correctionOutflow: 800_000,
+    });
+    expect(body.income).toMatchObject({
+      total: 930_000, supplierRefund: 800_000,
+      daily: [{ date: "2026-11-10", total: 130_000 }, { date: "2026-11-20", total: 800_000 }],
+    });
+  });
 });

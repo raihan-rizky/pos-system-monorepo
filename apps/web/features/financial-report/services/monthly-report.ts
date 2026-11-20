@@ -1,5 +1,6 @@
 import { db, Prisma } from '@pos/db';
 import { recognizedExpenseFilter } from '@/features/keuangan/helpers/recognized-expense-filter';
+import { loadExpenseCorrectionCash } from '@/features/keuangan/repositories/expense-correction-cash-repository';
 import { buildMonthlyPeriod, buildMonthlyReport } from '../helpers/monthly-report-core';
 import { getMonthlyBalances } from './monthly-balances';
 import { applyShoppingCorrectionReportPayments } from '../helpers/shopping-correction-report-payments';
@@ -20,7 +21,7 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
   } satisfies Prisma.GoodsPurchaseSelect;
   // All inputs must see the same committed state, including giro payments and
   // their remaining debt. A payment can otherwise commit between the queries.
-  const [transactions, expenses, manualReceivables, balances, backdatedPurchases, manualIncome] = await db.$transaction(async tx => Promise.all([
+  const [transactions, expenses, manualReceivables, balances, backdatedPurchases, manualIncome, correctionCash] = await db.$transaction(async tx => Promise.all([
     tx.transaction.findMany({
       where: { storeId, status: { in: ['COMPLETED', 'DP'] }, OR: [
         { invoiceDate: { lt: period.end } },
@@ -61,15 +62,16 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
     }),
     getMonthlyBalances(storeId, period, now, tx),
     tx.backdatedPurchase.findMany({
-      where: { storeId, purchaseDate: { lte: periodLastDate } },
+      where: { storeId, cancelledAt: null, purchaseDate: { lte: periodLastDate } },
       select: { id: true, purchaseDate: true, dueDate: true, reference: true, paymentMethod: true, amount: true,
-        payments: { select: { id: true, amount: true, paidAt: true }, orderBy: [{ paidAt: 'asc' }, { id: 'asc' }] } },
+        payments: { where: { cancelledAt: null }, select: { id: true, amount: true, paidAt: true }, orderBy: [{ paidAt: 'asc' }, { id: 'asc' }] } },
     }),
     tx.manualIncome.findMany({
       where: { storeId, deletedAt: null, occurredAt: bounds },
       select: { id: true, occurredAt: true, description: true, amount: true, category: true },
       orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }],
     }),
+    loadExpenseCorrectionCash(tx, storeId, period.from.slice(0, 7), now),
   ]), { isolationLevel: 'RepeatableRead', timeout: 30_000 });
   const scopedExpenses = expenses.map(expense => {
     const candidates = expense.shoppingRequest?.goodsPurchases?.filter(purchase => purchase.storeId === storeId && (purchase.status === 'APPROVED' || (purchase.status === 'CANCELLED' && purchase.statusBeforeCancellation === 'APPROVED'))) ?? [];
@@ -89,6 +91,21 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
     };
   });
   const report = buildMonthlyReport({ year, month, period, transactions, expenses: scopedExpenses, manualReceivables, backdatedPurchases, manualIncome });
+  for (const { date, total } of correctionCash.refunds) {
+    report.income.push({
+      id: `supplier-refund:${date}`, date, reference: '',
+      description: 'Pengembalian dana pemasok',
+      amounts: { CETAK: 0, PLAT: 0, STEMPEL: 0, SPANDUK: 0, ATK: 0, PRINT: 0, UNMAPPED: total },
+    });
+  }
+  for (const { date, total } of correctionCash.outflow) {
+    report.expenses.push({
+      id: `cancelled-purchase-payment:${date}`, date,
+      description: 'Pembayaran pembelian yang dibatalkan', group: 'OTHER', amount: total,
+    });
+  }
+  if (correctionCash.refunds.length) report.income.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  if (correctionCash.outflow.length) report.expenses.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   const backdatedDebts = report.supplierDebts ?? [];
   Object.assign(report, balances);
   report.supplierDebts = [...balances.supplierDebts, ...backdatedDebts].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));

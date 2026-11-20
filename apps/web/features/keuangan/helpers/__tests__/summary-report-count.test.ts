@@ -47,7 +47,8 @@ describe("finance dashboard report count", () => {
     expect(mocks.incomePeriod).toHaveBeenCalledTimes(2);
     expect(mocks.incomePeriod).toHaveBeenCalledWith("store-1", "2026-11-01", "2026-11-30");
     expect(mocks.recognizedExpenses).toHaveBeenCalledTimes(2);
-    expect(mocks.recognizedExpenses).toHaveBeenCalledWith("store-1", "2026-11");
+    expect(mocks.recognizedExpenses).toHaveBeenCalledWith("store-1", "2026-11", undefined, false);
+    expect(mocks.recognizedExpenses).toHaveBeenCalledWith("store-1", "2026-11", undefined, true);
     expect((await cashResponse.json()).expense.total).toBe(45_000);
     expect(await incomeResponse.json()).not.toHaveProperty("cashTotal");
     expect(await expenseResponse.json()).not.toHaveProperty("cashExpense");

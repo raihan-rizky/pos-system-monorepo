@@ -5,6 +5,9 @@ import {
   createBackdatedPurchase,
 } from "@/features/suppliers/backdated-purchases/repositories/backdated-purchase-repository";
 import type { ExpenseCorrectionPreviewInput } from "../../helpers/expense-correction-input";
+import { loadRecognizedExpenses } from "../../services/recognized-finance";
+import { loadExpenseCorrectionCash } from "../expense-correction-cash-repository";
+import { listMergedPurchases } from "@/features/suppliers/backdated-purchases/repositories/backdated-purchase-list";
 import { commitBackdatedExpenseCorrection, previewBackdatedExpenseCorrection } from "../backdated-expense-correction-repository";
 
 const enabled = process.env.POS_EXPENSE_CORRECTION_INTEGRATION === "1";
@@ -61,14 +64,22 @@ describe.skipIf(!enabled)("koreksi Belanja Terdahulu secara atomik", () => {
     const confirmation = { ...request, version: preview.version, requestId: crypto.randomUUID() };
     const saved = await commitBackdatedExpenseCorrection(confirmation, actor, now);
     await expect(commitBackdatedExpenseCorrection(confirmation, actor, now)).resolves.toEqual(saved);
-    const [payments, refunds, due] = await Promise.all([
+    const [payments, refunds, due, cash] = await Promise.all([
       db.backdatedPurchasePayment.findMany({ where: { purchaseId: created.id }, orderBy: { paidAt: "asc" } }),
       db.expensePaymentSettlement.findMany({ where: { correctionId: saved.auditId } }),
       db.expense.findUniqueOrThrow({ where: { backdatedPurchaseDueId: created.id } }),
+      loadExpenseCorrectionCash(db, actor.storeId, "2026-11", now),
     ]);
     expect(payments).toMatchObject([{ id: first.id, cancelledAt: null }, { id: second.id, cancelledAt: expect.any(Date) }]);
     expect(refunds).toMatchObject([{ kind: "REFUND", paymentId: second.id, reference: "REF-1" }]);
+    expect(cash).toEqual({
+      outflow: [{ date: "2026-11-08", total: 800_000 }],
+      refunds: [{ date, total: 800_000 }],
+    });
     expect(Number(due.amount)).toBe(1_415_000);
+    const recognized = await loadRecognizedExpenses(actor.storeId, "2026-11", now);
+    expect(recognized.rows.filter(row => "id" in row.source && row.source.id === created.id))
+      .toMatchObject([{ paymentSource: { id: first.id }, netAmount: 1_200_000 }]);
     await expect(addBackdatedPurchasePayment(created.id, {
       requestId: payments[1].requestId, amountCents: second.amountCents, paidAt: second.paidAt,
     }, actor)).rejects.toMatchObject({ status: 409 });
@@ -107,5 +118,32 @@ describe.skipIf(!enabled)("koreksi Belanja Terdahulu secara atomik", () => {
     }, actor, now)).rejects.toMatchObject({ status: 409 });
     expect(await db.backdatedPurchase.findUniqueOrThrow({ where: { id: created.id } }))
       .toMatchObject({ cancelledAt: null });
+  }, 30_000);
+
+  it("mengeluarkan pembelian batal dari pengeluaran dan daftar utang aktif", async () => {
+    const created = await fixture();
+    const request: ExpenseCorrectionPreviewInput = {
+      subject: { type: "BACKDATED_PURCHASE", id: created.id },
+      operation: "cancel",
+      draft: {
+        reason: "Kedua pembayaran tercatat ganda",
+        dispositions: created.payments.map(payment => ({
+          kind: "entryError", paymentId: payment.id, amountCents: payment.amountCents, reference: "Catatan ganda",
+        })),
+      },
+    };
+    const preview = await previewBackdatedExpenseCorrection(request, actor, now);
+    await commitBackdatedExpenseCorrection({ ...request, version: preview.version, requestId: crypto.randomUUID() }, actor, now);
+
+    const [recognized, active, monthly] = await Promise.all([
+      loadRecognizedExpenses(actor.storeId, "2026-11", now),
+      listMergedPurchases({ storeId: actor.storeId, recordType: "BACKDATED_PURCHASE", skip: 0, take: 50 }),
+      loadRecognizedExpenses(actor.storeId, "2026-12", new Date("2026-12-01T07:00:00Z")),
+    ]);
+    expect(recognized.rows.some(row => "id" in row.source && row.source.id === created.id)).toBe(false);
+    expect(active.requests.some(row => row.id === created.id)).toBe(false);
+    expect(monthly.rows.some(row => "id" in row.source && row.source.id === created.id)).toBe(false);
+    expect(await db.backdatedPurchase.findUnique({ where: { id: created.id } }))
+      .toMatchObject({ cancelledAt: now });
   }, 30_000);
 });

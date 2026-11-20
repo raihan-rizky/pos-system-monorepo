@@ -4,6 +4,7 @@ import { apiError } from "@/lib/api/responses";
 import { NextResponse } from "next/server";
 import { buildMonthlyPeriod } from "@/features/financial-report/helpers/monthly-report-core";
 import { loadRecognizedExpenses } from "@/features/keuangan/services/recognized-finance";
+import { applyExpenseCashRows, totalExpenseCash } from "@/features/keuangan/helpers/expense-correction-cash";
 
 const log = getLogger("api:finance:expenses:summary");
 export const dynamic = "force-dynamic";
@@ -36,12 +37,15 @@ export async function GET(request: Request) {
     const [year, monthNumber] = month.split("-").map(Number);
     const metricsOnly = searchParams.get("metricsOnly") === "1";
     buildMonthlyPeriod(year, monthNumber);
-    const expenses = await loadRecognizedExpenses(storeId, month);
+    const expenses = await loadRecognizedExpenses(storeId, month, undefined, !metricsOnly);
     const { monthlyTotal, incomplete, entryCount, byCategory, daily, components } = expenses;
     const response = { month, monthlyTotal, incomplete, entryCount, byCategory, daily, components };
     if (metricsOnly) return NextResponse.json(response);
-    return NextResponse.json({ ...response, cashDaily: daily.map(({ date, total }) => ({ date, total })),
-      cashExpense: { total: monthlyTotal, incomplete } });
+    const expenseDaily = daily.map(({ date, total }) => ({ date, total }));
+    const outflow = expenses.correctionCash?.outflow ?? [];
+    const cashDaily = outflow.length ? applyExpenseCashRows(expenseDaily, outflow, date => ({ date, total: 0 })) : expenseDaily;
+    return NextResponse.json({ ...response, cashDaily,
+      cashExpense: { total: monthlyTotal === null || !outflow.length ? monthlyTotal : totalExpenseCash(cashDaily), incomplete } });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

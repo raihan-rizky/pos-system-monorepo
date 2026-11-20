@@ -47,9 +47,11 @@ export async function listMergedPurchases(filters: MergedPurchaseFilters) {
       SELECT bp.id, 'BACKDATED_PURCHASE'::text AS kind, bp."createdAt"
       FROM "pos_backdated_purchases" bp
       LEFT JOIN LATERAL (
-        SELECT COALESCE(SUM(p.amount), 0) AS paid FROM "pos_backdated_purchase_payments" p WHERE p."purchaseId" = bp.id
+        SELECT COALESCE(SUM(p.amount), 0) AS paid FROM "pos_backdated_purchase_payments" p
+        WHERE p."purchaseId" = bp.id AND p."cancelledAt" IS NULL
       ) totals ON TRUE
       WHERE bp."storeId" = ${filters.storeId}
+        AND bp."cancelledAt" IS NULL
         AND (${q}::text IS NULL OR bp.reference ILIKE ${q})
         AND (${filters.paymentMethod ?? null}::text IS NULL OR bp."paymentMethod"::text = ${filters.paymentMethod ?? null})
         AND (${due}::date IS NULL OR bp."dueDate" = ${due}::date)
@@ -68,8 +70,8 @@ export async function listMergedPurchases(filters: MergedPurchaseFilters) {
   const [ordinaryRows, historicalRows] = await Promise.all([
     ordinaryIds.length ? listShoppingRequests({ storeId: filters.storeId, ids: ordinaryIds, skip: 0, take: ordinaryIds.length }) : [],
     historicalIds.length ? db.backdatedPurchase.findMany({
-      where: { storeId: filters.storeId, id: { in: historicalIds } },
-      include: { payments: { orderBy: [{ paidAt: "asc" }, { createdAt: "asc" }, { id: "asc" }] } },
+      where: { storeId: filters.storeId, id: { in: historicalIds }, cancelledAt: null },
+      include: { payments: { where: { cancelledAt: null }, orderBy: [{ paidAt: "asc" }, { createdAt: "asc" }, { id: "asc" }] } },
     }) : [],
   ]);
   const ordinaryMap = new Map(ordinaryRows.map(row => [row.id, { ...row, kind: "SHOPPING_REQUEST" as const }]));
