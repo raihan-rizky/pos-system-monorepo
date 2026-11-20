@@ -102,7 +102,7 @@ export default function KeuanganDashboardPage() {
   const searchParams = useSearchParams();
   const month = searchParams.get("month") || currentJakartaMonth();
   const queryClient = useQueryClient();
-  const { canPerform } = useRole();
+  const { canPerform, userId, storeId, authorizationFingerprint } = useRole();
   const canReadIncome = canPerform("income", "read");
   const canReadExpense = canPerform("expense", "read");
   const canCreate = canPerform("expense", "create");
@@ -384,7 +384,7 @@ export default function KeuanganDashboardPage() {
               <div className="h-8 w-44 rounded-md bg-surface-100 animate-pulse" />
             ) : (
               <p className="text-xl sm:text-2xl font-bold text-red-600 tabular-nums break-words">
-                {expenseData ? formatRupiah(expenseData.monthlyTotal) : "Pengeluaran belum tersedia"}
+                {expenseData?.monthlyTotal != null ? formatRupiahPrecise(expenseData.monthlyTotal) : "Pengeluaran belum tersedia"}
               </p>
             )}
 

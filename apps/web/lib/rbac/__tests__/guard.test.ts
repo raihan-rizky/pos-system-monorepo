@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { handleAuthError, requirePermission, requireRole } from "../guard";
+import { canAuthenticatedUserPerform, handleAuthError, requirePermission, requireRole } from "../guard";
 import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
 const getUserMock = vi.hoisted(() => vi.fn());
@@ -66,6 +66,14 @@ describe("RBAC server guard", () => {
     const response = handleAuthError(failure);
     expect(response?.status).toBe(503);
     expect(await response?.json()).toMatchObject({ code: "ServiceUnavailable" });
+  });
+
+  it("checks a signed-in user's grant and fails closed when permissions cannot be verified", async () => {
+    await expect(canAuthenticatedUserPerform({ role: "INVENTORY" }, "inventory", "read")).resolves.toBe(true);
+    await expect(canAuthenticatedUserPerform({ role: "INVENTORY" }, "expense", "delete")).resolves.toBe(false);
+    getGlobalRolePermissionsMock.mockRejectedValueOnce(new Error("database unavailable"));
+    await expect(canAuthenticatedUserPerform({ role: "OWNER" }, "expense", "delete"))
+      .rejects.toMatchObject({ statusCode: 503 });
   });
 
   it("uses scoped E2E cookies without calling Supabase outside production", async () => {

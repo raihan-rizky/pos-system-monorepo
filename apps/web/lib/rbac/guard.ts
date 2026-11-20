@@ -162,6 +162,22 @@ export async function requirePermission(resource: string, action: Action) {
   return user;
 }
 
+/** Check an authenticated user's resource grant without restoring defaults on failure. */
+export async function canAuthenticatedUserPerform(
+  user: { role: Role },
+  resource: string,
+  action: Action,
+): Promise<boolean> {
+  try {
+    const permissions = isE2EAuthBypassEnabled()
+      ? buildDefaultRolePermissions()
+      : await getGlobalRolePermissions();
+    return canRolePerformAction(user.role, resource, action, permissions);
+  } catch {
+    throw new AuthError(503, "Hak akses belum dapat diverifikasi. Silakan coba lagi.");
+  }
+}
+
 /**
  * Get the current authenticated user WITHOUT role checking.
  * Useful when you need the user info but want to handle role logic yourself.
