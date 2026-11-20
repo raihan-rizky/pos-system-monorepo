@@ -48,6 +48,21 @@ export const RBAC_RESOURCE_METADATA: Record<string, ResourceEditorMetadata> = {
   "supplier.shopping_request.approve_stock": { label: "Persetujuan stok belanja", actions: ["update"], actionLabels: { update: "Setujui stok" } },
   "supplier.goods_purchase.approve": { label: "Persetujuan pembelian", actions: ["update"], actionLabels: { update: "Setujui pembelian" } },
   "supplier.goods_purchase.reject": { label: "Penolakan pembelian", actions: ["update"], actionLabels: { update: "Tolak pembelian" } },
+  "supplier.goods_purchase.correction": {
+    label: "Koreksi Pembelian Barang",
+    actions: ["update", "delete"],
+    actionLabels: { update: "Ubah pembelian atau pembayaran", delete: "Batalkan pembelian atau pembayaran" },
+  },
+  "supplier.backdated_purchase.correction": {
+    label: "Koreksi Belanja Terdahulu",
+    actions: ["update", "delete"],
+    actionLabels: { update: "Ubah pembelian", delete: "Batalkan pembelian" },
+  },
+  "supplier.backdated_payment.correction": {
+    label: "Koreksi pembayaran Belanja Terdahulu",
+    actions: ["update", "delete"],
+    actionLabels: { update: "Ubah pembayaran", delete: "Batalkan pembayaran" },
+  },
   salesperson: { label: "Data salesperson", actions: ["create", "read", "update", "delete"] },
   shift: { label: "Shift kasir", actions: ["create", "read", "update"] },
   whatsapp: { label: "Pesan dan pengaturan WhatsApp", actions: ["create", "read", "update"] },

@@ -7,6 +7,7 @@ import type {
   CategoryBucket,
 } from "@/features/keuangan/helpers/keuangan-core";
 import type { CustomExpenseCategory } from "@/features/keuangan/helpers/category-meta";
+import type { ExpensePaymentSource } from "@/features/keuangan/helpers/expense-correction-contract";
 
 export type IncomeSummary = {
   month: string;
@@ -64,6 +65,7 @@ export type ExpenseListItem = {
     | { type: "GOODS_PURCHASE"; id: string; number: string };
   recordedBy: { id: string; name: string };
   recognitionKind?: "manual" | "transfer" | "giro_payment" | "giro_due" | "overpayment";
+  paymentSource?: ExpensePaymentSource;
   allocation?: { scheduleId: string; dueDate: string | null; source: "stored" | "automatic" | null };
 };
 

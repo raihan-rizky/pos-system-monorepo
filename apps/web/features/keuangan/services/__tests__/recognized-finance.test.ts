@@ -33,6 +33,89 @@ type Result = { monthlyTotal: number | null; incomplete: boolean; rows: Array<{ 
 type Build = (input: { storeId: string; month: string; now: Date; expenses: unknown[]; backdatedPurchases: unknown[] }) => Result;
 const build = () => (finance as { buildRecognizedExpenses?: Build }).buildRecognizedExpenses;
 
+describe("sumber koreksi pengeluaran otomatis", () => {
+  it("tetap menunjuk pembayaran yang sama saat nominalnya terbagi ke dua jadwal giro", () => {
+    const split = {
+      ...expense,
+      goodsPurchase: {
+        ...expense.goodsPurchase,
+        payments: [
+          { id: "giro-1", method: "GIRO", amount: "20000", dueDate: date("2026-11-20") },
+          { id: "giro-2", method: "GIRO", amount: "80000", dueDate: date("2026-12-15") },
+        ],
+      },
+    };
+    const result = build()!({
+      storeId: "store-1", month: "2026-11", now: date("2026-11-30"),
+      expenses: [split], backdatedPurchases: [],
+    });
+
+    expect(result.rows).toMatchObject([
+      {
+        netAmount: 20_000,
+        source: { type: "GOODS_PURCHASE", id: "purchase-1" },
+        allocation: { scheduleId: "giro-1" },
+        paymentSource: { kind: "SUPPLIER_PAYABLE_PAYMENT", id: "payment-1" },
+      },
+      {
+        netAmount: 10_000,
+        source: { type: "GOODS_PURCHASE", id: "purchase-1" },
+        allocation: { scheduleId: "giro-2" },
+        paymentSource: { kind: "SUPPLIER_PAYABLE_PAYMENT", id: "payment-1" },
+      },
+    ]);
+  });
+
+  it("membedakan pembayaran belanja terdahulu dari sisa utang pembelian yang sama", () => {
+    const purchase = {
+      id: "old-1", storeId: "store-1", purchaseDate: date("2026-11-01"), dueDate: date("2026-11-20"),
+      reference: "GIRO-OLD", amount: "100000", paymentMethod: "GIRO", createdById: "user-1",
+      createdByName: "Pengguna", createdAt: date("2026-11-01"),
+      payments: [
+        { id: "first-payment", amount: "30000", paidAt: date("2026-11-10") },
+        { id: "second-payment", amount: "20000", paidAt: date("2026-11-11") },
+      ],
+    };
+    const result = build()!({
+      storeId: "store-1", month: "2026-11", now: date("2026-11-30"),
+      expenses: [], backdatedPurchases: [purchase],
+    });
+
+    expect(result.rows).toMatchObject([
+      { source: { type: "BACKDATED_PURCHASE", id: "old-1" }, recognitionKind: "giro_due" },
+      {
+        source: { type: "BACKDATED_PURCHASE", id: "old-1" },
+        paymentSource: { kind: "BACKDATED_PAYMENT", id: "second-payment" },
+      },
+      {
+        source: { type: "BACKDATED_PURCHASE", id: "old-1" },
+        paymentSource: { kind: "BACKDATED_PAYMENT", id: "first-payment" },
+      },
+    ]);
+    expect(result.rows[0]).not.toHaveProperty("paymentSource");
+  });
+
+  it("menunjukkan transfer awal yang tercatat tanpa menjadikannya ID baris atau jadwal", () => {
+    const transfer = {
+      ...expense,
+      goodsPurchase: {
+        ...expense.goodsPurchase, paymentMethod: "TRANSFER", paymentDueDate: null,
+        initialTransferAmount: "100000", initialTransferPaidAt: date("2026-11-02"), supplierPayable: null,
+        payments: [{ id: "transfer-schedule", method: "TRANSFER", amount: "100000", dueDate: null }],
+      },
+    };
+    const result = build()!({
+      storeId: "store-1", month: "2026-11", now: date("2026-11-30"),
+      expenses: [transfer], backdatedPurchases: [],
+    });
+
+    expect(result.rows).toMatchObject([{
+      source: { type: "GOODS_PURCHASE", id: "purchase-1" },
+      paymentSource: { kind: "GOODS_INITIAL_TRANSFER", id: "purchase-1" },
+    }]);
+  });
+});
+
 describe("proyeksi pengeluaran keuangan", () => {
   it("memindahkan sisa giro ke jatuh tempo terbaru dan menjaga pembayaran awal", () => {
     const calculate = build();

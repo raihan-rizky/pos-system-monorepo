@@ -1,5 +1,6 @@
 import { db, type Prisma } from "@pos/db";
 import { recognizePurchaseExpenses, type PurchaseExpensePayment, type PurchaseExpenseSchedule } from "../helpers/purchase-expense-recognition";
+import type { ExpensePaymentSource } from "../helpers/expense-correction-contract";
 import { buildKeuanganMonthRange, type ExpenseCategoryKey } from "../helpers/keuangan-core";
 import { readCorrectionPaymentSnapshot } from "@/features/suppliers/shopping-requests/repositories/shopping-request-correction-payment-snapshot";
 
@@ -28,6 +29,7 @@ type BackdatedPurchase = {
   paymentMethod: PaymentMethod; createdById: string; createdByName: string | null; createdAt: Date;
   payments: Array<{ id: string; amount: Money; paidAt: Date }>;
 };
+type SourcePayment = PurchaseExpensePayment & { paymentSource: ExpensePaymentSource };
 
 export type RecognizedExpenseRow = {
   id: string; applicantName: string; category: ExpenseCategoryKey; description: string | null;
@@ -36,6 +38,7 @@ export type RecognizedExpenseRow = {
   recordedBy: { id: string; name: string };
   source: { type: "MANUAL" | "MANUAL_TRANSFER_PURCHASE" } | { type: "GOODS_PURCHASE" | "SHOPPING_REQUEST" | "BACKDATED_PURCHASE"; id: string; number: string };
   recognitionKind: "manual" | "transfer" | "giro_payment" | "giro_due" | "overpayment";
+  paymentSource?: ExpensePaymentSource;
   allocation?: { scheduleId: string; dueDate: string | null; source: "stored" | "automatic" | null };
 };
 
@@ -68,7 +71,7 @@ function activePurchase(purchase: Purchase): boolean {
   return purchase.status === "APPROVED" || (purchase.status === "CANCELLED" && purchase.statusBeforeCancellation === "APPROVED");
 }
 
-function correctedPurchasePayments(purchase: Purchase, expense: Expense): PurchaseExpensePayment[] {
+function correctedPurchasePayments(purchase: Purchase, expense: Expense): SourcePayment[] {
   const correction = purchase.shoppingRequest.corrections[0];
   const snapshot = readCorrectionPaymentSnapshot(correction.afterSnapshot);
   const key = (source: { sourceKind: string; paymentId: string }) => JSON.stringify([source.sourceKind, source.paymentId]);
@@ -110,19 +113,24 @@ function correctedPurchasePayments(purchase: Purchase, expense: Expense): Purcha
       throw new Error("Sumber pembayaran koreksi tidak sesuai.");
     }
   }
-  const result: PurchaseExpensePayment[] = snapshot.allocations.map(allocation => ({
+  const result: SourcePayment[] = snapshot.allocations.map(allocation => ({
     id: JSON.stringify([allocation.sourceKind, allocation.paymentId, allocation.method]), method: allocation.method,
     sourceMethod: allocation.sourceKind === "TRANSFER_EXPENSE" ? "TRANSFER" : "GIRO",
     amountCents: cents(allocation.amount), paidAt: sources.get(key(allocation))!.paidAt,
+    paymentSource: allocation.sourceKind === "TRANSFER_EXPENSE"
+      ? { kind: "GOODS_INITIAL_TRANSFER", id: purchase.id }
+      : { kind: "SUPPLIER_PAYABLE_PAYMENT", id: allocation.paymentId },
   }));
   if (purchase.initialTransferAmount !== null && cents(purchase.initialTransferAmount) > 0 &&
     !sources.has(key({ sourceKind: "TRANSFER_EXPENSE", paymentId: expense.id }))) {
     if (!purchase.initialTransferPaidAt) throw new Error("Tanggal transfer belum tersedia.");
-    result.push({ id: `transfer:${expense.id}`, method: "TRANSFER", amountCents: cents(purchase.initialTransferAmount), paidAt: calendarDate(purchase.initialTransferPaidAt) });
+    result.push({ id: `transfer:${expense.id}`, method: "TRANSFER", amountCents: cents(purchase.initialTransferAmount),
+      paidAt: calendarDate(purchase.initialTransferPaidAt), paymentSource: { kind: "GOODS_INITIAL_TRANSFER", id: purchase.id } });
   }
   for (const payment of payablePayments.values()) {
     if (!sources.has(key({ sourceKind: "PAYABLE_PAYMENT", paymentId: payment.id }))) {
-      result.push({ id: payment.id, method: "GIRO", amountCents: cents(payment.amount), paidAt: calendarDate(payment.paidAt) });
+      result.push({ id: payment.id, method: "GIRO", amountCents: cents(payment.amount), paidAt: calendarDate(payment.paidAt),
+        paymentSource: { kind: "SUPPLIER_PAYABLE_PAYMENT", id: payment.id } });
     }
   }
   return result.filter(payment => payment.amountCents > 0);
@@ -177,15 +185,19 @@ export function buildRecognizedExpenses(input: {
     const transferCents = purchase.initialTransferAmount === null
       ? schedule.filter(row => row.method === "TRANSFER").reduce((sum, row) => sum + row.amountCents, 0)
       : cents(purchase.initialTransferAmount);
-    let payments: PurchaseExpensePayment[] = [];
+    let payments: SourcePayment[] = [];
     try {
       if (purchase.shoppingRequest.corrections.length) {
         payments = correctedPurchasePayments(purchase, expense);
       } else {
         if (transferCents > 0) payments.push({ id: `transfer:${expense.id}`, method: "TRANSFER", amountCents: transferCents,
-          paidAt: purchase.initialTransferPaidAt ? calendarDate(purchase.initialTransferPaidAt) : originalDate });
+          paidAt: purchase.initialTransferPaidAt ? calendarDate(purchase.initialTransferPaidAt) : originalDate,
+          paymentSource: { kind: "GOODS_INITIAL_TRANSFER", id: purchase.id } });
         if (purchase.supplierPayable?.storeId === input.storeId) {
-          payments.push(...purchase.supplierPayable.payments.map(row => ({ id: row.id, method: "GIRO" as const, amountCents: cents(row.amount), paidAt: calendarDate(row.paidAt) })));
+          payments.push(...purchase.supplierPayable.payments.map((row): SourcePayment => ({
+            id: row.id, method: "GIRO", amountCents: cents(row.amount), paidAt: calendarDate(row.paidAt),
+            paymentSource: { kind: "SUPPLIER_PAYABLE_PAYMENT", id: row.id },
+          })));
         }
       }
     } catch {
@@ -199,12 +211,15 @@ export function buildRecognizedExpenses(input: {
       incomplete = true;
       continue;
     }
+    const paymentSources = new Map(payments.map(payment => [payment.id, payment.paymentSource]));
     for (const entry of projected.rows) {
       if (!entry.date.startsWith(input.month)) continue;
+      const paymentSource = entry.paymentId ? paymentSources.get(entry.paymentId) : undefined;
       rows.push({ ...base, id: JSON.stringify([expense.id, entry.kind, entry.scheduleId ?? null, entry.paymentId ?? null]),
         amount: entry.amountCents / 100, changeAmount: 0, netAmount: entry.amountCents / 100,
         occurredAt: new Date(`${entry.date}T00:00:00+07:00`).toISOString(),
         source: { type: "GOODS_PURCHASE", id: purchase.id, number: purchase.number }, recognitionKind: entry.kind,
+        ...(paymentSource ? { paymentSource } : {}),
         ...(entry.scheduleId ? { allocation: { scheduleId: entry.scheduleId,
           dueDate: schedule.find(item => item.id === entry.scheduleId)?.dueDate ?? null, source: entry.allocationSource ?? null } } : {}) });
     }
@@ -231,6 +246,7 @@ export function buildRecognizedExpenses(input: {
         transactionId: null, attachmentUrl: null, hasMissingCostSnapshot: false,
         recordedBy: { id: purchase.createdById, name: purchase.createdByName ?? "Tidak dicatat" },
         source: { type: "BACKDATED_PURCHASE", id: purchase.id, number: purchase.reference }, recognitionKind: entry.kind,
+        ...(entry.paymentId ? { paymentSource: { kind: "BACKDATED_PAYMENT", id: entry.paymentId } } : {}),
         ...(entry.scheduleId ? { allocation: { scheduleId: entry.scheduleId,
           dueDate: purchase.paymentMethod === "GIRO" ? calendarDate(purchase.dueDate) : null, source: entry.allocationSource ?? null } } : {}) });
     }
