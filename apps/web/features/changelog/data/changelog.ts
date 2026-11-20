@@ -3,7 +3,7 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
-    id: "koreksi-transaksi-pengeluaran-20261120", date: "2026-11-20", revision: 1,
+    id: "koreksi-transaksi-pengeluaran-20261120", date: "2026-11-21", revision: 1,
     highlight: { title: "Koreksi pembelian dari Keuangan", summary: "Ubah atau batalkan pembelian dan pembayaran langsung dari Pengeluaran." },
     title: "Ubah atau batalkan pembelian dari Keuangan",
     summary: "Menu Pengeluaran membuka koreksi pembelian dan pembayaran sesuai izin. Tinjau perubahan nominal, sisa tagihan, dan stok sebelum konfirmasi.",
