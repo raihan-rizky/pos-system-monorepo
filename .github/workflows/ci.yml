@@ -61,7 +61,7 @@ jobs:
       - name: Instal Chromium untuk tes browser
         run: pnpm --filter @pos/web exec playwright install --with-deps chromium
       - name: Tes keamanan packaging dan database
-        run: node --test scripts/tests/vps-artifact-package.test.mjs packages/db/tests/clear-locks-safety.test.cjs
+        run: node --test scripts/tests/vps-artifact-package.test.mjs packages/db/tests/clear-locks-safety.test.cjs packages/db/tests/expense-correction-migration.test.mjs
       - name: Tes fingerprint pada PostgreSQL sementara
         env:
           POS_CI_DATABASE_TEST: '1'
