@@ -408,6 +408,15 @@ describe("buildFinancialReport", () => {
     expect(report.lossStok).toEqual([]);
   });
 
+  it("tidak menghitung jurnal pemulihan transaksi sebagai pemakaian stok kedua", () => {
+    const base = { dateFrom: "2026-05-01", dateTo: "2026-05-31", transactions: [], shifts: [] };
+    const usage = { type: "OUT", reason: "USAGE", quantity: 2, unitCost: 2500 } as const;
+    const before = buildFinancialReport({ ...base, inventoryLogs: [usage] });
+    const after = buildFinancialReport({ ...base, inventoryLogs: [usage, { type: "OUT", reason: "TRANSACTION_RESTORE", quantity: 2, unitCost: 2500 }] });
+    expect(after.summary.lossStokNet).toBe(before.summary.lossStokNet);
+    expect(after.lossStok).toEqual(before.lossStok);
+  });
+
   it("buckets loss stok by reason and values each at unitCost × quantity", () => {
     const report = buildFinancialReport({
       dateFrom: "2026-05-01",

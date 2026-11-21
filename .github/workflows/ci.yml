@@ -16,7 +16,9 @@ concurrency:
 
 jobs:
   verify-build:
-    if: github.event_name == 'pull_request' || github.ref_name == 'main' || github.ref_name == 'dev'
+    if: >-
+      github.event_name == 'pull_request' || github.ref_name == 'main' || github.ref_name == 'dev' ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/unvoid-production-bridge')
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     services:
@@ -34,6 +36,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      POS_RUNTIME_TARGET: ${{ (github.ref_name == 'main' || github.ref == 'refs/heads/codex/unvoid-production-bridge') && 'prod' || 'dev' }}
       CI: true
       HUSKY: 0
       NODE_OPTIONS: --max-old-space-size=4096
@@ -78,15 +81,15 @@ jobs:
       - name: Build dan paketkan runtime sesuai branch
         if: github.event_name != 'pull_request'
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ github.ref_name == 'main' && vars.POS_VPS_PROD_PUBLIC_AUTH_URL || vars.POS_VPS_DEV_PUBLIC_AUTH_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ github.ref_name == 'main' && secrets.POS_VPS_PROD_PUBLIC_SUPABASE_ANON_KEY || secrets.POS_VPS_DEV_PUBLIC_SUPABASE_ANON_KEY }}
-          R2_PUBLIC_BASE_URL: ${{ github.ref_name == 'main' && vars.POS_VPS_PROD_R2_PUBLIC_BASE_URL || vars.POS_VPS_DEV_R2_PUBLIC_BASE_URL }}
-        run: bash scripts/build-vps-runtime.sh '${{ github.ref_name == 'main' && 'prod' || 'dev' }}'
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.POS_RUNTIME_TARGET == 'prod' && vars.POS_VPS_PROD_PUBLIC_AUTH_URL || vars.POS_VPS_DEV_PUBLIC_AUTH_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.POS_RUNTIME_TARGET == 'prod' && secrets.POS_VPS_PROD_PUBLIC_SUPABASE_ANON_KEY || secrets.POS_VPS_DEV_PUBLIC_SUPABASE_ANON_KEY }}
+          R2_PUBLIC_BASE_URL: ${{ env.POS_RUNTIME_TARGET == 'prod' && vars.POS_VPS_PROD_R2_PUBLIC_BASE_URL || vars.POS_VPS_DEV_R2_PUBLIC_BASE_URL }}
+        run: bash scripts/build-vps-runtime.sh "$POS_RUNTIME_TARGET"
       - name: Simpan runtime yang lolos pemeriksaan
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: pos-runtime-${{ github.ref_name == 'main' && 'prod' || 'dev' }}-${{ github.run_id }}
+          name: pos-runtime-${{ env.POS_RUNTIME_TARGET }}-${{ github.run_id }}
           path: artifact/output/*
           if-no-files-found: error
           compression-level: 0

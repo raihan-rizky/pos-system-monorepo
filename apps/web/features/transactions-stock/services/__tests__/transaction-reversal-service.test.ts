@@ -602,7 +602,7 @@ describe("reverseTransaction", () => {
 
     expect(tx.suratJalan.updateMany).toHaveBeenCalledWith({
       where: { transactionId: "tx-1", storeId: "store-1", status: { in: ["PENDING", "CONFIRMED"] } },
-      data: { status: "CANCELLED", cancelledAt: expect.any(Date) },
+      data: { status: "CANCELLED", cancelledAt: expect.any(Date), updatedAt: expect.any(Date) },
     });
     expect(tx.product.updateMany).toHaveBeenCalledTimes(1);
     expect(tx.productStockGroup.updateMany).toHaveBeenCalledTimes(1);

@@ -41,6 +41,7 @@ type JournalRow = {
   reason: string | null;
   note: string | null;
   quantity: number;
+  unitCost?: Prisma.Decimal | null;
   stockGroupIdSnapshot: string | null;
   unitMultiplierSnapshot: number | null;
   stockBaseDelta: number | null;
@@ -605,11 +606,22 @@ export async function reverseTransaction(
       transactionId: transaction.id,
       action: input.action,
     },
-    select: { id: true },
+    select: { id: true, sequence: true },
+    orderBy: { sequence: "desc" },
   });
   if (existingAudit) {
     if (input.action === "VOID" && transaction.status === "VOIDED") return "ALREADY_VOIDED";
-    throw new TransactionReversalConflictError("Audit transaksi tidak konsisten. Perlu pemeriksaan manual.");
+    const lastRestore = input.action === "VOID"
+      ? await tx.transactionLifecycleAudit.findFirst({
+          where: { storeId: input.storeId, transactionId: transaction.id, action: "UNVOID" },
+          select: { sequence: true },
+          orderBy: { sequence: "desc" },
+        })
+      : null;
+    if (!lastRestore || typeof lastRestore.sequence !== "bigint" || typeof existingAudit.sequence !== "bigint" ||
+        lastRestore.sequence <= existingAudit.sequence) {
+      throw new TransactionReversalConflictError("Audit transaksi tidak konsisten. Perlu pemeriksaan manual.");
+    }
   }
 
   if (input.action === "VOID") {
@@ -833,6 +845,7 @@ export async function reverseTransaction(
       type: row.type,
       reason: row.reason,
       quantity: row.quantity,
+      unitCost: row.unitCost ?? null,
       stockGroupIdSnapshot: row.stockGroupIdSnapshot,
       unitMultiplierSnapshot: row.unitMultiplierSnapshot,
       stockBaseDelta: row.stockBaseDelta,
@@ -848,6 +861,7 @@ export async function reverseTransaction(
       type: row.type,
       reason: row.reason,
       quantity: row.quantity,
+      unitCost: row.unitCost ?? null,
       note: row.note,
     })),
     stockReturns: returns,
@@ -865,13 +879,14 @@ export async function reverseTransaction(
     });
     if (result.count !== 1) throw new TransactionReversalConflictError();
     if (shipments.length > 0) {
+      const cancelledAt = new Date();
       await tx.suratJalan.updateMany({
         where: {
           transactionId: transaction.id,
           storeId: input.storeId,
           status: { in: ["PENDING", "CONFIRMED"] },
         },
-        data: { status: "CANCELLED", cancelledAt: new Date() },
+        data: { status: "CANCELLED", cancelledAt, updatedAt: cancelledAt },
       });
     }
   } else {
