@@ -68,6 +68,8 @@ export type ExpenseListItem = {
   recordedBy: { id: string; name: string };
   recognitionKind?: "manual" | "transfer" | "giro_payment" | "giro_due" | "overpayment" | "correctionOutflow";
   paymentSource?: ExpensePaymentSource;
+  paidAt?: string;
+  paidMethod?: "GIRO" | "TRANSFER";
   allocation?: { scheduleId: string; dueDate: string | null; source: "stored" | "automatic" | null };
 };
 

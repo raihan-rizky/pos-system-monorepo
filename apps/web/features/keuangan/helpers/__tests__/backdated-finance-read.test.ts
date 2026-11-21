@@ -93,9 +93,9 @@ describe("pembacaan keuangan belanja terdahulu", () => {
   afterEach(() => vi.useRealTimers());
 
   it.each([
-    ["2026-11-09T16:59:59.999Z", 2_000_000, ["giro_payment"]],
-    ["2026-11-09T17:00:00.000Z", 6_000_000, ["giro_payment", "giro_due"]],
-  ])("menyelaraskan pengakuan dan kas belanja terdahulu pada %s", async (now, expected, kinds) => {
+    ["2026-11-09T16:59:59.999Z", 0, [], 2_000_000],
+    ["2026-11-09T17:00:00.000Z", 10_000_000, ["giro_payment", "giro_payment", "giro_due"], 6_000_000],
+  ])("mengikuti tanggal jatuh tempo di Keuangan untuk belanja terdahulu pada %s", async (now, expected, kinds, journalExpense) => {
     vi.setSystemTime(new Date(now));
     const listResponse = await getExpenseList(new Request("http://localhost/api/finance/expenses?month=2026-11"));
     const summaryResponse = await getExpenseSummary(new Request("http://localhost/api/finance/expenses/summary?month=2026-11"));
@@ -113,12 +113,12 @@ describe("pembacaan keuangan belanja terdahulu", () => {
     expect(list.data.every((row: { source: unknown }) => JSON.stringify(row.source) === JSON.stringify({ type: "BACKDATED_PURCHASE", id: "purchase-1", number: "GIRO-123" }))).toBe(true);
     expect(summary.monthlyTotal).toBe(expected);
     // Journal expenses are represented as negative amounts.
-    expect(journal.footer.totalPengeluaran).toBe(-expected);
-    expect(report.summary.expenseTotal).toBe(expected);
+    expect(journal.footer.totalPengeluaran).toBe(-journalExpense);
+    expect(report.summary.expenseTotal).toBe(journalExpense);
     expect(monthly.expenses).toEqual([]);
     expect(monthly.purchaseExpenses).toEqual([expect.objectContaining({ amount: 10000000, date: "2026-11-10", purchase: expect.objectContaining({ reference: "GIRO-123", method: "GIRO" }) })]);
     expect(monthly.giroPayments).toEqual([expect.objectContaining({ amount: 2000000, date: "2026-11-02" })]);
     expect(monthly.supplierDebtBalance).toBe(4000000);
-    expect(assistant.summary.expenseTotal).toBe(expected);
+    expect(assistant.summary.expenseTotal).toBe(journalExpense);
   });
 });

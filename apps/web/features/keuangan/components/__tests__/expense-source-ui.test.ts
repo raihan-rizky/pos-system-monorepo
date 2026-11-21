@@ -18,5 +18,8 @@ describe("halaman Keuangan membedakan sumber pengeluaran", () => {
     expect(content).toContain("isAutomaticExpense");
     expect(content).toContain("getExpenseCorrectionActions(item, canPerform)");
     expect(content).toContain("<ExpenseCorrectionPanel");
+    expect(content).toContain("giro jatuh tempo ${fullDay(item.allocation.dueDate)}");
+    expect(content).toContain('item.paidMethod === "TRANSFER" ? "Transfer" : "Pembayaran giro"');
+    expect(content).toContain("tercatat {fullDay(item.paidAt)}");
   });
 });
