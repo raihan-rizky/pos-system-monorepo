@@ -1,11 +1,13 @@
 import { netInitialPayments } from '@/features/customer-debt/helpers/net-initial-payments';
 import { normalizeExpenseCategoryName } from '@/features/keuangan/helpers/category-meta';
+import { isManualExpenseReportCategory, isManualReceiptReportCategory, type ManualExpenseReportCategory, type ManualReceiptReportCategory } from '@/features/keuangan/helpers/manual-report-categories';
 import { allocateIncomePaymentItems, incomeClassification, incomeItemClassification, type IncomeItem } from './income-categories';
 import type { IncomeGroup, MonthlyExpense, MonthlyFinancialReport, MonthlyGiroPayment, MonthlySupplierDebt } from './monthly-report-types';
+import type { buildManualPayableReport } from './manual-payable-report';
 
 export type MonthlyPeriod = { from: string; to: string; start: Date; end: Date };
 type Money = unknown;
-type Payment = { id: string; method: string; amount: Money; createdAt: Date };
+type Payment = { id: string; method: string; amount: Money; createdAt: Date; paidAt?: Date | null };
 export type MonthlyTransactionInput = {
   id: string; invoiceNumber: string | null; invoiceDate: Date; createdAt: Date;
   status: string; paymentMethod: string; total: Money; amountPaid: Money; change: Money;
@@ -25,6 +27,7 @@ export type MonthlyExpenseInput = {
   hasMissingCostSnapshot?: boolean;
   applicantName?: string;
   manualPurchasePaymentMethod?: string | null;
+  reportCategory?: ManualExpenseReportCategory | null;
   purchaseAmountMismatch?: boolean;
   ambiguousPurchaseDueDates?: Date[];
   shoppingRequest?: { status: string; number?: string; deletion?: { previousStatus: string } | null } | null;
@@ -34,6 +37,7 @@ export type MonthlyExpenseInput = {
 };
 export type MonthlyManualReceivableInput = {
   id: string; debtDate: Date; dueDate: Date; amount: Money; note: string | null;
+  reportCategory?: ManualReceiptReportCategory | null;
   customer: { name: string }; payments: Payment[];
 };
 export type MonthlyManualIncomeInput = {
@@ -133,6 +137,7 @@ export function buildMonthlyReport(input: {
   expenses: MonthlyExpenseInput[]; manualReceivables: MonthlyManualReceivableInput[];
   manualIncome?: MonthlyManualIncomeInput[];
   backdatedPurchases?: MonthlyBackdatedPurchaseInput[];
+  manualPayableReport?: ReturnType<typeof buildManualPayableReport>;
 }): MonthlyFinancialReport {
   const { year, month, period } = input;
   const report: MonthlyFinancialReport = {
@@ -176,13 +181,19 @@ export function buildMonthlyReport(input: {
     });
   }
   for (const receivable of input.manualReceivables) {
-    const payments = uniquePayments(receivable.payments);
+    const payments = uniquePayments(receivable.payments).map(payment => ({ ...payment, createdAt: payment.paidAt ?? payment.createdAt }));
     const events = netInitialPayments(payments, { total: receivable.amount, amountPaid: payments.reduce((sum, payment) => sum + (payment.method === 'TEMPO' ? 0 : cents(payment.amount)), 0) / 100 });
     const reference = `Piutang manual ${receivable.id}`;
     const description = receivable.note || 'Penerimaan piutang manual';
+    const category = isManualReceiptReportCategory(receivable.reportCategory) ? receivable.reportCategory : null;
     for (const event of events) {
       if (event.amount <= 0 || !inPeriod(event.createdAt)) continue;
-      report.income.push({ id: `manual:${receivable.id}:${event.id}`, date: dateKey(event.createdAt), reference, description, amounts: allocateMonthlyIncome(event.amount, []), breakdown: [{ category: 'Belum ditentukan', subcategory: 'Belum ditentukan', amount: event.amount }] });
+      const classification = category === 'ATK' ? { category: 'ATK', subcategory: 'Piutang manual' }
+        : category ? incomeClassification({ transactionCategory: 'PERCETAKAN', printingSubcategory: category, items: [] })
+          : { category: 'Belum ditentukan', subcategory: 'Belum ditentukan' };
+      report.income.push({ id: `manual:${receivable.id}:${event.id}`, date: dateKey(event.createdAt), reference, description,
+        amounts: allocateMonthlyIncome(event.amount, category ? [{ group: category, amount: 1 }] : []),
+        breakdown: [{ ...classification, amount: event.amount }] });
     }
     if (calendarKey(receivable.debtDate) <= period.to) {
       const paid = events.filter(event => event.createdAt < period.end).reduce((sum, event) => sum + cents(event.amount), 0);
@@ -193,6 +204,7 @@ export function buildMonthlyReport(input: {
   const purchases: MonthlyExpense[] = [];
   const giroPayments: MonthlyGiroPayment[] = [];
   const backdatedDebts: MonthlySupplierDebt[] = [];
+  const manualTransferSegments = new Map(input.manualPayableReport?.transfers.map(transfer => [transfer.id, transfer.segments]) ?? []);
   for (const expense of [...new Map(input.expenses.map(row => [row.id, row])).values()]) {
     if (expense.backdatedPurchaseDueId || expense.backdatedPurchasePaymentId) continue;
     if (expense.deletedAt ||
@@ -218,8 +230,15 @@ export function buildMonthlyReport(input: {
       continue;
     }
     if (manualTransfer && !automatic) {
+      if (isManualExpenseReportCategory(expense.reportCategory)) row.group = expense.reportCategory;
       row.purchase = { reference: `Belanja manual ${expense.id}`, method: 'TRANSFER', dueDate: null, supplier: expense.applicantName || 'Tanpa nama penerima' };
-      if (inPeriod(expense.occurredAt)) purchases.push(row);
+      if (inPeriod(expense.occurredAt)) {
+        const segments = manualTransferSegments.get(expense.id);
+        if (segments) {
+          if (segments.reduce((sum, segment) => sum + segment.amountCents, 0) !== Math.round(row.amount * 100)) throw new Error('Alokasi transfer tidak sesuai dengan jumlah belanja.');
+          segments.forEach((segment, index) => purchases.push({ ...row, id: `${row.id}:allocation:${String(index).padStart(4, '0')}`, amount: segment.amountCents / 100, group: segment.category ?? 'OTHER' }));
+        } else purchases.push(row);
+      }
       continue;
     }
 
@@ -307,11 +326,16 @@ export function buildMonthlyReport(input: {
     const remaining = cents(amount) - paid;
     if (remaining > 0) backdatedDebts.push({ id, date: purchaseDate, dueDate, supplier, note: `Belanja terdahulu ${purchase.reference}`, amount: remaining / 100 });
   }
+  for (const payment of input.manualPayableReport?.payments ?? []) {
+    report.expenses.push({ id: `manual-payable:${payment.payableId}:${payment.id}`, date: payment.date,
+      description: `Pembayaran hutang ${payment.supplierName}`, amount: payment.amountCents / 100, group: payment.category ?? 'OTHER' });
+  }
+  if (input.manualPayableReport?.payments.some(payment => payment.category === null)) report.warnings.push('Sebagian pembayaran hutang belum memiliki kategori laporan; nilainya tetap masuk total.');
   report.supplierDebts = backdatedDebts;
   report.purchaseExpenses = purchases.sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   report.giroPayments = giroPayments.sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   if (report.income.some(row => row.amounts.UNMAPPED > 0)) report.warnings.push('Sebagian penerimaan perlu pemetaan kategori, termasuk piutang manual; nilainya tetap masuk total.');
-  if (purchases.length) report.warnings.push('Kategori belanja tanpa snapshot terverifikasi ditampilkan sebagai Lain-lain.');
+  if (purchases.some(purchase => purchase.group === 'OTHER')) report.warnings.push('Kategori belanja tanpa snapshot terverifikasi ditampilkan sebagai Lain-lain.');
   report.income.sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   report.expenses.sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   report.receivables.sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));

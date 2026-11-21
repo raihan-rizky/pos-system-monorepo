@@ -129,6 +129,8 @@ export function ProofImageUploader({
   required = false,
   disabled = false,
   onDelete,
+  detachOnly = false,
+  retainStoredFile = false,
 }: {
   context: ProofUploadContext;
   label: string;
@@ -137,6 +139,8 @@ export function ProofImageUploader({
   required?: boolean;
   disabled?: boolean;
   onDelete?: (url: string) => Promise<void>;
+  detachOnly?: boolean;
+  retainStoredFile?: boolean;
 }) {
   const { canPerform } = useRole();
   const [state, dispatch] = useReducer(
@@ -222,16 +226,17 @@ export function ProofImageUploader({
   };
 
   const previewUrl = getPrntScProxyUrl(value) ?? value;
-  const canDelete = Boolean(value) && canPerform("proof_upload", "delete");
+  const canDelete = Boolean(value) && (detachOnly || canPerform("proof_upload", "delete"));
+  const detachLabel = detachOnly || retainStoredFile;
 
   const handleDelete = async () => {
-    if (!value || !window.confirm("Hapus foto bukti ini? Tindakan ini tidak dapat dibatalkan.")) {
+    if (!value || !window.confirm(detachLabel ? "Lepaskan foto dari catatan ini? File foto tetap tersimpan." : "Hapus foto bukti ini? Tindakan ini tidak dapat dibatalkan.")) {
       return;
     }
     setDeleting(true);
     setDeleteError(null);
     try {
-      await (onDelete ? onDelete(value) : deleteUploadedProof(value));
+      if (!detachOnly) await (onDelete ? onDelete(value) : deleteUploadedProof(value));
       onChange("");
     } catch (error) {
       setDeleteError(
@@ -341,12 +346,12 @@ export function ProofImageUploader({
               className="absolute bottom-2 right-2 flex items-center gap-1 rounded-lg bg-danger-600 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm disabled:opacity-60"
             >
               {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-              {deleting ? "Menghapus..." : "Hapus foto"}
+              {deleting ? (detachLabel ? "Melepaskan..." : "Menghapus...") : (detachLabel ? "Lepaskan foto" : "Hapus foto")}
             </button>
           )}
         </div>
       )}
-      {deleteError && <p className="text-xs text-danger-700">{deleteError}</p>}
+      {deleteError && <p role="alert" className="text-xs text-danger-700">{deleteError}</p>}
     </div>
   );
 }

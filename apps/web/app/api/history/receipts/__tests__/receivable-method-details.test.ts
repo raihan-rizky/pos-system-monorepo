@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
-const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), income: vi.fn(), payments: vi.fn() }));
-vi.mock("@/lib/rbac/guard", () => ({ getCurrentUser: mocks.user }));
+const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), income: vi.fn(), payments: vi.fn(), receivables: vi.fn() }));
+vi.mock(import("@/lib/rbac/guard"), async original => ({ ...await original(), getCurrentUser: mocks.user }));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
 vi.mock("@pos/db", () => ({ db: {
   transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.income },
   customerReceivablePayment: { findMany: mocks.payments },
+  customerReceivable: { findMany: mocks.receivables },
 } }));
 import { GET } from "../route";
 
@@ -24,11 +25,16 @@ describe("rincian metode pembayaran piutang", () => {
       debtPaymentLogs: [{ id: "cicilan", paymentMethod: "TRANSFER", amount: 60_000, createdAt: new Date("2026-11-11T03:00:00Z") }],
     }] : [{ id: "nota-1", invoiceNumber: "INV-001" }]);
     mocks.income.mockResolvedValue([]);
-    mocks.payments.mockImplementation(async query => query.select?.receivable ? [
-      { id: "manual-1", receivableId: "r1", receivable: { id: "r1", customer: { name: "Pelanggan Contoh" } } },
-    ] : [
-      { id: "manual-1", receivableId: "r1", method: "TRANSFER", amount: 25_000, createdAt: new Date("2026-11-11T04:00:00Z") },
-      { id: "manual-2", receivableId: "r2", method: "CASH", amount: 10_000, createdAt: new Date("2026-11-11T04:00:00Z") },
+    mocks.receivables.mockResolvedValue([
+      { id: "r1", amount: 25_000, reportCategory: "ATK", payments: [
+        { id: "manual-1", method: "TRANSFER", amount: 25_000, paidAt: null, createdAt: new Date("2026-11-11T04:00:00Z") },
+      ] },
+      { id: "r2", amount: 10_000, reportCategory: "ATK", payments: [
+        { id: "manual-2", method: "CASH", amount: 10_000, paidAt: null, createdAt: new Date("2026-11-11T04:00:00Z") },
+      ] },
+    ]);
+    mocks.payments.mockResolvedValue([
+      { id: "manual-1", receivableId: "r1", receivable: { id: "r1", note: null, customer: { name: "Pelanggan Contoh" } } },
     ]);
   });
   afterEach(() => vi.useRealTimers());
@@ -41,7 +47,7 @@ describe("rincian metode pembayaran piutang", () => {
     expect(body.items).toEqual([expect.objectContaining({ invoiceNumber: "INV-001", amount: 60_000, isReceivableNota: true })]);
     expect(body.manualReceivableEntries).toEqual([expect.objectContaining({ id: "manual-1", customerName: "Pelanggan Contoh", amount: 25_000, methods: ["TRANSFER"] })]);
     expect(body.manualReceivableDetailsAvailable).toBe(true);
-    expect(mocks.payments.mock.calls[1][0].where).toMatchObject({ receivable: { storeId: "store-1" }, id: { in: ["manual-1"] } });
+    expect(mocks.payments.mock.calls[0][0].where).toMatchObject({ receivable: { storeId: "store-1" }, id: { in: ["manual-1"] } });
   });
 
   it.each(["permission", "page"])("tidak membocorkan identitas saat akses piutang manual %s dicabut", async denied => {
@@ -57,7 +63,8 @@ describe("rincian metode pembayaran piutang", () => {
     expect(body.manualReceivableEntries).toBeUndefined();
     expect(body.receiptTotal).toBe(85_000);
     expect(JSON.stringify(body)).not.toContain("Pelanggan Contoh");
-    expect(mocks.payments).toHaveBeenCalledOnce();
+    expect(mocks.receivables).toHaveBeenCalledOnce();
+    expect(mocks.payments).not.toHaveBeenCalled();
   });
 
   it("memakai izin Sales saat Owner membuka pratinjau", async () => {

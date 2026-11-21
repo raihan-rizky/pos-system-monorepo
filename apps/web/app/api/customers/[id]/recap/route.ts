@@ -149,7 +149,7 @@ export async function GET(
           amount: true,
           amountPaid: true,
           debtDate: true,
-          payments: { select: { amount: true, createdAt: true } },
+          payments: { select: { amount: true, createdAt: true, paidAt: true } },
         },
       }) : Promise.resolve([]),
     ]);

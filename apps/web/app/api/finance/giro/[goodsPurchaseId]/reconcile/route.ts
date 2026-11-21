@@ -2,14 +2,16 @@ import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { db } from '@pos/db';
 import { apiError } from '@/lib/api/responses';
-import { handleAuthError, requirePermission } from '@/lib/rbac/guard';
+import { authorizeInTransaction, handleAuthError, requirePermission } from '@/lib/rbac/guard';
 import { getLogger } from '@/lib/logger';
 import { jakartaToday, parseGiroReview } from '@/features/keuangan/helpers/supplier-payable-input';
+import { hasUnreviewedAutomaticSettlement } from '@/features/keuangan/helpers/payable-ledger';
+import { permitSystemPayablePayment } from '@/features/keuangan/services/payable-system-payment';
 
 const log = getLogger('api:finance:giro-review');
 type Purchase = { id: string; number: string; supplierName: string; amount: string; debtDate: string; dueDate: string | null };
-type Payable = { id: string; amount: string; debtDate: string; goodsPurchaseId: string | null; historyVerifiedAt: Date | null };
-type Payment = { amount: string; paidAt: string };
+type Payable = { id: string; amount: string; debtDate: string; dueDate: string | null; goodsPurchaseId: string | null; historyVerifiedAt: Date | null };
+type Payment = { amount: string; paidAt: string; allocated: boolean; origin: string };
 
 export async function POST(request: Request, context: { params: Promise<{ goodsPurchaseId: string }> }): Promise<Response> {
   try {
@@ -46,19 +48,28 @@ export async function POST(request: Request, context: { params: Promise<{ goodsP
       `;
       if (!purchase) return { error: 'not-found' as const };
       const [linked] = await tx.$queryRaw<Payable[]>`
-        SELECT "id", "amount"::text, "debtDate"::text, "goodsPurchaseId", "giroHistoryVerifiedAt" AS "historyVerifiedAt"
+        SELECT "id", "amount"::text, "debtDate"::text, "dueDate"::text, "goodsPurchaseId", "giroHistoryVerifiedAt" AS "historyVerifiedAt"
         FROM "pos_supplier_payables" WHERE "goodsPurchaseId" = ${goodsPurchaseId} AND "storeId" = ${user.storeId} FOR UPDATE
       `;
       if (linked?.historyVerifiedAt || (linked && input.payableId && input.payableId !== linked.id)) return { error: 'conflict' as const };
       let payable = linked;
       if (!payable && input.payableId) {
         [payable] = await tx.$queryRaw<Payable[]>`
-          SELECT "id", "amount"::text, "debtDate"::text, "goodsPurchaseId", "giroHistoryVerifiedAt" AS "historyVerifiedAt"
+          SELECT "id", "amount"::text, "debtDate"::text, "dueDate"::text, "goodsPurchaseId", "giroHistoryVerifiedAt" AS "historyVerifiedAt"
           FROM "pos_supplier_payables" WHERE "id" = ${input.payableId} AND "storeId" = ${user.storeId} FOR UPDATE
         `;
         if (!payable) return { error: 'not-found' as const };
         if (payable.goodsPurchaseId) return { error: 'conflict' as const };
       }
+      const manual = payable?.goodsPurchaseId === null;
+      if (!await authorizeInTransaction(tx, user, {
+        resources: [{ resource: 'expense.giro', action: 'update' }, ...(manual ? [
+          { resource: 'expense.payable', action: 'read' as const },
+          { resource: 'expense.payable.manual', action: 'update' as const },
+          { resource: 'expense.payable.manual.payment', action: 'update' as const },
+        ] : [])],
+        ...(manual ? { page: '/keuangan' } : {}),
+      })) return { error: 'forbidden' as const };
       if (payable && payable.debtDate > purchase.debtDate) return { error: 'date-conflict' as const };
       const debtDate = payable?.debtDate ?? purchase.debtDate;
       const amountCents = Math.round(Number(purchase.amount) * 100);
@@ -66,8 +77,12 @@ export async function POST(request: Request, context: { params: Promise<{ goodsP
         || (payable && Math.round(Number(payable.amount) * 100) !== amountCents)
         || input.payments.some(payment => payment.paidAt < debtDate)) return { error: 'invalid' as const };
       const previousPayments = payable ? await tx.$queryRaw<Payment[]>`
-        SELECT "amount"::text, "paidAt"::text FROM "pos_supplier_payable_payments" WHERE "payableId" = ${payable.id}
+        SELECT p."amount"::text, p."paidAt"::text, p."origin"::text AS "origin",
+          EXISTS (SELECT 1 FROM "pos_manual_transfer_allocations" a WHERE a."paymentId" = p."id") AS allocated
+        FROM "pos_supplier_payable_payments" p WHERE p."payableId" = ${payable.id}
       ` : [];
+      if (payable?.goodsPurchaseId === null && previousPayments.some(payment => payment.allocated)) return { error: 'allocation-conflict' as const };
+      if (payable?.goodsPurchaseId === null && hasUnreviewedAutomaticSettlement(payable, previousPayments, jakartaToday())) return { error: 'automatic-conflict' as const };
       if (payable) {
         if (!input.expectedPayments) return { error: 'invalid' as const };
         const previous = previousPayments.map(payment => `${payment.paidAt}:${Math.round(Number(payment.amount) * 100)}`).sort();
@@ -93,6 +108,7 @@ export async function POST(request: Request, context: { params: Promise<{ goodsP
           VALUES (${payableId}, ${user.storeId}, ${purchase.id}, NOW(), ${purchase.supplierName}, ${Number(purchase.amount)}, ${purchase.debtDate}::date, ${purchase.dueDate}::date, ${user.id})
         `;
       }
+      if (input.payments.length) await permitSystemPayablePayment(tx);
       for (const payment of input.payments) await tx.$executeRaw`
         INSERT INTO "pos_supplier_payable_payments" ("id", "payableId", "amount", "paidAt", "createdById")
         VALUES (${randomUUID()}, ${payableId}, ${payment.amount}, ${payment.paidAt}::date, ${user.id})
@@ -100,8 +116,11 @@ export async function POST(request: Request, context: { params: Promise<{ goodsP
       return { payableId };
     });
     if ('error' in result) {
+      if (result.error === 'forbidden') return apiError('Sesi pengguna berubah. Muat ulang dan coba lagi.', 403, { code: 'Forbidden' });
       if (result.error === 'not-found') return apiError('Giro atau hutang pemasok tidak ditemukan.', 404, { code: 'NotFound' });
       if (result.error === 'conflict') return apiError('Giro atau hutang ini sudah terhubung dan telah diperiksa.', 409, { code: 'Conflict' });
+      if (result.error === 'allocation-conflict') return apiError('Lepaskan alokasi transfer dari hutang ini sebelum menautkannya ke giro.', 409, { code: 'Conflict' });
+      if (result.error === 'automatic-conflict') return apiError('Periksa dan ubah pelunasan otomatis pada hutang manual sebelum menautkannya ke giro.', 409, { code: 'Conflict' });
       if (result.error === 'date-conflict') return apiError('Tanggal hutang yang dipilih lebih lambat dari tanggal penerimaan. Periksa kembali catatan hutang.', 409, { code: 'Conflict' });
       if (result.error === 'history-changed') return NextResponse.json({ message: 'Riwayat pembayaran telah berubah. Periksa kembali sebelum melanjutkan.', code: 'HistoryChanged' }, { status: 409 });
       return apiError('Nominal hutang atau riwayat pembayaran tidak sesuai. Periksa jumlah dan tanggalnya.', 422, { code: 'ValidationError' });

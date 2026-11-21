@@ -17,7 +17,7 @@ describe("income cash summary permissions", () => {
     mocks.income.mockResolvedValue({ days: [{ date: "2026-11-02", total: 170_000.25 }, { date: "2026-11-05", total: 30_000 }] });
   });
 
-  it("keeps transaction metrics and adds workbook cash income without expense details", async () => {
+  it("uses the shared receipt ledger for cash income without reading expense details", async () => {
     const response = await GET(new Request("http://localhost/api/finance/income/summary?month=2026-11"));
     expect(response.status).toBe(200);
     expect(mocks.permission).toHaveBeenCalledExactlyOnceWith("income", "read");

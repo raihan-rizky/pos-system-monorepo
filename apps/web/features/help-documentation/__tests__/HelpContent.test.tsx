@@ -306,7 +306,8 @@ describe('HelpContent', () => {
     expect(ownerHtml).not.toContain('Unggah Bukti (prnt.sc)');
     expect(cashierHtml).not.toContain('Unggah Gambar ke prnt.sc');
     expect(ownerHtml).toContain('dikompresi');
-    expect(ownerHtml).toContain('Hapus foto');
+    expect(ownerHtml).toContain('Lepaskan foto');
+    expect(ownerHtml).toContain('File foto pengeluaran tetap tersimpan');
     expect(ownerHtml).toContain('proof_upload');
   });
 

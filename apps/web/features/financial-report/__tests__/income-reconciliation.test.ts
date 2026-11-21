@@ -10,7 +10,7 @@ vi.mock("@/features/customer-debt/services/receivable-balance", () => ({
 }));
 vi.mock("@pos/db", () => ({ db: {
   transaction: { findMany: mocks.transactions, groupBy: async () => [], aggregate: async () => ({ _sum: { total: 0, amountPaid: 0 } }) },
-  manualIncome: { findMany: mocks.manual }, customerReceivablePayment: { findMany: mocks.receivablePayments }, transactionItem: { groupBy: async () => [] },
+  manualIncome: { findMany: mocks.manual }, customerReceivablePayment: { findMany: mocks.receivablePayments }, customerReceivable: { findMany: async () => [] }, transactionItem: { groupBy: async () => [] },
   product: { count: async () => 0, findMany: async () => [] }, $queryRaw: async () => [],
 } }));
 import { GET as sales } from "@/app/api/finance/report/daily/route";

@@ -10,6 +10,7 @@ export async function getFinancialExportAccess(request: Request): Promise<
     canReadTransactions: boolean;
     canReadExpenses: boolean;
     canReadCustomers: boolean;
+    canReadReceivables: boolean;
     canReadPurchases: boolean;
     canReadInventory: boolean;
   }
@@ -38,8 +39,11 @@ export async function getFinancialExportAccess(request: Request): Promise<
     canReadTransactions: canRoleAccessPage(role, "/history", permissions) && canRolePerformAction(role, "transaction", "read", permissions),
     canReadExpenses,
     canReadCustomers: canRolePerformAction(role, "customer", "read", permissions),
+    canReadReceivables: canRoleAccessPage(role, "/customers", permissions)
+      && canRolePerformAction(role, "customer", "read", permissions)
+      && canRolePerformAction(role, "customer.receivable", "read", permissions),
     canReadInventory: canRoleAccessPage(role, "/products", permissions) && canRolePerformAction(role, "product", "read", permissions),
-    canReadPurchases: canReadExpenses && canRolePerformAction(role, "supplier", "read", permissions)
+    canReadPurchases: canRoleAccessPage(role, "/keuangan", permissions) && canReadExpenses && canRolePerformAction(role, "supplier", "read", permissions)
       && canRolePerformAction(role, "expense.payable", "read", permissions)
       && canRolePerformAction(role, "expense.giro", "read", permissions),
   };

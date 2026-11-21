@@ -24,19 +24,27 @@ describe("supplier payable input", () => {
 
   const payable = {
     supplierName: "  Pemasok A  ", amount: "1000.50", debtDate: "2026-10-01",
-    dueDate: "", note: "  kertas  ", initialPayment: "", initialPaidAt: "",
+    dueDate: "", note: "  kertas  ", initialPayment: "", initialPaidAt: "", reportCategory: "ATK",
   };
 
   it("accepts a debt without an initial payment and trims its details", () => {
     expect(parsePayable(payable)).toEqual({
       supplierName: "Pemasok A", amount: 1000.5, debtDate: "2026-10-01",
-      dueDate: null, note: "kertas", initialPayment: null, initialPaidAt: null,
+      dueDate: null, note: "kertas", initialPayment: null, initialPaidAt: null, reportCategory: "ATK",
     });
   });
 
   it("accepts a partial payment on the debt date", () => {
     expect(parsePayable({ ...payable, initialPayment: "250.25", initialPaidAt: "2026-10-01" }))
       .toMatchObject({ amount: 1000.5, initialPayment: 250.25, initialPaidAt: "2026-10-01" });
+  });
+
+  it.each(["CETAK_PLAT", "SPANDUK", "ATK", "SALARY"])("accepts report category %s", (reportCategory) => {
+    expect(parsePayable({ ...payable, reportCategory })).toMatchObject({ reportCategory });
+  });
+
+  it.each([undefined, null, "", "LAIN_LAIN", "CETAK"])("rejects an absent or unknown report category %s", (reportCategory) => {
+    expect(parsePayable({ ...payable, reportCategory })).toBeNull();
   });
 
   it.each([

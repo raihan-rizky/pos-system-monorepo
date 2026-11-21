@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { notifyPermissionDenied } from "@/features/rbac/helpers/permission-denied";
+import type { ManualReceiptReportCategory } from "@/features/keuangan/helpers/manual-report-categories";
 
 export type ReceivablePaymentMethod = "CASH" | "DEBIT" | "CREDIT" | "QRIS" | "TRANSFER";
 export interface CustomerReceivable {
@@ -13,9 +14,11 @@ export interface CustomerReceivable {
   amountPaid: number | string;
   debtDate: string;
   dueDate: string;
+  reportCategory: ManualReceiptReportCategory | null;
   note: string | null;
   createdAt: string;
-  payments: { id: string; amount: number | string; method: ReceivablePaymentMethod; note: string | null; createdAt: string }[];
+  updatedAt?: string;
+  payments: { id: string; amount: number | string; method: ReceivablePaymentMethod; note: string | null; createdAt: string; paidAt?: string | null }[];
 }
 
 export interface ReceivableListParams {
@@ -68,7 +71,7 @@ function useReceivableMutation<T extends object>(getPath: (payload: T) => string
 }
 
 export function useCreateCustomerReceivable() {
-  return useReceivableMutation<{ customerId: string; amount: number; debtDate: string; dueDate: string; note?: string }>(() => "/api/customer-receivables");
+  return useReceivableMutation<{ customerId: string; amount: number; debtDate: string; dueDate: string; reportCategory: ManualReceiptReportCategory; note?: string }>(() => "/api/customer-receivables");
 }
 
 export function usePayCustomerReceivable(id: string) {

@@ -20,6 +20,9 @@ model User {
   storeId                             String?
   createdAt                           DateTime                        @default(now())
   updatedAt                           DateTime                        @updatedAt
+  manualTransferAttempts              ManualTransferAttempt[]
+  manualPayableAttempts               ManualPayableAttempt[]
+  manualPayableRequests               ManualPayableRequest[]
   batchOperations                     BatchOperation[]                @relation("created_batch_operations")
   undoneBatchOperations               BatchOperation[]                @relation("undone_batch_operations")
   shifts                              CashierShift[]
@@ -69,6 +72,10 @@ model Store {
   logoUrl                      String?
   createdAt                    DateTime                        @default(now())
   updatedAt                    DateTime                        @updatedAt
+  manualTransferAttempts       ManualTransferAttempt[]
+  manualPayableAttempts        ManualPayableAttempt[]
+  manualPayableRequests        ManualPayableRequest[]
+  managedProofObjects          ManagedProofObject[]
   brands                       Brand[]
   batchOperations              BatchOperation[]
   shifts                       CashierShift[]
@@ -116,6 +123,47 @@ model Store {
   notifications                Notification[]
 
   @@map("pos_stores")
+}
+
+model ManagedProofCleanupControl {
+  singleton Boolean @id @default(true)
+  enabled   Boolean @default(false)
+
+  @@map("pos_managed_proof_cleanup_control")
+}
+
+model ManagedProofObject {
+  id            String                  @id
+  storeId       String
+  accountId     String
+  bucket        String
+  objectKey     String
+  state         String
+  attempts      Int                     @default(0)
+  nextAttemptAt DateTime                @default(now()) @db.Timestamptz(6)
+  leaseId       String?
+  leaseUntil    DateTime?               @db.Timestamptz(6)
+  createdAt     DateTime                @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime                @default(now()) @db.Timestamptz(6)
+  deletedAt     DateTime?               @db.Timestamptz(6)
+  store         Store                   @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  references    ManagedProofReference[]
+
+  @@unique([accountId, bucket, objectKey])
+  @@index([state, nextAttemptAt, leaseUntil], map: "pos_managed_proof_cleanup_pending_idx")
+  @@map("pos_managed_proof_objects")
+}
+
+model ManagedProofReference {
+  objectId   String
+  sourceType String
+  sourceId   String
+  slot       String
+  createdAt  DateTime           @default(now()) @db.Timestamptz(6)
+  object     ManagedProofObject @relation(fields: [objectId], references: [id], onDelete: Restrict)
+
+  @@id([objectId, sourceType, sourceId, slot])
+  @@map("pos_managed_proof_references")
 }
 
 model Category {
@@ -262,10 +310,12 @@ model SupplierPayable {
   storeId      String
   goodsPurchaseId String?               @unique
   giroHistoryVerifiedAt DateTime?       @db.Timestamptz(6)
+  ledgerVersion BigInt                  @default(0)
   supplierName String
   amount       Decimal                  @db.Decimal(12, 2)
   debtDate     DateTime                 @db.Date
   dueDate      DateTime?                @db.Date
+  reportCategory ManualExpenseReportCategory?
   note         String?
   createdById  String
   createdAt    DateTime                 @default(now())
@@ -274,6 +324,7 @@ model SupplierPayable {
   payments     SupplierPayablePayment[]
   manualLinks  SupplierPayableManualLink[]
   creditApplications ExpenseSupplierCreditApplication[]
+  transferAllocations ManualTransferAllocation[]
 
   @@unique([id, storeId])
   @@index([storeId, debtDate])
@@ -300,17 +351,40 @@ model SupplierPayableManualLink {
   @@map("pos_supplier_payable_manual_links")
 }
 
+model PayablePaymentAttempt {
+  scope       String   @id
+  storeId     String
+  userId      String
+  payableId   String
+  resource    String
+  version     String
+  fingerprint String
+  cancelled   Boolean  @default(false)
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("pos_payable_payment_attempts")
+}
+
 model SupplierPayablePayment {
   id          String          @id
   payableId   String
   amount      Decimal         @db.Decimal(12, 2)
   paidAt      DateTime        @db.Date
+  origin      ManualPayablePaymentOrigin @default(MANUAL)
+  automaticKey String?        @unique
   createdById String
   createdAt   DateTime        @default(now())
   requestScope String?        @unique
   requestExpectedBalance Decimal? @db.Decimal(12, 2)
+  requestLedgerVersion String?
+  requestPayableId String?
+  requestAmount Decimal? @db.Decimal(12, 2)
+  requestPaidAt DateTime? @db.Date
+  requestResource String?
   payable     SupplierPayable @relation(fields: [payableId], references: [id], onDelete: Restrict)
+  transferAllocation ManualTransferAllocation?
 
+  @@unique([id, payableId], map: "pos_payable_payments_id_payable_key")
   @@index([payableId, paidAt])
   @@map("pos_supplier_payable_payments")
 }
@@ -664,6 +738,7 @@ model CustomerReceivable {
   amountPaid       Decimal                     @default(0) @db.Decimal(12, 2)
   debtDate         DateTime                    @db.Date
   dueDate          DateTime                    @db.Date
+  reportCategory   ManualReceiptReportCategory?
   note             String?
   createdById      String
   clientMutationId String                      @unique
@@ -687,6 +762,7 @@ model CustomerReceivablePayment {
   createdById      String
   clientMutationId String             @unique
   createdAt        DateTime           @default(now())
+  paidAt           DateTime?          @db.Date
   receivable       CustomerReceivable @relation(fields: [receivableId], references: [id], onDelete: Restrict)
 
   @@index([receivableId, createdAt])
@@ -2044,6 +2120,28 @@ enum ManualIncomeCategory {
   STEMPEL
 }
 
+enum ManualReceiptReportCategory {
+  CETAK
+  PLAT
+  STEMPEL
+  SPANDUK
+  ATK
+  PRINT
+}
+
+enum ManualExpenseReportCategory {
+  CETAK_PLAT
+  SPANDUK
+  ATK
+  SALARY
+}
+
+enum ManualPayablePaymentOrigin {
+  MANUAL
+  AUTO
+  CORRECTED_AUTO
+}
+
 model ManualIncome {
   id           String               @id @default(cuid())
   storeId      String
@@ -2112,6 +2210,11 @@ model Expense {
   category               ExpenseCategory
   customCategoryId       String?
   manualPurchasePaymentMethod String?
+  manualTransferFingerprint String?
+  manualTransferProofDeleteKey String?
+  manualTransferProofDeleteExpectedVersion DateTime?
+  manualTransferProofDeleteVersion DateTime?
+  reportCategory         ManualExpenseReportCategory?
   description            String?
   amount                 Decimal          @db.Decimal(12, 2)
   changeAmount           Decimal          @default(0) @db.Decimal(12, 2)
@@ -2134,7 +2237,9 @@ model Expense {
   backdatedPurchaseDue   BackdatedPurchase? @relation("backdated_purchase_due_expense", fields: [backdatedPurchaseDueId], references: [id], onDelete: Restrict)
   backdatedPurchasePayment BackdatedPurchasePayment? @relation("backdated_purchase_payment_expense", fields: [backdatedPurchasePaymentId], references: [id], onDelete: Restrict)
   customCategory         CustomExpenseCategory? @relation(fields: [customCategoryId, storeId], references: [id, storeId], onDelete: Restrict)
+  manualTransferAllocations ManualTransferAllocation[]
 
+  @@unique([id, storeId], map: "pos_expenses_id_store_key")
   @@index([storeId, occurredAt(sort: Desc)])
   @@index([storeId, deletedAt, occurredAt(sort: Desc)])
   @@index([occurredAt])
@@ -2145,6 +2250,66 @@ model Expense {
   @@index([deletedAt])
   @@index([transactionId])
   @@map("pos_expenses")
+}
+
+model ManualTransferAllocation {
+  id        String   @id @default(cuid())
+  storeId   String
+  expenseId String
+  payableId String
+  paymentId String   @unique
+  amount    Decimal  @db.Decimal(12, 2)
+  createdById String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  expense   Expense @relation(fields: [expenseId, storeId], references: [id, storeId], onDelete: Restrict, onUpdate: Restrict, map: "pos_manual_transfer_alloc_expense_fkey")
+  payable   SupplierPayable @relation(fields: [payableId, storeId], references: [id, storeId], onDelete: Restrict, onUpdate: Restrict, map: "pos_manual_transfer_alloc_payable_fkey")
+  payment   SupplierPayablePayment @relation(fields: [paymentId, payableId], references: [id, payableId], onDelete: Restrict, onUpdate: Restrict, map: "pos_manual_transfer_alloc_payment_fkey")
+
+  @@unique([paymentId, payableId], map: "pos_manual_transfer_alloc_payment_payable_key")
+  @@index([storeId, expenseId], map: "pos_manual_transfer_alloc_store_expense_idx")
+  @@map("pos_manual_transfer_allocations")
+}
+
+model ManualTransferAttempt {
+  id          String   @id
+  storeId     String
+  userId      String
+  body        String
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+  store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, userId, createdAt], map: "pos_manual_transfer_attempt_store_user_idx")
+  @@map("pos_manual_transfer_attempts")
+}
+
+model ManualPayableAttempt {
+  storeId     String
+  userId      String
+  version     String
+  key         String?
+  body        String?
+  completedAt DateTime?
+  store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([storeId, userId])
+  @@map("pos_manual_payable_attempts")
+}
+
+model ManualPayableRequest {
+  scope       String @id
+  fingerprint String
+  payableId   String
+  storeId     String
+  userId      String
+  store       Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, userId])
+  @@map("pos_manual_payable_requests")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.

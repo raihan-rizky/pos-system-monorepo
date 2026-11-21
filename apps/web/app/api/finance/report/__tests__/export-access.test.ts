@@ -4,20 +4,34 @@ import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), sales: vi.fn(), expenses: vi.fn(), manual: vi.fn(), report: vi.fn() }));
 vi.mock(import("@/lib/rbac/guard"), async original => ({ ...await original(), getCurrentUser: mocks.user, requirePermission: mocks.user }));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
-vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.sales }, expense: { findMany: mocks.expenses }, manualIncome: { findMany: mocks.manual } } }));
+vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.sales }, expense: { findMany: mocks.expenses }, manualIncome: { findMany: mocks.manual },
+  customerReceivable: { findMany: async () => [] }, $transaction: async (callback: (tx: unknown) => Promise<unknown>) => callback({ expense: { findMany: mocks.expenses }, supplierPayable: { findMany: async () => [] } }) } }));
 vi.mock("@/features/financial-report/services/monthly-report", () => ({ getMonthlyFinancialReport: mocks.report }));
 import { GET as journal } from "../journal/route";
 import { GET as monthly } from "../monthly/route";
+import { getFinancialExportAccess } from "@/features/financial-report/services/export-access";
 
 const endpoints = [
   { name: "jurnal", get: journal, url: "http://localhost/api/finance/report/journal?period=monthly" },
   { name: "bulanan", get: monthly, url: "http://localhost/api/finance/report/monthly?year=2026&month=9" },
 ];
 
+it("tidak membuka rincian hutang jika akses halaman Keuangan dicabut", async () => {
+  const permissions = buildDefaultRolePermissions();
+  grantMonthlySources(permissions, "ADMIN");
+  permissions.ADMIN.pages["/keuangan"] = false;
+  mocks.user.mockResolvedValue({ id: "admin", role: "ADMIN", storeId: "store-1" });
+  mocks.permissions.mockResolvedValue(permissions);
+  const access = await getFinancialExportAccess(new Request("http://localhost/api/finance/report/journal"));
+  expect(access).toMatchObject({ canReadPurchases: false });
+});
+
 function grantMonthlySources(permissions: ReturnType<typeof buildDefaultRolePermissions>, role: "ADMIN" | "SALES") {
   permissions[role].pages["/history"] = true;
   permissions[role].pages["/products"] = true;
-  for (const resource of ["transaction", "product", "customer", "expense", "supplier", "expense.payable", "expense.giro"] as const) {
+  permissions[role].pages["/customers"] = true;
+  permissions[role].pages["/keuangan"] = true;
+  for (const resource of ["transaction", "product", "customer", "customer.receivable", "expense", "supplier", "expense.payable", "expense.giro"] as const) {
     permissions[role].resources[resource].read = true;
   }
 }

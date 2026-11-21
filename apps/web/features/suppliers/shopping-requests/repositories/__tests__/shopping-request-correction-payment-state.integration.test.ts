@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { db } from "@pos/db";
+import { db, type Prisma } from "@pos/db";
+import { permitSystemPayablePayment } from "@/features/keuangan/services/payable-system-payment";
 import { loadCorrectionPaymentState } from "../shopping-request-correction-payment-state";
 import { applyCorrectionFinance, buildCorrectionFinancePlan } from "../shopping-request-correction-finance";
 import { GET as getGiro } from "@/app/api/finance/giro/route";
@@ -10,6 +11,8 @@ import { InventoryInboundReceiptRepository } from "@/features/inventory-manageme
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: async () => ({ id: userId, storeId }),
   requireRole: async () => ({ id: userId, storeId }),
+  authorizeInTransaction: async () => true,
+  canAuthenticatedUserAccessPage: async () => true,
   handleAuthError: () => null,
 }));
 
@@ -22,7 +25,7 @@ let next = 0;
 describe.skipIf(!enabled)("sumber pembayaran koreksi di PostgreSQL sementara", () => {
   beforeAll(async () => {
     const url = new URL(process.env.DATABASE_URL ?? "");
-    if (url.hostname !== "127.0.0.1" || url.port !== "55439" || url.pathname !== "/shopping_correction_test") {
+    if (url.hostname !== "127.0.0.1" || !(["55439", "15443"].includes(url.port)) || (url.port === "55439" ? url.pathname !== "/shopping_correction_test" : url.pathname !== "/shopping_fixture_isolated")) {
       throw new Error("Pengujian hanya boleh memakai database sementara khusus.");
     }
     await db.store.create({ data: { id: storeId, name: "Toko Uji Pembayaran" } });
@@ -30,6 +33,13 @@ describe.skipIf(!enabled)("sumber pembayaran koreksi di PostgreSQL sementara", (
   });
 
   afterAll(async () => { await db.$disconnect(); });
+
+  async function createPayableWithPayment(data: Prisma.SupplierPayableCreateArgs["data"]) {
+    return db.$transaction(async tx => {
+      await permitSystemPayablePayment(tx);
+      return tx.supplierPayable.create({ data });
+    });
+  }
 
   async function fixture(method: "TRANSFER" | "GIRO", amount: number) {
     const key = `${run}-${++next}`;
@@ -81,7 +91,8 @@ describe.skipIf(!enabled)("sumber pembayaran koreksi di PostgreSQL sementara", (
     });
     const body = await (await getGiro(new Request("http://localhost/api/finance/giro"))).json();
     expect(body.items.find((row: { goodsPurchaseId: string }) => row.goodsPurchaseId === purchaseId)).toMatchObject({ amount: 7000, paid: 0, remaining: 7000 });
-    const response = await paySupplier(new Request(`http://localhost/api/finance/supplier-payables/${payableId}/payments`, { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": randomUUID() }, body: JSON.stringify({ amount: 7000, paidAt: "2026-11-02", expectedBalance: 7000 }) }), { params: Promise.resolve({ id: payableId }) });
+    const giro = body.items.find((row: { goodsPurchaseId: string }) => row.goodsPurchaseId === purchaseId);
+    const response = await paySupplier(new Request(`http://localhost/api/finance/supplier-payables/${payableId}/payments`, { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": randomUUID() }, body: JSON.stringify({ amount: 7000, paidAt: "2026-11-02", expectedBalance: 7000, expectedLedgerVersion: giro.ledgerVersion }) }), { params: Promise.resolve({ id: payableId }) });
     expect(response.status).toBe(201);
     expect((await db.$transaction(tx => loadCorrectionPaymentState(tx, { storeId, purchaseId }))).paid).toBe("10000.00");
   });
@@ -115,7 +126,7 @@ describe.skipIf(!enabled)("sumber pembayaran koreksi di PostgreSQL sementara", (
     const paymentId = `stable-payment-${key}`;
     const source = { paymentId, sourceKind: "PAYABLE_PAYMENT" as const, amount: "300000.00", paidAt: "2026-10-03" };
     const allocation = { paymentId, sourceKind: "PAYABLE_PAYMENT" as const, amount: "300000.00", method: "GIRO" as const };
-    await db.supplierPayable.create({ data: { id: `stable-payable-${key}`, storeId, goodsPurchaseId: purchaseId, supplierName: "Pemasok Uji", amount: 1000000, debtDate: new Date("2026-10-01T00:00:00.000Z"), giroHistoryVerifiedAt: new Date(), createdById: userId, payments: { create: { id: paymentId, amount: 300000, paidAt: new Date("2026-10-03T00:00:00.000Z"), createdById: userId } } } });
+    await createPayableWithPayment({ id: `stable-payable-${key}`, storeId, goodsPurchaseId: purchaseId, supplierName: "Pemasok Uji", amount: 1000000, debtDate: new Date("2026-10-01T00:00:00.000Z"), giroHistoryVerifiedAt: new Date(), createdById: userId, payments: { create: { id: paymentId, amount: 300000, paidAt: new Date("2026-10-03T00:00:00.000Z"), createdById: userId } } });
     const before = await (await getGiro(new Request("http://localhost/api/finance/giro"))).json();
     expect(before.items.find((item: { goodsPurchaseId: string }) => item.goodsPurchaseId === purchaseId).payments)
       .toEqual([{ id: paymentId, amount: 300000, paidAt: "2026-10-03" }]);
@@ -130,7 +141,7 @@ describe.skipIf(!enabled)("sumber pembayaran koreksi di PostgreSQL sementara", (
     const source = { paymentId: expenseId, sourceKind: "TRANSFER_EXPENSE" as const, amount: "1000000.00", paidAt: "2026-10-02" };
     const allocation = { paymentId: expenseId, sourceKind: "TRANSFER_EXPENSE" as const, amount: "1000000.00", method: "GIRO" as const };
     await db.shoppingRequestCorrection.create({ data: { storeId, shoppingRequestId: requestId, actorId: userId, reason: "Koreksi", idempotencyKey: key, requestFingerprint: key, beforeSnapshot: {}, afterSnapshot: { paymentSnapshot: { sources: [source], allocations: [allocation] } }, preview: {}, allocations: { create: { ...allocation, sourceAmount: source.amount, paidAt: new Date("2026-10-02T00:00:00.000Z"), details: {} } } } });
-    await db.supplierPayable.create({ data: { id: `payable-${key}`, storeId, goodsPurchaseId: purchaseId, supplierName: "Pemasok Uji", amount: 700000, debtDate: new Date("2026-10-01T00:00:00.000Z"), giroHistoryVerifiedAt: new Date(), createdById: userId, payments: { create: { id: `payment-${key}`, amount: 200000, paidAt: new Date("2026-10-03T00:00:00.000Z"), createdById: userId } } } });
+    await createPayableWithPayment({ id: `payable-${key}`, storeId, goodsPurchaseId: purchaseId, supplierName: "Pemasok Uji", amount: 700000, debtDate: new Date("2026-10-01T00:00:00.000Z"), giroHistoryVerifiedAt: new Date(), createdById: userId, payments: { create: { id: `payment-${key}`, amount: 200000, paidAt: new Date("2026-10-03T00:00:00.000Z"), createdById: userId } } });
     const result = await db.$transaction((tx) => loadCorrectionPaymentState(tx, { storeId, purchaseId }));
     expect(result.sources).toEqual([source, { paymentId: `payment-${key}`, sourceKind: "PAYABLE_PAYMENT", amount: "200000.00", paidAt: "2026-10-03" }]);
     expect(result.allocations).toEqual([allocation, { paymentId: `payment-${key}`, sourceKind: "PAYABLE_PAYMENT", amount: "200000.00", method: "GIRO" }]);
@@ -170,6 +181,7 @@ describe.skipIf(!enabled)("sumber pembayaran koreksi di PostgreSQL sementara", (
     let paymentFinished = false;
     const payment = db.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "pos_supplier_payables" WHERE "id" = ${payableId} FOR UPDATE`;
+      await permitSystemPayablePayment(tx);
       await tx.supplierPayablePayment.create({ data: { id: `payment-${key}`, payableId, amount: 200000, paidAt: new Date("2026-10-03T00:00:00.000Z"), createdById: userId } });
       paymentFinished = true;
     }, { timeout: 15000 });
@@ -282,7 +294,7 @@ describe.skipIf(!enabled)("sumber pembayaran koreksi di PostgreSQL sementara", (
     const { requestId, purchaseId, key } = await fixture("GIRO", 1000000);
     const payableId = `payable-transfer-${key}`;
     const paymentId = `payment-transfer-${key}`;
-    await db.supplierPayable.create({ data: { id: payableId, storeId, goodsPurchaseId: purchaseId, supplierName: "Pemasok Uji", amount: 1000000, debtDate: new Date("2026-10-01T00:00:00.000Z"), giroHistoryVerifiedAt: new Date(), createdById: userId, payments: { create: { id: paymentId, amount: 300000, paidAt: new Date("2026-10-03T00:00:00.000Z"), createdById: userId } } } });
+    await createPayableWithPayment({ id: payableId, storeId, goodsPurchaseId: purchaseId, supplierName: "Pemasok Uji", amount: 1000000, debtDate: new Date("2026-10-01T00:00:00.000Z"), giroHistoryVerifiedAt: new Date(), createdById: userId, payments: { create: { id: paymentId, amount: 300000, paidAt: new Date("2026-10-03T00:00:00.000Z"), createdById: userId } } });
     const lines = [{ receivedQty: 7, unitPrice: "100000.00" }];
     await db.$transaction(async (tx) => {
       const state = await loadCorrectionPaymentState(tx, { storeId, purchaseId });
@@ -315,9 +327,11 @@ describe.skipIf(!enabled)("sumber pembayaran koreksi di PostgreSQL sementara", (
     });
     const purchase = await db.goodsPurchase.findUniqueOrThrow({ where: { id: purchaseId }, include: { supplierPayable: true } });
     const payableId = purchase.supplierPayable!.id;
+    const giroList = await (await getGiro(new Request("http://localhost/api/finance/giro"))).json();
+    const giro = giroList.items.find((row: { goodsPurchaseId: string }) => row.goodsPurchaseId === purchaseId);
     const request = new Request(`http://localhost/api/finance/supplier-payables/${payableId}/payments`, {
       method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": randomUUID() },
-      body: JSON.stringify({ amount: 400000, paidAt: "2026-10-03", expectedBalance: 400000 }),
+      body: JSON.stringify({ amount: 400000, paidAt: "2026-10-03", expectedBalance: 400000, expectedLedgerVersion: giro.ledgerVersion }),
     });
     const response = await paySupplier(request, { params: Promise.resolve({ id: payableId }) });
     expect(response.status).toBe(201);

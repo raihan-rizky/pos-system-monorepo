@@ -67,6 +67,10 @@ export async function GET(request: Request) {
     }
 
     const bounds = periodBounds(dateFrom, dateTo);
+    const manualPaymentBounds = { OR: [
+      { paidAt: { gte: new Date(`${dateFrom}T00:00:00Z`), lte: new Date(`${dateTo}T00:00:00Z`) } },
+      { paidAt: null, createdAt: bounds },
+    ] };
     const [customers, transactions, debtPaymentLogs, manualReceivables] = await Promise.all([
       db.customer.findMany({
         where: { storeId },
@@ -111,12 +115,12 @@ export async function GET(request: Request) {
         },
       }) : Promise.resolve([]),
       canViewReceivables ? db.customerReceivable.findMany({
-        where: { storeId, payments: { some: { createdAt: bounds } } },
+        where: { storeId, payments: { some: manualPaymentBounds } },
         select: {
           customerId: true,
           payments: {
-            where: { createdAt: bounds },
-            select: { amount: true, createdAt: true },
+            where: manualPaymentBounds,
+            select: { amount: true, createdAt: true, paidAt: true },
           },
         },
       }) : Promise.resolve([]),
@@ -130,6 +134,7 @@ export async function GET(request: Request) {
       debtPaymentLogs: [...debtPaymentLogs, ...manualReceivables.flatMap(
         (receivable) => receivable.payments.map((payment) => ({
           ...payment,
+          createdAt: payment.paidAt ?? payment.createdAt,
           customerId: receivable.customerId,
         })),
       )],

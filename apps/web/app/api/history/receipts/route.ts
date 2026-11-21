@@ -59,9 +59,15 @@ export async function GET(request: Request) {
     }
 
     const period = await loadIncomePeriod(user.storeId, mode === "outstanding-dp" ? toDate : fromDate, toDate);
+    const matchingAllocations = (row: (typeof period.contributions)[number]) => row.allocations.filter(part => {
+      if (category === "Piutang Manual") {
+        return row.source === "manual-receivable" && (!subcategory || subcategory === "Tanpa kategori" || part.subcategory === subcategory);
+      }
+      return (!category || part.category === category) && (!subcategory || part.subcategory === subcategory);
+    });
     const receiptTotal = mode === "receipt" ? period.contributions.reduce((sum, row) => {
       if (method && row.method !== method) return sum;
-      const allocations = row.allocations.filter(part => (!category || part.category === category) && (!subcategory || part.subcategory === subcategory));
+      const allocations = matchingAllocations(row);
       const cents = category || subcategory
         ? allocations.reduce((amount, part) => amount + Math.round(part.amount * 100), 0)
         : Math.round(row.amount * 100);
@@ -92,7 +98,7 @@ export async function GET(request: Request) {
     } else {
       for (const row of period.contributions) {
         if (method && row.method !== method) continue;
-        const allocations = row.allocations.filter(part => (!category || part.category === category) && (!subcategory || part.subcategory === subcategory));
+        const allocations = matchingAllocations(row);
         const cents = (category || subcategory) ? allocations.reduce((sum, part) => sum + Math.round(part.amount * 100), 0) : Math.round(row.amount * 100);
         if (cents <= 0) continue;
         if (row.source === "transaction" && row.transactionId) {
@@ -116,7 +122,7 @@ export async function GET(request: Request) {
     const [transactions, manual, receivablePayments] = await Promise.all([
       transactionIds.length ? db.transaction.findMany({ where: { storeId: user.storeId, id: { in: transactionIds } }, select: { id: true, invoiceNumber: true } }) : [],
       manualIds.length && access.manualDetails ? db.manualIncome.findMany({ where: { storeId: user.storeId, id: { in: manualIds }, deletedAt: null }, select: { id: true, description: true } }) : [],
-      receivablePaymentIds.length && access.manualReceivableDetails ? db.customerReceivablePayment.findMany({ where: { id: { in: receivablePaymentIds }, receivable: { storeId: user.storeId } }, select: { id: true, receivableId: true, receivable: { select: { customer: { select: { name: true } } } } } }) : [],
+      receivablePaymentIds.length && access.manualReceivableDetails ? db.customerReceivablePayment.findMany({ where: { id: { in: receivablePaymentIds }, receivable: { storeId: user.storeId } }, select: { id: true, receivableId: true, receivable: { select: { note: true, customer: { select: { name: true } } } } } }) : [],
     ]);
     const invoiceNumbers = new Map(transactions.map(row => [row.id, row.invoiceNumber]));
     const descriptions = new Map(manual.map(row => [row.id, row.description]));
@@ -129,7 +135,7 @@ export async function GET(request: Request) {
     })).sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
     const manualReceivableEntries = [...manualReceivableGroups.values()].filter(row => receivableDetails.has(row.id)).map(row => {
       const detail = receivableDetails.get(row.id)!;
-      return { id: row.id, receivableId: detail.receivableId, customerName: detail.receivable.customer.name, date: row.date, amount: row.cents / 100, methods: access.method ? [...row.methods] : [] };
+      return { id: row.id, receivableId: detail.receivableId, customerName: detail.receivable.customer.name, description: detail.receivable.note, date: row.date, amount: row.cents / 100, methods: access.method ? [...row.methods] : [], ...breakdown(row) };
     }).sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
     const dailySummary = mode === "receipt" && fromDate === toDate && !category && !subcategory && !method && access.total
       ? period.days[0] : undefined;

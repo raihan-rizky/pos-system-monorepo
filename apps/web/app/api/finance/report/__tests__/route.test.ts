@@ -20,6 +20,9 @@ const cashierShiftFindManyMock = vi.hoisted(() => vi.fn());
 const inventoryLogFindManyMock = vi.hoisted(() => vi.fn());
 const expenseAggregateMock = vi.hoisted(() => vi.fn());
 const expenseCountMock = vi.hoisted(() => vi.fn());
+const expenseFindManyMock = vi.hoisted(() => vi.fn());
+const payableFindManyMock = vi.hoisted(() => vi.fn());
+const receivableFindManyMock = vi.hoisted(() => vi.fn());
 const manualIncomeFindManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
@@ -41,6 +44,10 @@ vi.mock("@/features/customer-debt/services/receivable-balance", () => ({
 
 vi.mock("@pos/db", () => ({
   db: {
+    $transaction: async (callback: (tx: unknown) => Promise<unknown>) => callback({
+      expense: { aggregate: expenseAggregateMock, count: expenseCountMock, findMany: expenseFindManyMock },
+      supplierPayable: { findMany: payableFindManyMock },
+    }),
     manualIncome: { findMany: manualIncomeFindManyMock },
     transaction: {
       findMany: transactionFindManyMock,
@@ -57,7 +64,10 @@ vi.mock("@pos/db", () => ({
     expense: {
       aggregate: expenseAggregateMock,
       count: expenseCountMock,
+      findMany: expenseFindManyMock,
     },
+    supplierPayable: { findMany: payableFindManyMock },
+    customerReceivable: { findMany: receivableFindManyMock },
   },
 }));
 
@@ -78,6 +88,9 @@ describe("GET /api/finance/report", () => {
       _count: { _all: 0 },
     });
     expenseCountMock.mockResolvedValue(0);
+    expenseFindManyMock.mockResolvedValue([]);
+    payableFindManyMock.mockResolvedValue([]);
+    receivableFindManyMock.mockResolvedValue([]);
     globalRolePermissionsMock.mockResolvedValue({});
     canRolePerformActionMock.mockImplementation(() => false);
     loadReceivableBalanceMock.mockReset();
@@ -274,6 +287,35 @@ describe("GET /api/finance/report", () => {
     expect(body.summary.expenseEntryCount).toBe(2);
     expect(body.summary.incompleteExpenseCount).toBe(1);
     expect(body.summary.estimatedNetProfit).toBe(-30000);
+  });
+
+  it("menghitung pelunasan otomatis dan transfer beberapa hutang tepat satu kali", async () => {
+    expenseAggregateMock.mockResolvedValue({ _sum: { amount: 350, changeAmount: 0 }, _count: { _all: 1 } });
+    const payment = (id: string, amount: number) => ({ id, amount, paidAt: new Date("2026-11-05T00:00:00Z"), origin: "MANUAL" });
+    const debt = (id: string, amount: number, reportCategory: string, payments: unknown[], dueDate: Date | null = null) => ({ id, storeId: "store-main", supplierName: id, amount, debtDate: new Date("2026-11-01T00:00:00Z"), dueDate, reportCategory, note: null, payments });
+    payableFindManyMock.mockResolvedValue([
+      debt("a", 100, "ATK", [payment("p-a", 100)]), debt("b", 200, "SPANDUK", [payment("p-b", 200)]),
+      debt("c", 600, "ATK", [], new Date("2026-11-05T00:00:00Z")),
+    ]);
+    expenseFindManyMock.mockResolvedValue([{ id: "transfer", storeId: "store-main", amount: 350, changeAmount: 0,
+      occurredAt: new Date("2026-11-05T03:00:00Z"), reportCategory: "CETAK_PLAT", manualTransferAllocations: [
+        { paymentId: "p-a", payableId: "a", amount: 100 }, { paymentId: "p-b", payableId: "b", amount: 200 },
+      ] }]);
+    const response = await GET(new NextRequest("http://localhost/api/finance/report?dateFrom=2026-11-05&dateTo=2026-11-05"));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.summary.expenseTotal).toBe(950);
+    expect(body.summary.expenseEntryCount).toBe(2);
+  });
+
+  it("menambahkan pembayaran piutang manual ke penerimaan tanpa menambah penjualan", async () => {
+    receivableFindManyMock.mockResolvedValue([{ id: "r1", amount: 100, reportCategory: "ATK", note: null, customer: { name: "Pelanggan" },
+      payments: [{ id: "p1", amount: 100, method: "TRANSFER", paidAt: new Date("2026-11-05T00:00:00Z"), createdAt: new Date("2026-11-06T04:00:00Z") }] }]);
+    const response = await GET(new NextRequest("http://localhost/api/finance/report?dateFrom=2026-11-05&dateTo=2026-11-05"));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.summary).toMatchObject({ collected: 100, revenue: 0, transactionCount: 0 });
+    expect(body.paymentMethods).toEqual(expect.arrayContaining([expect.objectContaining({ method: "TRANSFER", collected: 100, revenue: 0 })]));
   });
 
   it("rejects invalid date ranges before querying the database", async () => {

@@ -11,7 +11,7 @@ export function getExpenseCorrectionActions(
   { source, paymentSource }: Pick<ExpenseListItem, "source" | "paymentSource">,
   canPerform: (resource: string, action: "update" | "delete") => boolean,
 ): ExpenseCorrectionAction[] {
-  if (source.type === "MANUAL" || source.type === "MANUAL_TRANSFER_PURCHASE") return [];
+  if (!("id" in source)) return [];
   const purchase = { type: source.type, id: source.id };
   const actions: ExpenseCorrectionAction[] = [];
   function collect(subject: ExpenseCorrectionSubject, label: string) {

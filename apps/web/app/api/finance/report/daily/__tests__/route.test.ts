@@ -57,6 +57,7 @@ describe("daily finance API", () => {
       expect(JSON.stringify(body)).not.toContain(field);
     }
     expect(mocks.manual.mock.calls[0][0].where).toMatchObject({ storeId: "store-1", deletedAt: null });
+    expect(JSON.stringify(mocks.customerReceivables.mock.calls[0][0].select)).not.toMatch(/customer|note/i);
   });
 
   it("keeps the initial payment and settlement on their actual receipt date when the invoice date differs", async () => {
@@ -117,7 +118,8 @@ describe("daily finance API", () => {
     expect(response.status).toBe(200);
     expect(body).toHaveProperty("outstandingDp", 60);
     expect(body).not.toHaveProperty("receivableBalance");
-    expect(mocks.customerReceivables).not.toHaveBeenCalled();
+    expect(mocks.customerReceivables).toHaveBeenCalledOnce();
+    expect(mocks.customerReceivables.mock.calls[0][0].select).not.toHaveProperty("amountPaid");
   });
 
   it.each(targets.map((target, index) => [target, sections[index]]))("returns only the independently granted section %s", async (target, section) => {

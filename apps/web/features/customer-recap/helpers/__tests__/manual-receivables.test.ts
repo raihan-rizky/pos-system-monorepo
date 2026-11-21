@@ -69,4 +69,19 @@ describe("manual receivables in customer recap", () => {
       runningDebtRemaining: 0, dpTransactionCount: 0,
     });
   });
+
+  it("uses the corrected calendar date for collections and settlement, retaining WIB dates for old payments", () => {
+    const recap = buildCustomerDetailRecap({
+      customer: { ...customer, totalDebt: 0 }, dateFrom: "2026-05-01", dateTo: "2026-05-03",
+      transactions: [], debtPaymentLogs: [], manualReceivables: [{
+        id: "r1", customerId: customer.id, amount: 100, amountPaid: 100, debtDate: new Date("2026-05-01T00:00:00Z"),
+        payments: [
+          { amount: 40, createdAt: new Date("2026-04-30T17:00:00Z"), paidAt: null },
+          { amount: 60, createdAt: new Date("2026-06-01T03:00:00Z"), paidAt: new Date("2026-05-01T00:00:00Z") },
+        ],
+      }],
+    });
+    expect(recap.summary).toMatchObject({ debtPaidInPeriod: 100, debtPaidOffInPeriod: 100, averagePaymentDays: 0 });
+    expect(recap.trend.points[0]).toMatchObject({ debtPaidOffAmount: 100, averagePaymentDays: 0 });
+  });
 });

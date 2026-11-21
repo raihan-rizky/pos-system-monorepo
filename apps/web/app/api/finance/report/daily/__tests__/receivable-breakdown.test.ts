@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
-const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transaction: vi.fn(), manual: vi.fn(), receivable: vi.fn(), payments: vi.fn() }));
-vi.mock("@/lib/rbac/guard", () => ({ getCurrentUser: mocks.user }));
+const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transaction: vi.fn(), manual: vi.fn(), receivable: vi.fn(), ledger: vi.fn() }));
+vi.mock("@/lib/rbac/guard", () => ({ getCurrentUser: mocks.user, handleAuthError: () => null }));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
 vi.mock("@pos/db", () => ({ db: {
   transaction: { findMany: mocks.transaction }, manualIncome: { findMany: mocks.manual },
-  customerReceivable: { findMany: mocks.receivable }, customerReceivablePayment: { findMany: mocks.payments },
+  customerReceivable: { findMany: (query: { select?: { payments?: unknown } }) => query.select?.payments ? mocks.ledger(query) : mocks.receivable(query) },
 } }));
 import { GET } from "../route";
 
@@ -18,7 +18,7 @@ describe("saldo piutang pada laporan harian", () => {
     mocks.transaction.mockImplementation(async query => query.select?.payments ? [] : [{ status: "COMPLETED", paymentMethod: "TEMPO", total: 300, amountPaid: 100 }]);
     mocks.manual.mockResolvedValue([]);
     mocks.receivable.mockResolvedValue([{ amount: 200, amountPaid: 50 }]);
-    mocks.payments.mockResolvedValue([]);
+    mocks.ledger.mockResolvedValue([]);
   });
   afterEach(() => vi.useRealTimers());
 

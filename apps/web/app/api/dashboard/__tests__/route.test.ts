@@ -12,6 +12,7 @@ const queryRawMock = vi.hoisted(() => vi.fn());
 const transactionItemGroupByMock = vi.hoisted(() => vi.fn());
 const manualIncomeFindManyMock = vi.hoisted(() => vi.fn());
 const customerReceivablePaymentFindManyMock = vi.hoisted(() => vi.fn());
+const receivableFindManyMock = vi.hoisted(() => vi.fn());
 const getGlobalRolePermissionsMock = vi.hoisted(() => vi.fn());
 const loadReceivableBalanceMock = vi.hoisted(() => vi.fn());
 
@@ -33,6 +34,7 @@ vi.mock("@pos/db", () => ({
     transactionItem: { groupBy: transactionItemGroupByMock },
     manualIncome: { findMany: manualIncomeFindManyMock },
     customerReceivablePayment: { findMany: customerReceivablePaymentFindManyMock },
+    customerReceivable: { findMany: receivableFindManyMock },
     product: { count: productCountMock, findMany: productFindManyMock },
     $queryRaw: queryRawMock,
   },
@@ -45,6 +47,7 @@ describe("GET /api/dashboard", () => {
     loadReceivableBalanceMock.mockResolvedValue(0);
     manualIncomeFindManyMock.mockResolvedValue([]);
     customerReceivablePaymentFindManyMock.mockResolvedValue([]);
+    receivableFindManyMock.mockResolvedValue([]);
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-09T04:00:00.000Z"));
     requirePermissionMock.mockResolvedValue({

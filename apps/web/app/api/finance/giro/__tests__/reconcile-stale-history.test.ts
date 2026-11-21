@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ permission: vi.fn(), authError: vi.fn(), query: vi.fn(), execute: vi.fn(), transaction: vi.fn() }));
 vi.mock('@pos/db', () => ({ db: { $transaction: mocks.transaction } }));
-vi.mock('@/lib/rbac/guard', () => ({ requirePermission: mocks.permission, handleAuthError: mocks.authError }));
+vi.mock('@/lib/rbac/guard', () => ({ requirePermission: mocks.permission, canAuthenticatedUserAccessPage: async () => true, authorizeInTransaction: async () => true, handleAuthError: mocks.authError }));
 vi.mock('@/lib/logger', () => ({ getLogger: () => ({ error: vi.fn() }) }));
 import { POST } from '../[goodsPurchaseId]/reconcile/route';
 
@@ -56,7 +56,7 @@ describe('reconcile checks the history displayed to the user', () => {
       { amount: '5000', paidAt: '2026-10-12' }, { amount: '10000', paidAt: '2026-10-15' }, { amount: '10000.00', paidAt: '2026-10-15' },
     ]), context);
     expect(response.status).toBe(201);
-    expect(mocks.execute).toHaveBeenCalledTimes(2);
+    expect(mocks.execute).toHaveBeenCalledTimes(3);
   });
 
   it('detects a same-total history with different payment dates', async () => {

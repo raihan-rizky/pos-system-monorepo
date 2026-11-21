@@ -3,11 +3,14 @@ import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 import * as XLSX from "xlsx-js-style";
 import { buildMonthlyWorkbook, serializeMonthlyWorkbook } from "@/features/financial-report/helpers/monthly-workbook";
 
-const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), sales: vi.fn(), expenses: vi.fn(), manual: vi.fn(), report: vi.fn() }));
+const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), sales: vi.fn(), expenses: vi.fn(), manual: vi.fn(), receivables: vi.fn(), report: vi.fn() }));
 vi.mock(import("@/lib/rbac/guard"), async original => ({ ...await original(), getCurrentUser: mocks.user }));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
 vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.sales }, expense: { findMany: mocks.expenses }, manualIncome: { findMany: mocks.manual } } }));
 vi.mock("@/features/financial-report/services/monthly-report", () => ({ getMonthlyFinancialReport: mocks.report }));
+vi.mock("@/features/financial-report/services/manual-payable-period", () => ({ withManualPayableSnapshot: async (_db: unknown, _store: string, _from: string, _to: string,
+  read: (tx: unknown) => Promise<unknown>) => ({ data: await read({ expense: { findMany: mocks.expenses } }), payables: { payments: [], transfers: [], balances: [] } }) }));
+vi.mock("@/features/financial-report/services/manual-receivable-period", () => ({ loadManualReceivablePeriod: mocks.receivables }));
 import { GET as journal } from "../journal/route";
 import { GET as monthly } from "../monthly/route";
 
@@ -32,9 +35,11 @@ function permissionsFor(role: "ADMIN" | "SALES", allowed: boolean) {
   const permissions = buildDefaultRolePermissions();
   permissions[role].pages["/financial-report"] = true;
   permissions[role].pages["/history"] = allowed;
+  permissions[role].pages["/keuangan"] = allowed;
   permissions[role].pages["/products"] = allowed;
   for (const resource of ["financial-report", "financial-report.export"] as const) permissions[role].resources[resource].read = true;
-  for (const resource of ["transaction", "expense", "customer", "supplier", "expense.payable", "expense.giro", "product"] as const) permissions[role].resources[resource].read = allowed;
+  for (const resource of ["transaction", "expense", "customer", "customer.receivable", "supplier", "expense.payable", "expense.giro", "product"] as const) permissions[role].resources[resource].read = allowed;
+  permissions[role].pages["/customers"] = allowed;
   permissions[role].resources.income.read = allowed;
   return permissions;
 }
@@ -45,7 +50,21 @@ beforeEach(() => {
   mocks.sales.mockResolvedValue([{ id: "private-sale", invoiceNumber: "INV-SECRET", transactionCategory: "ATK", printingSubcategory: null, printingReceipt: null, invoiceDate: new Date("2026-09-04T03:00:00Z"), salesName: "Sales Rahasia", salesperson: null, customerName: "Pelanggan Rahasia", paymentMethod: "CASH", status: "COMPLETED", amountPaid: 100, total: 100, items: [{ productName: "Produk Rahasia", subtotal: 100, product: { catalogSubcategory: { group: "ATK", name: "Umum" } } }] }]);
   mocks.expenses.mockResolvedValue([{ id: "private-expense", occurredAt: new Date("2026-09-04T04:00:00Z"), applicantName: "Pemohon Rahasia", category: "SUPPLIES", customCategory: null, description: "Catatan Rahasia", amount: 30, changeAmount: 0, hasMissingCostSnapshot: false, shoppingRequest: null, goodsPurchase: { number: "PB-SECRET" } }]);
   mocks.manual.mockResolvedValue([]);
+  mocks.receivables.mockResolvedValue([]);
   mocks.report.mockResolvedValue(report);
+});
+
+it("menyembunyikan rincian piutang di jurnal dan menolak ekspor bulanan saat izin piutang dicabut", async () => {
+  const permissions = permissionsFor("ADMIN", true);
+  permissions.ADMIN.resources["customer.receivable"].read = false;
+  mocks.permissions.mockResolvedValue(permissions);
+  mocks.receivables.mockResolvedValue([{ id: "receivable-secret", amount: 25, reportCategory: "ATK", note: "Piutang Rahasia", customer: { name: "Pelanggan Rahasia" },
+    payments: [{ id: "payment-secret", amount: 25, method: "CASH", paidAt: new Date("2026-09-04T00:00:00Z"), createdAt: new Date("2026-09-04T03:00:00Z") }] }]);
+  const journalBody = await (await journal(new Request(journalUrl))).json();
+  expect(JSON.stringify(journalBody)).not.toContain("Piutang Rahasia");
+  expect(JSON.stringify(journalBody)).not.toContain("receivable-secret");
+  expect(journalBody.footer.totalPemasukan).toBe(125);
+  expect((await monthly(new Request(monthlyUrl))).status).toBe(403);
 });
 
 describe.each(["admin", "sales", "preview"] as const)("rincian ekspor untuk %s", actor => {

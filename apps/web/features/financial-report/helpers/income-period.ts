@@ -1,4 +1,5 @@
 import { netInitialPayments } from "@/features/customer-debt/helpers/net-initial-payments";
+import { isManualReceiptReportCategory } from "@/features/keuangan/helpers/manual-report-categories";
 import type { DailyIncomeReport, DailyIncomeTransaction, DailyManualIncome, DailyReceivablePayment } from "./daily-income";
 import { allocateIncomePaymentItems, groupIncomeAllocations, incomeClassification, type IncomeCategory, type IncomeSubcategoryRow } from "./income-categories";
 
@@ -10,6 +11,7 @@ export type ReceiptContribution = {
   manualIncomeId: string | null;
   receivablePaymentId?: string;
   receivableId?: string;
+  manualReceivableId?: string;
   isReceivableNota?: boolean;
   method: string;
   amount: number;
@@ -18,7 +20,10 @@ export type ReceiptContribution = {
 
 export type OutstandingDpEntry = { transactionId: string; createdAt: Date; remaining: number };
 export type IncomePeriod = { days: DailyIncomeReport[]; contributions: ReceiptContribution[]; outstandingDp: OutstandingDpEntry[] };
-export type IncomePeriodInput = { fromDate: string; toDate: string; transactions: DailyIncomeTransaction[]; manualIncome: DailyManualIncome[]; manualReceivablePayments?: DailyReceivablePayment[] };
+export type IncomePeriodInput = { fromDate: string; toDate: string; transactions: DailyIncomeTransaction[]; manualIncome: DailyManualIncome[];
+  manualReceivablePayments?: DailyReceivablePayment[];
+  manualReceivables?: Array<{ id: string; amount: unknown; reportCategory: string | null;
+    payments: Array<{ id: string; method: string; amount: unknown; paidAt: Date | null; createdAt: Date }> }> };
 
 const dayMs = 86_400_000;
 const formatter = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" });
@@ -96,16 +101,35 @@ export function buildIncomePeriod(input: IncomePeriodInput): IncomePeriod {
     });
   }
 
+  const groupedPaymentIds = new Set((input.manualReceivables ?? []).flatMap(row => row.payments.map(payment => payment.id)));
   for (const row of unique(input.manualReceivablePayments ?? [])) {
+    if (groupedPaymentIds.has(row.id)) continue;
     if (row.createdAt.getTime() < start || row.createdAt.getTime() >= end || row.method === "TEMPO") continue;
     const amount = money(row.amount);
     if (amount <= 0) continue;
     contributions.push({
       id: `receivable:${row.id}`, date: dateKey(row.createdAt), source: "manual-receivable",
-      transactionId: null, manualIncomeId: null, receivablePaymentId: row.id, receivableId: row.receivableId,
+      transactionId: null, manualIncomeId: null, receivablePaymentId: row.id, receivableId: row.receivableId, manualReceivableId: row.receivableId,
       method: row.method, amount,
       allocations: [{ category: "Piutang Manual", subcategory: "Tanpa kategori", amount }],
     });
+  }
+
+  const seenPayments = new Set<string>();
+  for (const receivable of unique(input.manualReceivables ?? [])) {
+    const payments = unique(receivable.payments).map(payment => ({ ...payment, createdAt: payment.paidAt ?? payment.createdAt }));
+    const paid = payments.reduce((sum, payment) => sum + (payment.method === "TEMPO" ? 0 : Math.round(money(payment.amount) * 100)), 0) / 100;
+    const category = isManualReceiptReportCategory(receivable.reportCategory) ? receivable.reportCategory : null;
+    const classification = category === "ATK" ? { category: "ATK" as const, subcategory: "Piutang manual" }
+      : category ? incomeClassification({ transactionCategory: "PERCETAKAN", printingSubcategory: category, items: [] })
+        : { category: "Belum ditentukan" as const, subcategory: "Belum ditentukan" };
+    for (const payment of netInitialPayments(payments, { total: receivable.amount, amountPaid: paid })) {
+      if (seenPayments.has(payment.id) || payment.amount <= 0 || payment.createdAt.getTime() < start || payment.createdAt.getTime() >= end) continue;
+      seenPayments.add(payment.id);
+      contributions.push({ id: `receivable:${payment.id}`, date: dateKey(payment.createdAt), source: "manual-receivable",
+        transactionId: null, manualIncomeId: null, receivablePaymentId: payment.id, receivableId: receivable.id, manualReceivableId: receivable.id,
+        method: payment.method, amount: payment.amount, allocations: [{ ...classification, amount: payment.amount }] });
+    }
   }
 
   const days: DailyIncomeReport[] = [];

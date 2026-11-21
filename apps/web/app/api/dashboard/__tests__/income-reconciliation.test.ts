@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
-const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn(), receivablePayments: vi.fn() }));
+const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn(), receivablePayments: vi.fn(), receivables: vi.fn() }));
 vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.user, handleAuthError: () => null }));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
 vi.mock("@/features/customer-debt/services/receivable-balance", () => ({ loadReceivableBalance: async () => 0 }));
 vi.mock("@pos/db", () => ({ db: {
   transaction: { findMany: mocks.transactions, groupBy: async () => [], aggregate: async () => ({ _sum: { total: 100_000, amountPaid: 25_000 } }) },
-  manualIncome: { findMany: mocks.manual }, customerReceivablePayment: { findMany: mocks.receivablePayments }, transactionItem: { groupBy: async () => [] },
+  manualIncome: { findMany: mocks.manual }, customerReceivablePayment: { findMany: mocks.receivablePayments }, customerReceivable: { findMany: mocks.receivables }, transactionItem: { groupBy: async () => [] },
   product: { count: async () => 0, findMany: async () => [] }, $queryRaw: async () => [],
 } }));
 import { GET } from "../route";
@@ -31,6 +31,7 @@ describe("Dashboard berdasarkan penerimaan Sales", () => {
     mocks.transactions.mockImplementation(async query => query.select?.payments ? [oldInvoice, dp] : query.select?.invoiceDate ? [oldInvoice, dp] : []);
     mocks.manual.mockResolvedValue([{ id: "manual", occurredAt: new Date("2026-11-11T04:00:00Z"), category: "ATK", amount: 20_000, payments: [{ method: "CASH", amount: 10_000 }, { method: "TRANSFER", amount: 10_000 }] }]);
     mocks.receivablePayments.mockResolvedValue([]);
+    mocks.receivables.mockResolvedValue([]);
   });
   afterEach(() => { vi.useRealTimers(); if (originalTimezone === undefined) delete process.env.TZ; else process.env.TZ = originalTimezone; });
 
@@ -43,6 +44,17 @@ describe("Dashboard berdasarkan penerimaan Sales", () => {
     expect(body.totalOutstandingDP).toBe(75_000);
     expect(body.todayProfit).toBe(0);
     expect(body.monthlyProfit).toBe(140_000);
+  });
+
+  it("menghitung piutang manual berkategori pada tanggal pembayaran bersama pelunasan nota", async () => {
+    mocks.receivables.mockResolvedValue([{ id: "r1", amount: 25, reportCategory: "ATK", payments: [
+      { id: "p1", method: "CASH", amount: 25, paidAt: new Date("2026-11-11T00:00:00Z"), createdAt: new Date("2026-11-12T03:00:00Z") },
+    ] }]);
+    const body = await (await GET()).json();
+    expect(body.todayRevenue).toBe(80_025);
+    expect(body.monthlyRevenue).toBe(145_025);
+    expect(body.paymentMixToday).toEqual(expect.arrayContaining([{ method: "CASH", revenue: 10_025, transactionCount: 0 }, { method: "TRANSFER", revenue: 70_000, transactionCount: 0 }]));
+    expect(body.totalOutstandingDP).toBe(75_000);
   });
 
   it("tidak membuka nominal periode atau rincian metode untuk izin total harian saja", async () => {

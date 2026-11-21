@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   incomeMetricsOnly: null as unknown, expenseMetricsOnly: null as unknown,
   cashFlowEnabled: null as unknown, cashFlowError: false, cashFlowLoading: false,
   expenseRows: [] as Array<Record<string, unknown>>,
+  transferOldEdit: false, transferNewEdit: false,
 }));
 vi.mock("next/dynamic", () => ({ default: () => () => null }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams("month=2026-11") }));
@@ -22,7 +23,7 @@ vi.mock("@tanstack/react-query", () => ({
     refetch: vi.fn(),
   }),
 }));
-vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({ canAccess: () => true, canPerform: (resource: string, action: string) => action === "read" ? (resource === "income" ? state.incomePermission : state.expensePermission) : false }) }));
+vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({ canAccess: () => true, canPerform: (resource: string, action: string) => action === "read" ? (resource === "income" ? state.incomePermission : state.expensePermission) : action === "update" && resource === "expense.manual_transfer" ? state.transferOldEdit : action === "update" && resource === "expense.manual_transfer.edit" ? state.transferNewEdit : false }) }));
 vi.mock("@/features/ai-assistant/hooks/useAssistantModalAction", () => ({ useAssistantModalAction: () => {} }));
 vi.mock("@/features/keuangan/components/SupplierPayablesPanel", () => ({ SupplierPayablesPanel: () => null }));
 vi.mock("@/features/keuangan/components/DeferredCashFlowChart", () => ({ DeferredCashFlowChart: (props: unknown) => { state.chart = props; return null; } }));
@@ -56,7 +57,7 @@ vi.mock("@/features/keuangan/hooks/useKeuangan", () => ({
 import KeuanganDashboardPage from "@/app/(main)/keuangan/page";
 
 describe("ringkasan arus kas Keuangan", () => {
-  beforeEach(() => Object.assign(state, { incomplete: false, incomePermission: true, expensePermission: true, incomeError: false, expenseError: false, cashFlowError: false, cashFlowLoading: false, cashFlowEnabled: null, chart: null, expenseRows: [] }));
+  beforeEach(() => Object.assign(state, { incomplete: false, incomePermission: true, expensePermission: true, incomeError: false, expenseError: false, cashFlowError: false, cashFlowLoading: false, cashFlowEnabled: null, chart: null, expenseRows: [], transferOldEdit: false, transferNewEdit: false }));
 
   it("menampilkan pecahan rupiah pada riwayat agar nominal dapat dicocokkan", () => {
     state.expenseRows = [{ id: "decimal", applicantName: "Pemasok", category: "SUPPLIES", description: "Pembayaran",
@@ -76,6 +77,38 @@ describe("ringkasan arus kas Keuangan", () => {
     expect(html).toContain("PB-123");
     expect(html).toContain("Alokasi otomatis");
     expect(html).toContain("15 Des 2026");
+  });
+
+  it("hanya menampilkan aksi ubah transfer ketika kedua izin edit tersedia", () => {
+    state.expenseRows = [{ id: "e1", applicantName: "Pemasok", category: "SUPPLIES", amount: 1000, netAmount: 1000, changeAmount: 0, occurredAt: "2026-11-02T00:00:00Z", createdAt: "2026-11-02T00:00:00Z", description: "Kertas", source: { type: "MANUAL_TRANSFER_PURCHASE" }, recordedBy: { name: "Pengguna" } }];
+    state.transferOldEdit = true;
+    expect(renderToStaticMarkup(<KeuanganDashboardPage />)).not.toContain('aria-label="Aksi"');
+    state.transferNewEdit = true;
+    expect(renderToStaticMarkup(<KeuanganDashboardPage />)).toContain('aria-label="Aksi"');
+  });
+
+  it("menjelaskan pembayaran hutang sebagai baris otomatis dan komponen arus kas", () => {
+    state.expenseRows = [{ id: "manual-payable:2026-11-10:ATK", applicantName: "Pembayaran hutang manual",
+      category: "report:ATK", amount: 1000, netAmount: 1000, changeAmount: 0,
+      occurredAt: "2026-11-09T17:00:00Z", description: null, source: { type: "MANUAL_PAYABLE" },
+      recordedBy: { name: "Tidak dicatat" } }];
+    const html = renderToStaticMarkup(<KeuanganDashboardPage />);
+    expect(html).toContain("Pembayaran hutang manual");
+    expect(html).toContain("ATK");
+    expect(html).not.toContain('aria-label="Aksi"');
+    expect(html).toContain("Pembayaran hutang manual yang belum terhubung ke transfer");
+  });
+
+  it("menampilkan bagian kategori dan total transfer ketika kategori laporan dipilih", () => {
+    state.expenseRows = [{ id: "transfer", applicantName: "Pemasok", category: "SUPPLIES", amount: 100_000,
+      netAmount: 100_000, changeAmount: 0, occurredAt: "2026-11-02T00:00:00Z", description: "Transfer",
+      source: { type: "MANUAL_TRANSFER_PURCHASE" }, reportCategoryAmounts: { "report:ATK": 30_000, "report:SPANDUK": 70_000 },
+      recordedBy: { name: "Pengguna" } }];
+    const html = renderToStaticMarkup(<KeuanganDashboardPage />);
+    expect(html).toContain("ATK: Rp");
+    expect(html).toContain("30.000");
+    expect(html).toContain("Total transfer");
+    expect(html).toContain("100.000");
   });
 
   it("menggunakan satu snapshot untuk nilai bersih dan grafik ketika ringkasan terpisah berbeda", () => {

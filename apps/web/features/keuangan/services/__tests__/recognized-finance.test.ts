@@ -5,7 +5,8 @@ vi.mock("@pos/db", async (loadOriginal) => {
   const actual = await loadOriginal<typeof import("@pos/db")>();
   return { ...actual, db: { $transaction: (callback: (tx: unknown) => unknown) => callback({
     $queryRaw: async () => [],
-    expense: { findMany: mocks.expenses }, backdatedPurchase: { findMany: mocks.backdated },
+    expense: { findMany: (query: { select?: { manualTransferAllocations?: unknown } }) => query.select?.manualTransferAllocations ? Promise.resolve([]) : mocks.expenses(query) },
+    supplierPayable: { findMany: async () => [] }, backdatedPurchase: { findMany: mocks.backdated },
   }) } };
 });
 import * as finance from "../recognized-finance";

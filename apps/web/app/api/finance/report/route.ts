@@ -2,6 +2,8 @@ import { db } from "@pos/db";
 import { recognizedExpenseFilter } from "@/features/keuangan/helpers/recognized-expense-filter";
 import { findInitialCollections } from "@/features/financial-report/services/initial-collections";
 import { loadReceivableBalance } from "@/features/customer-debt/services/receivable-balance";
+import { withManualPayableSnapshot } from "@/features/financial-report/services/manual-payable-period";
+import { loadManualReceivablePeriod } from "@/features/financial-report/services/manual-receivable-period";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import { canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
@@ -133,12 +135,12 @@ export async function GET(request: Request) {
       transactions,
       shifts,
       inventoryLogs,
-      expenseAggregate,
-      incompleteExpenseCount,
+      expenseSnapshot,
       debtPayments,
       collectionTransactions,
       receivableBalance,
       manualIncome,
+      manualReceivables,
     ] = await Promise.all([
       db.transaction.findMany({
         where: {
@@ -220,7 +222,7 @@ export async function GET(request: Request) {
           createdAt: true,
         },
       }),
-      db.expense.aggregate({
+      withManualPayableSnapshot(db, storeId, dateFrom, dateTo, async tx => Promise.all([tx.expense.aggregate({
         where: {
           storeId,
           deletedAt: null,
@@ -229,8 +231,7 @@ export async function GET(request: Request) {
         },
         _sum: { amount: true, changeAmount: true },
         _count: { _all: true },
-      }),
-      db.expense.count({
+      }), tx.expense.count({
         where: {
           storeId,
           deletedAt: null,
@@ -238,7 +239,7 @@ export async function GET(request: Request) {
           ...recognizedExpenseFilter(),
           hasMissingCostSnapshot: true,
         },
-      }),
+      })])),
       db.debtPaymentLog.findMany({
         where: {
           storeId,
@@ -264,7 +265,11 @@ export async function GET(request: Request) {
         where: { storeId, deletedAt: null, occurredAt: dateBounds },
         select: { id: true, occurredAt: true, category: true, amount: true, payments: { select: { method: true, amount: true } } },
       }),
+      loadManualReceivablePeriod(db, storeId, dateFrom, dateTo),
     ]);
+
+    const [expenseAggregate, incompleteExpenseCount] = expenseSnapshot.data;
+    const manualPayables = expenseSnapshot.payables;
 
     return NextResponse.json(
       buildFinancialReport({
@@ -273,6 +278,7 @@ export async function GET(request: Request) {
         collectionTransactions,
         receivableBalance,
         manualIncome,
+        manualReceivables,
         transactions: transactions.map((transaction) => ({
           ...transaction,
           createdAt: transaction.invoiceDate,
@@ -312,9 +318,9 @@ export async function GET(request: Request) {
           createdAt: logRow.createdAt,
         })),
         expenseSummary: {
-          amount: toNumber(expenseAggregate._sum.amount),
+          amount: toNumber(expenseAggregate._sum.amount) + manualPayables.payments.reduce((sum, payment) => sum + payment.amountCents, 0) / 100,
           changeAmount: toNumber(expenseAggregate._sum.changeAmount),
-          entryCount: expenseAggregate._count._all,
+          entryCount: expenseAggregate._count._all + manualPayables.payments.length,
           incompleteCount: incompleteExpenseCount,
         },
         debtPayments: debtPayments.map((payment) => ({

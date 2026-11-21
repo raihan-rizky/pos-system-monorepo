@@ -6,7 +6,18 @@ const mocks = vi.hoisted(() => ({ history: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/features/transaction-history/hooks/useReceiptHistory", () => ({ useReceiptHistory: mocks.history }));
 
-describe("Riwayat penerimaan", () => {
+describe("Riwayat penerimaan", { timeout: 30_000 }, () => {
+  it("membedakan pembayaran piutang dari pemasukan manual lainnya", async () => {
+    mocks.history.mockReturnValue({ isLoading: false, error: null, data: { items: [], manualDetailsAvailable: true, manualReceivableDetailsAvailable: true,
+      manualEntries: [{ id: "income-1", description: "Pemasukan toko", date: "2026-11-10", amount: 50, methods: ["CASH"] }],
+      manualReceivableEntries: [{ id: "payment-1", receivableId: "receivable-1", customerName: "Pelanggan A", description: "Tagihan ATK", date: "2026-11-10", amount: 100, methods: ["TRANSFER"] }] } });
+    const component = await vi.importActual<{ ReceiptHistoryClient: React.ComponentType<{ context: object }> }>("../ReceiptHistoryClient");
+    const html = renderToStaticMarkup(createElement(component.ReceiptHistoryClient, { context: { mode: "receipt", date: "2026-11-10" } }));
+    expect(html).toContain("Pemasukan toko");
+    expect(html).toContain("Pelanggan A");
+    expect(html).toContain("Tagihan ATK");
+    expect(html).toContain("Piutang Manual · 2026-11-10 · TRANSFER");
+  });
   it("menampilkan tanggal pilihan, filter Harian dan pelunasan nota lama", async () => {
     mocks.history.mockReturnValue({ isLoading: false, error: null, data: { items: [{ transactionId: "old", invoiceNumber: "INV-OLD", date: "2026-11-10", amount: 60000, methods: ["TRANSFER"] }], manualDetailsAvailable: false } });
     const component = await vi.importActual<{ ReceiptHistoryClient: React.ComponentType<{ context: object }> }>("../ReceiptHistoryClient").catch(() => null);

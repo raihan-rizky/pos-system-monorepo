@@ -6,7 +6,7 @@ import { Button } from "@pos/ui";
 import { X } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
 import { useRole } from "@/components/providers/RoleProvider";
-import { GiroPaymentError, giroPaymentStorageKey, postGiroPayment, readPendingGiroPayment, type GiroPaymentScope, type PendingGiroPayment, type StorageLike, type WithLock } from "../helpers/giro-payment-request";
+import { GIRO_PAYMENT_CHANGE_EVENT, GiroPaymentError, giroPaymentStorageKey, listPendingGiroPayments, postGiroPayment, readGiroPaymentGeneration, readPendingGiroPayment, type GiroPaymentScope, type PendingGiroPayment, type StorageLike, type WithLock } from "../helpers/giro-payment-request";
 import { jakartaToday } from "../helpers/supplier-payable-input";
 import { GiroLinkDialog } from "./GiroLinkDialog";
 import { GiroSupplierCredit } from "./GiroSupplierCredit";
@@ -24,6 +24,7 @@ type Giro = {
   payableNote?: string | null;
   dueDate: string | null;
   payableId: string | null;
+  ledgerVersion?: string | null;
   status: "UNKNOWN" | "UNPAID" | "PARTIAL" | "PAID" | "OVERPAID";
   balanceIncludesOtherMethods?: boolean;
   historyIssue?: boolean;
@@ -66,14 +67,14 @@ async function responseJson<T>(response: Response): Promise<T> {
   return data as T;
 }
 
-export async function saveGiro(mode: "review" | "payment", item: Giro, values: { amount: string; paidAt: string; payableId: string | null; payments: DraftPayment[]; expectedPayments?: GiroPayment[]; historyComplete: boolean; expectedBalance?: string }, fetcher: typeof fetch = fetch, storage?: StorageLike, scope?: GiroPaymentScope, withLock?: WithLock, signal?: AbortSignal) {
+export async function saveGiro(mode: "review" | "payment", item: Giro, values: { amount: string; paidAt: string; payableId: string | null; payments: DraftPayment[]; expectedPayments?: GiroPayment[]; historyComplete: boolean; expectedBalance?: string; expectedLedgerVersion?: string; resource?: 'MANUAL' | 'GIRO'; expectedPendingKey?: string; expectedGeneration?: string | null }, fetcher: typeof fetch = fetch, storage?: StorageLike, scope?: GiroPaymentScope, withLock?: WithLock, signal?: AbortSignal) {
   if (mode === "payment" && !item.payableId) throw new Error("Hutang giro belum tersedia. Muat ulang daftar dan coba lagi.");
   if (mode === "payment") {
     if (!scope || scope.payableId !== item.payableId) throw new Error("Identitas pengguna atau toko belum tersedia. Muat ulang halaman dan coba lagi.");
     let target: StorageLike;
     try { target = storage ?? window.localStorage; }
     catch { throw new Error("Penyimpanan pembayaran tidak tersedia. Periksa pengaturan peramban."); }
-    await postGiroPayment(target, scope, { amount: values.amount, paidAt: values.paidAt, expectedBalance: Object.hasOwn(values, "expectedBalance") ? values.expectedBalance : String(item.remaining ?? 0) }, fetcher, undefined, withLock, signal);
+    await postGiroPayment(target, scope, { amount: values.amount, paidAt: values.paidAt, expectedBalance: Object.hasOwn(values, "expectedBalance") ? values.expectedBalance : String(item.remaining ?? 0), expectedLedgerVersion: Object.hasOwn(values, "expectedLedgerVersion") ? values.expectedLedgerVersion : item.ledgerVersion ?? undefined, resource: values.resource }, fetcher, undefined, withLock, signal, values.expectedPendingKey, values.expectedGeneration);
     return;
   }
   const url = `/api/finance/giro/${encodeURIComponent(item.goodsPurchaseId)}/reconcile`;
@@ -126,7 +127,7 @@ export function GiroReviewFields({ item, manualPayables, selectedPayableId, onSe
   </>;
 }
 
-export function GiroDialog({ item, mode, manualPayables, scope, initialPending, onPendingChange, onClose, onSaved, onRefreshReview }: { item: Giro; mode: "review" | "payment"; manualPayables: ManualPayable[]; scope: GiroPaymentScope | null; initialPending: PendingGiroPayment | null; onPendingChange: (value: PendingState) => void; onClose: () => void; onSaved: () => Promise<unknown>; onRefreshReview: () => Promise<GiroData> }) {
+export function GiroDialog({ item, mode, manualPayables, scope, initialPending, initialGeneration, onPendingChange, onClose, onSaved, onRefreshReview }: { item: Giro; mode: "review" | "payment"; manualPayables: ManualPayable[]; scope: GiroPaymentScope | null; initialPending: PendingGiroPayment | null; initialGeneration?: string | null; onPendingChange: (value: PendingState) => void; onClose: () => void; onSaved: () => Promise<unknown>; onRefreshReview: () => Promise<GiroData> }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const submitting = useRef(false);
   const active = useRef(false);
@@ -136,6 +137,7 @@ export function GiroDialog({ item, mode, manualPayables, scope, initialPending, 
   const [storageError, setStorageError] = useState<string | null>(null);
   const [balanceStale, setBalanceStale] = useState(false);
   const [expectedBalance, setExpectedBalance] = useState<string | undefined>(initialPending ? initialPending.expectedBalance : String(item.remaining ?? 0));
+  const [expectedLedgerVersion, setExpectedLedgerVersion] = useState<string | undefined>(initialPending ? initialPending.expectedLedgerVersion : item.ledgerVersion ?? undefined);
   const [amount, setAmount] = useState(initialPending?.amount ?? "");
   const [paidAt, setPaidAt] = useState(initialPending?.paidAt ?? jakartaToday());
   const [payableId, setPayableId] = useState<string | null>(item.payableId);
@@ -186,7 +188,7 @@ export function GiroDialog({ item, mode, manualPayables, scope, initialPending, 
       const scopedFetch: typeof fetch = (input, init) => active.current && requestController.current
         ? fetch(input, { ...init, signal: requestController.current.signal })
         : Promise.reject(new DOMException("Dialog ditutup.", "AbortError"));
-      await saveGiro(mode, mode === "review" ? reviewItem : item, { amount, paidAt, payableId, payments, expectedPayments, historyComplete, expectedBalance }, scopedFetch, undefined, scope ?? undefined, undefined, requestController.current?.signal);
+      await saveGiro(mode, mode === "review" ? reviewItem : item, { amount, paidAt, payableId, payments, expectedPayments, historyComplete, expectedBalance, expectedLedgerVersion, resource: pending ? pending.resource : "GIRO", expectedPendingKey: pending?.key, expectedGeneration: initialGeneration }, scopedFetch, undefined, scope ?? undefined, undefined, requestController.current?.signal);
       if (!active.current) return;
       if (mode === "payment") onPendingChange(null);
       await onSaved();
@@ -199,7 +201,7 @@ export function GiroDialog({ item, mode, manualPayables, scope, initialPending, 
         try {
           const next = readPendingGiroPayment(window.localStorage, scope);
           setPending(next); onPendingChange(next);
-          if (next) { setAmount(next.amount); setPaidAt(next.paidAt); setExpectedBalance(next.expectedBalance); }
+          if (next) { setAmount(next.amount); setPaidAt(next.paidAt); setExpectedBalance(next.expectedBalance); setExpectedLedgerVersion(next.expectedLedgerVersion); }
         } catch (storageCause) {
           const message = storageCause instanceof Error ? storageCause.message : "Penyimpanan pembayaran tidak tersedia.";
           setStorageError(message); onPendingChange({ error: message });
@@ -228,28 +230,34 @@ export function GiroDialog({ item, mode, manualPayables, scope, initialPending, 
   </dialog>;
 }
 
-export function GiroPanel({ canUpdate }: { canUpdate: boolean }) {
+export function GiroPanel({ canUpdate, canLinkManual = false, legacyPaymentIds = [] }: { canUpdate: boolean; canLinkManual?: boolean; legacyPaymentIds?: string[] }) {
   const { userId, storeId, authorizationFingerprint } = useRole();
-  const identity = JSON.stringify([userId, storeId, authorizationFingerprint, canUpdate]);
-  return <GiroPanelState key={identity} canUpdate={canUpdate} />;
+  const identity = JSON.stringify([userId, storeId, authorizationFingerprint, canUpdate, canLinkManual, legacyPaymentIds]);
+  return <GiroPanelState key={identity} canUpdate={canUpdate} canLinkManual={canLinkManual} legacyPaymentIds={legacyPaymentIds} />;
 }
 
-function GiroPanelState({ canUpdate }: { canUpdate: boolean }) {
+function GiroPanelState({ canUpdate, canLinkManual, legacyPaymentIds }: { canUpdate: boolean; canLinkManual: boolean; legacyPaymentIds: string[] }) {
   const queryClient = useQueryClient();
   const { userId, storeId, authorizationFingerprint } = useRole();
-  const [selection, setSelection] = useState<{ item: Giro; mode: "review" | "payment" } | null>(null);
+  const [selection, setSelection] = useState<{ item: Giro; mode: "review" | "payment"; initialPending?: PendingGiroPayment | null; initialGeneration?: string | null } | null>(null);
   const [linkItem, setLinkItem] = useState<Giro | null>(null);
   const [pendingById, setPendingById] = useState<Record<string, PendingState>>({});
   const list = useQuery({
     queryKey: ["finance", "giro", storeId, userId, authorizationFingerprint],
     enabled: Boolean(storeId && userId),
-    queryFn: async () => responseJson<GiroData>(await fetch("/api/finance/giro", { cache: "no-store" })),
+    queryFn: async () => {
+      let paymentGeneration: string | null | undefined;
+      try { paymentGeneration = readGiroPaymentGeneration(window.localStorage, { storeId: storeId! }); } catch { paymentGeneration = undefined; }
+      return { ...await responseJson<GiroData>(await fetch("/api/finance/giro", { cache: "no-store" })), paymentGeneration };
+    },
   });
   const items = list.data?.items;
 
   useEffect(() => {
     if (!items || !storeId || !userId) return;
-    const next: Record<string, PendingState> = {};
+    let next: Record<string, PendingState>;
+    try { next = listPendingGiroPayments(window.localStorage, { storeId, userId }); }
+    catch { next = {}; }
     for (const item of items) {
       if (!item.payableId) continue;
       try { next[item.payableId] = readPendingGiroPayment(window.localStorage, { storeId, userId, payableId: item.payableId }); }
@@ -261,6 +269,8 @@ function GiroPanelState({ canUpdate }: { canUpdate: boolean }) {
   useEffect(() => {
     if (!items || !storeId || !userId) return;
     const onStorage = (event: StorageEvent) => {
+      try { setPendingById(listPendingGiroPayments(window.localStorage, { storeId, userId })); }
+      catch { /* Individual items retain their existing storage error. */ }
       for (const item of items) {
         if (!item.payableId) continue;
         const scope = { storeId, userId, payableId: item.payableId };
@@ -271,15 +281,21 @@ function GiroPanelState({ canUpdate }: { canUpdate: boolean }) {
       }
     };
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    const onLocalChange = () => onStorage({ key: null } as StorageEvent);
+    window.addEventListener(GIRO_PAYMENT_CHANGE_EVENT, onLocalChange);
+    return () => { window.removeEventListener("storage", onStorage); window.removeEventListener(GIRO_PAYMENT_CHANGE_EVENT, onLocalChange); };
   }, [items, storeId, userId, queryClient]);
 
   function openPayment(item: Giro) {
     if (!item.payableId || !storeId || !userId) return;
     try {
-      const saved = readPendingGiroPayment(window.localStorage, { storeId, userId, payableId: item.payableId });
+      const scope = { storeId, userId, payableId: item.payableId };
+      const saved = readPendingGiroPayment(window.localStorage, scope);
+      const initialGeneration = list.data?.paymentGeneration;
+      if (!saved && initialGeneration === undefined) throw new Error("Status pembayaran belum tersedia. Muat ulang daftar dan coba lagi.");
       setPendingById(current => ({ ...current, [item.payableId!]: saved }));
-      setSelection({ item, mode: "payment" });
+      if (pendingById[item.payableId] && !saved) return;
+      setSelection({ item, mode: "payment", initialPending: saved, initialGeneration });
     } catch (cause) {
       setPendingById(current => ({ ...current, [item.payableId!]: { error: cause instanceof Error ? cause.message : "Penyimpanan pembayaran tidak tersedia." } }));
     }
@@ -289,12 +305,19 @@ function GiroPanelState({ canUpdate }: { canUpdate: boolean }) {
     <section aria-labelledby="giro-title" className="mt-5 border-t border-surface-200 pt-5">
       <h2 id="giro-title" className="text-sm font-semibold text-surface-900">Giro Pembelian</h2>
       <p className="mt-1 text-xs text-surface-600">Periksa riwayat dan catat pembayaran giro agar saldo dan arus kas sesuai.</p>
+      {canUpdate && Object.entries(pendingById).filter(([id, pending]) => pending && 'key' in pending && pending.resource !== 'MANUAL' && !items?.some(item => item.payableId === id)).map(([id, value]) => {
+        const pending = value as PendingGiroPayment;
+        const balance = Number(pending.expectedBalance ?? 0);
+        const missing: Giro = { goodsPurchaseId: '', number: 'Giro sebelumnya', supplierName: 'Pembayaran belum dipastikan', amount: balance, debtDate: null, dueDate: null, payableId: id, status: 'UNKNOWN', paid: null, remaining: balance, payments: [] };
+        return <div key={id} className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><p>Pembayaran {formatRupiah(Number(pending.amount))} pada {pending.paidAt} belum dipastikan.</p><button type="button" className="rounded-lg border border-amber-400 px-3 py-2 font-semibold focus-visible:outline-2 focus-visible:outline-brand-500" onClick={() => openPayment(missing)}>Pastikan pembayaran</button></div>;
+      })}
       {list.isLoading ? <p className="mt-4 text-sm text-surface-500" role="status">Memuat giro...</p> : list.isError ? <p className="mt-4 text-sm text-red-700" role="alert">Giro belum dapat dimuat. <button type="button" onClick={() => void list.refetch()} className="underline">Coba lagi</button></p> : !list.data?.items.length ? <p className="mt-4 text-sm text-surface-500">Belum ada giro pembelian.</p> : (
         <ul className="mt-3 divide-y divide-surface-100">
           {list.data.items.map(item => {
             const saved = item.payableId ? pendingById[item.payableId] : null;
             const pending = saved && "key" in saved ? saved : null;
             const storageError = saved && "error" in saved ? saved.error : null;
+            const hasLegacyPayment = Boolean(item.payableId && legacyPaymentIds.includes(item.payableId));
             return (
             <li key={item.goodsPurchaseId} className="flex flex-wrap items-start justify-between gap-3 py-3 text-sm">
               <div className="min-w-0">
@@ -312,15 +335,16 @@ function GiroPanelState({ canUpdate }: { canUpdate: boolean }) {
                 {typeof item.creditApplied === "number" && item.creditApplied > 0 &&
                   <p className="mt-1 text-xs text-surface-600">Kredit terpakai {formatRupiah(item.creditApplied)}</p>}
                 {item.historyIssue && <p className="mt-1 text-xs text-red-700">Riwayat pembayaran tidak sesuai. Hubungi pengelola untuk memeriksa data giro ini.</p>}
+                {hasLegacyPayment && <p role="status" className="mt-1 text-xs text-amber-800">Catatan pembayaran lama perlu diperiksa pada panel pemulihan sebelum mencatat pembayaran baru.</p>}
                 {storageError && <p role="alert" className="mt-1 text-xs text-red-700">{storageError}</p>}
                 {item.status !== "UNKNOWN" && item.payments.length > 0 && <details className="mt-2 text-xs text-surface-600"><summary className="cursor-pointer">Riwayat pembayaran</summary><ul className="mt-1 space-y-1">{item.payments.map((payment, index) => <li key={`${payment.paidAt}-${index}`}>{payment.paidAt} · {formatRupiah(payment.amount)}</li>)}</ul></details>}
               </div>
-              <GiroAction item={item} canUpdate={canUpdate} pending={Boolean(pending)} blocked={Boolean(storageError) || !storeId || !userId} hasManualPayables={Boolean(list.data?.manualPayables.length)} onReview={() => setSelection({ item, mode: "review" })} onPay={() => openPayment(item)} onLink={() => setLinkItem(item)} />
+              <GiroAction item={item} canUpdate={canUpdate} pending={Boolean(pending)} blocked={Boolean(storageError) || hasLegacyPayment || !storeId || !userId} hasManualPayables={canLinkManual && Boolean(list.data?.manualPayables.length)} onReview={() => setSelection({ item, mode: "review" })} onPay={() => openPayment(item)} onLink={() => setLinkItem(item)} />
             </li>
           ); })}
         </ul>
       )}
-      {selection && <GiroDialog item={selection.item} mode={selection.mode} scope={storeId && userId && selection.item.payableId ? { storeId, userId, payableId: selection.item.payableId } : null} manualPayables={list.data?.manualPayables ?? []} initialPending={selection.item.payableId && pendingById[selection.item.payableId] && "key" in pendingById[selection.item.payableId]! ? pendingById[selection.item.payableId] as PendingGiroPayment : null} onPendingChange={value => { if (selection.item.payableId) setPendingById(current => ({ ...current, [selection.item.payableId!]: value })); }} onClose={() => setSelection(null)} onSaved={() => queryClient.invalidateQueries({ queryKey: ["finance"] })} onRefreshReview={async () => { const result = await list.refetch(); if (result.isError || !result.data) throw new Error("Gagal memuat giro"); return result.data; }} />}
+      {selection && <GiroDialog item={selection.item} mode={selection.mode} scope={storeId && userId && selection.item.payableId ? { storeId, userId, payableId: selection.item.payableId } : null} manualPayables={canLinkManual ? list.data?.manualPayables ?? [] : []} initialPending={selection.initialPending ?? null} initialGeneration={selection.initialGeneration} onPendingChange={value => { if (selection.item.payableId) setPendingById(current => ({ ...current, [selection.item.payableId!]: value })); }} onClose={() => setSelection(null)} onSaved={() => queryClient.invalidateQueries({ queryKey: ["finance"] })} onRefreshReview={async () => { const result = await list.refetch(); if (result.isError || !result.data) throw new Error("Gagal memuat giro"); return { ...result.data, manualPayables: canLinkManual ? result.data.manualPayables : [] }; }} />}
       {linkItem && <GiroLinkDialog item={linkItem} manualPayables={list.data?.manualPayables ?? []} onClose={() => setLinkItem(null)} onSaved={() => queryClient.invalidateQueries({ queryKey: ["finance"] })} onRefresh={async () => { const result = await list.refetch(); if (result.isError || !result.data) throw new Error("Gagal memuat giro"); return result.data; }} />}
     </section>
   );

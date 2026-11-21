@@ -6,18 +6,20 @@ import { PrismaClient } from '@pos/db';
 
 const connection = process.env.GIRO_TEST_DATABASE_URL;
 const schema = `giro_test_${process.pid}_${Date.now()}`;
-const mocks = vi.hoisted(() => ({ db: null as PrismaClient | null, storeId: 'store-1' }));
+const mocks = vi.hoisted(() => ({ db: null as PrismaClient | null, storeId: 'store-1', allowed: null as string[] | null, checkWithDb: false }));
 vi.mock('@pos/db', async importOriginal => ({ ...(await importOriginal()), get db() { return mocks.db; } }));
 vi.mock('@/lib/rbac/guard', () => ({
   requireRole: async () => ({ id: 'user-1', storeId: mocks.storeId }),
-  requirePermission: async () => ({ id: 'user-1', storeId: mocks.storeId }),
+  requirePermission: async () => { if (mocks.checkWithDb) await mocks.db!.$queryRaw`SELECT 1`; return { id: 'user-1', storeId: mocks.storeId }; },
+  authorizeInTransaction: async (tx: PrismaClient, _actor: unknown, requirements: { resources: { resource: string; action: string }[] }) => { if (mocks.checkWithDb) await tx.$queryRaw`SELECT 1`; return mocks.allowed === null || requirements.resources.every(item => mocks.allowed!.includes(`${item.resource}:${item.action}`)); },
+  canAuthenticatedUserAccessPage: async () => true,
   handleAuthError: () => null,
 }));
 vi.mock('@/lib/logger', () => ({ getLogger: () => ({ error: vi.fn() }) }));
 
 import { GET } from '../route';
 import { POST as reconcile } from '../[goodsPurchaseId]/reconcile/route';
-import { POST as pay } from '../../supplier-payables/[id]/payments/route';
+import { POST as postPayment } from '../../supplier-payables/[id]/payments/route';
 
 const request = (body: unknown, key?: string) => new Request('http://localhost/api/finance/giro', {
   method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { 'Idempotency-Key': key } : {}) }, body: JSON.stringify(body),
@@ -26,6 +28,16 @@ const request = (body: unknown, key?: string) => new Request('http://localhost/a
 describe.skipIf(!connection)('giro endpoints on isolated PostgreSQL', () => {
   let admin: PrismaClient;
   let client: PrismaClient;
+
+  async function pay(input: Request, context: { params: Promise<{ id: string }> }) {
+    const body = await input.json() as Record<string, unknown>;
+    const key = input.headers.get('Idempotency-Key');
+    const { id } = await context.params;
+    const [saved] = key ? await client.$queryRaw<{ version: string | null }[]>`SELECT "requestLedgerVersion" AS version FROM "pos_supplier_payable_payments" WHERE "requestScope" = ${JSON.stringify([mocks.storeId, key.toLowerCase()])}` : [];
+    const [debt] = await client.$queryRaw<{ version: string }[]>`SELECT ("ledgerVersion"::numeric * 2)::text AS version FROM "pos_supplier_payables" WHERE "id" = ${id} AND "storeId" = ${mocks.storeId}`;
+    const version = saved ? saved.version : debt?.version;
+    return postPayment(new Request(input.url, { method: 'POST', headers: input.headers, body: JSON.stringify({ ...body, ...(version == null ? {} : { expectedLedgerVersion: version }) }) }), context);
+  }
 
   beforeAll(async () => {
     const url = new URL(connection!);
@@ -66,9 +78,17 @@ describe.skipIf(!connection)('giro endpoints on isolated PostgreSQL', () => {
     await client.$executeRawUnsafe(`CREATE TABLE "pos_supplier_payable_payments" (
       "id" text PRIMARY KEY, "payableId" text NOT NULL REFERENCES "pos_supplier_payables"("id"),
       "amount" numeric(12,2) NOT NULL, "paidAt" date NOT NULL, "createdById" text NOT NULL,
-      "createdAt" timestamp NOT NULL DEFAULT now(), "requestScope" text UNIQUE
+      "createdAt" timestamp NOT NULL DEFAULT now(), "requestScope" text UNIQUE,
+      "requestPayableId" text, "requestAmount" numeric(12,2), "requestPaidAt" date, "requestResource" text
     )`);
     await client.$executeRawUnsafe(readFileSync(path.resolve(process.cwd(), '../../packages/db/prisma/migrations/20261101130000_giro_payment_expected_balance/migration.sql'), 'utf8'));
+    await client.$executeRawUnsafe(`ALTER TABLE "pos_supplier_payable_payments" ADD COLUMN "origin" text NOT NULL DEFAULT 'MANUAL', ADD COLUMN "automaticKey" text UNIQUE`);
+    await client.$executeRawUnsafe(`CREATE TABLE "pos_manual_transfer_allocations" (
+      "id" text PRIMARY KEY, "storeId" text NOT NULL, "expenseId" text NOT NULL, "payableId" text NOT NULL,
+      "paymentId" text UNIQUE NOT NULL, "amount" numeric(12,2) NOT NULL, "createdById" text NOT NULL,
+      "createdAt" timestamp NOT NULL DEFAULT now(), "updatedAt" timestamp NOT NULL DEFAULT now())`);
+    const ledgerMigration = readFileSync(path.resolve(process.cwd(), '../../packages/db/prisma/migrations/20261117050000_payable_ledger_version/migration.sql'), 'utf8');
+    for (const statement of ledgerMigration.split('-- statement-break').map(value => value.trim()).filter(Boolean)) await client.$executeRawUnsafe(statement);
     await client.$executeRawUnsafe(`INSERT INTO "pos_goods_purchases" ("id", "storeId", "number", "supplierNameSnapshot", "totalAmount", "shoppingRequestId", "paymentDueDate", "status", "paymentMethod") VALUES
       ('purchase-1','store-1','PB-1','Pemasok',100000,'shopping-1','2026-11-20','APPROVED','GIRO'),
       ('purchase-2','store-2','PB-2','Lain',100000,'shopping-2','2026-11-20','APPROVED','GIRO'),
@@ -84,8 +104,11 @@ describe.skipIf(!connection)('giro endpoints on isolated PostgreSQL', () => {
       ("id", "storeId", "supplierName", "amount", "debtDate", "createdById") VALUES
       ('manual-early','store-1','Pemasok',100000,'2026-10-01','user-1'),
       ('manual-other-store','store-2','Pemasok',100000,'2026-10-01','user-1')`);
-    await client.$executeRawUnsafe(`INSERT INTO "pos_supplier_payable_payments" ("id", "payableId", "amount", "paidAt", "createdById")
-      VALUES ('historic', 'manual-early', 10000, '2026-10-05', 'user-1')`);
+    await client.$transaction(async tx => {
+      await tx.$executeRaw`SELECT set_config('pos.payable_system_payment', '1', true)`;
+      await tx.$executeRawUnsafe(`INSERT INTO "pos_supplier_payable_payments" ("id", "payableId", "amount", "paidAt", "createdById")
+        VALUES ('historic', 'manual-early', 10000, '2026-10-05', 'user-1')`);
+    });
     await client.$executeRawUnsafe(`INSERT INTO "pos_supplier_payables"
       ("id", "storeId", "goodsPurchaseId", "giroHistoryVerifiedAt", "supplierName", "amount", "debtDate", "createdById") VALUES
       ('other-giro','store-1','purchase-4',NOW(),'Pemasok',100000,'2026-10-01','user-1'),
@@ -130,6 +153,60 @@ describe.skipIf(!connection)('giro endpoints on isolated PostgreSQL', () => {
       .toMatchObject({ debtDate: '2026-10-20', payableDebtDate: '2026-10-01', status: 'PARTIAL', paid: 15000, remaining: 85000 });
   });
 
+  it('menerima replay manual setelah rekonsiliasi pada ID yang sama dengan izin asal', async () => {
+    await client.$executeRaw`INSERT INTO "pos_goods_purchases" ("id", "storeId", "number", "supplierNameSnapshot", "totalAmount", "shoppingRequestId", "paymentDueDate", "status", "paymentMethod") VALUES ('purchase-origin','store-1','PB-ORIGIN','Pemasok',100000,'shopping-origin','2026-11-20','APPROVED','GIRO')`;
+    await client.$executeRaw`INSERT INTO "pos_expenses" VALUES ('expense-origin','store-1',100000,'2026-10-09 18:00:00'::timestamp,null,'purchase-origin','shopping-origin')`;
+    await client.$executeRaw`INSERT INTO "pos_supplier_payables" ("id", "storeId", "supplierName", "amount", "debtDate", "createdById") VALUES ('manual-origin','store-1','Pemasok',100000,'2026-10-01'::date,'user-1')`;
+    const key = randomUUID();
+    const paymentBody = { amount: 30000, paidAt: '2026-10-05', expectedBalance: 100000 };
+    const context = { params: Promise.resolve({ id: 'manual-origin' }) };
+    try {
+      mocks.allowed = ['expense.payable:read', 'expense.payable:update'];
+      expect((await pay(request(paymentBody, key), context)).status).toBe(201);
+      mocks.allowed = null;
+      expect((await reconcile(request({ historyComplete: true, payableId: 'manual-origin', expectedPayments: [{ amount: 30000, paidAt: '2026-10-05' }], payments: [] }), { params: Promise.resolve({ goodsPurchaseId: 'purchase-origin' }) })).status).toBe(201);
+      mocks.allowed = ['expense.payable:read', 'expense.payable:update'];
+      expect((await pay(request(paymentBody, key), context)).status).toBe(201);
+      expect((await pay(request({ ...paymentBody, amount: 40000 }, key), context)).status).toBe(409);
+      expect((await pay(request({ ...paymentBody, expectedBalance: 70000 }, randomUUID()), context)).status).toBe(403);
+      mocks.allowed = ['expense.giro:update'];
+      expect((await pay(request(paymentBody, key), context)).status).toBe(403);
+      expect(await client.supplierPayablePayment.count({ where: { payableId: 'manual-origin' } })).toBe(1);
+    } finally { mocks.allowed = null; }
+  });
+
+  it('rejects reconciliation when permission changes while waiting for the payable lock', async () => {
+    await client.$executeRaw`INSERT INTO "pos_goods_purchases" ("id", "storeId", "number", "supplierNameSnapshot", "totalAmount", "shoppingRequestId", "paymentDueDate", "status", "paymentMethod") VALUES ('auth-purchase','store-1','PB-AUTH','Pemasok',100000,'auth-shopping','2026-11-20'::date,'APPROVED','GIRO')`;
+    await client.$executeRaw`INSERT INTO "pos_expenses" VALUES ('auth-expense','store-1',100000,'2026-10-09 18:00:00'::timestamp,null,'auth-purchase','auth-shopping')`;
+    await client.$executeRaw`INSERT INTO "pos_supplier_payables" ("id", "storeId", "supplierName", "amount", "debtDate", "createdById") VALUES ('auth-manual','store-1','Pemasok',100000,'2026-10-01'::date,'user-1')`;
+    let release!: () => void, ready!: () => void;
+    const hold = new Promise<void>(resolve => { release = resolve; });
+    const locked = new Promise<void>(resolve => { ready = resolve; });
+    const blocker = client.$transaction(async tx => { await tx.$queryRaw`SELECT "id" FROM "pos_supplier_payables" WHERE "id" = 'auth-manual' FOR UPDATE`; ready(); await hold; });
+    await locked;
+    const result = reconcile(request({ historyComplete: true, payableId: 'auth-manual', expectedPayments: [], payments: [] }), { params: Promise.resolve({ goodsPurchaseId: 'auth-purchase' }) });
+    try {
+      expect(await Promise.race([result.then(() => true), new Promise<boolean>(resolve => setTimeout(() => resolve(false), 150))])).toBe(false);
+      mocks.allowed = [];
+    } finally { release(); await blocker; }
+    try {
+      expect((await result).status).toBe(403);
+      const [row] = await client.$queryRaw<{ goodsPurchaseId: string | null }[]>`SELECT "goodsPurchaseId" FROM "pos_supplier_payables" WHERE "id" = 'auth-manual'`;
+      expect(row.goodsPurchaseId).toBeNull();
+    } finally { mocks.allowed = null; }
+  });
+
+  it('reconciles using one database connection without a global query inside the transaction', async () => {
+    const singleUrl = new URL(connection!); singleUrl.searchParams.set('schema', schema); singleUrl.searchParams.set('connection_limit', '1');
+    const single = new PrismaClient({ datasourceUrl: singleUrl.toString() });
+    await client.$executeRaw`INSERT INTO "pos_goods_purchases" ("id", "storeId", "number", "supplierNameSnapshot", "totalAmount", "shoppingRequestId", "paymentDueDate", "status", "paymentMethod") VALUES ('one-purchase','store-1','PB-ONE','Pemasok',100000,'one-shopping','2026-11-20'::date,'APPROVED','GIRO')`;
+    await client.$executeRaw`INSERT INTO "pos_expenses" VALUES ('one-expense','store-1',100000,'2026-10-09 18:00:00'::timestamp,null,'one-purchase','one-shopping')`;
+    mocks.db = single; mocks.checkWithDb = true;
+    try {
+      expect((await reconcile(request({ historyComplete: true, payments: [] }), { params: Promise.resolve({ goodsPurchaseId: 'one-purchase' }) })).status).toBe(201);
+    } finally { mocks.db = client; mocks.checkWithDb = false; await single.$disconnect(); }
+  }, 15_000);
+
   it('rejects a stale reconciliation after a concurrent manual payment commits', async () => {
     await client.$executeRaw`INSERT INTO "pos_goods_purchases" ("id", "storeId", "number", "supplierNameSnapshot", "totalAmount", "shoppingRequestId", "paymentDueDate", "status", "paymentMethod") VALUES ('purchase-race','store-1','PB-RACE','Pemasok',100000,'shopping-race','2026-11-20','APPROVED','GIRO')`;
     await client.$executeRaw`INSERT INTO "pos_expenses" VALUES ('expense-race','store-1',100000,'2026-10-09 18:00:00'::timestamp,null,'purchase-race','shopping-race')`;
@@ -145,7 +222,7 @@ describe.skipIf(!connection)('giro endpoints on isolated PostgreSQL', () => {
       await release;
     }, { timeout: 15_000 });
     await locked;
-    const payment = pay(request({ amount: 30000, paidAt: '2026-10-20' }), { params: Promise.resolve({ id: 'manual-race' }) });
+    const payment = pay(request({ amount: 30000, paidAt: '2026-10-20', expectedBalance: '100000' }, randomUUID()), { params: Promise.resolve({ id: 'manual-race' }) });
     let reconciliation!: Promise<Response>;
     try {
       const waitForBlockedRequests = async (count: number) => {
@@ -277,7 +354,11 @@ describe.skipIf(!connection)('giro endpoints on isolated PostgreSQL', () => {
 
   it('replays a legacy request without inventing its missing expected balance', async () => {
     const key = randomUUID();
-    await client.$executeRaw`INSERT INTO "pos_supplier_payable_payments" ("id", "payableId", "amount", "paidAt", "createdById", "requestScope") VALUES ('legacy-request', 'other-giro', 1000, '2026-10-22'::date, 'user-1', ${JSON.stringify(['store-1', key])})`;
+    await client.$transaction(async tx => {
+      await tx.$executeRaw`SELECT set_config('pos.payable_system_payment', '1', true)`;
+      await tx.$executeRaw`INSERT INTO "pos_supplier_payable_payments" ("id", "payableId", "amount", "paidAt", "createdById", "requestScope") VALUES ('legacy-request', 'other-giro', 1000, '2026-10-22'::date, 'user-1', NULL)`;
+    });
+    await client.$executeRaw`UPDATE "pos_supplier_payable_payments" SET "requestScope" = ${JSON.stringify(['store-1', key])} WHERE "id" = 'legacy-request'`;
     const context = { params: Promise.resolve({ id: 'other-giro' }) };
     expect((await pay(request({ amount: 1000, paidAt: '2026-10-22' }, key), context)).status).toBe(201);
     expect((await pay(request({ amount: 1000, paidAt: '2026-10-22', expectedBalance: '100000' }, key), context)).status).toBe(409);

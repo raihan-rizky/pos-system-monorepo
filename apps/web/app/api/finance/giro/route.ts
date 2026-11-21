@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { db } from '@pos/db';
 import { apiError } from '@/lib/api/responses';
-import { handleAuthError, requirePermission } from '@/lib/rbac/guard';
+import { canAuthenticatedUserAccessPage, handleAuthError, requirePermission } from '@/lib/rbac/guard';
 import { getLogger } from '@/lib/logger';
 import { jakartaToday } from '@/features/keuangan/helpers/supplier-payable-input';
 import { summarizeGiro } from '@/features/keuangan/helpers/giro-ledger';
+import { projectPayableLedger, type ManualPayablePayment } from '@/features/keuangan/helpers/payable-ledger';
 
 export const dynamic = 'force-dynamic';
 const log = getLogger('api:finance:giro');
@@ -12,30 +13,33 @@ type Payment = { id: string; amount: string; paidAt: string };
 type GiroRow = {
   goodsPurchaseId: string; number: string; supplierName: string; amount: string;
   debtDate: string | null; dueDate: string | null; payableId: string | null; payableDebtDate: string | null;
-  historyVerifiedAt: Date | null; payableNote: string | null; payments: Payment[];
+  historyVerifiedAt: Date | null; payableNote: string | null; ledgerVersion: string | null; payments: Payment[];
   schedule?: { id: string; amount: string; dueDate: string; note: string | null }[];
   correctionId: string | null; payableAmount: string | null; effectivePaid: string; credited: string;
 };
 type ManualRow = {
-  id: string; supplierName: string; amount: string; debtDate: string;
-  dueDate: string | null; note: string | null; payments: Payment[];
+  id: string; ledgerVersion: string; supplierName: string; amount: string; debtDate: string;
+  dueDate: string | null; note: string | null; payments: Array<Payment & { origin?: ManualPayablePayment['origin'] }>;
 };
 
 export async function GET(_request: Request): Promise<Response> {
   try {
     const user = await requirePermission("expense.giro", "read");
     if (!user.storeId) return apiError('Toko pengguna belum tersedia.', 403, { code: 'Forbidden' });
+    if (!await canAuthenticatedUserAccessPage(user, '/keuangan')) return apiError('Akses halaman Keuangan diperlukan.', 403, { code: 'Forbidden' });
     let canReadManualPayables = false;
     try {
-      await requirePermission('expense.payable', 'read');
+      const authorized = await requirePermission('expense.payable', 'read');
+      if (authorized.id !== user.id || authorized.storeId !== user.storeId || authorized.role !== user.role) return apiError('Sesi pengguna berubah. Muat ulang dan coba lagi.', 403, { code: 'Forbidden' });
       canReadManualPayables = true;
     } catch (error) {
       if (handleAuthError(error)?.status !== 403) throw error;
     }
+    const today = jakartaToday();
     const rows = await db.$queryRaw<GiroRow[]>`
       SELECT g."id" AS "goodsPurchaseId", g."number", g."supplierNameSnapshot" AS "supplierName",
         (CASE WHEN s."count" > 0 THEN s."giroAmount" ELSE g."totalAmount" END)::text AS "amount", e."debtDate", (CASE WHEN s."count" > 0 THEN s."dueDate" ELSE g."paymentDueDate" END)::text AS "dueDate",
-        d."id" AS "payableId", d."amount"::text AS "payableAmount", d."debtDate"::text AS "payableDebtDate", d."note" AS "payableNote", d."giroHistoryVerifiedAt" AS "historyVerifiedAt", correction."id" AS "correctionId", p."payments", effective."effectivePaid", credit."credited", s."schedule"
+        d."id" AS "payableId", (d."ledgerVersion"::numeric * 2)::text AS "ledgerVersion", d."amount"::text AS "payableAmount", d."debtDate"::text AS "payableDebtDate", d."note" AS "payableNote", d."giroHistoryVerifiedAt" AS "historyVerifiedAt", correction."id" AS "correctionId", p."payments", effective."effectivePaid", credit."credited", s."schedule"
       FROM "pos_goods_purchases" g
       LEFT JOIN LATERAL (
         SELECT COUNT(*) AS "count", SUM(pay."amount") FILTER (WHERE pay."method"::text = 'GIRO') AS "giroAmount",
@@ -118,18 +122,17 @@ export async function GET(_request: Request): Promise<Response> {
       ORDER BY "dueDate" ASC NULLS LAST, g."number", g."id"
     `;
     const manual = canReadManualPayables ? await db.$queryRaw<ManualRow[]>`
-      SELECT d."id", d."supplierName", d."amount"::text AS "amount", d."debtDate"::text AS "debtDate",
+      SELECT d."id", (d."ledgerVersion"::numeric * 2 + CASE WHEN d."dueDate" IS NOT NULL AND d."dueDate" <= ${today}::date THEN 1 ELSE 0 END)::text AS "ledgerVersion", d."supplierName", d."amount"::text AS "amount", d."debtDate"::text AS "debtDate",
         d."dueDate"::text AS "dueDate", d."note", p."payments"
       FROM "pos_supplier_payables" d
       LEFT JOIN LATERAL (
-        SELECT COALESCE(json_agg(json_build_object('id', pay."id", 'amount', pay."amount"::text, 'paidAt', pay."paidAt"::text)
+        SELECT COALESCE(json_agg(json_build_object('id', pay."id", 'amount', pay."amount"::text, 'paidAt', pay."paidAt"::text, 'origin', pay."origin"::text)
           ORDER BY pay."paidAt", pay."createdAt", pay."id"), '[]'::json) AS "payments"
         FROM "pos_supplier_payable_payments" pay WHERE pay."payableId" = d."id"
       ) p ON true
       WHERE d."storeId" = ${user.storeId} AND d."goodsPurchaseId" IS NULL
       ORDER BY d."debtDate" DESC, d."createdAt" DESC, d."id"
     ` : [];
-    const today = jakartaToday();
     const items = rows.map(({ amount, historyVerifiedAt, correctionId, payableAmount, effectivePaid, credited, payments: rawPayments, schedule: rawSchedule, ...row }) => {
       const schedule = (rawSchedule ?? []).map(payment => ({ ...payment, amount: Number(payment.amount) }));
       const payments = rawPayments.map(payment => ({ ...payment, amount: Number(payment.amount) }));
@@ -153,8 +156,11 @@ export async function GET(_request: Request): Promise<Response> {
       }
     });
     const manualPayables = manual.map(({ amount, payments: rawPayments, ...row }) => {
-      const payments = rawPayments.map(payment => ({ ...payment, amount: Number(payment.amount) }));
-      const paid = payments.reduce((sum, payment) => sum + Math.round(payment.amount * 100), 0) / 100;
+      const ledger = projectPayableLedger({ payableId: row.id, amountCents: Math.round(Number(amount) * 100), debtDate: row.debtDate,
+        dueDate: row.dueDate, todayWib: today, payments: rawPayments.map(payment => ({ id: payment.id, paidAt: payment.paidAt,
+          amountCents: Math.round(Number(payment.amount) * 100), origin: payment.origin ?? 'MANUAL' })) });
+      const payments = ledger.payments.map(payment => ({ id: payment.id, paidAt: payment.paidAt, amount: payment.amountCents / 100, origin: payment.origin }));
+      const paid = (Math.round(Number(amount) * 100) - ledger.remainingCents) / 100;
       return { ...row, amount: Number(amount), paid, payments };
     });
     return NextResponse.json({ items, manualPayables }, { headers: { 'Cache-Control': 'private, no-store' } });

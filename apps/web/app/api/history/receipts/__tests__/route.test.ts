@@ -1,13 +1,13 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
-const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn(), receivablePayments: vi.fn() }));
+const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn(), receivablePayments: vi.fn(), receivables: vi.fn() }));
 vi.mock(import("@/lib/rbac/guard"), async importOriginal => ({
   ...await importOriginal(),
   getCurrentUser: mocks.user,
 }));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
-vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual }, customerReceivablePayment: { findMany: mocks.receivablePayments } } }));
+vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual }, customerReceivablePayment: { findMany: mocks.receivablePayments }, customerReceivable: { findMany: mocks.receivables } } }));
 type Route = { GET: (request: Request) => Promise<Response> };
 const loadRoute = () => vi.importActual<Route>("../route").catch(() => null);
 const request = (query = "mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11") => new Request(`http://localhost/api/history/receipts?${query}`);
@@ -26,6 +26,7 @@ describe("Riwayat penerimaan dan Outstanding DP", () => {
     vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date("2026-11-11T03:00:00Z"));
     mocks.user.mockResolvedValue({ id: "sales", role: "SALES", storeId: "store-1" });
     mocks.permissions.mockResolvedValue(buildDefaultRolePermissions());
+    mocks.receivables.mockResolvedValue([]);
     mocks.transactions.mockImplementation(async query => query.select?.payments ? [oldInvoice, dp] : [{ id: "old-invoice", invoiceNumber: "INV-OLD" }, { id: "dp", invoiceNumber: "INV-DP" }]);
     mocks.manual.mockImplementation(async query => query.select?.category
       ? [{ id: "manual", occurredAt: new Date("2026-11-11T04:00:00Z"), category: "ATK", amount: 20_000 }]
@@ -64,6 +65,68 @@ describe("Riwayat penerimaan dan Outstanding DP", () => {
     const body = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&method=TRANSFER"))).json();
     expect(body.items).toEqual(expect.arrayContaining([expect.objectContaining({ transactionId: "old-invoice", amount: 60_000 })]));
     expect(body.manualEntries).toEqual([]);
+  });
+
+  it("menampilkan pembayaran piutang kepada pemilik dan menyembunyikan rinciannya tanpa izin", async () => {
+    const route = await loadRoute(); expect(route).not.toBeNull(); if (!route) return;
+    mocks.receivables.mockResolvedValue([{ id: "receivable-1", amount: 30_000, reportCategory: "ATK", payments: [{ id: "pay-1", method: "CASH", amount: 30_000, paidAt: new Date("2026-11-11T00:00:00Z"), createdAt: new Date("2026-11-11T03:00:00Z") }] }]);
+    mocks.receivablePayments.mockResolvedValue([{ id: "pay-1", receivableId: "receivable-1", receivable: { note: "Tagihan rahasia", customer: { name: "Pelanggan rahasia" } } }]);
+    mocks.user.mockResolvedValue({ id: "owner", role: "OWNER", storeId: "store-1" });
+    const owner = await (await route.GET(request())).json();
+    expect(owner.summary.total).toBe(110_000);
+    expect(owner.manualReceivableEntries).toEqual([expect.objectContaining({ id: "pay-1", receivableId: "receivable-1", customerName: "Pelanggan rahasia", description: "Tagihan rahasia", date: "2026-11-11", amount: 30_000 })]);
+    const permissions = buildDefaultRolePermissions();
+    permissions.SALES.resources["customer.receivable"].read = false;
+    mocks.permissions.mockResolvedValue(permissions);
+    mocks.user.mockResolvedValue({ id: "sales", role: "SALES", storeId: "store-1" });
+    const sales = await (await route.GET(request())).json();
+    expect(sales.summary.total).toBe(110_000);
+    expect(JSON.stringify(sales)).not.toContain("Tagihan rahasia");
+    expect(JSON.stringify(sales)).not.toContain("receivable-1");
+  });
+
+  it("memfilter pembayaran piutang menurut kategori dan tanggal bayar, bukan tanggal pencatatan", async () => {
+    const route = await loadRoute(); expect(route).not.toBeNull(); if (!route) return;
+    mocks.user.mockResolvedValue({ id: "owner", role: "OWNER", storeId: "store-1" });
+    mocks.receivables.mockResolvedValue([{ id: "receivable-1", amount: 45_000, reportCategory: "ATK", payments: [
+      { id: "pay-earlier", method: "CASH", amount: 15_000, paidAt: new Date("2026-11-10T00:00:00Z"), createdAt: new Date("2026-11-11T03:00:00Z") },
+      { id: "pay-current", method: "TRANSFER", amount: 30_000, paidAt: new Date("2026-11-11T00:00:00Z"), createdAt: new Date("2026-11-12T03:00:00Z") },
+    ] }]);
+    mocks.receivablePayments.mockImplementation(async query => query.where.id.in.map((id: string) => ({ id, receivableId: "receivable-1", receivable: { note: "Tagihan ATK", customer: { name: "Pelanggan A" } } })));
+
+    const current = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&category=ATK&method=TRANSFER"))).json();
+    expect(current.manualReceivableEntries).toEqual([expect.objectContaining({ id: "pay-current", receivableId: "receivable-1", date: "2026-11-11", amount: 30_000, methods: ["TRANSFER"],
+      paymentBreakdown: [{ method: "TRANSFER", amount: 30_000 }], categoryBreakdown: [{ category: "ATK", amount: 30_000 }] })]);
+    expect(current.receiptTotal).toBe(90_000);
+
+    const earlier = await (await route.GET(request("mode=receipt&dateFrom=2026-11-10&dateTo=2026-11-10&category=ATK&method=CASH"))).json();
+    expect(earlier.manualReceivableEntries).toEqual([expect.objectContaining({ id: "pay-earlier", date: "2026-11-10", amount: 15_000 })]);
+    const otherCategory = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&category=Percetakan"))).json();
+    expect(otherCategory.manualReceivableEntries).toEqual([]);
+    const legacyCategory = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&category=Piutang+Manual"))).json();
+    expect(legacyCategory.manualReceivableEntries).toEqual([expect.objectContaining({ id: "pay-current", amount: 30_000 })]);
+    expect(legacyCategory.receiptTotal).toBe(30_000);
+    const legacySubcategory = await (await route.GET(request("mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&category=Piutang+Manual&subcategory=Tanpa+kategori"))).json();
+    expect(legacySubcategory.manualReceivableEntries).toEqual([expect.objectContaining({ id: "pay-current", amount: 30_000 })]);
+  });
+
+  it("menyembunyikan metode dan kategori pembayaran piutang saat izinnya dicabut", async () => {
+    const route = await loadRoute(); expect(route).not.toBeNull(); if (!route) return;
+    const permissions = buildDefaultRolePermissions();
+    permissions.SALES.pages["/customers"] = true;
+    permissions.SALES.resources["customer.receivable"].read = true;
+    permissions.SALES.resources["financial-report.daily-payment-method"].read = false;
+    permissions.SALES.resources["financial-report.daily-category"].read = false;
+    mocks.permissions.mockResolvedValue(permissions);
+    mocks.receivables.mockResolvedValue([{ id: "receivable-1", amount: 30_000, reportCategory: "ATK", payments: [
+      { id: "pay-1", method: "CASH", amount: 30_000, paidAt: new Date("2026-11-11T00:00:00Z"), createdAt: new Date("2026-11-11T03:00:00Z") },
+    ] }]);
+    mocks.receivablePayments.mockResolvedValue([{ id: "pay-1", receivableId: "receivable-1", receivable: { note: "Tagihan", customer: { name: "Pelanggan" } } }]);
+
+    const body = await (await route.GET(request())).json();
+    expect(body.manualReceivableEntries).toEqual([expect.objectContaining({ id: "pay-1", amount: 30_000, methods: [] })]);
+    expect(body.manualReceivableEntries[0]).not.toHaveProperty("paymentBreakdown");
+    expect(body.manualReceivableEntries[0]).not.toHaveProperty("categoryBreakdown");
   });
 
   it("menggabungkan pemasukan multi-payment dan memfilter nominal per metode", async () => {

@@ -81,7 +81,8 @@ describe.skipIf(process.env.FINANCE_BROWSER_TEST !== "1")("isolasi identitas hut
 
   async function openPage() {
     const page = await browser.newPage();
-    await page.setContent('<div id="root"></div>');
+    await page.route("http://localhost:9998/**", route => route.fulfill({ contentType: "text/html", body: '<div id="root"></div>' }));
+    await page.goto("http://localhost:9998/");
     await page.addScriptTag({ content: script });
     await page.getByText("Pemasok Rahasia", { exact: true }).waitFor();
     return page;
@@ -141,6 +142,7 @@ describe.skipIf(process.env.FINANCE_BROWSER_TEST !== "1")("isolasi identitas hut
       if (mode === "create") {
         await page.getByLabel("Nama pemasok", { exact: false }).fill("Pemasok");
         await page.getByLabel("Nominal hutang (Rp)", { exact: false }).fill("1000");
+        await page.getByLabel("Kategori laporan").selectOption("ATK");
       } else {
         await page.getByLabel("Nominal pembayaran (Rp)").fill("1000");
       }

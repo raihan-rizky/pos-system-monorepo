@@ -10,7 +10,7 @@ type ReceiptBreakdown = {
 };
 type ReceiptItem = ReceiptBreakdown & { transactionId: string; invoiceNumber: string | null; date: string; amount: number; methods: string[]; isReceivableNota?: boolean };
 type ManualEntry = ReceiptBreakdown & { id: string; description: string | null; date: string; amount: number; methods: string[] };
-type ManualReceivableEntry = { id: string; receivableId: string; customerName: string; date: string; amount: number; methods: string[] };
+type ManualReceivableEntry = ReceiptBreakdown & { id: string; receivableId: string; customerName: string; description?: string | null; date: string; amount: number; methods: string[] };
 export type ReceiptHistoryData = {
   items: ReceiptItem[];
   manualDetailsAvailable: boolean;

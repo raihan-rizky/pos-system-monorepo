@@ -6,18 +6,25 @@ const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const transactionFindManyMock = vi.hoisted(() => vi.fn());
 const expenseFindManyMock = vi.hoisted(() => vi.fn());
 const manualIncomeFindManyMock = vi.hoisted(() => vi.fn());
+const payableFindManyMock = vi.hoisted(() => vi.fn());
+const receivableFindManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
   handleAuthError: handleAuthErrorMock,
 }));
-vi.mock("@/features/financial-report/services/export-access", () => ({ getFinancialExportAccess: async () => ({ user: await requirePermissionMock("financial-report.export", "read"), canReadManualIncome: true, canReadTransactions: true, canReadExpenses: true, canReadCustomers: true, canReadPurchases: true }) }));
+vi.mock("@/features/financial-report/services/export-access", () => ({ getFinancialExportAccess: async () => ({ user: await requirePermissionMock("financial-report.export", "read"), canReadManualIncome: true, canReadTransactions: true, canReadExpenses: true, canReadCustomers: true, canReadReceivables: true, canReadPurchases: true }) }));
 
 vi.mock("@pos/db", () => ({
   db: {
+    $transaction: async (callback: (tx: unknown) => Promise<unknown>) => callback({
+      expense: { findMany: expenseFindManyMock }, supplierPayable: { findMany: payableFindManyMock },
+    }),
     transaction: { findMany: transactionFindManyMock },
     expense: { findMany: expenseFindManyMock },
     manualIncome: { findMany: manualIncomeFindManyMock },
+    supplierPayable: { findMany: payableFindManyMock },
+    customerReceivable: { findMany: receivableFindManyMock },
   },
 }));
 
@@ -29,6 +36,8 @@ describe("GET /api/finance/report/journal", () => {
     transactionFindManyMock.mockResolvedValue([]);
     expenseFindManyMock.mockResolvedValue([]);
     manualIncomeFindManyMock.mockResolvedValue([]);
+    payableFindManyMock.mockResolvedValue([]);
+    receivableFindManyMock.mockResolvedValue([]);
   });
 
   it("scopes both sales and expense rows to the current store", async () => {
@@ -136,5 +145,32 @@ describe("GET /api/finance/report/journal", () => {
     expect(body.rows).toEqual([expect.objectContaining({ categories: "Percetakan / Spanduk", amount: 75.5, method: "Belum dicatat" })]);
     expect(body.footer.totalPemasukan).toBe(75.5);
     expect(body.categories).toEqual([{ categoryName: "Percetakan / Spanduk", transactionCount: 1, revenue: 75.5 }]);
+  });
+  it("membagi transfer menurut kategori hutang dan menambahkan pelunasan otomatis sekali", async () => {
+    const date = new Date("2026-11-05T03:00:00Z");
+    const raw = { id: "transfer", storeId: "store-1", occurredAt: date, applicantName: "Pemohon", category: "SUPPLIES", customCategory: null,
+      description: "Transfer", amount: 350, changeAmount: 0, hasMissingCostSnapshot: false, manualPurchasePaymentMethod: "TRANSFER",
+      shoppingRequestId: null, goodsPurchaseId: null, backdatedPurchaseDueId: null, backdatedPurchasePaymentId: null, shoppingRequest: null, goodsPurchase: null, reportCategory: "CETAK_PLAT" };
+    const transfer = { ...raw, manualTransferAllocations: [{ paymentId: "p-a", payableId: "a", amount: 100 }, { paymentId: "p-b", payableId: "b", amount: 200 }] };
+    expenseFindManyMock.mockImplementation(async query => query.select.manualTransferAllocations ? [transfer] : [raw]);
+    const debt = (id: string, amount: number, reportCategory: string, payments: unknown[], dueDate: Date | null = null) => ({ id, storeId: "store-1", supplierName: id, amount, debtDate: new Date("2026-11-01T00:00:00Z"), dueDate, reportCategory, note: null, payments });
+    const payment = (id: string, amount: number) => ({ id, amount, paidAt: new Date("2026-11-05T00:00:00Z"), origin: "MANUAL" });
+    payableFindManyMock.mockResolvedValue([debt("a", 100, "ATK", [payment("p-a", 100)]), debt("b", 200, "SPANDUK", [payment("p-b", 200)]), debt("c", 600, "ATK", [], new Date("2026-11-05T00:00:00Z"))]);
+    const response = await GET(new Request("http://localhost/api/finance/report/journal?period=custom&from=2026-11-05&to=2026-11-05"));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.footer.totalPengeluaran).toBe(-950);
+    expect(body.rows.map((row: { categories: string; amount: number }) => [row.categories, row.amount])).toEqual(expect.arrayContaining([
+      ["ATK", -100], ["Spanduk", -200], ["Cetak / Plat", -50], ["ATK", -600],
+    ]));
+  });
+  it("menampilkan pembayaran piutang manual pada tanggal dan kategori yang dipilih", async () => {
+    receivableFindManyMock.mockResolvedValue([{ id: "r1", amount: 100, reportCategory: "ATK", note: "Tagihan", customer: { name: "Pelanggan" },
+      payments: [{ id: "p1", amount: 100, method: "TRANSFER", paidAt: new Date("2026-11-05T00:00:00Z"), createdAt: new Date("2026-11-06T04:00:00Z") }] }]);
+    const response = await GET(new Request("http://localhost/api/finance/report/journal?period=custom&from=2026-11-05&to=2026-11-05"));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.rows).toEqual(expect.arrayContaining([expect.objectContaining({ tanggal: "2026-11-05", categories: "ATK / Piutang manual", amount: 100, method: "TRANSFER" })]));
+    expect(body.footer.totalPemasukan).toBe(100);
   });
 });

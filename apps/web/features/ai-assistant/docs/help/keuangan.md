@@ -11,10 +11,12 @@ Gunakan **Ubah** atau **Hapus** sesuai izin untuk koreksi. Tanggal harus valid, 
 ## Belanja manual via transfer
 
 1. Pada bagian **Pengeluaran**, klik **Tambah Belanja Transfer**.
-2. Isi tanggal transfer, nama penerima / supplier, keterangan belanja, dan nominal. Bukti transfer opsional; gunakan pengunggah bukti yang tersedia bila diperlukan.
+2. Isi tanggal transfer, nama penerima / supplier, keterangan, nominal, dan kategori laporan. Bukti transfer opsional; pilih **Lepaskan foto** jika foto yang baru diunggah tidak jadi digunakan.
 3. Klik **Simpan**. Catatan menampilkan badge **Belanja Transfer Manual** dan dapat diubah atau dihapus sesuai izin. Fitur ini hanya mencatat keuangan, tanpa menambah stok.
 
-Pada Excel bulanan yang diunduh ulang, pengeluaran masuk sheet **PENGELUARAN BELANJA → VIA TRANSFER** serta RP. Total arus kas menghitung satu pengeluaran; rincian belanja tidak menambah total kedua kali. Izin create/update mengikuti `expense`; pemasukan mengikuti `income`. Default Owner/Admin/Cashier dapat membuat dan mengubah; default hapus hanya Owner/Admin, sesuai pengaturan RBAC toko.
+Jika transfer membayar hutang, pada **Bayar hutang dengan transfer ini** pilih hutang dan pembayaran pada tanggal transfer, atau catat pembayaran baru. Tambahkan alokasi untuk setiap hutang. Alokasi mengikuti kategori masing-masing hutang; sisa transfer mengikuti kategori transfer. Catatan lama perlu dihubungkan secara eksplisit. Pada Excel bulanan, pengeluaran masuk **PENGELUARAN BELANJA → VIA TRANSFER** serta RP dan dihitung satu kali. Mengubah transfer dan mengelola alokasi memerlukan izin khusus yang awalnya diberikan kepada Owner; Owner dapat memberikan izin tersebut melalui RBAC.
+
+Jika hasil penyimpanan transfer belum pasti, buka lagi formulir dengan akun dan toko yang sama. Pilih **Coba lagi transfer sebelumnya** untuk memastikan hasilnya, atau **Catat transfer baru** jika itu pembayaran yang berbeda. Pembayaran awal dan pembayaran baru memerlukan izin melihat serta mencatat pembayaran hutang; perubahan yang mengubah pelunasan otomatis juga memerlukan izin koreksi pembayaran.
 
 ## Lokasi dan Fungsi
 
@@ -27,7 +29,7 @@ Buka sidebar **Keuangan > Keuangan** (`/keuangan`) untuk memantau arus kas bulan
 - **Sumber Pengeluaran:** Badge **Manual** menandai entri dari form. Badge **Pembelian Barang** menandai entri otomatis baru, sedangkan **Daftar Belanja (Legacy)** hanya untuk data lama.
 - **Pengeluaran Otomatis:** Nominal memakai jumlah dan harga yang disetujui pada Pembelian Barang, berkategori Bahan, dan tercatat saat penerimaan pertama yang berisi barang disetujui. Entri ini tidak dapat diedit, dihapus, atau diubah lampirannya dari halaman Keuangan.
 - **Update HPP:** Jika harga terbaru berbeda dari HPP master, pilihan update HPP diputuskan per produk. Snapshot nilai pengeluaran tetap memakai data final Pembelian Barang.
-- **Hutang Pemasok:** Catat pemasok, nominal, dan tanggal lewat **Tambahkan Hutang**. Pembayaran awal opsional; pilih **Catat pembayaran** untuk pembayaran sebagian atau pelunasan. Pembayaran hutang manual dicatat terpisah dari pengeluaran. Saldo yang dicatat masuk laporan bulanan sesuai tanggal.
+- **Hutang Pemasok:** Pilih **Tambahkan Hutang**, lalu isi pemasok, nominal, tanggal dan kategori laporan. Pembayaran awal dan jatuh tempo opsional. Tanpa jatuh tempo, gunakan **Catat pembayaran** untuk cicilan atau pelunasan. Dengan jatuh tempo, sisa otomatis lunas pada tanggal itu, termasuk hutang lama; pembayaran manual yang sudah tercatat tetap memakai tanggal aktual. Pembayaran masuk pengeluaran pada tanggal masing-masing. Pilih **Ubah hutang** atau **Ubah pembayaran** untuk koreksi sesuai izin.
 - **Giro Pembelian:** Giro lama berstatus **Belum diketahui** sampai pengguna memilih **Periksa riwayat**, menghubungkan hutang manual yang sesuai bila ada, melengkapi pembayaran sebelumnya dan mengonfirmasi riwayat lengkap. Untuk giro yang sudah diperiksa, pilih **Catat pembayaran** untuk menyimpan pembayaran sebagian atau lunas. Jika hasil belum pasti, gunakan **Pastikan pembayaran** pada peramban dan akun yang sama. Jika data peramban terhapus, periksa riwayat sebelum mencatat lagi. Pembayaran aktual giro mengurangi kas pada tanggal pembayarannya; saldo belum diketahui membuat ringkasan yang terdampak belum lengkap.
 - **Hubungkan hutang manual:** Untuk giro yang sudah diperiksa, pilih **Hubungkan hutang manual** lalu pilih hutang yang benar-benar sama dan bernominal sama. Periksa catatan kedua hutang, riwayat pembayaran, dan bukti, tentukan setiap pembayaran yang cocok sebagai pembayaran yang sama atau transaksi berbeda, lalu centang konfirmasi dan simpan. Pembayaran yang sama dihitung sekali dan catatan kedua hutang disimpan pada giro. Pembayaran yang dipindahkan masuk arus kas giro pada tanggal aslinya; periksa pengeluaran manual agar tidak tercatat dua kali.
 
@@ -37,3 +39,5 @@ Buka sidebar **Keuangan > Keuangan** (`/keuangan`) untuk memantau arus kas bulan
 
 ## Hak Akses (Role-Based Access Control)
 Akses ke menu Keuangan dan tindakan pengeluaran disesuaikan dengan peran pengguna (RBAC). Biasanya dibatasi hanya untuk Owner dan Admin.
+
+Izin ubah rincian piutang, pembayaran piutang, rincian hutang, pembayaran hutang, transfer, dan alokasi transfer diatur secara terpisah. Awalnya izin tersebut hanya untuk Owner; role lain dapat diberi izin sesuai tugasnya. Data lama tanpa kategori tetap dihitung dan dapat diberi kategori melalui aksi Ubah.

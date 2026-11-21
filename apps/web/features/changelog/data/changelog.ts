@@ -136,6 +136,18 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "kategori-keuangan-manual-20261117", date: "2026-11-21", revision: 1,
+    highlight: { title: "Kategori keuangan manual", summary: "Kelompokkan piutang, hutang, dan transfer pada laporan." },
+    title: "Kelompokkan catatan keuangan manual.",
+    summary: "Pilih kategori laporan untuk piutang, hutang, dan belanja transfer. Satu transfer dapat dihubungkan ke beberapa pembayaran hutang agar dihitung sekali.",
+    kind: "improvement", impact: "major", area: "Keuangan", href: "/keuangan", visual: "financial",
+    steps: [
+      { title: "Pilih kategori", detail: "Saat mencatat piutang di Pelanggan atau hutang dan transfer di Keuangan, pilih kategori laporan yang sesuai." },
+      { title: "Hubungkan transfer bila perlu", detail: "Pada belanja transfer, pilih pembayaran hutang yang sama atau catat pembayaran baru, lalu tambahkan setiap alokasi." },
+      { title: "Periksa laporan", detail: "Periksa tanggal pembayaran dan unduh ulang laporan bulanan. Hutang dengan jatuh tempo otomatis lunas pada tanggal tersebut." },
+    ],
+  },
+  {
     id: "piutang-manual-toggle-20261115", date: "2026-11-15", revision: 1,
     highlight: { title: "Tutup Piutang Manual saat perlu", summary: "Buka atau lipat daftar, dan pilihan tersimpan di browser yang sama." },
     title: "Lipat daftar Piutang Manual saat perlu.",

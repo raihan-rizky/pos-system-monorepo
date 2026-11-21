@@ -4,6 +4,7 @@ import { loadExpenseCorrectionCash } from '@/features/keuangan/repositories/expe
 import { buildMonthlyPeriod, buildMonthlyReport } from '../helpers/monthly-report-core';
 import { getMonthlyBalances } from './monthly-balances';
 import { applyShoppingCorrectionReportPayments } from '../helpers/shopping-correction-report-payments';
+import { buildManualPayableReport } from '../helpers/manual-payable-report';
 
 export async function getMonthlyFinancialReport(storeId: string, year: number, month: number, now = new Date()) {
   if (!storeId) throw new Error('Toko pengguna belum tersedia.');
@@ -12,6 +13,7 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
   const calendarBounds = { gte: new Date(`${period.from}T00:00:00.000Z`), lt: new Date(Date.UTC(year, month, 1)) };
   const periodLastDate = new Date(`${period.to}T00:00:00.000Z`);
   const knownByNow = { lte: now };
+  const todayWib = new Date(now.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const paymentSelect = { id: true, method: true, amount: true, createdAt: true } as const;
   const recognizedPurchase = { OR: [{ status: 'APPROVED' }, { status: 'CANCELLED', statusBeforeCancellation: 'APPROVED' }] } satisfies Prisma.GoodsPurchaseWhereInput;
   const purchaseSelect = { id: true, storeId: true, number: true, status: true, statusBeforeCancellation: true, totalAmount: true, paymentMethod: true, paymentDueDate: true, supplierNameSnapshot: true, initialTransferAmount: true, initialTransferPaidAt: true,
@@ -23,7 +25,7 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
   } satisfies Prisma.GoodsPurchaseSelect;
   // All inputs must see the same committed state, including giro payments and
   // their remaining debt. A payment can otherwise commit between the queries.
-  const [transactions, expenses, manualReceivables, balances, backdatedPurchases, manualIncome, correctionCash] = await db.$transaction(async tx => Promise.all([
+  const [transactions, expenses, manualReceivables, balances, backdatedPurchases, manualIncome, correctionCash, manualPayables] = await db.$transaction(async tx => Promise.all([
     tx.transaction.findMany({
       where: { storeId, status: { in: ['COMPLETED', 'DP'] }, OR: [
         { invoiceDate: { lt: period.end } },
@@ -54,13 +56,14 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
         { occurredAt: knownByNow, goodsPurchase: { is: { shoppingRequest: { is: { corrections: { some: { storeId } } } } } } },
         { occurredAt: knownByNow, shoppingRequest: { is: { corrections: { some: { storeId } } } } },
       ] },
-      select: { id: true, occurredAt: true, category: true, customCategory: { select: { name: true } }, amount: true, changeAmount: true, description: true, hasMissingCostSnapshot: true, applicantName: true, manualPurchasePaymentMethod: true, goodsPurchaseId: true, shoppingRequestId: true, backdatedPurchaseDueId: true, backdatedPurchasePaymentId: true,
+      select: { id: true, storeId: true, occurredAt: true, category: true, reportCategory: true, customCategory: { select: { name: true } }, amount: true, changeAmount: true, description: true, hasMissingCostSnapshot: true, applicantName: true, manualPurchasePaymentMethod: true, goodsPurchaseId: true, shoppingRequestId: true, backdatedPurchaseDueId: true, backdatedPurchasePaymentId: true,
+        manualTransferAllocations: { select: { paymentId: true, payableId: true, amount: true } },
         shoppingRequest: { select: { status: true, number: true, deletion: { select: { previousStatus: true } }, goodsPurchases: { where: { storeId, ...recognizedPurchase }, select: purchaseSelect } } },
         goodsPurchase: { select: purchaseSelect } },
     }),
     tx.customerReceivable.findMany({
-      where: { storeId, OR: [{ debtDate: { lte: new Date(`${period.to}T00:00:00Z`) } }, { payments: { some: { createdAt: bounds } } }] },
-      select: { id: true, debtDate: true, dueDate: true, amount: true, note: true, customer: { select: { name: true } }, payments: { select: paymentSelect, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] } },
+      where: { storeId, OR: [{ debtDate: { lte: new Date(`${period.to}T00:00:00Z`) } }, { payments: { some: { createdAt: bounds } } }, { payments: { some: { paidAt: calendarBounds } } }] },
+      select: { id: true, debtDate: true, dueDate: true, amount: true, note: true, reportCategory: true, customer: { select: { name: true } }, payments: { select: { ...paymentSelect, paidAt: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] } },
     }),
     getMonthlyBalances(storeId, period, now, tx),
     tx.backdatedPurchase.findMany({
@@ -74,6 +77,11 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
       orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }],
     }),
     loadExpenseCorrectionCash(tx, storeId, period.from.slice(0, 7), now),
+    tx.supplierPayable.findMany({
+      where: { storeId, goodsPurchaseId: null, debtDate: { lte: periodLastDate } },
+      select: { id: true, storeId: true, supplierName: true, amount: true, debtDate: true, dueDate: true, reportCategory: true, note: true,
+        payments: { where: { paidAt: { lte: new Date(`${todayWib}T00:00:00Z`) } }, select: { id: true, amount: true, paidAt: true, origin: true } } },
+    }),
   ]), { isolationLevel: 'RepeatableRead', timeout: 30_000 });
   const scopedExpenses = expenses.map(expense => {
     const candidates = expense.shoppingRequest?.goodsPurchases?.filter(purchase => purchase.storeId === storeId && (purchase.status === 'APPROVED' || (purchase.status === 'CANCELLED' && purchase.statusBeforeCancellation === 'APPROVED'))) ?? [];
@@ -92,7 +100,17 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
       } : null,
     };
   });
-  const report = buildMonthlyReport({ year, month, period, transactions, expenses: scopedExpenses, manualReceivables, backdatedPurchases, manualIncome });
+  const calendarDate = (value: Date) => value.toISOString().slice(0, 10);
+  const wibDate = (value: Date) => new Date(value.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const manualPayableReport = buildManualPayableReport({ storeId, todayWib, from: period.from, to: period.to,
+    payables: manualPayables.map(payable => ({ id: payable.id, storeId: payable.storeId, supplierName: payable.supplierName,
+      amountCents: Math.round(Number(payable.amount) * 100), debtDate: calendarDate(payable.debtDate), dueDate: payable.dueDate ? calendarDate(payable.dueDate) : null,
+      category: payable.reportCategory, note: payable.note, payments: payable.payments.map(payment => ({ id: payment.id, amountCents: Math.round(Number(payment.amount) * 100), paidAt: calendarDate(payment.paidAt), origin: payment.origin })) })),
+    transfers: scopedExpenses.filter(expense => expense.occurredAt >= period.start && expense.occurredAt < period.end && expense.manualPurchasePaymentMethod === 'TRANSFER' && !expense.goodsPurchaseId && !expense.shoppingRequestId && (expense.manualTransferAllocations?.length ?? 0) > 0)
+      .map(expense => ({ id: expense.id, storeId: expense.storeId, date: wibDate(expense.occurredAt), amountCents: Math.round((Number(expense.amount) - Number(expense.changeAmount)) * 100),
+        category: expense.reportCategory, allocations: expense.manualTransferAllocations.map(allocation => ({ ...allocation, amountCents: Math.round(Number(allocation.amount) * 100) })) })),
+  });
+  const report = buildMonthlyReport({ year, month, period, transactions, expenses: scopedExpenses, manualReceivables, backdatedPurchases, manualIncome, manualPayableReport });
   for (const { date, total } of correctionCash.refunds) {
     report.income.push({
       id: `supplier-refund:${date}`, date, reference: '',
@@ -110,15 +128,17 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
   if (correctionCash.outflow.length) report.expenses.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   const backdatedDebts = report.supplierDebts ?? [];
   Object.assign(report, balances);
-  report.supplierDebts = [...balances.supplierDebts, ...backdatedDebts].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
-  report.supplierDebtBalance = (Math.round(balances.supplierDebtBalance * 100) + backdatedDebts.reduce((sum, debt) => sum + Math.round(debt.amount * 100), 0)) / 100;
+  const manualIds = new Set(manualPayables.map(payable => payable.id));
+  const manualDebts = manualPayableReport.balances.map(({ amountCents, ...debt }) => ({ ...debt, amount: amountCents / 100 }));
+  report.supplierDebts = [...balances.supplierDebts.filter(debt => !manualIds.has(debt.id)), ...manualDebts, ...backdatedDebts].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  report.supplierDebtBalance = report.supplierDebts.reduce((sum, debt) => sum + Math.round(debt.amount * 100), 0) / 100;
   if (report.supplierDebtIncomplete) report.supplierDebtBalance = null;
   report.warnings = report.warnings.filter(warning => !warning.startsWith('Persediaan akhir dan hutang pemasok:'));
   if (balances.openingInventoryBalance === null) report.warnings.push('Nilai inventaris akhir bulan sebelumnya belum tersedia dari riwayat.');
   if (balances.inventoryBalance === null) report.warnings.push('Nilai inventaris akhir periode belum tersedia dari riwayat.');
   if ((balances.openingInventoryUnvaluedCount ?? 0) > 0) report.warnings.push(`Modal awal belum lengkap: HPP belum tersedia untuk ${balances.openingInventoryUnvaluedCount} produk.`);
   if ((balances.inventoryUnvaluedCount ?? 0) > 0) report.warnings.push(`Nilai inventaris akhir belum lengkap: HPP belum tersedia untuk ${balances.inventoryUnvaluedCount} produk.`);
-  report.warnings.push('Saldo hutang mencakup hutang pemasok, belanja terdahulu, dan sisa giro yang riwayatnya telah diperiksa. Pembayaran hutang manual tidak otomatis menjadi pengeluaran.');
+  report.warnings.push('Saldo hutang mencakup hutang pemasok, belanja terdahulu, dan sisa giro yang riwayatnya telah diperiksa.');
   applyShoppingCorrectionReportPayments(report, scopedExpenses.flatMap(expense => {
     const purchase = expense.goodsPurchase;
     const correction = purchase?.shoppingRequest?.corrections?.[0];

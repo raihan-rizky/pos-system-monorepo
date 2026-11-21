@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { handleAuthError, requirePermission, requireRole } from "../guard";
+import { authorizeInTransaction, handleAuthError, requirePermission, requireRole } from "../guard";
 import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
 const getUserMock = vi.hoisted(() => vi.fn());
@@ -56,6 +56,28 @@ describe("RBAC server guard", () => {
     await expect(requirePermission("inventory", "read")).resolves.toMatchObject({
       role: "INVENTORY",
     });
+  });
+
+  it("memeriksa ulang pengguna dan izin melalui transaksi yang sama", async () => {
+    const actor = { id: "admin", storeId: "store-main", role: "ADMIN" as const };
+    const tx = { $queryRaw: vi.fn().mockResolvedValue([]), $executeRaw: vi.fn().mockResolvedValue(0), user: { findUnique: vi.fn().mockResolvedValue({ ...actor, isActive: true }) }, rolePermission: { findMany: vi.fn().mockResolvedValue([]) } };
+    await expect(authorizeInTransaction(tx as never, actor, { resources: [{ resource: "expense.payable", action: "create" }], page: "/keuangan" })).resolves.toBe(true);
+    expect(tx.user.findUnique).toHaveBeenCalled(); expect(tx.rolePermission.findMany).toHaveBeenCalled();
+    tx.rolePermission.findMany.mockResolvedValue([{ role: "ADMIN", scope: "resource", target: "expense.payable", action: "create", allowed: false }]);
+    await expect(authorizeInTransaction(tx as never, actor, { resources: [{ resource: "expense.payable", action: "create" }] })).resolves.toBe(false);
+    tx.user.findUnique.mockResolvedValue({ ...actor, isActive: false });
+    await expect(authorizeInTransaction(tx as never, actor, { resources: [] })).resolves.toBe(false);
+    tx.user.findUnique.mockResolvedValue({ ...actor, storeId: "store-lain", isActive: true });
+    await expect(authorizeInTransaction(tx as never, actor, { resources: [] })).resolves.toBe(false);
+    tx.user.findUnique.mockResolvedValue({ ...actor, role: "CASHIER", isActive: true });
+    await expect(authorizeInTransaction(tx as never, actor, { resources: [] })).resolves.toBe(false);
+    tx.user.findUnique.mockResolvedValue({ ...actor, isActive: true });
+    tx.rolePermission.findMany.mockResolvedValue([{ role: "ADMIN", scope: "page", target: "/keuangan", action: "access", allowed: false }]);
+    await expect(authorizeInTransaction(tx as never, actor, { resources: [], page: "/keuangan" })).resolves.toBe(false);
+    tx.rolePermission.findMany.mockResolvedValue([{ role: "ADMIN", scope: "resource", target: "expense.payable.manual.payment", action: "update", allowed: false }]);
+    await expect(authorizeInTransaction(tx as never, actor, { resources: [{ resource: "expense.payable.manual.payment", action: "update" }] })).resolves.toBe(false);
+    tx.rolePermission.findMany.mockRejectedValue(new Error("unavailable"));
+    await expect(authorizeInTransaction(tx as never, actor, { resources: [] })).rejects.toMatchObject({ statusCode: 503 });
   });
 
   it("fails closed with a retryable response when configured permissions cannot be verified", async () => {

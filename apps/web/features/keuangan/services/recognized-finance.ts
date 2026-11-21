@@ -4,6 +4,8 @@ import type { ExpensePaymentSource } from "../helpers/expense-correction-contrac
 import { loadExpenseCorrectionCash } from "../repositories/expense-correction-cash-repository";
 import { buildKeuanganMonthRange, type ExpenseCategoryKey } from "../helpers/keuangan-core";
 import { readCorrectionPaymentSnapshot } from "@/features/suppliers/shopping-requests/repositories/shopping-request-correction-payment-snapshot";
+import { loadManualPayablePeriod } from "@/features/financial-report/services/manual-payable-period";
+import type { ManualExpenseReportCategory } from "../helpers/manual-report-categories";
 
 type Money = string | number | { toString(): string };
 type PaymentMethod = "TRANSFER" | "GIRO";
@@ -19,7 +21,8 @@ type Purchase = {
 };
 type Expense = {
   id: string; storeId: string; applicantName: string; category: ExpenseCategoryKey; customCategoryId: string | null;
-  description: string | null; amount: Money; changeAmount: Money; occurredAt: Date; createdAt: Date;
+  description: string | null; amount: Money; changeAmount: Money; occurredAt: Date; createdAt: Date; updatedAt?: Date;
+  reportCategory?: ManualExpenseReportCategory | null;
   transactionId: string | null; attachmentUrl: string | null; hasMissingCostSnapshot: boolean;
   manualPurchasePaymentMethod: string | null; goodsPurchaseId: string | null; shoppingRequestId: string | null;
   recordedBy: { id: string; name: string }; goodsPurchase: Purchase | null;
@@ -34,13 +37,16 @@ type SourcePayment = PurchaseExpensePayment & { paymentSource: ExpensePaymentSou
 
 export type RecognizedExpenseRow = {
   id: string; applicantName: string; category: ExpenseCategoryKey; description: string | null;
-  amount: number; changeAmount: number; netAmount: number; occurredAt: string; createdAt: string;
+  amount: number; changeAmount: number; netAmount: number; occurredAt: string; createdAt: string; updatedAt: string;
+  reportCategory?: ManualExpenseReportCategory | null;
+  reportCategories?: ExpenseCategoryKey[];
+  reportCategoryAmounts?: Partial<Record<ExpenseCategoryKey, number>>;
   transactionId: string | null; attachmentUrl: string | null; hasMissingCostSnapshot: boolean;
   recordedBy: { id: string; name: string };
-  source: { type: "MANUAL" | "MANUAL_TRANSFER_PURCHASE" }
+  source: { type: "MANUAL" | "MANUAL_TRANSFER_PURCHASE" | "MANUAL_PAYABLE" }
     | { type: "GOODS_PURCHASE" | "BACKDATED_PURCHASE"; id: string; number: string }
     | { type: "SHOPPING_REQUEST"; id: string; number: string; goodsPurchaseId: string };
-  recognitionKind: "manual" | "transfer" | "giro_payment" | "giro_due" | "overpayment";
+  recognitionKind: "manual" | "transfer" | "giro_payment" | "giro_due" | "overpayment" | "manual_payable";
   paymentSource?: ExpensePaymentSource;
   allocation?: { scheduleId: string; dueDate: string | null; source: "stored" | "automatic" | null };
 };
@@ -50,7 +56,7 @@ export type RecognizedExpenses = {
   rows: RecognizedExpenseRow[];
   daily: Array<{ date: string; total: number; byCategory: Partial<Record<ExpenseCategoryKey, number>> }>;
   byCategory: Array<{ category: ExpenseCategoryKey; total: number }>;
-  components: { manual: number; transfer: number; giroPayment: number; giroDue: number; overpayment: number };
+  components: { manual: number; transfer: number; giroPayment: number; giroDue: number; overpayment: number; manualPayable: number };
   correctionCash?: Awaited<ReturnType<typeof loadExpenseCorrectionCash>>;
 };
 
@@ -142,6 +148,7 @@ function correctedPurchasePayments(purchase: Purchase, expense: Expense): Source
 
 export function buildRecognizedExpenses(input: {
   storeId: string; month: string; now: Date; expenses: Expense[]; backdatedPurchases: BackdatedPurchase[];
+  manualPayables?: Awaited<ReturnType<typeof loadManualPayablePeriod>>;
 }): RecognizedExpenses {
   if (!input.storeId || !/^\d{4}-(0[1-9]|1[0-2])$/.test(input.month)) throw new Error("Toko atau bulan tidak valid.");
   const asOf = jakartaDate(input.now);
@@ -154,7 +161,8 @@ export function buildRecognizedExpenses(input: {
     const category: ExpenseCategoryKey = expense.customCategoryId ? `custom:${expense.customCategoryId}` : expense.category;
     const base = {
       applicantName: expense.applicantName, category, description: expense.description,
-      createdAt: expense.createdAt.toISOString(), transactionId: expense.transactionId, attachmentUrl: expense.attachmentUrl,
+      createdAt: expense.createdAt.toISOString(), updatedAt: (expense.updatedAt ?? expense.createdAt).toISOString(),
+      reportCategory: expense.reportCategory ?? null, transactionId: expense.transactionId, attachmentUrl: expense.attachmentUrl,
       hasMissingCostSnapshot: expense.hasMissingCostSnapshot, recordedBy: expense.recordedBy,
     };
     const originalDate = jakartaDate(expense.occurredAt);
@@ -253,7 +261,7 @@ export function buildRecognizedExpenses(input: {
       rows.push({ id: JSON.stringify([purchase.id, entry.kind, entry.scheduleId ?? null, entry.paymentId ?? null]),
         applicantName: "Belanja Terdahulu", category: "SUPPLIES", description: `Belanja terdahulu ${purchase.reference}`,
         amount: entry.amountCents / 100, changeAmount: 0, netAmount: entry.amountCents / 100,
-        occurredAt: new Date(`${entry.date}T00:00:00+07:00`).toISOString(), createdAt: purchase.createdAt.toISOString(),
+        occurredAt: new Date(`${entry.date}T00:00:00+07:00`).toISOString(), createdAt: purchase.createdAt.toISOString(), updatedAt: purchase.createdAt.toISOString(),
         transactionId: null, attachmentUrl: null, hasMissingCostSnapshot: false,
         recordedBy: { id: purchase.createdById, name: purchase.createdByName ?? "Tidak dicatat" },
         source: { type: "BACKDATED_PURCHASE", id: purchase.id, number: purchase.reference }, recognitionKind: entry.kind,
@@ -264,19 +272,53 @@ export function buildRecognizedExpenses(input: {
     } catch { incomplete = true; }
   }
 
+  // Aggregate by day and report category: expense-only readers must not receive payable identities.
+  const payableGroups = new Map<string, { date: string; category: ManualExpenseReportCategory | null; amountCents: number }>();
+  for (const payment of input.manualPayables?.payments ?? []) {
+    const key = JSON.stringify([payment.date, payment.category]);
+    const group = payableGroups.get(key) ?? { date: payment.date, category: payment.category, amountCents: 0 };
+    group.amountCents += payment.amountCents;
+    payableGroups.set(key, group);
+  }
+  for (const group of payableGroups.values()) {
+    const at = new Date(`${group.date}T00:00:00+07:00`).toISOString();
+    rows.push({ id: `manual-payable:${group.date}:${group.category ?? "UNASSIGNED"}`, applicantName: "Pembayaran hutang manual",
+      category: `report:${group.category ?? "UNASSIGNED"}`, reportCategory: group.category, description: null,
+      amount: group.amountCents / 100, changeAmount: 0, netAmount: group.amountCents / 100,
+      occurredAt: at, createdAt: at, updatedAt: at, transactionId: null, attachmentUrl: null, hasMissingCostSnapshot: false,
+      recordedBy: { id: "", name: "Tidak dicatat" }, source: { type: "MANUAL_PAYABLE" }, recognitionKind: "manual_payable" });
+  }
+  const transferSegments = new Map(input.manualPayables?.transfers.map(transfer => [transfer.id, transfer.segments]) ?? []);
+  for (const row of rows) {
+    if (row.source.type !== "MANUAL_TRANSFER_PURCHASE") continue;
+    const segments = transferSegments.get(row.id);
+    const amounts = new Map<ExpenseCategoryKey, number>();
+    for (const segment of segments ?? [{ category: row.reportCategory ?? null, amountCents: Math.round(row.netAmount * 100) }]) {
+      const category: ExpenseCategoryKey = `report:${segment.category ?? "UNASSIGNED"}`;
+      amounts.set(category, (amounts.get(category) ?? 0) + segment.amountCents);
+    }
+    row.reportCategories = [...amounts.keys()];
+    row.reportCategoryAmounts = Object.fromEntries([...amounts].map(([category, amount]) => [category, amount / 100]));
+  }
   rows.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt) || a.id.localeCompare(b.id));
   const days = new Map<string, { total: number; categories: Map<ExpenseCategoryKey, number> }>();
   const categories = new Map<ExpenseCategoryKey, number>();
-  const componentCents = { manual: 0, transfer: 0, giroPayment: 0, giroDue: 0, overpayment: 0 };
+  const componentCents = { manual: 0, transfer: 0, giroPayment: 0, giroDue: 0, overpayment: 0, manualPayable: 0 };
   for (const row of rows) {
     const amount = Math.round(row.netAmount * 100);
     const date = jakartaDate(new Date(row.occurredAt));
     const day = days.get(date) ?? { total: 0, categories: new Map<ExpenseCategoryKey, number>() };
     day.total += amount;
-    day.categories.set(row.category, (day.categories.get(row.category) ?? 0) + amount);
+    const segments = row.source.type === "MANUAL_TRANSFER_PURCHASE"
+      ? transferSegments.get(row.id) ?? [{ category: row.reportCategory ?? null, amountCents: amount }]
+      : [{ category: null, amountCents: amount }];
+    for (const segment of segments) {
+      const category: ExpenseCategoryKey = row.source.type === "MANUAL_TRANSFER_PURCHASE" ? `report:${segment.category ?? "UNASSIGNED"}` : row.category;
+      day.categories.set(category, (day.categories.get(category) ?? 0) + segment.amountCents);
+      categories.set(category, (categories.get(category) ?? 0) + segment.amountCents);
+    }
     days.set(date, day);
-    categories.set(row.category, (categories.get(row.category) ?? 0) + amount);
-    const component = row.recognitionKind === "giro_payment" ? "giroPayment" : row.recognitionKind === "giro_due" ? "giroDue" : row.recognitionKind;
+    const component = row.recognitionKind === "giro_payment" ? "giroPayment" : row.recognitionKind === "giro_due" ? "giroDue" : row.recognitionKind === "manual_payable" ? "manualPayable" : row.recognitionKind;
     componentCents[component] += amount;
   }
   const totalCents = rows.reduce((sum, row) => sum + Math.round(row.netAmount * 100), 0);
@@ -287,7 +329,7 @@ export function buildRecognizedExpenses(input: {
     })),
     byCategory: [...categories.entries()].map(([category, amount]) => ({ category, total: amount / 100 })).sort((a, b) => b.total - a.total),
     components: { manual: componentCents.manual / 100, transfer: componentCents.transfer / 100,
-      giroPayment: componentCents.giroPayment / 100, giroDue: componentCents.giroDue / 100, overpayment: componentCents.overpayment / 100 },
+      giroPayment: componentCents.giroPayment / 100, giroDue: componentCents.giroDue / 100, overpayment: componentCents.overpayment / 100, manualPayable: componentCents.manualPayable / 100 },
   };
 }
 
@@ -326,14 +368,16 @@ export async function loadRecognizedExpenses(
     shoppingRequest: { select: { corrections: { where: { storeId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       select: { afterSnapshot: true, allocations: { select: { sourceKind: true, paymentId: true, method: true, amount: true, sourceAmount: true, paidAt: true } } } } } },
   } satisfies Prisma.GoodsPurchaseSelect;
-  const [expenses, backdatedPurchases, correctionCash] = await db.$transaction(async tx => Promise.all([
+  const [year, monthNumber] = month.split("-").map(Number);
+  const lastDay = String(new Date(Date.UTC(year, monthNumber, 0)).getUTCDate()).padStart(2, "0");
+  const [expenses, backdatedPurchases, correctionCash, manualPayables] = await db.$transaction(async tx => Promise.all([
     tx.expense.findMany({
       where: { storeId, deletedAt: null, backdatedPurchaseDueId: null, backdatedPurchasePaymentId: null,
         OR: [{ occurredAt: { gte: range.start, lt: range.end } },
           { goodsPurchase: { is: relevantPurchase } },
           { goodsPurchaseId: null, shoppingRequestId: { not: null } }] },
       select: { id: true, storeId: true, applicantName: true, category: true, customCategoryId: true, description: true,
-        amount: true, changeAmount: true, occurredAt: true, createdAt: true, transactionId: true, attachmentUrl: true,
+        amount: true, changeAmount: true, occurredAt: true, createdAt: true, updatedAt: true, reportCategory: true, transactionId: true, attachmentUrl: true,
         hasMissingCostSnapshot: true, manualPurchasePaymentMethod: true, goodsPurchaseId: true, shoppingRequestId: true,
         recordedBy: { select: { id: true, name: true } }, goodsPurchase: { select: purchaseSelect },
         shoppingRequest: { select: { id: true, number: true, goodsPurchases: { where: { storeId }, select: purchaseSelect } } },
@@ -345,7 +389,8 @@ export async function loadRecognizedExpenses(
       reference: true, amount: true, paymentMethod: true, createdById: true, createdByName: true, createdAt: true,
       payments: { where: { cancelledAt: null }, select: { id: true, amount: true, paidAt: true } } } }),
     includeCorrectionCash ? loadExpenseCorrectionCash(tx, storeId, month, now) : undefined,
+    loadManualPayablePeriod(tx, storeId, `${month}-01`, `${month}-${lastDay}`, now),
   ]), { isolationLevel: "RepeatableRead", timeout: 30_000 });
-  const recognized = buildRecognizedExpenses({ storeId, month, now, expenses, backdatedPurchases });
+  const recognized = buildRecognizedExpenses({ storeId, month, now, expenses, backdatedPurchases, manualPayables });
   return correctionCash ? { ...recognized, correctionCash } : recognized;
 }

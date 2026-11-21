@@ -1,6 +1,7 @@
 import { db } from "@pos/db";
 import { buildDailyIncomeRange, jakartaToday } from "../helpers/daily-income";
 import { buildIncomePeriod, type IncomePeriod } from "../helpers/income-period";
+import { loadManualReceivablePeriod } from "./manual-receivable-period";
 
 export async function loadIncomePeriod(storeId: string, fromDate: string, toDate: string): Promise<IncomePeriod> {
   const from = buildDailyIncomeRange(fromDate, new Date(`${fromDate}T12:00:00+07:00`));
@@ -12,7 +13,7 @@ export async function loadIncomePeriod(storeId: string, fromDate: string, toDate
   const start = from.start;
   const end = buildDailyIncomeRange(effectiveTo).end;
   const bounds = { gte: start, lt: end };
-  const [transactions, manualIncome, manualReceivablePayments] = await Promise.all([
+  const [transactions, manualIncome, manualReceivables] = await Promise.all([
     db.transaction.findMany({
       where: {
         storeId, status: { in: ["COMPLETED", "DP"] },
@@ -37,12 +38,9 @@ export async function loadIncomePeriod(storeId: string, fromDate: string, toDate
       where: { storeId, deletedAt: null, occurredAt: bounds },
       select: { id: true, occurredAt: true, category: true, amount: true, payments: { select: { method: true, amount: true } } },
     }),
-    db.customerReceivablePayment.findMany({
-      where: { receivable: { storeId }, createdAt: bounds },
-      select: { id: true, receivableId: true, createdAt: true, method: true, amount: true },
-    }),
+    loadManualReceivablePeriod(db, storeId, fromDate, effectiveTo),
   ]);
-  return buildIncomePeriod({ fromDate, toDate: effectiveTo, transactions, manualIncome, manualReceivablePayments });
+  return buildIncomePeriod({ fromDate, toDate: effectiveTo, transactions, manualIncome, manualReceivables });
 }
 
 export async function loadDailyIncome(storeId: string, date: string) {

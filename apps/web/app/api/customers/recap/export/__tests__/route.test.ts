@@ -104,6 +104,17 @@ describe("GET /api/customers/recap/export", () => {
     expect(body.data.summary).toMatchObject({ debtCollectedInPeriod: 10000, totalDebtOutstanding: 100000 });
     expect(customerReceivableFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ storeId: "store-main" }) }));
   });
+  it("exports corrected payment dates and retains the legacy WIB fallback", async () => {
+    customerReceivableFindManyMock.mockResolvedValueOnce([{ customerId: "customer-1", payments: [{ amount: 10000, createdAt: new Date("2026-06-02T00:00:00Z"), paidAt: new Date("2026-05-02T00:00:00Z") }] }]);
+    const response = await GET(new Request("http://localhost/api/customers/recap/export?dateFrom=2026-05-01&dateTo=2026-05-02"));
+    expect((await response.json()).data.summary.debtCollectedInPeriod).toBe(10000);
+    const query = customerReceivableFindManyMock.mock.calls[0][0];
+    expect(query.where.payments.some.OR).toEqual([
+      { paidAt: { gte: new Date("2026-05-01T00:00:00Z"), lte: new Date("2026-05-02T00:00:00Z") } },
+      { paidAt: null, createdAt: { gte: new Date("2026-04-30T17:00:00Z"), lt: new Date("2026-05-02T17:00:00Z") } },
+    ]);
+    expect(query.select.payments.where).toEqual(query.where.payments.some);
+  });
 
   it("omits piutang from customer exports without the receivable-read grant", async () => {
     canPerformMock.mockResolvedValue(false);

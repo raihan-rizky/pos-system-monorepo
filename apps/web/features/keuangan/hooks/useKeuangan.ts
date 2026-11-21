@@ -20,7 +20,7 @@ export type IncomeSummary = {
 };
 
 export type IncomeComponents = { sales: number; manualIncome: number; manualReceivable: number };
-export type ExpenseComponents = { manual: number; transfer: number; giroPayment: number; giroDue: number; overpayment: number };
+export type ExpenseComponents = { manual: number; transfer: number; giroPayment: number; giroDue: number; overpayment: number; manualPayable?: number };
 
 export type ExpenseSummary = {
   month: string;
@@ -48,23 +48,27 @@ export type ExpenseListItem = {
   id: string;
   applicantName: string;
   category: ExpenseCategoryKey;
+  reportCategory?: import('../helpers/manual-report-categories').ManualExpenseReportCategory | null;
+  reportCategoryAmounts?: Partial<Record<ExpenseCategoryKey, number>>;
   description: string | null;
   amount: number;
   changeAmount: number;
   netAmount: number;
   occurredAt: string;
   createdAt: string;
+  updatedAt: string;
   transactionId: string | null;
   attachmentUrl: string | null;
   hasMissingCostSnapshot: boolean;
   source:
     | { type: "MANUAL" }
     | { type: "MANUAL_TRANSFER_PURCHASE" }
+    | { type: "MANUAL_PAYABLE" }
     | { type: "SHOPPING_REQUEST"; id: string; number: string; goodsPurchaseId?: string }
     | { type: "BACKDATED_PURCHASE"; id: string; number: string }
     | { type: "GOODS_PURCHASE"; id: string; number: string };
   recordedBy: { id: string; name: string };
-  recognitionKind?: "manual" | "transfer" | "giro_payment" | "giro_due" | "overpayment";
+  recognitionKind?: "manual" | "transfer" | "giro_payment" | "giro_due" | "overpayment" | "manual_payable";
   paymentSource?: ExpensePaymentSource;
   allocation?: { scheduleId: string; dueDate: string | null; source: "stored" | "automatic" | null };
 };

@@ -45,7 +45,7 @@ describe.skipIf(process.env.FINANCE_BROWSER_TEST !== "1")("isolasi identitas dia
             };
             return <QueryClientProvider client={client}>
               <RoleProvider role="ADMIN" userId={scope.userId} userName="Pengguna" storeId={scope.storeId} authorizationFingerprint={scope.fingerprint}>
-                <GiroPanel canUpdate={scope.canUpdate} />
+                <GiroPanel canUpdate={scope.canUpdate} canLinkManual />
               </RoleProvider>
             </QueryClientProvider>;
           }

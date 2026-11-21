@@ -6,14 +6,16 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import { isTransientAuthFailure, SESSION_VERIFICATION_UNAVAILABLE } from "@/lib/auth/session-failure";
-import { db } from "@pos/db";
+import { db, type Prisma } from "@pos/db";
 import type { Role } from "./permissions";
 import type { Action } from "./permissions";
 import {
   buildDefaultRolePermissions,
   canRoleAccessPage,
   canRolePerformAction,
+  normalizeRolePermissions,
 } from "@/features/rbac/helpers/rbac-core";
+import type { PermissionEntry } from "@/features/rbac/helpers/rbac-core";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
 import { apiError } from "@/lib/api/responses";
 
@@ -161,6 +163,29 @@ export async function requirePermission(resource: string, action: Action) {
   }
 
   return user;
+}
+
+/** Recheck the authenticated actor and current grants using the held transaction connection. */
+export async function authorizeInTransaction(
+  tx: Pick<Prisma.TransactionClient, "user" | "rolePermission" | "$queryRaw" | "$executeRaw">,
+  actor: { id: string; storeId: string | null; role: Role },
+  requirements: { resources: Array<{ resource: string; action: Action }>; page?: string },
+): Promise<boolean> {
+  try {
+    const bypass = isE2EAuthBypassEnabled();
+    if (!bypass) {
+      await tx.$queryRaw`SELECT "id" FROM "pos_users" WHERE "id" = ${actor.id} FOR SHARE`;
+      await tx.$executeRaw`LOCK TABLE "pos_role_permissions" IN SHARE MODE`;
+      const current = await tx.user.findUnique({ where: { id: actor.id }, select: { id: true, role: true, storeId: true, isActive: true } });
+      if (!current?.isActive || current.role !== actor.role || current.storeId !== actor.storeId) return false;
+    }
+    const rows = bypass ? [] : await tx.rolePermission.findMany({ select: { role: true, scope: true, target: true, action: true, allowed: true } });
+    const permissions = rows.length ? normalizeRolePermissions(rows as PermissionEntry[]) : buildDefaultRolePermissions();
+    return (!requirements.page || canRoleAccessPage(actor.role, requirements.page, permissions))
+      && requirements.resources.every(({ resource, action }) => canRolePerformAction(actor.role, resource, action, permissions));
+  } catch {
+    throw new AuthError(503, "Hak akses belum dapat diverifikasi. Silakan coba lagi.");
+  }
 }
 
 /** Check an authenticated user's resource grant without restoring defaults on failure. */

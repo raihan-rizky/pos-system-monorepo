@@ -315,6 +315,7 @@ export function buildFinancialReport({
   collectionTransactions,
   receivableBalance,
   manualIncome = [],
+  manualReceivables = [],
 }: {
   dateFrom: string;
   dateTo: string;
@@ -327,6 +328,7 @@ export function buildFinancialReport({
   collectionTransactions?: FinancialReportCollection[];
   receivableBalance?: number;
   manualIncome?: DailyManualIncome[];
+  manualReceivables?: import("./income-period").IncomePeriodInput["manualReceivables"];
 }) {
   const paymentMap = new Map<
     string,
@@ -582,6 +584,11 @@ export function buildFinancialReport({
       subcategory.revenue = (Math.round(subcategory.revenue * 100) + Math.round(allocation.amount * 100)) / 100;
       subcategoryMap.set(key, subcategory);
     }
+  }
+
+  for (const entry of buildIncomePeriod({ fromDate: dateFrom, toDate: dateTo, transactions: [], manualIncome: [], manualReceivables }).contributions) {
+    collected = (Math.round(collected * 100) + Math.round(entry.amount * 100)) / 100;
+    addPayment(entry.method, entry.id, entry.amount);
   }
 
   const lossBucketMap = new Map<LossReason, LossBucket>();

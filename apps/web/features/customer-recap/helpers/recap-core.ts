@@ -81,7 +81,7 @@ export interface CustomerRecapManualReceivable {
   amount: NullableNumber;
   amountPaid: NullableNumber;
   debtDate: Date;
-  payments: { amount: NullableNumber; createdAt: Date }[];
+  payments: { amount: NullableNumber; createdAt: Date; paidAt?: Date | null }[];
 }
 
 const CONFIRMED_STATUSES = new Set(["COMPLETED", "DP"]);
@@ -431,6 +431,7 @@ export function buildCustomerDetailRecap(input: BuildCustomerDetailRecapInput) {
   const debtPaidInPeriod = [...input.debtPaymentLogs, ...manualReceivables.flatMap(
     (receivable) => receivable.payments.map((payment) => ({
       ...payment,
+      createdAt: payment.paidAt ?? payment.createdAt,
       customerId: receivable.customerId,
     })),
   )].reduce(
@@ -531,21 +532,19 @@ export function buildCustomerDetailRecap(input: BuildCustomerDetailRecapInput) {
     const currentRemaining = Math.max(0, initialDebt - toNumber(receivable.amountPaid));
     const key = bucketKeyForDate(receivable.debtDate, granularity);
     const payments = [...receivable.payments].sort(
-      (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+      (a, b) => (a.paidAt ?? a.createdAt).getTime() - (b.paidAt ?? b.createdAt).getTime(),
     );
     let paidCents = 0;
     let closedAt: Date | null = null;
     for (const payment of payments) {
       paidCents += Math.round(toNumber(payment.amount) * 100);
       if (initialDebtCents > 0 && paidCents >= initialDebtCents) {
-        closedAt = payment.createdAt;
+        closedAt = payment.paidAt ?? payment.createdAt;
         break;
       }
     }
     if (closedAt && isInPeriod(closedAt, input.dateFrom, input.dateTo)) {
-      const days = Math.max(0, Math.round(
-        (closedAt.getTime() - receivable.debtDate.getTime()) / 86_400_000,
-      ));
+      const days = Math.max(0, (Date.parse(jakartaDateKey(closedAt)) - Date.parse(jakartaDateKey(receivable.debtDate))) / 86_400_000);
       const bucketDays = paymentDaysByBucket.get(key) ?? [];
       bucketDays.push(days);
       paymentDaysByBucket.set(key, bucketDays);

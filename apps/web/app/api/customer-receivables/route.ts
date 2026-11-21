@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, type Prisma } from "@pos/db";
 import { z } from "zod";
-import { requirePermission, handleAuthError, canAuthenticatedUserAccessPage, AuthError } from "@/lib/rbac/guard";
+import { authorizeInTransaction, requirePermission, handleAuthError, canAuthenticatedUserAccessPage, AuthError } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
 import { createReceivable, createReceivableSchema, ReceivableError } from "@/features/customer-debt/helpers/manual-receivables";
 
@@ -16,7 +16,8 @@ export async function GET(request: Request) {
   try {
     const user = await requirePermission("customer.receivable", "read");
     if (!await canAuthenticatedUserAccessPage(user, "/customers")) throw new AuthError(403, "Akses halaman Pelanggan diperlukan.");
-    const storeId = user.storeId || "store-main";
+    if (!user.storeId) return NextResponse.json({ message: "Toko pengguna belum tersedia." }, { status: 403 });
+    const storeId = user.storeId;
     const parsed = querySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
     if (!parsed.success) return NextResponse.json({ message: "Filter piutang tidak valid.", errors: parsed.error.flatten() }, { status: 422 });
     const { customerId, search, page } = parsed.data;
@@ -37,8 +38,8 @@ export async function GET(request: Request) {
         where,
         select: {
           id: true, customerId: true, customer: { select: { id: true, name: true } },
-          amount: true, amountPaid: true, debtDate: true, dueDate: true, note: true, createdAt: true,
-          payments: { select: { id: true, amount: true, method: true, note: true, createdAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+          amount: true, amountPaid: true, debtDate: true, dueDate: true, note: true, createdAt: true, updatedAt: true, reportCategory: true,
+          payments: { select: { id: true, amount: true, method: true, note: true, createdAt: true, paidAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
         },
         orderBy: [{ dueDate: "asc" }, { id: "asc" }], skip: (page - 1) * 20, take: 20,
       }),
@@ -46,8 +47,8 @@ export async function GET(request: Request) {
     const entries = data.map((entry) => ({
       id: entry.id, customerId: entry.customerId, customer: { id: entry.customer.id, name: entry.customer.name },
       amount: entry.amount, amountPaid: entry.amountPaid, debtDate: entry.debtDate, dueDate: entry.dueDate,
-      note: entry.note, createdAt: entry.createdAt,
-      payments: entry.payments.map((payment) => ({ id: payment.id, amount: payment.amount, method: payment.method, note: payment.note, createdAt: payment.createdAt })),
+      note: entry.note, createdAt: entry.createdAt, updatedAt: entry.updatedAt, reportCategory: entry.reportCategory,
+      payments: entry.payments.map((payment) => ({ id: payment.id, amount: payment.amount, method: payment.method, note: payment.note, createdAt: payment.createdAt, paidAt: payment.paidAt })),
     }));
     return NextResponse.json({ data: entries, pagination: { page, total, totalPages: Math.ceil(total / 20) } });
   } catch (error) {
@@ -60,11 +61,20 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requirePermission("customer.receivable", "read");
-    await requirePermission("customer.receivable", "create");
+    const creator = await requirePermission("customer.receivable", "create");
+    if (creator.id !== user.id || creator.storeId !== user.storeId || creator.role !== user.role) return NextResponse.json({ message: "Sesi pengguna berubah. Muat ulang dan coba lagi." }, { status: 403 });
+    const customerReader = await requirePermission("customer", "read");
+    if (customerReader.id !== user.id || customerReader.storeId !== user.storeId || customerReader.role !== user.role) return NextResponse.json({ message: "Sesi pengguna berubah. Muat ulang dan coba lagi." }, { status: 403 });
     if (!await canAuthenticatedUserAccessPage(user, "/customers")) throw new AuthError(403, "Akses halaman Pelanggan diperlukan.");
+    if (!user.storeId) return NextResponse.json({ message: "Toko pengguna belum tersedia." }, { status: 403 });
     const parsed = createReceivableSchema.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ message: parsed.error.issues[0]?.message ?? "Periksa data piutang.", errors: parsed.error.flatten() }, { status: 422 });
-    const receivable = await db.$transaction((tx) => createReceivable(tx, parsed.data, { id: user.id, storeId: user.storeId || "store-main" }));
+    const storeId = user.storeId;
+    const receivable = await db.$transaction(async tx => {
+      const resources: Parameters<typeof authorizeInTransaction>[2]["resources"] = [{ resource: "customer.receivable", action: "read" }, { resource: "customer.receivable", action: "create" }, { resource: "customer", action: "read" }];
+      if (!await authorizeInTransaction(tx, user, { resources, page: "/customers" })) throw new ReceivableError("Sesi atau izin pengguna berubah. Muat ulang dan coba lagi.", 403);
+      return createReceivable(tx, parsed.data, { id: user.id, storeId });
+    });
     return NextResponse.json(receivable, { status: 201 });
   } catch (error) {
     const authError = handleAuthError(error); if (authError) return authError;

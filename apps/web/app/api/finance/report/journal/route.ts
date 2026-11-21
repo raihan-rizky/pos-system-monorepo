@@ -14,6 +14,10 @@ import type { ExpenseCategory } from "@/features/keuangan/helpers/keuangan-core"
 import { getLogger } from "@/lib/logger";
 import { apiError } from "@/lib/api/responses";
 import { incomeClassification } from "@/features/financial-report/helpers/income-categories";
+import { withManualPayableSnapshot } from "@/features/financial-report/services/manual-payable-period";
+import { MANUAL_EXPENSE_REPORT_LABELS } from "@/features/keuangan/helpers/manual-report-categories";
+import { loadManualReceivablePeriod } from "@/features/financial-report/services/manual-receivable-period";
+import { buildIncomePeriod } from "@/features/financial-report/helpers/income-period";
 import { NextResponse } from "next/server";
 
 const log = getLogger("api:finance:report:journal");
@@ -73,7 +77,7 @@ export async function GET(request: Request) {
 
     if (!user.storeId) return apiError("Toko pengguna belum tersedia.", 403, { code: "Forbidden" });
     const storeId = user.storeId;
-    const [sales, expenses, manualIncome] = await Promise.all([
+    const [sales, expenseSnapshot, manualIncome, manualReceivables] = await Promise.all([
       db.transaction.findMany({
         where: {
           storeId,
@@ -106,7 +110,7 @@ export async function GET(request: Request) {
           },
         },
       }),
-      db.expense.findMany({
+      withManualPayableSnapshot(db, storeId, range.from, range.to, tx => tx.expense.findMany({
         where: {
           deletedAt: null,
           storeId,
@@ -119,6 +123,7 @@ export async function GET(request: Request) {
           occurredAt: true,
           applicantName: true,
           category: true,
+          reportCategory: true,
           customCategory: { select: { name: true } },
           description: true,
           amount: true,
@@ -132,13 +137,16 @@ export async function GET(request: Request) {
           shoppingRequest: { select: { number: true } },
           goodsPurchase: { select: { number: true } },
         },
-      }),
+      })),
       db.manualIncome.findMany({
         where: { storeId, deletedAt: null, occurredAt: { gte: start, lt: end } },
         select: { id: true, occurredAt: true, description: true, category: true, amount: true, payments: { select: { method: true, amount: true } } },
         orderBy: { occurredAt: "asc" },
       }),
+      loadManualReceivablePeriod(db, storeId, range.from, range.to),
     ]);
+
+    const { data: expenses, payables: manualPayables } = expenseSnapshot;
 
     const saleInputs = sales.map((s) => ({
       id: s.id,
@@ -190,12 +198,24 @@ export async function GET(request: Request) {
     }, new Map<string, typeof manualInputs[number]>()).values()];
     const saleRows = buildReportRows(saleInputs, []);
     const manualRows = buildReportRows(visibleManualIncome, []);
-    const expenseRows = expenses.map((e) => ({
-      restricted: !access.canReadExpenses || (!access.canReadPurchases && Boolean(
+    const receivableDetails = access.canReadReceivables && manualReceivables.length
+      ? await db.customerReceivable.findMany({ where: { storeId, id: { in: manualReceivables.map(receivable => receivable.id) } },
+        select: { id: true, note: true, customer: { select: { name: true } } } }) : [];
+    const receivableById = new Map(receivableDetails.map(receivable => [receivable.id, receivable]));
+    const receivableRows = buildIncomePeriod({ fromDate: range.from, toDate: range.to, transactions: [], manualIncome: [], manualReceivables }).contributions.map(entry => {
+      const receivable = receivableById.get(entry.manualReceivableId ?? "");
+      return { restricted: !access.canReadReceivables,
+        row: { tanggal: entry.date, invoice: `PIUTANG-${entry.manualReceivableId}`, person: receivable?.customer.name ?? "",
+          products: receivable?.note || "Pembayaran piutang manual", categories: entry.allocations.map(part => `${part.category} / ${part.subcategory}`).join(", "),
+          status: "Pemasukan" as const, amount: entry.amount, method: entry.method } };
+    });
+    const transferSegments = new Map(manualPayables.transfers.map(transfer => [transfer.id, transfer.segments]));
+    const expenseRows = expenses.flatMap((e) => {
+      const restricted = !access.canReadExpenses || (!access.canReadPurchases && Boolean(
         e.goodsPurchaseId || e.shoppingRequestId || e.goodsPurchase || e.shoppingRequest || e.manualPurchasePaymentMethod
         || e.backdatedPurchaseDueId || e.backdatedPurchasePaymentId
-      )),
-      row: buildReportRows([], [{
+      ));
+      const row = buildReportRows([], [{
         id: e.id,
         occurredAt: e.occurredAt,
         applicantName: e.applicantName,
@@ -207,12 +227,23 @@ export async function GET(request: Request) {
         hasMissingCostSnapshot: e.hasMissingCostSnapshot,
         shoppingRequestNumber: e.shoppingRequest?.number ?? null,
         goodsPurchaseNumber: e.goodsPurchase?.number ?? null,
-      }])[0],
-    }));
+      }])[0];
+      const segments = transferSegments.get(e.id);
+      if (segments) return segments.map(segment => ({ restricted, row: { ...row, amount: -segment.amountCents / 100,
+        categories: segment.category ? MANUAL_EXPENSE_REPORT_LABELS[segment.category] : "Belum ditentukan" } }));
+      if (e.manualPurchasePaymentMethod === "TRANSFER" && e.reportCategory) row.categories = MANUAL_EXPENSE_REPORT_LABELS[e.reportCategory];
+      return [{ restricted, row }];
+    });
+    for (const payment of manualPayables.payments) expenseRows.push({ restricted: !access.canReadExpenses || !access.canReadPurchases,
+      row: { tanggal: payment.date, invoice: `HUTANG-${payment.payableId}`, person: payment.supplierName,
+        products: payment.origin === "AUTO" ? "Pelunasan otomatis hutang" : "Pembayaran hutang manual",
+        categories: payment.category ? MANUAL_EXPENSE_REPORT_LABELS[payment.category] : "Belum ditentukan",
+        status: "Pengeluaran", amount: -payment.amountCents / 100, method: "" } });
 
     const grouped = new Map<string, ReportRow>();
     const rows = [...saleRows.map(row => ({ row, restricted: !access.canReadTransactions })),
       ...manualRows.map(row => ({ row, restricted: false })),
+      ...receivableRows,
       ...expenseRows]
       .filter(({ row, restricted }) => {
         if (!restricted) return true;

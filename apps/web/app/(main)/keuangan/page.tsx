@@ -114,11 +114,13 @@ export default function KeuanganDashboardPage() {
   const canEdit = canPerform("expense", "update");
   const canDelete = canPerform("expense", "delete");
   const canCreateTransfer = canPerform("expense.manual_transfer", "create");
-  const canEditTransfer = canPerform("expense.manual_transfer", "update");
+  const canEditTransfer = canPerform("expense.manual_transfer", "update") && canPerform("expense.manual_transfer.edit", "update");
   const canDeleteTransfer = canPerform("expense.manual_transfer", "delete");
   const canReadPayables = canPerform("expense.payable", "read");
   const canCreatePayables = canPerform("expense.payable", "create");
   const canUpdatePayables = canPerform("expense.payable", "update");
+  const canEditPayables = canPerform("expense.payable.manual", "update");
+  const canEditPayablePayments = canPerform("expense.payable.manual.payment", "update");
   const canReadGiro = canPerform("expense.giro", "read");
   const canUpdateGiro = canPerform("expense.giro", "update");
 
@@ -175,7 +177,7 @@ export default function KeuanganDashboardPage() {
 
   const handleEdit = useCallback((item: ExpenseListItem) => {
     if (item.source.type === "MANUAL_TRANSFER_PURCHASE") {
-      setTransferModal({ initial: { id: item.id, applicantName: item.applicantName, description: item.description, amount: item.amount, occurredAt: item.occurredAt, attachmentUrl: item.attachmentUrl } });
+      setTransferModal({ initial: { id: item.id, applicantName: item.applicantName, description: item.description, amount: item.amount, occurredAt: item.occurredAt, updatedAt: item.updatedAt, attachmentUrl: item.attachmentUrl, reportCategory: item.reportCategory } });
       return;
     }
     setEditing({
@@ -288,7 +290,7 @@ export default function KeuanganDashboardPage() {
         </div>
       </section>
 
-      {(canReadPayables || canCreatePayables || canReadGiro) && <SupplierPayablesPanel canRead={canReadPayables} canCreate={canCreatePayables} canUpdate={canUpdatePayables} canReadGiro={canReadGiro} canUpdateGiro={canUpdateGiro} />}
+      {(canReadPayables || canCreatePayables || canReadGiro) && <SupplierPayablesPanel canRead={canReadPayables} canCreate={canCreatePayables} canUpdate={canUpdatePayables} canEdit={canReadPayables && canEditPayables} canEditPayment={canReadPayables && canEditPayablePayments} canReadGiro={canReadGiro} canUpdateGiro={canUpdateGiro} />}
 
       {/* ───────── Bidirectional Daily Flow ───────── */}
       <section className="rounded-2xl border border-surface-200 bg-white p-3 sm:p-4 md:p-5 shadow-sm">
@@ -467,6 +469,9 @@ export default function KeuanganDashboardPage() {
               {customCategories.map((category) => (
                 <option key={category.id} value={customExpenseCategoryKey(category.id)}>{category.name}</option>
               ))}
+              {stripeData.filter(({ category }) => category.startsWith("report:")).map(({ category }) => (
+                <option key={category} value={category}>{expenseCategoryLabel(category, customCategories)} (kategori laporan)</option>
+              ))}
             </select>
             {categoryQuery.isError && <p role="alert" className="mt-1 text-xs text-red-700">Kategori khusus belum dapat dimuat. <button type="button" onClick={() => void categoryQuery.refetch()} className="underline">Coba lagi</button></p>}
           </div>
@@ -498,6 +503,8 @@ export default function KeuanganDashboardPage() {
                       ? "Pembelian Barang"
                       : item.source.type === "BACKDATED_PURCHASE"
                         ? "Belanja Terdahulu"
+                      : item.source.type === "MANUAL_PAYABLE"
+                        ? "Hutang manual"
                       : item.source.type === "SHOPPING_REQUEST"
                         ? "Daftar Belanja (Legacy)"
                         : item.source.type === "MANUAL_TRANSFER_PURCHASE"
@@ -571,6 +578,12 @@ export default function KeuanganDashboardPage() {
                         {item.description || "Tanpa keterangan"}{item.recognitionKind === "giro_payment" ? " · Pembayaran giro" : item.recognitionKind === "giro_due" ? " · Sisa jatuh tempo" : item.recognitionKind === "overpayment" ? " · Kelebihan pembayaran belum dikembalikan" : ""}
                         {item.allocation?.dueDate && ` · ${item.allocation.source === "automatic" ? "Alokasi otomatis, " : item.allocation.source === "stored" ? "Alokasi tercatat, " : ""}giro jatuh tempo ${fullDay(item.allocation.dueDate)}`}
                       </p>
+                      {item.source.type === "MANUAL_TRANSFER_PURCHASE" && item.reportCategoryAmounts && (
+                        <p className="mt-1 text-xs text-surface-600">
+                          {Object.entries(item.reportCategoryAmounts).map(([category, amount]) => `${expenseCategoryLabel(category as ExpenseCategoryKey, customCategories)}: ${formatRupiahPrecise(amount ?? 0)}`).join(" · ")}
+                          {" · Total transfer: "}{formatRupiahPrecise(item.netAmount)}
+                        </p>
+                      )}
                       {/* Mobile-only amount under description to avoid horizontal squeeze */}
                       <div className="sm:hidden mt-1 flex flex-row items-center gap-2">
                         <div>

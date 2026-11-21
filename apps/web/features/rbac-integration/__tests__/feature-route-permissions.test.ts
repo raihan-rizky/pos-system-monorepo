@@ -7,7 +7,8 @@ vi.mock('@/lib/rbac/guard',()=>({
   handleAuthError:(error:unknown)=>error===mocks.denied?new Response(null,{status:403}):null,
 }));
 vi.mock('@/features/rbac/helpers/rbac-server',()=>({getGlobalRolePermissions:mocks.permissions}));
-vi.mock('@pos/db',()=>({db:{transaction:{findMany:mocks.sales},expense:{findMany:mocks.expenses},manualIncome:{findMany:mocks.manual}},Prisma:{}}));
+vi.mock('@pos/db',()=>({db:{transaction:{findMany:mocks.sales},expense:{findMany:mocks.expenses},manualIncome:{findMany:mocks.manual},
+  customerReceivable:{findMany:async()=>[]},$transaction:async(callback:(tx:unknown)=>Promise<unknown>)=>callback({expense:{findMany:mocks.expenses},supplierPayable:{findMany:async()=>[]}})},Prisma:{}}));
 vi.mock('@/features/financial-report/services/monthly-report',()=>({getMonthlyFinancialReport:mocks.report}));
 vi.mock('@/lib/logger',()=>({getLogger:()=>({error:vi.fn(),warn:vi.fn(),info:vi.fn(),debug:vi.fn()})}));
 type RouteCase = readonly [string, () => Promise<unknown>, string, string, string];
@@ -99,7 +100,7 @@ describe('Izin ekspor pada API laporan',()=>{
     expect(response.status).toBe(200);
     if(name==='jurnal') {
       expect(mocks.sales).toHaveBeenCalledOnce();
-      expect(mocks.expenses).toHaveBeenCalledOnce();
+      expect(mocks.expenses).toHaveBeenCalledTimes(2);
     } else {
       expect(mocks.report).toHaveBeenCalledOnce();
     }

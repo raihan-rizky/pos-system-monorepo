@@ -21,6 +21,13 @@ describe('form pencatatan keuangan manual', () => {
     for (const label of ['Nama penerima / supplier', 'Bukti transfer (opsional)', 'Pemasok contoh', 'Belanja kertas', '25000', 'Simpan Perubahan']) expect(html).toContain(label);
     expect(html).not.toContain('Kategori RC');
   });
+  it('meminta kategori laporan transfer dan mempertahankan pilihan saat mengubah', () => {
+    const html = renderToStaticMarkup(<ManualFinanceFormModal open kind="transfer" initial={{ id: 'e1', description: 'Belanja', amount: 25000, occurredAt: '2026-11-02T00:00:00+07:00', reportCategory: 'SPANDUK' }} onClose={() => {}} onSaved={() => {}} />);
+    expect(html).toContain('Kategori laporan');
+    expect(html).toMatch(/<select[^>]*id="manual-reportCategory"[^>]*required/);
+    expect(html).toMatch(/<option value="SPANDUK" selected="">Spanduk<\/option>/);
+    for (const label of ['Cetak / Plat', 'Spanduk', 'ATK', 'Gaji / Mingguan']) expect(html).toContain(label);
+  });
   it('menyediakan daftar, pagination, dan aksi sesuai izin', () => {
     let html = renderToStaticMarkup(<ManualIncomePanel month="2026-11" />);
     for (const text of ['Tambah Pemasukan', 'Pendapatan contoh', 'Ubah', 'Hapus', 'Berikutnya']) expect(html).toContain(text);

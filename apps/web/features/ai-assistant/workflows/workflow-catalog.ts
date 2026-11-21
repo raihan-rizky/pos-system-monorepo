@@ -432,7 +432,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Simpan pengeluaran", description: "Periksa pratinjau lampiran dan klik Simpan." },
       { title: "Kenali sumber pengeluaran", description: "Badge Manual menandai input dari form. Badge Pembelian Barang, Belanja Terdahulu, dan Daftar Belanja (Legacy) menandai entri otomatis. Buka menu tiga titik untuk memilih tindakan pembelian atau pembayaran sesuai izin, isi alasan, lalu tinjau dampak sebelum konfirmasi." },
       { title: "Selesaikan pembatalan pembelian", description: "Jika ada uang yang sudah dibayarkan, catat dana yang sudah diterima kembali atau kredit yang sudah dikonfirmasi pemasok. Kredit dapat digunakan dari Catat pembayaran → Pakai kredit pemasok untuk giro pemasok yang sama. Bila stok tidak mencukupi atau riwayat belum lengkap, ikuti pesan pratinjau." },
-      { title: "Filter kategori pengeluaran", description: "Pada bagian Pengeluaran, pilih kategori di Filter kategori untuk menyaring daftar; jumlah dan grafik tetap mencakup seluruh bulan. Pilih Lihat cara perhitungan untuk melihat rumus Pemasukan − Pengeluaran dan komponennya, termasuk pelunasan piutang manual. Pembayaran giro sampai jatuh tempo dihitung saat dibayar, sisanya pada jatuh tempo terbaru; pembayaran setelahnya tidak dihitung ulang. Jika riwayat belum lengkap, periksa riwayat giro." },
+      { title: "Filter kategori pengeluaran", description: "Pada bagian Pengeluaran, pilih kategori di Filter kategori untuk menyaring daftar; jumlah dan grafik tetap mencakup seluruh bulan. Pilih Lihat cara perhitungan untuk melihat rumus Pemasukan − Pengeluaran dan komponennya, termasuk pelunasan piutang manual dan pembayaran hutang manual yang belum terhubung ke transfer. Pembayaran giro sampai jatuh tempo dihitung saat dibayar, sisanya pada jatuh tempo terbaru; pembayaran setelahnya tidak dihitung ulang. Jika riwayat belum lengkap, periksa riwayat giro." },
     ],
   }),
   workflow({
@@ -853,8 +853,8 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     steps: [
       { title: "Buka detail pelanggan", description: "Masuk ke Pelanggan, pilih pelanggan yang sudah terdaftar, lalu temukan bagian Piutang Manual. Piutang manual mencatat utang lama atau tagihan di luar kasir tanpa membuat transaksi penjualan, order, atau mengubah stok." },
       { title: "Klik Tambah Piutang", description: "Klik Tambah Piutang pada detail pelanggan; pelanggan mengikuti profil yang sedang dibuka. Aksi ini memerlukan izin Lihat piutang dan Tambah piutang manual, terpisah dari Ubah profil pelanggan dan Catat pembayaran piutang. Pelanggan yang memiliki riwayat piutang manual tidak dapat dihapus, termasuk yang sudah lunas, agar catatan pembayaran tetap tersimpan." },
-      { title: "Isi nominal dan tanggal", description: "Isi nominal lebih dari nol dan tanggal utang paling lambat hari ini dalam WIB. Isi tanggal jatuh tempo sama dengan atau setelah tanggal utang, lalu tambahkan catatan bila perlu." },
-      { title: "Simpan dan periksa", description: "Klik Simpan Piutang. Periksa catatan di detail pelanggan atau tab Piutang, bagian Piutang Manual. Gunakan Bayar Piutang Manual untuk mencatat cicilan atau pelunasan; Riwayat pembayaran menyimpan pembayaran yang sudah diterima." },
+      { title: "Isi nominal, tanggal, dan kategori", description: "Isi nominal lebih dari nol, tanggal utang paling lambat hari ini dalam WIB, jatuh tempo, dan kategori laporan: Cetak, Plat, Stempel, Spanduk, ATK, atau Print. Tambahkan catatan bila perlu." },
+      { title: "Simpan dan periksa", description: "Klik Simpan Piutang. Gunakan Bayar Piutang Manual untuk mencatat cicilan atau pelunasan. Buka Riwayat pembayaran untuk koreksi sesuai izin; Ubah piutang dapat memperbaiki pelanggan, rincian, dan kategori. Pembayaran masuk laporan pada tanggal dan kategori yang dipilih; catatan lama tanpa kategori tetap dihitung sampai dikoreksi." },
     ],
   }),
   workflow({
@@ -899,12 +899,12 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     requiredCapabilities: [{ resource: "expense", action: "create" }],
     steps: [
       { title: "Buka Keuangan", description: "Buka halaman Keuangan dan pilih Tambahkan Hutang pada bagian Hutang Pemasok." },
-      { title: "Isi dan simpan", description: "Isi nama pemasok, nominal, dan tanggal hutang. Jatuh tempo, catatan, dan pembayaran awal bersifat opsional; klik Simpan hutang." },
-      { title: "Catat pembayaran berikutnya", description: "Pada hutang yang belum lunas, pilih Catat pembayaran untuk menyimpan pembayaran sebagian atau pelunasan. Izin expense:update diperlukan." },
+      { title: "Isi dan simpan", description: "Isi pemasok, nominal, tanggal hutang, dan kategori laporan. Jatuh tempo, catatan, dan pembayaran awal opsional; klik Simpan hutang, lalu Selesai. Jika hasil belum pasti, buka Tambahkan Hutang lagi dan pilih Pastikan hutang." },
+      { title: "Catat atau koreksi pembayaran", description: "Tanpa jatuh tempo, pilih Catat pembayaran untuk mencatat cicilan atau pelunasan. Jika hasil belum pasti, pilih Pastikan pembayaran pada hutang yang sama. Jika jatuh tempo diisi, sisa otomatis lunas pada tanggal itu, termasuk hutang lama. Pembayaran manual yang sudah tercatat tetap memakai tanggal aktual. Ubah rincian atau pembayaran sesuai izin; izin koreksi terpisah awalnya hanya untuk Owner." },
       { title: "Periksa giro lama", description: "Pada Giro Pembelian, giro lama berstatus Belum diketahui. Pilih Periksa riwayat, hubungkan hutang manual yang sama jika ada, periksa pembayaran yang sudah tercatat, dan tambahkan pembayaran sebelumnya beserta tanggalnya. Centang bahwa riwayat pembayaran sudah lengkap lalu simpan. Izin expense:update diperlukan." },
       { title: "Hubungkan hutang manual", description: "Untuk giro yang sudah diperiksa, pilih Hubungkan hutang manual dan pilih hutang yang benar-benar sama dengan nominal yang sama. Periksa catatan kedua hutang, riwayat pembayaran, dan bukti; tentukan pembayaran yang sama atau transaksi berbeda untuk setiap pasangan yang cocok, centang konfirmasi, lalu simpan. Catatan kedua hutang disimpan pada giro. Periksa pengeluaran manual agar pembayaran yang dipindahkan tidak tercatat dua kali dalam arus kas." },
       { title: "Bayar giro", description: "Untuk giro yang sudah diperiksa, pilih Catat pembayaran dan isi nominal serta tanggal pembayaran aktual. Pembayaran boleh sebagian atau lunas; nominal tidak boleh melebihi sisa. Giro berstatus Lunas setelah seluruhnya dibayar. Jika hasil belum pasti, gunakan Pastikan pembayaran pada peramban dan akun yang sama. Jika data peramban terhapus, periksa riwayat sebelum mencatat lagi." },
-      { title: "Unduh laporan", description: "Saldo hutang manual dan sisa giro masuk laporan bulanan sesuai tanggal. Kas memperhitungkan pembayaran aktual giro; pembayaran hutang manual tetap dicatat terpisah. Unduh ulang jika data berubah." },
+      { title: "Unduh laporan", description: "Pembayaran hutang masuk pengeluaran pada tanggal dan kategori yang dipilih. Hubungkan transfer yang sama secara eksplisit agar dihitung sekali, lalu unduh ulang laporan setelah perubahan." },
     ],
   }),
   workflow({
@@ -958,7 +958,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     faqNumber: 48, slug: "manual-income", title: "Bagaimana cara mencatat pemasukan tanpa transaksi?",
     aliases: ["tambah pemasukan", "pemasukan tanpa transaksi", "input pendapatan RC", "pemasukan manual"],
     route: "/keuangan", actionLabel: "Buka Keuangan", iconKey: "wallet-cards",
-    requiredCapabilities: [{ resource: "income", action: "create" }],
+    requiredCapabilities: [{ resource: "income.manual", action: "create" }],
     steps: [
       { title: "Tambah Pemasukan", description: "Di Keuangan, cari Pemasukan tanpa transaksi dan klik Tambah Pemasukan." },
       { title: "Isi pemasukan", description: "Isi tanggal WIB, keterangan / sumber, nominal, dan Kategori RC: ATK, Cetak, Spanduk, Print, Stempel. Pilih satu atau beberapa metode pembayaran dan isi jumlah tiap metode hingga sama dengan nominal, lalu klik Simpan." },
@@ -969,11 +969,11 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     faqNumber: 49, slug: "manual-transfer-purchase", title: "Bagaimana cara mencatat belanja manual via transfer?",
     aliases: ["tambah belanja transfer", "belanja manual transfer", "pengeluaran belanja transfer tanpa stok"],
     route: "/keuangan", actionLabel: "Buka Keuangan", iconKey: "wallet-cards",
-    requiredCapabilities: [{ resource: "expense", action: "create" }],
+    requiredCapabilities: [{ resource: "expense.manual_transfer", action: "create" }],
     steps: [
       { title: "Tambah Belanja Transfer", description: "Buka Keuangan, lalu klik Tambah Belanja Transfer pada bagian Pengeluaran." },
-      { title: "Isi belanja", description: "Isi tanggal transfer, nama penerima / supplier, keterangan belanja, dan nominal. Bukti transfer opsional. Klik Simpan untuk mencatat pengeluaran tanpa menambah stok." },
-      { title: "Periksa rincian belanja", description: "Catatan berbadge Belanja Transfer Manual dapat diubah atau dihapus sesuai izin. Unduh ulang Excel bulanan: PENGELUARAN BELANJA menampilkannya pada VIA TRANSFER dan RP menghitungnya satu kali." },
+      { title: "Isi belanja", description: "Isi tanggal transfer, penerima, keterangan, nominal, dan kategori laporan; bukti opsional. Pilih Lepaskan foto jika foto baru tidak jadi digunakan. Jika membayar hutang, pilih hutang dan pembayaran yang sama atau catat pembayaran baru, lalu tambahkan alokasi untuk setiap hutang. Klik Simpan tanpa mengubah stok. Jika catatan pembayaran sesi lama muncul tanpa akun atau toko asal, pilih konteks yang benar dan gunakan Periksa pembayaran pada akun/toko ini; penghapusan catatan hanya dilakukan setelah riwayat diperiksa." },
+      { title: "Periksa rincian belanja", description: "Setiap alokasi mengikuti kategori hutang dan sisa transfer memakai kategori transfer. Catatan lama harus dihubungkan secara eksplisit; Ubah transfer dan kelola alokasi sesuai izin. Jika hasil simpan belum pasti, buka kembali form dan pilih Coba lagi transfer sebelumnya, atau Catat transfer baru untuk pembayaran yang berbeda. Unduh ulang Excel agar laporan menghitung pengeluaran satu kali." },
     ],
   }),
   workflow({

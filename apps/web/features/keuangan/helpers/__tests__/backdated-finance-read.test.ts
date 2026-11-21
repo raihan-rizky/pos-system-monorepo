@@ -14,6 +14,7 @@ vi.mock("@pos/db", () => {
     expense: { findMany: mocks.findExpenses, count: mocks.countExpenses, aggregate: mocks.aggregateExpenses },
     transaction: { findMany: mocks.findTransactions },
     customerReceivable: { findMany: mocks.findReceivables },
+    supplierPayable: { findMany: async () => [] },
     cashierShift: { findMany: mocks.findShifts },
     inventoryLog: { findMany: mocks.findInventory },
     debtPaymentLog: { findMany: mocks.findDebtPayments },
@@ -23,7 +24,7 @@ vi.mock("@pos/db", () => {
   };
   return { db: { ...tx, $transaction: (callback: (value: typeof tx) => unknown) => callback(tx) } };
 });
-vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.requirePermission, getCurrentUser: mocks.currentUser, handleAuthError: () => null }));
+vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.requirePermission, canAuthenticatedUserAccessPage: async () => true, getCurrentUser: mocks.currentUser, handleAuthError: () => null }));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.rolePermissions }));
 vi.mock("@/features/financial-report/services/monthly-balances", () => ({
   getMonthlyBalances: async () => ({ openingInventoryBalance: null, inventoryBalance: null, supplierDebts: [], supplierDebtBalance: 0 }),

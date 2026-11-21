@@ -117,7 +117,7 @@ export async function GET(request: Request) {
   try {
     const access = await getFinancialExportAccess(request);
     if ("response" in access) return access.response;
-    if (!access.canReadTransactions || !access.canReadCustomers || !access.canReadPurchases || !access.canReadInventory) {
+    if (!access.canReadTransactions || !access.canReadCustomers || !access.canReadReceivables || !access.canReadPurchases || !access.canReadInventory) {
       return apiError('Ekspor bulanan memerlukan hak akses Produk, Riwayat, transaksi, pelanggan, pengeluaran, supplier, utang, dan giro. Minta pengelola hak akses melengkapinya.', 403, { code: 'Forbidden' });
     }
     const { user } = access;
