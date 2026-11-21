@@ -1,4 +1,5 @@
 import hashlib
+import shutil
 import sys
 import tempfile
 import unittest
@@ -152,6 +153,42 @@ class BaselineTests(unittest.TestCase):
         plan["database_baseline"]["fingerprint"] = plan["candidate"]["database_fingerprint"]
         with self.assertRaises(CutoverError):
             plan_binding(plan)
+
+
+class ArtifactBundleTests(unittest.TestCase):
+    def test_accepts_checkout_line_endings_but_rejects_changed_migration_bytes(self):
+        from manual_finance_dev_cutover import bundle_digest
+        from manual_finance_dev_host import DevReleaseAdapter
+        from test_vps_manual_finance_cutover import valid_plan
+
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        reviewed = root / "reviewed"
+        (reviewed / "migrations").mkdir(parents=True)
+        (reviewed / "schema.prisma").write_bytes(b"// reviewed schema\r\n")
+        (reviewed / "migrations/migration_lock.toml").write_bytes(b'provider = "postgresql"\r\n')
+        plan = valid_plan()
+        for name in MIGRATIONS:
+            path = reviewed / "migrations" / name
+            path.mkdir()
+            (path / "migration.sql").write_bytes(b"SELECT 1;\n")
+        plan["migrations"] = [{"name": name, "sha256": hashlib.sha256(b"SELECT 1;\n").hexdigest()}
+                              for name in MIGRATIONS]
+        plan["candidate"]["schema_sha256"] = hashlib.sha256(b"// reviewed schema\r\n").hexdigest()
+        plan["candidate"]["prisma_bundle_sha256"] = bundle_digest(reviewed)
+        runtime = root / "runtime"
+        artifact = runtime / "packages/db/prisma"
+        shutil.copytree(reviewed, artifact)
+        (artifact / "schema.prisma").write_bytes(b"// reviewed schema\n")
+        (artifact / "migrations/migration_lock.toml").write_bytes(b'provider = "postgresql"\n')
+
+        adapter = DevReleaseAdapter.__new__(DevReleaseAdapter)
+        adapter.workdir, adapter.bundle = root, reviewed
+        adapter.verify_runtime_bundle(plan, runtime)
+
+        migration = artifact / "migrations" / MIGRATIONS[0] / "migration.sql"
+        migration.write_bytes(b"SELECT 1;\r\n")
+        with self.assertRaises(CutoverError):
+            adapter.verify_runtime_bundle(plan, runtime)
 
 
 if __name__ == "__main__":

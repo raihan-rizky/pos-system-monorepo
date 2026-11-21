@@ -81,3 +81,5 @@ The root entry point in `scripts/deploy/manual_finance_dev_host.py` uses the ins
 The active inventory close job uses a fenced database login through a normal PostgreSQL connection. The preflight verifies this for every active cron job. The archive retains cron data. The scratch restore skips the extension because that extension can run only in the fixture cluster's primary database.
 
 The unvoid rollout advanced GitHub `dev` and its migration history to `fcb23c8d` while the VPS still served `49e2464d`. The standard deployment correctly rejected that mismatch. The cutover plan records the verified live database fingerprint from a fresh unvoid snapshot separately from the older runtime record. The candidate commit must descend directly from the reviewed `dev` commit. The registry changes only after the candidate passes runtime and database readiness.
+
+GitHub CI checks out `schema.prisma` and `migration_lock.toml` with LF endings. The artifact verifier checks these two files against the reviewed Git content after CRLF normalization. Every SQL file still uses exact Git bytes, including the four checksums recorded by Prisma on dev.

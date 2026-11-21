@@ -120,6 +120,12 @@ def baseline_compatible(plan, services, github, active):
             and services.compatible({**active, "database_fingerprint": baseline["fingerprint"]}))
 
 
+def ci_schema_hash(plan, bundle):
+    verify_bundle(plan, bundle)
+    checked_out_schema = (bundle / "schema.prisma").read_bytes().replace(b"\r\n", b"\n")
+    return hashlib.sha256(checked_out_schema).hexdigest()
+
+
 def write_verified_backup(path, dump, restore):
     """Publish the fenced snapshot after an isolated restore succeeds."""
     parent = path.parent
@@ -382,12 +388,13 @@ class DevReleaseAdapter(DevMigrationAdapter):
             return False
         previous = self.active(plan)
         checks = self.services.expected("dev", previous["runtime"])
+        artifact_schema_hash = ci_schema_hash(plan, self.bundle)
 
         class CandidateSettings:
             def expected(_, target, runtime):
                 if target != "dev":
                     raise CutoverError("Artefak harus berasal dari dev")
-                return {**checks, "schemaSha256": plan["candidate"]["schema_sha256"]}
+                return {**checks, "schemaSha256": artifact_schema_hash}
 
         github = self.release.Github(self.services.config, CandidateSettings())
         request = {"target": "dev", "action": "deploy", "manual": False,
@@ -409,6 +416,14 @@ class DevReleaseAdapter(DevMigrationAdapter):
             bundle = Path(tmp)
             shutil.copy2(source / "schema.prisma", bundle / "schema.prisma", follow_symlinks=False)
             shutil.copytree(source / "migrations", bundle / "migrations", symlinks=True)
+            # CI checks out these metadata files with LF. SQL must retain its exact Git bytes.
+            for relative in ("schema.prisma", "migrations/migration_lock.toml"):
+                copied = bundle / relative
+                reviewed = (self.bundle / relative).read_bytes()
+                if (copied.is_symlink() or not copied.is_file()
+                        or copied.read_bytes() not in {reviewed, reviewed.replace(b"\r\n", b"\n")}):
+                    raise CutoverError("Metadata Prisma pada artefak berbeda dari tree Git")
+                copied.write_bytes(reviewed)
             verify_bundle(plan, bundle)
 
     def _unit_paths(self):
@@ -506,7 +521,8 @@ class DevReleaseAdapter(DevMigrationAdapter):
                 os.close(directory)
         return {"target": "dev", "release": candidate["id"], "commit": evidence["commit"],
                 "run_id": evidence["run_id"], "artifact_id": evidence["artifact_id"],
-                "schema_sha256": evidence["schema_sha256"], "database_fingerprint": candidate["database_fingerprint"]}
+                "schema_sha256": candidate["metadata"]["schemaSha256"],
+                "database_fingerprint": candidate["database_fingerprint"]}
 
     def open_gate(self, plan, evidence):
         self.gate.open(lambda: self._verified_release(plan, evidence))
