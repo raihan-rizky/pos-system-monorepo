@@ -229,8 +229,8 @@ const writerInventory: ReadonlyArray<WriterSpec> = [
     requiredMarkers: [
       "lockStockMutationRows(",
       "const current = await previewTransactionUnvoid(tx, input)",
-      "tx.productStockGroup.updateMany(",
       "tx.product.updateMany(",
+      "tx.productStockGroup.updateMany(",
     ],
   },
 ];
