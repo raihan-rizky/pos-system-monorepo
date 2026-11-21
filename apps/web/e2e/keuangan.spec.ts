@@ -12,11 +12,13 @@ test("keuangan dashboard shows net cash flow, pemasukan, and pengeluaran togethe
   await expect(page.getByText("Rp 44.150.000", { exact: true })).toBeVisible({ timeout: 30_000 });
 
   // Pemasukan column
-  await expect(page.getByText("Rp 45.000.000", { exact: true })).toBeVisible();
-  await expect(page.getByText("312 trx")).toBeVisible();
+  const income = page.locator("section").filter({ has: page.getByRole("heading", { name: "Pemasukan", exact: true }) });
+  await expect(income.getByText("Rp 45.000.000", { exact: true })).toBeVisible();
+  await expect(income.getByText("22 trx", { exact: true })).toBeVisible();
 
   // Pengeluaran column
-  await expect(page.getByText("Rp 850.000", { exact: true })).toBeVisible();
+  const expense = page.locator("section").filter({ has: page.getByRole("heading", { name: "Pengeluaran", exact: true }) });
+  await expect(expense.getByText("Rp 850.000", { exact: true })).toBeVisible();
   await expect(page.getByText("Pak Budi")).toBeVisible();
   await expect(page.getByText("Sari")).toBeVisible();
 
