@@ -110,7 +110,7 @@ export const RBAC_PERMISSION_MODULES: RbacPermissionModule[] = [
     label: "Approval Transaksi",
     description: "Persetujuan, penolakan, dan pembatalan transaksi.",
     pageTargets: ["/history"],
-    resourceTargets: ["transaction.approve"],
+    resourceTargets: ["transaction.approve", "transaction.unvoid"],
     sensitivity: "critical",
   },
   {

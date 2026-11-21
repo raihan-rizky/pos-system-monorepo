@@ -32,6 +32,7 @@ import type { LucideIcon } from "lucide-react";
 import { SuratJalanBundleButton } from "@/features/surat-jalan/components/SuratJalanBundleButton";
 import { Modal } from "@pos/ui";
 import { TransactionActionMenu } from "./TransactionActionMenu";
+import { UnvoidPreviewModal } from "./components/UnvoidPreviewModal";
 import { AutoFitHistoryTable } from "./components/AutoFitHistoryTable";
 import type { CartEditorItem } from "./components/TransactionCartEditor";
 import {
@@ -1193,6 +1194,7 @@ export default function HistoryClientPage() {
   const [rejectingTransaction, setRejectingTransaction] = useState<Transaction | null>(null);
   const [approvingDraft, setApprovingDraft] = useState<Transaction | null>(null);
   const [voidingTransaction, setVoidingTransaction] = useState<Transaction | null>(null);
+  const [restoringTransaction, setRestoringTransaction] = useState<Transaction | null>(null);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
   const [noteTransaction, setNoteTransaction] = useState<Transaction | null>(null);
 
@@ -1868,6 +1870,7 @@ export default function HistoryClientPage() {
                                     onReject={() => setRejectingTransaction(tx)}
                                     onApproveDraft={() => setApprovingDraft(tx)}
                                     onVoid={() => setVoidingTransaction(tx)}
+                                    onRestore={() => setRestoringTransaction(tx)}
                                     showUpward={idx >= transactions.length - 2 && transactions.length > 1}
                                   />
                                 </div>
@@ -2132,7 +2135,8 @@ export default function HistoryClientPage() {
                                 onApprove={() => setApprovingTransaction(tx)}
                                 onReject={() => setRejectingTransaction(tx)}
                                 onApproveDraft={() => setApprovingDraft(tx)}
-                                onVoid={() => setVoidingTransaction(tx)}
+                                  onVoid={() => setVoidingTransaction(tx)}
+                                  onRestore={() => setRestoringTransaction(tx)}
                                 showUpward={idx >= transactions.length - 2 && transactions.length > 1}
                               />
                             </div>
@@ -2265,6 +2269,9 @@ export default function HistoryClientPage() {
           onClose={() => setVoidingTransaction(null)}
           onSuccess={() => setVoidingTransaction(null)}
         />
+      )}
+      {restoringTransaction && role === "OWNER" && (
+        <UnvoidPreviewModal transactionId={restoringTransaction.id} onClose={() => setRestoringTransaction(null)} onSuccess={() => setRestoringTransaction(null)} />
       )}
 
       {/* Reject Modal */}

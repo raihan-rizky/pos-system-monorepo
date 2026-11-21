@@ -11,6 +11,7 @@ import {
   Truck,
   CalendarDays,
   History,
+  RotateCcw,
 } from "lucide-react";
 import { Transaction } from "@/hooks/useTransactions";
 import { isTransactionEligibleForSuratJalan } from "@/features/surat-jalan/components/SuratJalanBundleButton";
@@ -38,6 +39,7 @@ interface TransactionActionMenuProps {
   onReject: () => void;
   onApproveDraft: () => void;
   onVoid: () => void;
+  onRestore?: () => void;
   showUpward?: boolean;
   initialOpen?: boolean;
 }
@@ -60,6 +62,7 @@ export function TransactionActionMenu({
   onReject,
   onApproveDraft,
   onVoid,
+  onRestore,
   showUpward = false,
   initialOpen = false,
 }: TransactionActionMenuProps) {
@@ -150,10 +153,11 @@ export function TransactionActionMenu({
   const hasInvoiceDateAction = !isBundled && !isSalesRole && canChangeInvoiceDate;
   const hasDeleteAction = canDeleteTransactions;
   const hasVoidAction = canVoid && canVoidTransaction(tx.status);
+  const hasRestoreAction = role === "OWNER" && tx.status === "VOIDED" && Boolean(onRestore);
   const hasSuratJalanAction = !isBundled && isTransactionEligibleForSuratJalan(tx);
   const hasReceiptChangesAction = !isBundled && role === "OWNER" && tx.status !== "DRAFT" && tx.status !== "PENDING_APPROVAL";
 
-  const hasAnyAction = hasUpdateAction || hasInvoiceDateAction || hasDeleteAction || hasVoidAction || 
+  const hasAnyAction = hasUpdateAction || hasInvoiceDateAction || hasDeleteAction || hasVoidAction || hasRestoreAction ||
                        hasSuratJalanAction || hasReceiptChangesAction;
 
   if (!hasAnyAction) return null;
@@ -184,7 +188,7 @@ export function TransactionActionMenu({
           </Link>
         </div>
       )}
-      {(hasUpdateAction || hasInvoiceDateAction || hasVoidAction) && (
+      {(hasUpdateAction || hasInvoiceDateAction || hasVoidAction || hasRestoreAction) && (
         <div className="p-1">
           {hasInvoiceDateAction && (
             <button
@@ -211,6 +215,14 @@ export function TransactionActionMenu({
             >
               <XCircle className="mr-2 h-4 w-4 text-red-500" />
               Void
+            </button>
+          )}
+          {hasRestoreAction && (
+            <button type="button"
+              onClick={(event) => { event.stopPropagation(); triggerRef.current?.focus(); setIsOpen(false); onRestore?.(); }}
+              className="min-h-11 w-full text-left px-3 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50 flex items-center rounded-lg transition-colors cursor-pointer">
+              <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
+              Pulihkan transaksi
             </button>
           )}
         </div>

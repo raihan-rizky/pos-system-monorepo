@@ -63,6 +63,18 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "pulihkan-transaksi-void-20261121", date: "2026-11-21", revision: 1,
+    highlight: { title: "Pulihkan transaksi void", summary: "Tinjau dampak sebelum membuka kembali transaksi void." },
+    title: "Pulihkan transaksi void dari Riwayat.",
+    summary: "Owner dapat meninjau stok, surat jalan, dan perhitungan pelanggan sebelum memulihkan transaksi void.",
+    kind: "feature", impact: "major", area: "Riwayat", href: "/history", visual: "transaction-unvoid",
+    steps: [
+      { title: "Cari transaksi", detail: "Buka Riwayat dan temukan transaksi berstatus Void." },
+      { title: "Tinjau dampak", detail: "Pilih Pulihkan transaksi dari menu tiga titik, lalu periksa pratinjau." },
+      { title: "Pulihkan", detail: "Pilih Pulihkan transaksi untuk mengembalikan status dan dampak yang ditampilkan." },
+    ],
+  },
+  {
     id: "koreksi-belanja-jadwal-campuran-20261120", date: "2026-11-20", revision: 1,
     highlight: { title: "Ubah pembayaran lebih fleksibel", summary: "Koreksi Transfer dan Giro meski ada penerimaan menunggu." },
     title: "Koreksi pembayaran tanpa menunggu penerimaan.",

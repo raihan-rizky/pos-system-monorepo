@@ -226,7 +226,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
     },
     {
       id: "owner-approval-transaksi",
-      title: "Approval, Void, dan Hapus Transaksi",
+      title: "Approval, Void, Pulihkan, dan Hapus Transaksi",
       description: "Periksa transaksi pending atau gunakan Void dan Hapus dari menu tiga titik di Riwayat. Semua jenis transaksi, termasuk ATK, Percetakan, nota penawaran, dan transaksi dengan surat jalan, mengikuti izin akun serta statusnya. Owner mengatur Auto Approve Transaksi di Pengaturan > RBAC agar checkout role langsung final dan stok langsung berkurang.",
       icon: <ShieldCheck className="w-5 h-5 text-brand-600" />,
       steps: [
@@ -234,6 +234,7 @@ const RAW_HELP_ROLE_CONTENT: Record<string, AccordionItem[]> = {
         { title: "Klik Aksi Approval", description: "Klik tombol 'Setujui' atau 'Tolak' langsung di sebelah kanan baris transaksi (atau melalui tombol titik tiga '...').", icon: <ShieldCheck className="w-8 h-8" /> },
         { title: "Review dan sesuaikan barang", description: "Sebelum menyetujui nota sementara, Anda dapat menambah barang, mengubah jumlah, atau menghapus barang. Periksa harga modal, normal, Agen, Dinas, Harga Khusus, serta harga efektif; server menghitung ulang harga dan total saat disimpan.", icon: <Package className="w-8 h-8" /> },
         { title: "Tentukan metode & jumlah", description: "Pilih metode pembayaran aktual atau Tempo/Tagihan. Tempo terpisah dari DP, memerlukan pelanggan terdaftar, dan boleh dimulai tanpa pembayaran atau dengan cicilan awal yang dicatat memakai metode yang benar-benar diterima. Tanggal default memakai waktu server dalam WIB; Owner/Admin dapat mengubah tanggal atau jam invoice bila diperlukan.", icon: <DollarSign className="w-8 h-8" /> },
+        { title: "Pulihkan transaksi void", description: "Owner dapat memilih Pulihkan transaksi pada menu tiga titik transaksi void. Periksa status, stok, surat jalan, dan perhitungan pelanggan pada pratinjau, lalu konfirmasi. Jika stok tidak cukup atau riwayat perlu diperiksa, pemulihan tidak dijalankan.", icon: <History className="w-8 h-8" /> },
         { title: "Konfirmasi atau pilih Void/Hapus", description: "Setujui memfinalisasi transaksi dan mengurangi stok; Tolak nota yang belum final tidak mengubah stok. Void memerlukan transaction.update dan tersedia bagi role yang diberi izin, termasuk pada draft atau pending. Baca dampaknya lalu konfirmasi. Transaksi VOIDED/REFUNDED tidak dapat di-void ulang. Seluruh surat jalan PENDING/CONFIRMED terkait dibatalkan; CANCELLED/REJECTED tetap. Hapus memerlukan transaction.delete bagi role yang diberi izin; transaksi beserta seluruh surat jalan terkait dan itemnya ikut dihapus. Jurnal stok dan audit tetap tersimpan. Stok yang terbukti keluar dikembalikan paling banyak sekali; Hapus setelah Void tidak mengembalikannya lagi. Semua jenis transaksi, termasuk ATK, Percetakan, dan nota penawaran yang sudah atau belum menjadi invoice, tetap dapat dihapus bila riwayat stok kosong atau tidak konsisten. Peringatan tetap terlihat setelah berhasil dan tercatat di audit; stok yang tidak dapat dipastikan tidak dikembalikan. Pemeriksaan izin dan dampak keuangan tetap berlaku. Baca dampak seluruh dokumen pada konfirmasi sebelum melanjutkan.", icon: <ShieldCheck className="w-8 h-8" /> },
       ]
     },
