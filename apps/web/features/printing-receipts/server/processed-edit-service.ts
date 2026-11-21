@@ -9,6 +9,7 @@ import { planProcessedPrintingReceiptEdit, type ProcessedPrintingReceiptInput, t
 import { getPrintingReceipt, PrintingReceiptStorageError } from "./receipt-store";
 import { parsePrintingReceiptRevision } from "./route-support";
 import { captureReceiptSnapshot, recordReceiptChange, shouldRecordReceiptChange } from "@/features/receipt-changes/server/receipt-change-audit";
+import { hasAuditedVoidStockReturns } from "@/features/transactions-stock/helpers/audited-void-stock-returns";
 
 type Tx = Prisma.TransactionClient;
 type Actor = { id: string; name?: string | null; role?: Role };
@@ -52,12 +53,20 @@ async function prepare(tx: Tx, storeId: string, id: string, raw: ProcessedPrinti
   }
   const journal = await tx.inventoryLog.findMany({ where: { OR: [{ transactionId: transaction.id }, { sourceTransactionRef: transaction.id }] }, orderBy: { id: "asc" } });
   if (transaction.status !== "PENDING_APPROVAL") {
-    for (const material of plan.materials.filter(row => row.before > 0)) {
+    const previousMaterials = plan.materials.filter(row => row.before > 0);
+    const baseUnitReturns = [];
+    for (const material of previousMaterials) {
       const product = byId.get(material.productId)!;
       const rows = journal.filter(row => row.productId === product.id);
       const multiplier = product.stockGroupId ? Number(product.unitMultiplierToBase) : 1;
-      if (!rows.length || !Number.isFinite(multiplier) || multiplier <= 0 || rows.some(row => row.status !== "APPROVED" || row.stockBaseDelta === null || row.stockGroupIdSnapshot !== product.stockGroupId || row.unitMultiplierSnapshot === null || Math.abs(Number(row.unitMultiplierSnapshot) - multiplier) > 1e-10 * Math.max(1, multiplier)) || Math.abs(rows.reduce((sum, row) => sum + Number(row.stockBaseDelta), 0) + material.before * multiplier) > 1e-7) throw conflict();
+      if (!rows.length || !Number.isFinite(multiplier) || multiplier <= 0 ||
+          rows.some(row => row.status !== "APPROVED" || row.stockBaseDelta === null ||
+            row.stockGroupIdSnapshot !== product.stockGroupId || row.unitMultiplierSnapshot === null) ||
+          Math.abs(rows.reduce((sum, row) => sum + Number(row.stockBaseDelta), 0) + material.before * multiplier) > 1e-7) throw conflict();
+      baseUnitReturns.push(...rows.filter(row =>
+        Math.abs(Number(row.unitMultiplierSnapshot) - multiplier) > 1e-10 * Math.max(1, multiplier)));
     }
+    if (!await hasAuditedVoidStockReturns(tx, storeId, transaction.id, baseUnitReturns)) throw conflict();
   }
   const reviewToken = createHash("sha256").update(JSON.stringify({ storeId, id, input, current, transaction, products, journal })).digest("hex");
   const review: ProcessedPrintingReceiptReview = { reviewToken, before: plan.before, after: plan.after, materials: plan.materials.map(row => ({ ...row, name: byId.get(row.productId)!.name, unit: byId.get(row.productId)!.unit })) };

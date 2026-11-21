@@ -10,6 +10,7 @@ import {
 } from "@/features/product-stock-groups/stock-mutations";
 import { isStockMutationConflict, lockStockMutationRows } from "@/features/product-stock-groups/stock-group-lock";
 import { captureReceiptSnapshot, recordReceiptChange, shouldRecordReceiptChange } from "@/features/receipt-changes/server/receipt-change-audit";
+import { hasAuditedVoidStockReturns } from "@/features/transactions-stock/helpers/audited-void-stock-returns";
 
 const patchItemsSchema = z.object({
   items: z.array(
@@ -279,31 +280,8 @@ export async function PATCH(
             return row.unitMultiplierSnapshot !== null && Number.isFinite(multiplier) &&
               Math.abs(row.unitMultiplierSnapshot - multiplier) > 1e-10 * Math.max(1, multiplier);
           });
-          if (baseUnitReturns.length) {
-            const audits = await tx.transactionLifecycleAudit.findMany({
-              where: { storeId, transactionId: id, action: "VOID" }, select: { snapshot: true },
-            });
-            const auditSchema = z.object({ action: z.literal("VOID"), transaction: z.object({ invoiceNumber: z.string().nullable() }), stockReturns: z.array(z.object({
-              productId: z.string(), stockGroupIdSnapshot: z.string().nullable(), baseDelta: z.number().finite().positive(),
-            })) });
-            const allowed = new Map<string, number>();
-            for (const audit of audits) {
-              const parsed = auditSchema.safeParse(audit.snapshot);
-              if (!parsed.success) throw new Error("ITEM_STOCK_HISTORY_REQUIRED");
-              for (const item of parsed.data.stockReturns) {
-                const key = JSON.stringify([item.productId, item.stockGroupIdSnapshot, item.baseDelta, `Void transaksi ${parsed.data.transaction.invoiceNumber ?? id}`]);
-                allowed.set(key, (allowed.get(key) ?? 0) + 1);
-              }
-            }
-            for (const row of baseUnitReturns) {
-              const key = JSON.stringify([row.productId, row.stockGroupIdSnapshot, row.stockBaseDelta, row.note]);
-              const remaining = allowed.get(key) ?? 0;
-              if (row.type !== "IN" || row.reason !== "SALE_RETURN" || row.unitMultiplierSnapshot !== 1 ||
-                  row.stockBaseDelta !== row.quantity || !remaining) {
-                throw new Error("ITEM_STOCK_HISTORY_REQUIRED");
-              }
-              allowed.set(key, remaining - 1);
-            }
+          if (!await hasAuditedVoidStockReturns(tx, storeId, id, baseUnitReturns)) {
+            throw new Error("ITEM_STOCK_HISTORY_REQUIRED");
           }
           const actualStock = new Map<string, number>();
           for (const row of journal) {
