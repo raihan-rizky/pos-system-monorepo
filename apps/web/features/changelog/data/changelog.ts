@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "giro-panel-ledger-ux-20261121", date: "2026-11-21", revision: 1,
+    highlight: { title: "Pantau giro lebih mudah", summary: "Status, sisa, jadwal, dan pembayaran mendatang kini lebih mudah dipindai." },
+    title: "Baca status giro sekilas",
+    summary: "Setiap giro kini menata nominal, jatuh tempo, sisa, jadwal, dan pembayaran mendatang dalam satu kartu yang mudah dipindai.",
+    kind: "improvement", impact: "minor", area: "Keuangan", href: "/keuangan", visual: "financial",
+    steps: [
+      { title: "Buka Giro Pembelian", detail: "Buka Keuangan dan cari bagian Hutang Pemasok." },
+      { title: "Periksa ringkasan", detail: "Lihat badge status, nominal, sisa tagihan, jatuh tempo, serta jadwal setiap giro." },
+      { title: "Lihat rincian", detail: "Buka Riwayat pembayaran untuk memeriksa cicilan, atau pilih Catat pembayaran bila perlu." },
+    ],
+  },
+  {
     id: "rekonsiliasi-keuangan-sales-20261121", date: "2026-11-21", revision: 1,
     highlight: { title: "Angka Keuangan kini selaras", summary: "Pemasukan harian cocok dengan tampilan Sales, dan Arus Kas Bersih bisa ditelusuri." },
     title: "Pemasukan dan Arus Kas Bersih kini selaras",

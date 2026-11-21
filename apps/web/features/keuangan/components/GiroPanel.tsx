@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@pos/ui";
-import { X } from "lucide-react";
+import { Banknote, CalendarDays, ChevronDown, CircleAlert, CircleCheck, CircleDollarSign, CircleHelp, ClipboardCheck, Clock3, History, Info, Link2, ReceiptText, X } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
 import { useRole } from "@/components/providers/RoleProvider";
 import { GIRO_PAYMENT_CHANGE_EVENT, GiroPaymentError, giroPaymentStorageKey, listPendingGiroPayments, postGiroPayment, readGiroPaymentGeneration, readPendingGiroPayment, type GiroPaymentScope, type PendingGiroPayment, type StorageLike, type WithLock } from "../helpers/giro-payment-request";
@@ -56,13 +56,18 @@ function giroMonthLabel(date: string | null, today: string): string {
 
 export function GiroAction({ item, canUpdate, pending, blocked = false, hasManualPayables = false, onReview, onPay, onLink }: { item: Giro; canUpdate: boolean; pending: boolean; blocked?: boolean; hasManualPayables?: boolean; onReview: () => void; onPay: () => void; onLink?: () => void }) {
   if (!canUpdate || blocked) return null;
-  const className = "rounded-lg border border-surface-300 px-3 py-2 text-xs font-semibold text-brand-700 hover:bg-surface-50 focus-visible:outline-2 focus-visible:outline-brand-500";
-  if (pending) return <button type="button" onClick={onPay} className={className}>Pastikan pembayaran</button>;
+  const buttonClass = "inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500";
+  const paymentClass = `${buttonClass} border-brand-300 bg-brand-50 text-brand-800 hover:bg-brand-100`;
+  const linkClass = `${buttonClass} border-surface-300 bg-white text-surface-700 hover:bg-surface-50`;
+  if (pending) return <button type="button" onClick={onPay} className={paymentClass}><CircleCheck className="h-4 w-4" aria-hidden="true" />Pastikan pembayaran</button>;
   if (item.historyIssue) return null;
-  if (item.status === "UNKNOWN") return <button type="button" onClick={onReview} className={className}>Periksa riwayat</button>;
-  return <div className="flex flex-wrap gap-2">
-    {item.remaining !== null && (item.availableToPay ?? item.remaining) > 0 && <button type="button" onClick={onPay} className={className}>Catat pembayaran</button>}
-    {item.payableId && hasManualPayables && onLink && <button type="button" onClick={onLink} className={className}>Hubungkan hutang manual</button>}
+  if (item.status === "UNKNOWN") return <button type="button" onClick={onReview} className={paymentClass}><ClipboardCheck className="h-4 w-4" aria-hidden="true" />Periksa riwayat</button>;
+  const canPay = item.remaining !== null && (item.availableToPay ?? item.remaining) > 0;
+  const canLink = Boolean(item.payableId && hasManualPayables && onLink);
+  if (!canPay && !canLink) return null;
+  return <div className="flex flex-col gap-2">
+    {canPay && <button type="button" onClick={onPay} className={paymentClass}><Banknote className="h-4 w-4" aria-hidden="true" />Catat pembayaran</button>}
+    {canLink && <button type="button" onClick={onLink} className={linkClass}><Link2 className="h-4 w-4" aria-hidden="true" />Hubungkan hutang manual</button>}
   </div>;
 }
 
@@ -72,6 +77,30 @@ const statusLabel: Record<Giro["status"], string> = {
   PARTIAL: "Sebagian",
   PAID: "Lunas",
   OVERPAID: "Lebih bayar",
+};
+
+const statusBadgeTone: Record<Giro["status"], string> = {
+  UNKNOWN: "border-surface-200 bg-surface-50 text-surface-600",
+  UNPAID: "border-amber-200 bg-amber-50 text-amber-800",
+  PARTIAL: "border-brand-200 bg-brand-50 text-brand-800",
+  PAID: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  OVERPAID: "border-red-200 bg-red-50 text-red-800",
+};
+
+const statusRailTone: Record<Giro["status"], string> = {
+  UNKNOWN: "bg-surface-300",
+  UNPAID: "bg-amber-400",
+  PARTIAL: "bg-brand-500",
+  PAID: "bg-emerald-500",
+  OVERPAID: "bg-red-500",
+};
+
+const statusIcons = {
+  UNKNOWN: CircleHelp,
+  UNPAID: Clock3,
+  PARTIAL: CircleDollarSign,
+  PAID: CircleCheck,
+  OVERPAID: CircleAlert,
 };
 
 async function responseJson<T>(response: Response): Promise<T> {
@@ -333,42 +362,135 @@ function GiroPanelState({ canUpdate, canLinkManual, legacyPaymentIds }: { canUpd
         return <div key={id} className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><p>Pembayaran {formatRupiah(Number(pending.amount))} pada {pending.paidAt} belum dipastikan.</p><button type="button" className="rounded-lg border border-amber-400 px-3 py-2 font-semibold focus-visible:outline-2 focus-visible:outline-brand-500" onClick={() => openPayment(missing)}>Pastikan pembayaran</button></div>;
       })}
       {list.isLoading ? <p className="mt-4 text-sm text-surface-500" role="status">Memuat giro...</p> : list.isError ? <p className="mt-4 text-sm text-red-700" role="alert">Giro belum dapat dimuat. <button type="button" onClick={() => void list.refetch()} className="underline">Coba lagi</button></p> : !list.data?.items.length ? <p className="mt-4 text-sm text-surface-500">Belum ada giro pembelian.</p> : (
-        <ul className="mt-3 divide-y divide-surface-100">
+        <ul className="mt-3 space-y-3">
           {list.data.items.map(item => {
             const saved = item.payableId ? pendingById[item.payableId] : null;
             const pending = saved && "key" in saved ? saved : null;
             const storageError = saved && "error" in saved ? saved.error : null;
             const hasLegacyPayment = Boolean(item.payableId && legacyPaymentIds.includes(item.payableId));
+            const StatusIcon = statusIcons[item.status];
             return (
-            <li key={item.goodsPurchaseId} className="flex flex-wrap items-start justify-between gap-3 py-3 text-sm">
-              <div className="min-w-0">
-                <p className="break-words font-semibold text-surface-900">{item.number} · {item.supplierName}</p>
-                <p className="mt-1 text-xs text-surface-600">Nominal Giro {formatRupiah(item.amount)} · Jatuh tempo {item.dueDate ? `${giroMonthLabel(item.dueDate, asOf)} · ${item.dueDate}` : "Belum tersedia"}</p>
-                {Boolean(item.schedule?.length) && <div className="mt-2 text-xs text-surface-600">
-                  <p className="font-semibold">Jadwal giro</p>
-                  <ul className="mt-1 space-y-1">{item.schedule?.map((giro, index) => <li key={giro.id}>
-                    Giro {index + 1}: {formatRupiah(giro.amount)} · {giroMonthLabel(giro.dueDate, asOf)}{giro.dueDate ? ` · ${giro.dueDate}` : ""}{giro.note ? ` · ${giro.note}` : ""}
-                  </li>)}</ul>
-                </div>}
-                {!item.debtDate && <p className="mt-1 text-xs text-red-700">Tanggal kewajiban belum tersedia.</p>}
-                <p className="mt-1 text-xs text-surface-600">{statusLabel[item.status]}{item.remaining !== null ? ` · Sisa ${formatRupiah(item.remaining)}` : " · Sisa belum diketahui"}</p>
-                {item.balanceIncludesOtherMethods && <p className="mt-1 text-xs text-surface-600">Sisa memperhitungkan pembayaran pembelian sampai hari ini.</p>}
-                {item.remaining !== null && Boolean(item.futurePayments?.length) && <div className="mt-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-xs text-surface-700">
-                  <p className="font-semibold">Pembayaran tercatat untuk tanggal mendatang</p>
-                  <ul className="mt-1 space-y-1">{item.futurePayments?.map((payment, index) => <li key={`${payment.id ?? index}-${payment.paidAt}`}>
-                    {giroMonthLabel(payment.paidAt, asOf)} · {payment.paidAt} · {formatRupiah(payment.amount)}
-                  </li>)}</ul>
-                  <p className="mt-1">Sisa di atas berlaku per {asOf} dan otomatis berkurang pada tanggal pembayaran.</p>
-                  {item.availableToPay !== null && item.availableToPay !== undefined && <p className="mt-1">Maksimal pembayaran baru {formatRupiah(item.availableToPay)}.</p>}
-                </div>}
-                {typeof item.creditApplied === "number" && item.creditApplied > 0 &&
-                  <p className="mt-1 text-xs text-surface-600">Kredit terpakai {formatRupiah(item.creditApplied)}</p>}
-                {item.historyIssue && <p className="mt-1 text-xs text-red-700">Riwayat pembayaran tidak sesuai. Hubungi pengelola untuk memeriksa data giro ini.</p>}
-                {hasLegacyPayment && <p role="status" className="mt-1 text-xs text-amber-800">Catatan pembayaran lama perlu diperiksa pada panel pemulihan sebelum mencatat pembayaran baru.</p>}
-                {storageError && <p role="alert" className="mt-1 text-xs text-red-700">{storageError}</p>}
-                {item.status !== "UNKNOWN" && item.payments.length > 0 && <details className="mt-2 text-xs text-surface-600"><summary className="cursor-pointer">Riwayat pembayaran</summary><ul className="mt-1 space-y-1">{item.payments.map((payment, index) => <li key={`${payment.paidAt}-${index}`}>{payment.paidAt} · {formatRupiah(payment.amount)}</li>)}</ul></details>}
+            <li key={item.goodsPurchaseId} className="relative overflow-hidden rounded-xl border border-surface-200 bg-white p-3.5 shadow-sm transition-colors hover:border-brand-200 sm:p-4">
+              <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${statusRailTone[item.status]}`} />
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-start">
+                <div className="min-w-0 pl-1.5">
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-100">
+                      <ReceiptText className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="break-all text-sm font-bold tracking-tight text-surface-900">{item.number}</p>
+                        <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-semibold leading-none ${statusBadgeTone[item.status]}`}>
+                          <StatusIcon className="h-3.5 w-3.5" aria-hidden="true" />{statusLabel[item.status]}
+                        </span>
+                      </div>
+                      <p className="mt-1 break-words text-sm font-medium text-surface-700">{item.supplierName}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <div className="rounded-lg border border-brand-100 bg-brand-50/60 px-3 py-2.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-700">Nominal Giro</p>
+                      <p className="mt-0.5 break-words text-base font-bold tabular-nums text-brand-900">{formatRupiah(item.amount)}</p>
+                    </div>
+                    <div className="rounded-lg border border-surface-200 bg-surface-50 px-3 py-2.5">
+                      <div className="flex items-center gap-2 text-surface-500">
+                        <CalendarDays className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em]">Jatuh tempo</p>
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-surface-800">
+                        {item.dueDate ? <>
+                          <span className="rounded-full bg-white px-2 py-0.5 text-brand-800 ring-1 ring-inset ring-brand-100">{giroMonthLabel(item.dueDate, asOf)}</span>
+                          <span className="tabular-nums">{item.dueDate}</span>
+                        </> : <span>Belum tersedia</span>}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-surface-200 bg-white px-3 py-2.5">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-surface-500">Sisa tagihan</p>
+                      <p className="mt-0.5 text-sm font-bold tabular-nums text-surface-900">{item.remaining !== null ? formatRupiah(item.remaining) : "Belum diketahui"}</p>
+                    </div>
+                    {item.balanceIncludesOtherMethods && <p className="inline-flex max-w-full items-start gap-1.5 text-[11px] leading-relaxed text-surface-600">
+                      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-600" aria-hidden="true" />
+                      <span>Sisa memperhitungkan pembayaran pembelian sampai hari ini.</span>
+                    </p>}
+                    {typeof item.creditApplied === "number" && item.creditApplied > 0 && <p className="text-[11px] font-medium text-surface-600">Kredit terpakai <span className="font-semibold tabular-nums">{formatRupiah(item.creditApplied)}</span></p>}
+                  </div>
+
+                  {!item.debtDate && <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-red-700"><CircleAlert className="h-4 w-4" aria-hidden="true" />Tanggal kewajiban belum tersedia.</p>}
+
+                  {Boolean(item.schedule?.length) && <section aria-label="Jadwal giro" className="mt-3 rounded-xl border border-surface-200 bg-surface-50/70 p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-brand-700 ring-1 ring-inset ring-surface-200">
+                        <CalendarDays className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                      <h3 className="text-xs font-semibold text-surface-800">Jadwal giro</h3>
+                      <span className="ml-auto rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-surface-600 ring-1 ring-inset ring-surface-200">{item.schedule?.length} tahap</span>
+                    </div>
+                    <ol className="mt-3 space-y-3 border-l border-brand-200 pl-4">
+                      {item.schedule?.map((giro, index) => <li key={giro.id} className="relative flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                        <span aria-hidden="true" className="absolute -left-[21px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-brand-500 shadow-sm" />
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-semibold text-surface-800">Giro {index + 1}</span>
+                            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-brand-800 ring-1 ring-inset ring-brand-100">{giroMonthLabel(giro.dueDate, asOf)}</span>
+                          </div>
+                          <p className="mt-1 break-words text-[11px] text-surface-500">{giro.dueDate || "Tanggal belum tersedia"}{giro.note ? ` · ${giro.note}` : ""}</p>
+                        </div>
+                        <strong className="text-xs font-semibold tabular-nums text-surface-800">{formatRupiah(giro.amount)}</strong>
+                      </li>)}
+                    </ol>
+                  </section>}
+
+                  {item.remaining !== null && Boolean(item.futurePayments?.length) && <aside aria-label="Pembayaran tercatat untuk tanggal mendatang" className="mt-3 flex gap-3 rounded-xl border border-brand-200 bg-brand-50/70 p-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-brand-700 ring-1 ring-inset ring-brand-100">
+                      <Clock3 className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-xs font-semibold text-brand-900">Pembayaran tercatat untuk tanggal mendatang</p>
+                        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-brand-800 ring-1 ring-inset ring-brand-100">{item.futurePayments?.length} pembayaran</span>
+                      </div>
+                      <ul className="mt-2 space-y-1.5">
+                        {item.futurePayments?.map((payment, index) => <li key={`${payment.id ?? index}-${payment.paidAt}`} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-brand-100/80 pt-1.5 text-[11px] text-surface-700">
+                          <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5 text-brand-700" aria-hidden="true" />{giroMonthLabel(payment.paidAt, asOf)} · <span className="tabular-nums">{payment.paidAt}</span></span>
+                          <strong className="font-semibold tabular-nums text-surface-900">{formatRupiah(payment.amount)}</strong>
+                        </li>)}
+                      </ul>
+                      <p className="mt-2 text-[11px] leading-relaxed text-surface-600">Sisa di atas berlaku per {asOf} dan otomatis berkurang pada tanggal pembayaran.</p>
+                      {item.availableToPay !== null && item.availableToPay !== undefined && <p className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-brand-100 bg-white px-2.5 py-2 text-[11px]">
+                        <span className="font-medium text-surface-600">Maksimal pembayaran baru</span>
+                        <strong className="font-bold tabular-nums text-brand-900">{formatRupiah(item.availableToPay)}</strong>
+                      </p>}
+                    </div>
+                  </aside>}
+
+                  {hasLegacyPayment && <p role="status" className="mt-3 inline-flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />Catatan pembayaran lama perlu diperiksa pada panel pemulihan sebelum mencatat pembayaran baru.</p>}
+                  {item.historyIssue && <p role="status" className="mt-3 inline-flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-800"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />Riwayat pembayaran tidak sesuai. Hubungi pengelola untuk memeriksa data giro ini.</p>}
+                  {storageError && <p role="alert" className="mt-3 inline-flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-800"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />{storageError}</p>}
+
+                  {item.status !== "UNKNOWN" && item.payments.length > 0 && <details className="group mt-3 overflow-hidden rounded-xl border border-surface-200 bg-white">
+                    <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-semibold text-surface-700 outline-none transition-colors hover:bg-surface-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500">
+                      <History className="h-4 w-4 text-brand-700" aria-hidden="true" />
+                      <span>Riwayat pembayaran</span>
+                      <span className="rounded-full bg-surface-100 px-2 py-0.5 text-[10px] font-semibold text-surface-600">{item.payments.length}</span>
+                      <ChevronDown className="ml-auto h-4 w-4 text-surface-500 transition-transform group-open:rotate-180" aria-hidden="true" />
+                    </summary>
+                    <ul className="divide-y divide-surface-100 border-t border-surface-200 px-3">
+                      {item.payments.map((payment, index) => <li key={`${payment.paidAt}-${index}`} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2 text-xs">
+                        <span className="text-surface-600">{payment.paidAt}</span>
+                        <strong className="tabular-nums text-surface-900">{formatRupiah(payment.amount)}</strong>
+                      </li>)}
+                    </ul>
+                  </details>}
+                </div>
+                <div className="sm:w-48 sm:justify-self-end sm:pt-1">
+                  <GiroAction item={item} canUpdate={canUpdate} pending={Boolean(pending)} blocked={Boolean(storageError) || hasLegacyPayment || !storeId || !userId} hasManualPayables={canLinkManual && Boolean(list.data?.manualPayables.length)} onReview={() => setSelection({ item, mode: "review" })} onPay={() => openPayment(item)} onLink={() => setLinkItem(item)} />
+                </div>
               </div>
-              <GiroAction item={item} canUpdate={canUpdate} pending={Boolean(pending)} blocked={Boolean(storageError) || hasLegacyPayment || !storeId || !userId} hasManualPayables={canLinkManual && Boolean(list.data?.manualPayables.length)} onReview={() => setSelection({ item, mode: "review" })} onPay={() => openPayment(item)} onLink={() => setLinkItem(item)} />
             </li>
           ); })}
         </ul>
