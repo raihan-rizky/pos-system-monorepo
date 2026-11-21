@@ -366,7 +366,7 @@ describe("panel giro di Keuangan", () => {
 
   it("menandai riwayat tidak konsisten dan tidak menyediakan aksi perubahan pada giro tersebut", () => {
     const html = renderToStaticMarkup(<SupplierPayablesPanel canCreate canUpdate />);
-    const row = html.split("<li").find(part => part.includes("PB-005"));
+    const row = html.split(/<li(?=[\s>])/).find(part => part.includes("PB-005"));
     expect(row).toContain("Riwayat pembayaran tidak sesuai");
     expect(row).toContain("Tanggal kewajiban belum tersedia");
     expect(row).not.toContain(">Periksa riwayat</button>");
