@@ -68,13 +68,13 @@ describe("sumber koreksi pengeluaran otomatis", () => {
       shoppingRequest: { id: "request-1", number: "DPB-1", goodsPurchases: [expense.goodsPurchase] },
     };
     const result = build()!({
-      storeId: "store-1", month: "2026-11", now: date("2026-11-30"),
+      storeId: "store-1", month: "2026-12", now: date("2026-12-30"),
       expenses: [legacy], backdatedPurchases: [],
     });
-    expect(result.rows).toMatchObject([{
+    expect(result.rows.find(row => row.recognitionKind === "giro_payment")).toMatchObject({
       source: { type: "SHOPPING_REQUEST", id: "request-1", number: "DPB-1", goodsPurchaseId: "purchase-1" },
       paymentSource: { kind: "SUPPLIER_PAYABLE_PAYMENT", id: "payment-1" },
-    }]);
+    });
   });
 
   it("tetap menunjuk pembayaran yang sama saat nominalnya terbagi ke dua jadwal giro", () => {
@@ -88,12 +88,12 @@ describe("sumber koreksi pengeluaran otomatis", () => {
         ],
       },
     };
-    const result = build()!({
-      storeId: "store-1", month: "2026-11", now: date("2026-11-30"),
-      expenses: [split], backdatedPurchases: [],
-    });
-
-    expect(result.rows).toMatchObject([
+    const common = { storeId: "store-1", expenses: [split], backdatedPurchases: [] };
+    const november = build()!({ ...common, month: "2026-11", now: date("2026-11-30") });
+    const december = build()!({ ...common, month: "2026-12", now: date("2026-12-31") });
+    expect(november.monthlyTotal).toBe(20_000);
+    expect(december.monthlyTotal).toBe(80_000);
+    expect([...november.rows, ...december.rows].filter(row => row.recognitionKind === "giro_payment")).toMatchObject([
       {
         netAmount: 20_000,
         source: { type: "GOODS_PURCHASE", id: "purchase-1" },
@@ -128,11 +128,11 @@ describe("sumber koreksi pengeluaran otomatis", () => {
       { source: { type: "BACKDATED_PURCHASE", id: "old-1" }, recognitionKind: "giro_due" },
       {
         source: { type: "BACKDATED_PURCHASE", id: "old-1" },
-        paymentSource: { kind: "BACKDATED_PAYMENT", id: "second-payment" },
+        paymentSource: { kind: "BACKDATED_PAYMENT", id: "first-payment" },
       },
       {
         source: { type: "BACKDATED_PURCHASE", id: "old-1" },
-        paymentSource: { kind: "BACKDATED_PAYMENT", id: "first-payment" },
+        paymentSource: { kind: "BACKDATED_PAYMENT", id: "second-payment" },
       },
     ]);
     expect(result.rows[0]).not.toHaveProperty("paymentSource");
@@ -160,15 +160,18 @@ describe("sumber koreksi pengeluaran otomatis", () => {
 });
 
 describe("proyeksi pengeluaran keuangan", () => {
-  it("memindahkan sisa giro ke jatuh tempo terbaru dan menjaga pembayaran awal", () => {
+  it("memindahkan bagian yang dibayar dan sisanya ke jatuh tempo terbaru", () => {
     const calculate = build();
     expect(calculate).toBeTypeOf("function");
     if (!calculate) return;
     const common = { storeId: "store-1", now: new Date("2026-12-31T12:00:00.000Z"), expenses: [expense], backdatedPurchases: [] };
     const november = calculate({ ...common, month: "2026-11" });
     const december = calculate({ ...common, month: "2026-12" });
-    expect(november).toMatchObject({ monthlyTotal: 30_000, incomplete: false, rows: [{ netAmount: 30_000, recognitionKind: "giro_payment", source: { type: "GOODS_PURCHASE", id: "purchase-1", number: "PB-1" } }] });
-    expect(december).toMatchObject({ monthlyTotal: 70_000, incomplete: false, rows: [{ netAmount: 70_000, recognitionKind: "giro_due" }] });
+    expect(november).toMatchObject({ monthlyTotal: 0, incomplete: false, rows: [] });
+    expect(december).toMatchObject({ monthlyTotal: 100_000, incomplete: false, daily: [{ date: "2026-12-15", total: 100_000 }], rows: [
+      { netAmount: 70_000, recognitionKind: "giro_due" },
+      { netAmount: 30_000, recognitionKind: "giro_payment", paidAt: "2026-11-10", source: { type: "GOODS_PURCHASE", id: "purchase-1", number: "PB-1" } },
+    ] });
   });
 
   it("menandai riwayat giro yang belum diverifikasi sebagai belum lengkap", () => {
@@ -201,8 +204,11 @@ describe("proyeksi pengeluaran keuangan", () => {
   });
 
   it("menyediakan tanggal jadwal dan asal alokasi otomatis untuk pembayaran giro", () => {
-    const result = build()!({ storeId: "store-1", month: "2026-11", now: new Date("2026-11-30T12:00:00Z"), expenses: [expense], backdatedPurchases: [] });
-    expect(result.rows[0]).toMatchObject({ recognitionKind: "giro_payment", allocation: { scheduleId: "giro-1", dueDate: "2026-12-15", source: "automatic" } });
+    const result = build()!({ storeId: "store-1", month: "2026-12", now: date("2026-12-15"), expenses: [expense], backdatedPurchases: [] });
+    expect(result.rows.find(row => row.recognitionKind === "giro_payment")).toMatchObject({
+      paidAt: "2026-11-10", paidMethod: "GIRO", occurredAt: "2026-12-14T17:00:00.000Z",
+      allocation: { scheduleId: "giro-1", dueDate: "2026-12-15", source: "automatic" },
+    });
   });
 });
 
@@ -220,8 +226,8 @@ describe("komponen pengeluaran", () => {
       ],
     } };
     const result = calculate({ storeId: "store-1", month: "2026-11", now: new Date("2026-12-31T12:00:00.000Z"), expenses: [manual, mixed], backdatedPurchases: [] });
-    expect(result).toMatchObject({ monthlyTotal: 70_000, incomplete: false,
-      components: { manual: 20_000, transfer: 20_000, giroPayment: 30_000, giroDue: 0, overpayment: 0 } });
+    expect(result).toMatchObject({ monthlyTotal: 40_000, incomplete: false,
+      components: { manual: 20_000, transfer: 20_000, giroPayment: 0, giroDue: 0, overpayment: 0 } });
   });
 });
 
@@ -237,8 +243,8 @@ describe("belanja terdahulu dan koreksi", () => {
         { id: "late", amount: "70000.00", paidAt: date("2026-12-20") },
       ] };
     const common = { storeId: "store-1", now: new Date("2026-12-31T12:00:00.000Z"), expenses: [], backdatedPurchases: [purchase] };
-    expect(calculate({ ...common, month: "2026-11" })).toMatchObject({ monthlyTotal: 30_000, incomplete: false });
-    expect(calculate({ ...common, month: "2026-12" })).toMatchObject({ monthlyTotal: 70_000, incomplete: false });
+    expect(calculate({ ...common, month: "2026-11" })).toMatchObject({ monthlyTotal: 0, incomplete: false });
+    expect(calculate({ ...common, month: "2026-12" })).toMatchObject({ monthlyTotal: 100_000, incomplete: false });
   });
 
   it("mempertahankan kelebihan pembayaran saat koreksi menurunkan nilai pembelian", () => {
@@ -253,7 +259,7 @@ describe("belanja terdahulu dan koreksi", () => {
       shoppingRequest: { corrections: [{ afterSnapshot: { paymentSnapshot: { sources: [source], allocations: [allocation] } },
         allocations: [{ ...allocation, sourceAmount: "100000.00", paidAt: date("2026-11-10") }] }] },
     } };
-    const result = calculate({ storeId: "store-1", month: "2026-11", now: new Date("2026-11-20T12:00:00.000Z"), expenses: [corrected], backdatedPurchases: [] });
+    const result = calculate({ storeId: "store-1", month: "2026-11", now: date("2026-11-30"), expenses: [corrected], backdatedPurchases: [] });
     expect(result).toMatchObject({ monthlyTotal: 100_000, incomplete: false,
       components: { giroPayment: 70_000, overpayment: 30_000 } });
   });
@@ -267,8 +273,8 @@ describe("pembacaan pengeluaran per toko", () => {
     mocks.expenses.mockImplementation(async ({ where }: { where: { storeId: string } }) =>
       [expense, { ...expense, id: "other", storeId: "store-2" }].filter(row => row.storeId === where.storeId));
     mocks.backdated.mockResolvedValue([]);
-    const result = await load("store-1", "2026-11", new Date("2026-12-31T12:00:00.000Z"));
-    expect(result.monthlyTotal).toBe(30_000);
+    const result = await load("store-1", "2026-12", new Date("2026-12-31T12:00:00.000Z"));
+    expect(result.monthlyTotal).toBe(100_000);
   });
 
   it("membatasi belanja terdahulu pada jatuh tempo atau pembayaran di bulan yang dipilih", async () => {
@@ -319,12 +325,14 @@ describe("validasi sumber pembayaran koreksi", () => {
       supplierPayable: { ...expense.goodsPurchase.supplierPayable, payments: [{ id: "payment-1", amount: "30000.00", paidAt: date("2026-11-10") }, { id: "new-payment", amount: "5000.00", paidAt: date("2026-11-18") }] },
       shoppingRequest: { corrections: [latest, previous] },
     } };
-    const result = build()!({ storeId: "store-1", month: "2026-11", now: new Date("2026-11-20T12:00:00Z"), expenses: [corrected], backdatedPurchases: [] });
-    expect(result).toMatchObject({ incomplete: false, monthlyTotal: 65000, components: { transfer: 40000, giroPayment: 25000 } });
-    expect(result.rows).toEqual(expect.arrayContaining([
-      expect.objectContaining({ netAmount: 40000, occurredAt: "2026-11-11T17:00:00.000Z" }),
-      expect.objectContaining({ netAmount: 20000, occurredAt: "2026-11-15T17:00:00.000Z" }),
-      expect.objectContaining({ netAmount: 5000, occurredAt: "2026-11-17T17:00:00.000Z" }),
+    const common = { storeId: "store-1", now: date("2026-12-15"), expenses: [corrected], backdatedPurchases: [] };
+    const november = build()!({ ...common, month: "2026-11" });
+    const december = build()!({ ...common, month: "2026-12" });
+    expect(november).toMatchObject({ incomplete: false, monthlyTotal: 40_000, rows: [{ netAmount: 40_000, occurredAt: "2026-11-11T17:00:00.000Z" }] });
+    expect(december).toMatchObject({ incomplete: false, monthlyTotal: 60_000, components: { giroPayment: 25_000, giroDue: 35_000 } });
+    expect(december.rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ netAmount: 20_000, paidAt: "2026-11-16", occurredAt: "2026-12-14T17:00:00.000Z" }),
+      expect.objectContaining({ netAmount: 5_000, paidAt: "2026-11-18", occurredAt: "2026-12-14T17:00:00.000Z" }),
     ]));
   });
   it("menolak snapshot yang tidak cocok dengan koreksi eksplisit terakhir", () => {
@@ -345,7 +353,7 @@ describe("validasi sumber pembayaran koreksi", () => {
       initialTransferAmount: "0", payments: [{ id: "transfer", method: "TRANSFER", amount: "100000.00", dueDate: null }],
       supplierPayable: { ...expense.goodsPurchase.supplierPayable, giroHistoryVerifiedAt: null },
     } };
-    const result = calculate({ storeId: "store-1", month: "2026-11", now: new Date("2026-11-20T12:00:00.000Z"), expenses: [corrected], backdatedPurchases: [] });
+    const result = calculate({ storeId: "store-1", month: "2026-11", now: date("2026-11-30"), expenses: [corrected], backdatedPurchases: [] });
     expect(result).toMatchObject({ incomplete: true, monthlyTotal: null });
   });
 
@@ -360,9 +368,16 @@ describe("validasi sumber pembayaran koreksi", () => {
       shoppingRequest: { corrections: [{ afterSnapshot: { paymentSnapshot: { sources: [source], allocations: [allocation] } },
         allocations: [{ ...allocation, sourceAmount: "100000.00", paidAt: date("2026-11-10") }] }] },
     } };
-    const result = calculate({ storeId: "store-1", month: "2026-11", now: new Date("2026-11-20T12:00:00.000Z"), expenses: [corrected], backdatedPurchases: [] });
-    expect(result).toMatchObject({ monthlyTotal: 100_000, incomplete: false,
-      components: { transfer: 70_000, giroPayment: 0, overpayment: 30_000 } });
+    const input = { storeId: "store-1", month: "2026-11", expenses: [corrected], backdatedPurchases: [] };
+    expect(calculate({ ...input, now: new Date("2026-11-29T16:59:59.999Z") })).toMatchObject({
+      monthlyTotal: 30_000, incomplete: false,
+      rows: [{ recognitionKind: "overpayment", netAmount: 30_000 }],
+    });
+    expect(calculate({ ...input, now: new Date("2026-11-29T17:00:00.000Z") })).toMatchObject({ monthlyTotal: 100_000, incomplete: false,
+      components: { transfer: 0, giroPayment: 70_000, overpayment: 30_000 },
+      rows: [{ recognitionKind: "giro_payment", occurredAt: "2026-11-29T17:00:00.000Z", paidAt: "2026-11-10", paidMethod: "TRANSFER", netAmount: 70_000,
+        paymentSource: { kind: "GOODS_INITIAL_TRANSFER", id: "purchase-1" } }, { recognitionKind: "overpayment", netAmount: 30_000 }],
+    });
   });
 
   it("tidak mempercayai sumber transfer koreksi yang berbeda dari pembayaran awal tersimpan", () => {

@@ -77,9 +77,14 @@ describe.skipIf(!enabled)("koreksi Belanja Terdahulu secara atomik", () => {
       refunds: [{ date, total: 800_000 }],
     });
     expect(Number(due.amount)).toBe(1_415_000);
-    const recognized = await loadRecognizedExpenses(actor.storeId, "2026-11", now);
+    const beforeDue = await loadRecognizedExpenses(actor.storeId, "2026-11", new Date("2026-11-24T23:59:59+07:00"));
+    expect(beforeDue.rows.some(row => "id" in row.source && row.source.id === created.id && row.paymentSource?.id === first.id)).toBe(false);
+    const recognized = await loadRecognizedExpenses(actor.storeId, "2026-11", new Date("2026-11-25T00:00:00+07:00"));
     expect(recognized.rows.filter(row => "id" in row.source && row.source.id === created.id))
-      .toMatchObject([{ paymentSource: { id: first.id }, netAmount: 1_200_000 }]);
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({ paymentSource: { kind: "BACKDATED_PAYMENT", id: first.id }, netAmount: 1_200_000, paidAt: "2026-11-05" }),
+        expect.objectContaining({ recognitionKind: "giro_due", netAmount: 1_415_000 }),
+      ]));
     await expect(addBackdatedPurchasePayment(created.id, {
       requestId: payments[1].requestId, amountCents: second.amountCents, paidAt: second.paidAt,
     }, actor)).rejects.toMatchObject({ status: 409 });

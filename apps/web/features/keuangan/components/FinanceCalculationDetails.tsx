@@ -22,11 +22,11 @@ export function FinanceCalculationDetails({ income, expense }: { income?: Income
         <div className="flex justify-between gap-4"><dt>Pengeluaran manual setelah kembalian</dt><dd className="tabular-nums">{formatRupiahPrecise(expense.components.manual)}</dd></div>
         <div className="flex justify-between gap-4"><dt>Belanja transfer</dt><dd className="tabular-nums">{formatRupiahPrecise(expense.components.transfer)}</dd></div>
         <div className="flex justify-between gap-4"><dt>Pembayaran hutang manual yang belum terhubung ke transfer</dt><dd className="tabular-nums">{formatRupiahPrecise(expense.components.manualPayable ?? 0)}</dd></div>
-        <div className="flex justify-between gap-4"><dt>Pembayaran giro yang diakui</dt><dd className="tabular-nums">{formatRupiahPrecise(expense.components.giroPayment)}</dd></div>
+        <div className="flex justify-between gap-4"><dt>Giro jatuh tempo dengan pembayaran tercatat</dt><dd className="tabular-nums">{formatRupiahPrecise(expense.components.giroPayment)}</dd></div>
         <div className="flex justify-between gap-4"><dt>Sisa giro jatuh tempo</dt><dd className="tabular-nums">{formatRupiahPrecise(expense.components.giroDue)}</dd></div>
         <div className="flex justify-between gap-4"><dt>Kelebihan pembayaran belum dikembalikan</dt><dd className="tabular-nums">{formatRupiahPrecise(expense.components.overpayment)}</dd></div>
         {Boolean(expense.correctionOutflow) && <div className="flex justify-between gap-4"><dt>Pembayaran pembelian yang dibatalkan</dt><dd className="tabular-nums">{formatRupiahPrecise(expense.correctionOutflow!)}</dd></div>}
-      </dl> : <p className="mt-1 text-surface-500">Rincian pengeluaran belum tersedia.</p>}<p className="mt-2 text-xs text-surface-500">Sisa giro dihitung saat jatuh tempo. Pembayaran setelahnya tidak dihitung ulang. Jika belum ada alokasi, pembayaran dibagi ke giro terdekat.</p>
+      </dl> : <p className="mt-1 text-surface-500">Rincian pengeluaran belum tersedia.</p>}<p className="mt-2 text-xs text-surface-500">Setiap bagian giro masuk mulai tanggal jatuh temponya (WIB), termasuk yang sudah dibayar lebih awal. Kelebihan pembayaran masuk pada tanggal pembayaran.</p>
         {expense.incomplete && <p role="status" className="mt-2 text-xs text-amber-700">Riwayat pengeluaran belum lengkap. Periksa riwayat giro; nominal di atas hanya bagian yang diketahui.</p>}</div>}
       {expense && <p className="text-xs text-surface-500">Persentase kategori = total kategori ÷ total pengeluaran × 100%.</p>}
     </div>

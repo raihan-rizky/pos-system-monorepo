@@ -48,6 +48,8 @@ export type RecognizedExpenseRow = {
     | { type: "SHOPPING_REQUEST"; id: string; number: string; goodsPurchaseId: string };
   recognitionKind: "manual" | "transfer" | "giro_payment" | "giro_due" | "overpayment" | "manual_payable" | "correctionOutflow";
   paymentSource?: ExpensePaymentSource;
+  paidAt?: string;
+  paidMethod?: PurchaseExpensePayment["method"];
   allocation?: { scheduleId: string; dueDate: string | null; source: "stored" | "automatic" | null };
 };
 
@@ -239,6 +241,7 @@ export function buildRecognizedExpenses(input: {
         amount: entry.amountCents / 100, changeAmount: 0, netAmount: entry.amountCents / 100,
         occurredAt: new Date(`${entry.date}T00:00:00+07:00`).toISOString(),
         source, recognitionKind: entry.kind,
+        ...(entry.paidAt ? { paidAt: entry.paidAt, paidMethod: entry.paidMethod } : {}),
         ...(paymentSource ? { paymentSource } : {}),
         ...(entry.scheduleId ? { allocation: { scheduleId: entry.scheduleId,
           dueDate: schedule.find(item => item.id === entry.scheduleId)?.dueDate ?? null, source: entry.allocationSource ?? null } } : {}) });
@@ -266,6 +269,7 @@ export function buildRecognizedExpenses(input: {
         transactionId: null, attachmentUrl: null, hasMissingCostSnapshot: false,
         recordedBy: { id: purchase.createdById, name: purchase.createdByName ?? "Tidak dicatat" },
         source: { type: "BACKDATED_PURCHASE", id: purchase.id, number: purchase.reference }, recognitionKind: entry.kind,
+        ...(entry.paidAt ? { paidAt: entry.paidAt, paidMethod: entry.paidMethod } : {}),
         ...(entry.paymentId ? { paymentSource: { kind: "BACKDATED_PAYMENT", id: entry.paymentId } } : {}),
         ...(entry.scheduleId ? { allocation: { scheduleId: entry.scheduleId,
           dueDate: purchase.paymentMethod === "GIRO" ? calendarDate(purchase.dueDate) : null, source: entry.allocationSource ?? null } } : {}) });

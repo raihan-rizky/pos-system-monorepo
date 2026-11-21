@@ -576,9 +576,12 @@ export default function KeuanganDashboardPage() {
                       </div>
                       <p className="text-xs text-surface-500 mt-0.5 break-words">
                         {fullDayShort(item.occurredAt)} ·{" "}
-                        {item.description || "Tanpa keterangan"}{item.recognitionKind === "giro_payment" ? " · Pembayaran giro" : item.recognitionKind === "giro_due" ? " · Sisa jatuh tempo" : item.recognitionKind === "overpayment" ? " · Kelebihan pembayaran belum dikembalikan" : ""}
+                        {item.description || "Tanpa keterangan"}{item.recognitionKind === "giro_due" ? " · Sisa giro jatuh tempo" : item.recognitionKind === "overpayment" ? " · Kelebihan pembayaran belum dikembalikan" : ""}
                         {item.allocation?.dueDate && ` · ${item.allocation.source === "automatic" ? "Alokasi otomatis, " : item.allocation.source === "stored" ? "Alokasi tercatat, " : ""}giro jatuh tempo ${fullDay(item.allocation.dueDate)}`}
                       </p>
+                      {item.recognitionKind === "giro_payment" && item.paidAt && <p className="text-xs text-surface-600">
+                        {item.paidMethod === "TRANSFER" ? "Transfer" : "Pembayaran giro"} tercatat {fullDay(item.paidAt)}
+                      </p>}
                       {item.source.type === "MANUAL_TRANSFER_PURCHASE" && item.reportCategoryAmounts && (
                         <p className="mt-1 text-xs text-surface-600">
                           {Object.entries(item.reportCategoryAmounts).map(([category, amount]) => `${expenseCategoryLabel(category as ExpenseCategoryKey, customCategories)}: ${formatRupiahPrecise(amount ?? 0)}`).join(" · ")}

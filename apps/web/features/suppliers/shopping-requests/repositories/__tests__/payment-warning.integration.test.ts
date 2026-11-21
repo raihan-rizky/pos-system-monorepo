@@ -1,7 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 const auth = vi.hoisted(() => ({ user: { id: "", storeId: "" } }));
-vi.mock("@/lib/rbac/guard", () => ({ requireRole: async () => auth.user, requirePermission: async () => auth.user, handleAuthError: () => null }));
+vi.mock("@/lib/rbac/guard", () => ({
+  requireRole: async () => auth.user,
+  requirePermission: async () => auth.user,
+  authorizeInTransaction: async () => true,
+  canAuthenticatedUserAccessPage: async () => true,
+  handleAuthError: () => null,
+}));
 import { db } from "@pos/db";
 import { loadShoppingRequestCorrectionEditor } from "../shopping-request-correction-editor";
 import { planShoppingRequestCorrection } from "../shopping-request-correction-plan";
@@ -164,12 +170,13 @@ describe.skipIf(!enabled)("koreksi pembayaran dengan penerimaan tertunda", () =>
     const read = async () => {
       const response = await listGiro(new Request("http://localhost/api/finance/giro"));
       expect(response.status).toBe(200);
-      return (await response.json()).items.find((item: { goodsPurchaseId: string }) => item.goodsPurchaseId === ids.purchase);
+      return (await response.json()).items.find((item: { goodsPurchaseId: string; ledgerVersion: string }) => item.goodsPurchaseId === ids.purchase);
     };
-    expect(await read()).toMatchObject({ amount: 3988656, status: "PARTIAL", remaining: 3988656 });
+    const beforePayment = await read();
+    expect(beforePayment).toMatchObject({ amount: 3988656, status: "PARTIAL", remaining: 3988656 });
     const response = await payGiro(new Request("http://localhost/api/finance/supplier-payables/payment", {
       method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": randomUUID() },
-      body: JSON.stringify({ amount: "1000", paidAt: "2026-11-19", expectedBalance: "3988656" }),
+      body: JSON.stringify({ amount: "1000", paidAt: "2026-11-19", expectedBalance: "3988656", expectedLedgerVersion: beforePayment.ledgerVersion }),
     }), { params: Promise.resolve({ id: payable.id }) });
     expect(response.status).toBe(201);
     expect(await read()).toMatchObject({ amount: 3988656, remaining: 3987656 });
@@ -183,14 +190,17 @@ describe.skipIf(!enabled)("koreksi pembayaran dengan penerimaan tertunda", () =>
           { sourceKind: giro.sourceKind, paymentId: giro.paymentId, method: "GIRO" as const, amount: "1000.00" },
         ] } };
     await db.$transaction(tx => commitShoppingRequestCorrectionRecord(tx, { requestId: ids.request, actor, data }), { timeout: 30000 });
-    expect(await read()).toMatchObject({ amount: 3988656, status: "PAID", remaining: 0 });
+    const afterPayment = await read();
+    expect(afterPayment).toMatchObject({ amount: 3988656, status: "PAID", remaining: 0 });
     expect(await loadRecognizedExpenses(actor.storeId, "2026-11", new Date("2026-11-19T12:00:00Z")))
-      .toMatchObject({ incomplete: false, monthlyTotal: 8936156 });
+      .toMatchObject({ incomplete: false, monthlyTotal: 4947500 });
+    expect(await loadRecognizedExpenses(actor.storeId, "2026-12", new Date("2026-12-05T00:00:00+07:00")))
+      .toMatchObject({ incomplete: false, monthlyTotal: 3988656 });
     expect(await getMonthlyFinancialReport(actor.storeId, 2026, 11, new Date("2026-11-19T12:00:00Z")))
       .toMatchObject({ supplierDebtBalance: 0 });
     const rejected = await payGiro(new Request("http://localhost/api/finance/supplier-payables/payment", {
       method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": randomUUID() },
-      body: JSON.stringify({ amount: "1000", paidAt: "2026-11-19", expectedBalance: "3988656" }),
+      body: JSON.stringify({ amount: "1000", paidAt: "2026-11-19", expectedBalance: "3988656", expectedLedgerVersion: afterPayment.ledgerVersion }),
     }), { params: Promise.resolve({ id: payable.id }) });
     expect(rejected.status).toBe(409);
   });

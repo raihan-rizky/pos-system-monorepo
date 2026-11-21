@@ -15,6 +15,18 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "pengeluaran-giro-bulan-jatuh-tempo-20261121", date: "2026-11-21", revision: 1,
+    highlight: { title: "Giro mengikuti bulan jatuh tempo", summary: "Pengeluaran menampilkan giro mulai tanggal jatuh temponya, termasuk yang lunas." },
+    title: "Pengeluaran Giro mengikuti bulan jatuh tempo",
+    summary: "Giro tampil mulai tanggal jatuh temponya (WIB), termasuk yang dibayar lebih awal. Riwayat, grafik, dan Arus Kas Bersih memakai tanggal yang sama.",
+    kind: "fix", impact: "major", area: "Keuangan", href: "/keuangan", visual: "financial",
+    steps: [
+      { title: "Buka Keuangan", detail: "Halaman terbuka pada bulan berjalan. Pilih bulan lain untuk memeriksa riwayat." },
+      { title: "Periksa Giro", detail: "Di Pengeluaran, lihat tanggal jatuh tempo serta tanggal pembayaran yang tercatat pada baris Giro." },
+      { title: "Telusuri total", detail: "Pilih Lihat cara perhitungan untuk melihat bagian Giro yang membentuk total Pengeluaran." },
+    ],
+  },
+  {
     id: "rekonsiliasi-keuangan-sales-20261121", date: "2026-11-21", revision: 1,
     highlight: { title: "Angka Keuangan kini selaras", summary: "Pemasukan harian cocok dengan tampilan Sales, dan Arus Kas Bersih bisa ditelusuri." },
     title: "Pemasukan dan Arus Kas Bersih kini selaras",
