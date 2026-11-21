@@ -56,6 +56,7 @@ describe("atomic processed receipt correction", () => {
         product: { findMany: async () => local.products },
         customer: { findFirst: async () => ({ id: "customer", totalDebt: local.debt, totalSpent: local.spent }), updateMany: async ({ data }: any) => { local.debt += data.totalDebt.increment ?? -(data.totalDebt.decrement ?? 0); local.spent += data.totalSpent?.increment ?? 0; return { count: 1 }; } },
         inventoryLog: { findMany: async () => local.journal, createMany: async ({ data }: any) => { if (journalFails) throw new Error("journal failed"); local.journal.push(...data); } },
+        transactionLifecycleAudit: { findMany: async () => local.voidAudits ?? [] },
         invoiceDateChangeLog: { create: async ({ data }: any) => { local.dateAudit = data; } },
         transactionReceiptChange: { create: async ({ data }: any) => { local.receiptChange = data; return { id: "receipt-change" }; } },
         user: { findMany: async () => [] },
@@ -85,6 +86,25 @@ describe("atomic processed receipt correction", () => {
     await expect(saveProcessedPrintingReceipt("store", "receipt", { ...input(), acknowledged: true, reviewToken: review.reviewToken }, { id: "sales", role: "SALES" })).rejects.toMatchObject({status:403});
     expect(state).toEqual(before);
     expect(mocks.stock).not.toHaveBeenCalled();
+  });
+  it("memungkinkan koreksi bahan kelompok setelah pemulihan jika mutasi void terbukti", async () => {
+    Object.assign(state.products[0], { stockGroupId: "group", unitMultiplierToBase: 4 });
+    const original = { ...state.journal[0], id: "usage", type: "OUT", reason: "USAGE", quantity: 2,
+      stockGroupIdSnapshot: "group", unitMultiplierSnapshot: 4, stockBaseDelta: -8 };
+    state.journal = [
+      original,
+      { ...original, id: "void", type: "IN", reason: "SALE_RETURN", quantity: 8,
+        unitMultiplierSnapshot: 1, stockBaseDelta: 8, note: "Void transaksi NT-1" },
+      { ...original, id: "restored", reason: "TRANSACTION_RESTORE" },
+    ];
+    state.voidAudits = [{ snapshot: { action: "VOID", transaction: { invoiceNumber: "NT-1" }, stockReturns: [
+      { productId: "paper", stockGroupIdSnapshot: "group", baseDelta: 8 },
+    ] } }];
+    await expect(reviewProcessedPrintingReceipt("store", "receipt", input())).resolves.toMatchObject({
+      materials: [{ productId: "paper", before: 2, after: 3 }],
+    });
+    state.voidAudits[0].snapshot.stockReturns[0].baseDelta = 9;
+    await expect(reviewProcessedPrintingReceipt("store", "receipt", input())).rejects.toMatchObject({ status: 409 });
   });
   it("atomically updates transaction, debt, stock and durable signed journal without changing payments", async () => {
     const payments = structuredClone(state.transaction.payments);

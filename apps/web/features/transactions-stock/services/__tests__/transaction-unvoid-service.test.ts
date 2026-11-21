@@ -107,6 +107,22 @@ describe("pratinjau pemulihan transaksi", () => {
     await expect(preview(db, input)).rejects.toThrow(/stok/i);
   });
 
+  it("memulihkan stok nota yang sebelumnya dikoreksi meski biaya jurnal sumber berbeda", async () => {
+    const db = database(5);
+    const original = { ...snapshot.stockJournal[0], quantity: 1, stockBaseDelta: -1, unitCost: "2500" };
+    const correction = { ...original, id: "quantity-edit", unitCost: null };
+    const saved = { ...snapshot, stockJournal: [original, correction] };
+    const audit = await db.transactionLifecycleAudit.findFirst();
+    db.transactionLifecycleAudit.findFirst.mockResolvedValue({ ...audit, snapshot: saved });
+    const [, returned] = await db.inventoryLog.findMany();
+    db.inventoryLog.findMany.mockResolvedValue([original, correction, returned]);
+    const shown = await preview(db, input);
+    await restore(db, { ...input, previewToken: shown.previewToken });
+    expect(db.inventoryLog.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ quantity: 2, stockBaseDelta: -2, unitCost: null })],
+    });
+  });
+
   it("menolak bukti stok lama yang telah dihapus setelah void", async () => {
     const db = database(5);
     db.transactionLifecycleAudit.findFirst.mockResolvedValue({ id: "audit-1", action: "VOID", createdAt: new Date(), snapshot: {
@@ -159,8 +175,41 @@ describe("pratinjau pemulihan transaksi", () => {
     expect(result).toMatchObject({ previousStatus: "COMPLETED" });
     expect(db.product.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { stock: { decrement: 2 } } }));
     expect(db.suratJalan.updateMany).toHaveBeenCalled();
+    expect(db.$queryRawUnsafe).toHaveBeenCalledWith(expect.stringMatching(/pos_surat_jalan.*ORDER BY.*FOR UPDATE/), "tx-1", "store-1");
     expect(db.transaction.updateMany).toHaveBeenCalled();
     expect(db.transactionLifecycleAudit.create).toHaveBeenCalled();
+  });
+
+  it("mengurangi pecahan stok bersama dalam satu pembaruan kelompok", async () => {
+    const db = database(10);
+    const deltas = [0.3, 0.6];
+    const baseStock = deltas.reduce((total, delta) => total + delta, 0);
+    const originalRows = deltas.map((delta, i) => ({
+      ...snapshot.stockJournal[0], id: `sale-${i}`, productId: `prod-${i + 1}`,
+      stockGroupIdSnapshot: "group-1", unitMultiplierSnapshot: (0.1 * 3) / 3, quantity: i === 0 ? 3 : 6,
+      stockBaseDelta: -delta,
+    }));
+    const stockReturns = originalRows.map((row, i) => ({ productId: row.productId, stockGroupIdSnapshot: "group-1", baseDelta: deltas[i] }));
+    const saved = { ...snapshot, stockJournal: originalRows, stockReturns, stockResults: stockReturns.map((row, i) => ({
+      productId: row.productId, stockGroupId: "group-1", baseDelta: row.baseDelta,
+      beforeBaseStock: i === 0 ? 0 : deltas[0], afterBaseStock: i === 0 ? deltas[0] : baseStock,
+    })) };
+    const audit = await db.transactionLifecycleAudit.findFirst();
+    db.transactionLifecycleAudit.findFirst.mockResolvedValue({ ...audit, snapshot: saved });
+    db.product.findMany.mockResolvedValue(originalRows.map((row) => ({ id: row.productId, name: "Bahan", unit: "pak", stock: 0, stockGroupId: "group-1", unitMultiplierToBase: 0.1, conversionNeedsReview: false })));
+    db.productStockGroup.findMany.mockResolvedValue([{ id: "group-1", baseStock, baseUnit: "lembar" }]);
+    db.inventoryLog.findMany.mockResolvedValue([...originalRows, ...stockReturns.map((row, i) => ({
+      ...originalRows[i], id: `void-${i}`, type: "IN", reason: "SALE_RETURN", quantity: row.baseDelta,
+      unitMultiplierSnapshot: 1, stockBaseDelta: row.baseDelta, note: "Void transaksi INV-1",
+    }))]);
+    const shown = await preview(db, input);
+    await restore(db, { ...input, previewToken: shown.previewToken });
+    expect(db.productStockGroup.updateMany).toHaveBeenCalledTimes(1);
+    expect(db.productStockGroup.updateMany).toHaveBeenCalledWith({
+      where: { id: "group-1", storeId: "store-1", baseStock: { gte: baseStock } },
+      data: { baseStock: { decrement: baseStock } },
+    });
+    expect(db.inventoryLog.createMany.mock.calls[0][0].data).toHaveLength(2);
   });
 
   it("mencatat ulang bahan percetakan dengan alasan, satuan, dan biaya yang benar", async () => {

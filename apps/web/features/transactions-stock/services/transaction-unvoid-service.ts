@@ -153,12 +153,13 @@ export async function previewTransactionUnvoid(tx: Prisma.TransactionClient, inp
     const reason = [...reasons][0];
     if (product.conversionNeedsReview || !Number.isFinite(multiplier) || multiplier <= 0 || reasons.size !== 1 ||
         (reason !== "SALE" && reason !== "USAGE") ||
-        (group && sourceRows.some((row) => row.unitMultiplierSnapshot !== multiplier))) {
+        (group && sourceRows.some((row) => row.unitMultiplierSnapshot === null || !Number.isFinite(row.unitMultiplierSnapshot) ||
+          Math.abs(row.unitMultiplierSnapshot - multiplier) > 1e-10 * Math.max(1, multiplier)))) {
       throw new Error("Asal atau satuan stok perlu diperiksa sebelum transaksi dipulihkan.");
     }
     const costs = new Set([...sourceRows, ...legacyRows].map((row) => row.unitCost == null ? null : Number(row.unitCost)));
-    const unitCost = [...costs][0] ?? null;
-    if (costs.size !== 1 || (unitCost !== null && (!Number.isFinite(unitCost) || unitCost < 0))) throw new Error("Asal atau satuan stok perlu diperiksa sebelum transaksi dipulihkan.");
+    if ([...costs].some((cost) => cost !== null && (!Number.isFinite(cost) || cost < 0))) throw new Error("Asal atau satuan stok perlu diperiksa sebelum transaksi dipulihkan.");
+    const unitCost = costs.size === 1 ? [...costs][0] : null;
     const key = item.stockGroupIdSnapshot ? `group:${item.stockGroupIdSnapshot}` : `product:${item.productId}`;
     required.set(key, (required.get(key) ?? 0) + item.baseDelta);
     return { productId: product.id, stockGroupId: item.stockGroupIdSnapshot, name: product.name, amount: item.baseDelta,
@@ -210,13 +211,26 @@ export async function restoreTransactionUnvoid(tx: Prisma.TransactionClient, inp
   if (locks.lockedProductIds.length !== locks.productIds.length || locks.lockedStockGroupIds.length !== locks.stockGroupIds.length) {
     throw new Error("Data stok telah berubah. Tinjau kembali.");
   }
+  if (initial.shipments.length) {
+    await tx.$queryRawUnsafe(
+      'SELECT "id" FROM "pos_surat_jalan" WHERE "transactionId" = $1 AND "storeId" = $2 ORDER BY "id" FOR UPDATE',
+      input.transactionId, input.storeId,
+    );
+  }
   const current = await previewTransactionUnvoid(tx, input);
   if (current.previewToken !== input.previewToken) throw new Error("Data telah berubah. Tinjau kembali pratinjau.");
 
+  const groupAmounts = new Map<string, number>();
   for (const item of current.stock) {
-    const changed = item.stockGroupId
-      ? await tx.productStockGroup.updateMany({ where: { id: item.stockGroupId, storeId: input.storeId, baseStock: { gte: item.amount } }, data: { baseStock: { decrement: item.amount } } })
-      : await tx.product.updateMany({ where: { id: item.productId, storeId: input.storeId, stockGroupId: null, stock: { gte: item.amount } }, data: { stock: { decrement: item.amount } } });
+    if (item.stockGroupId) {
+      groupAmounts.set(item.stockGroupId, (groupAmounts.get(item.stockGroupId) ?? 0) + item.amount);
+      continue;
+    }
+    const changed = await tx.product.updateMany({ where: { id: item.productId, storeId: input.storeId, stockGroupId: null, stock: { gte: item.amount } }, data: { stock: { decrement: item.amount } } });
+    if (changed.count !== 1) throw new Error("Stok telah berubah. Tinjau kembali pratinjau.");
+  }
+  for (const [id, amount] of groupAmounts) {
+    const changed = await tx.productStockGroup.updateMany({ where: { id, storeId: input.storeId, baseStock: { gte: amount } }, data: { baseStock: { decrement: amount } } });
     if (changed.count !== 1) throw new Error("Stok telah berubah. Tinjau kembali pratinjau.");
   }
   if (current.stock.length) {
