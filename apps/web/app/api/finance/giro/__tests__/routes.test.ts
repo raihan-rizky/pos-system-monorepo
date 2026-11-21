@@ -75,8 +75,8 @@ describe('giro endpoints', () => {
 
   it('menghitung saldo pembelian terkoreksi dari seluruh pembayaran efektif, bukan hanya alokasi Giro', async () => {
     mocks.query.mockResolvedValueOnce([
-      { ...purchase, goodsPurchaseId: 'purchase-1', payableId: 'linked-1', historyVerifiedAt: new Date(), correctionId: 'c1', amount: '3988656', payableAmount: '8936156', effectivePaid: '8936156', payments: [] },
-      { ...purchase, goodsPurchaseId: 'purchase-2', payableId: 'linked-2', historyVerifiedAt: new Date(), correctionId: 'c2', amount: '3988656', payableAmount: '8936156', effectivePaid: '4947500', payments: [] },
+      { ...purchase, goodsPurchaseId: 'purchase-1', payableId: 'linked-1', historyVerifiedAt: new Date(), correctionId: 'c1', amount: '3988656', payableAmount: '8936156', effectivePayments: [{ id: 'p1', amount: '8936156', paidAt: '2026-10-20' }], payments: [] },
+      { ...purchase, goodsPurchaseId: 'purchase-2', payableId: 'linked-2', historyVerifiedAt: new Date(), correctionId: 'c2', amount: '3988656', payableAmount: '8936156', effectivePayments: [{ id: 'p2', amount: '4947500', paidAt: '2026-10-20' }], payments: [] },
     ]).mockResolvedValueOnce([]);
     const response = await GET(new Request('http://localhost/api/finance/giro'));
     expect((await response.json()).items).toEqual(expect.arrayContaining([

@@ -31,15 +31,28 @@ type Giro = {
   paid: number | null;
   creditApplied?: number;
   remaining: number | null;
+  availableToPay?: number | null;
+  futurePayments?: GiroPayment[];
   payments: GiroPayment[];
   schedule?: { id: string; amount: number; dueDate: string; note: string | null }[];
 };
 type ManualPayable = { id: string; supplierName: string; amount: number; debtDate: string; dueDate: string | null; note?: string | null; paid: number; payments: GiroPayment[] };
-type GiroData = { items: Giro[]; manualPayables: ManualPayable[] };
+type GiroData = { items: Giro[]; manualPayables: ManualPayable[]; asOf?: string };
 type DraftPayment = { amount: string; paidAt: string };
 type PendingState = PendingGiroPayment | { error: string } | null;
 class GiroHistoryChangedError extends Error { readonly code = "HistoryChanged"; }
 const control = "mt-1 min-h-11 w-full rounded-lg border border-surface-300 bg-white px-3 py-2 text-base text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-500";
+
+function giroMonthLabel(date: string | null, today: string): string {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(`${date}T00:00:00.000Z`))) return "Tanggal belum tersedia";
+  const [year, month] = date.split("-").map(Number);
+  const [currentYear, currentMonth] = today.split("-").map(Number);
+  const difference = (year - currentYear) * 12 + month - currentMonth;
+  if (difference === 0) return "Bulan ini";
+  if (difference === 1) return "Bulan depan";
+  if (difference === -1) return "Bulan lalu";
+  return new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${date}T00:00:00.000Z`));
+}
 
 export function GiroAction({ item, canUpdate, pending, blocked = false, hasManualPayables = false, onReview, onPay, onLink }: { item: Giro; canUpdate: boolean; pending: boolean; blocked?: boolean; hasManualPayables?: boolean; onReview: () => void; onPay: () => void; onLink?: () => void }) {
   if (!canUpdate || blocked) return null;
@@ -48,7 +61,7 @@ export function GiroAction({ item, canUpdate, pending, blocked = false, hasManua
   if (item.historyIssue) return null;
   if (item.status === "UNKNOWN") return <button type="button" onClick={onReview} className={className}>Periksa riwayat</button>;
   return <div className="flex flex-wrap gap-2">
-    {item.remaining !== null && item.remaining > 0 && <button type="button" onClick={onPay} className={className}>Catat pembayaran</button>}
+    {item.remaining !== null && (item.availableToPay ?? item.remaining) > 0 && <button type="button" onClick={onPay} className={className}>Catat pembayaran</button>}
     {item.payableId && hasManualPayables && onLink && <button type="button" onClick={onLink} className={className}>Hubungkan hutang manual</button>}
   </div>;
 }
@@ -88,8 +101,9 @@ export async function saveGiro(mode: "review" | "payment", item: Giro, values: {
 export function GiroPaymentFields({ item, amount, onAmountChange, paidAt, onPaidAtChange, pending = false }: { item: Giro; amount: string; onAmountChange: (value: string) => void; paidAt: string; onPaidAtChange: (value: string) => void; pending?: boolean }) {
   return <>
     <p className="text-sm text-surface-700">{item.number} · {item.supplierName} · Sisa {formatRupiah(item.remaining ?? 0)}</p>
+    {Boolean(item.futurePayments?.length) && <p className="text-sm text-surface-600">Maksimal pembayaran baru {formatRupiah(item.availableToPay ?? 0)} setelah memperhitungkan pembayaran yang sudah tercatat untuk tanggal mendatang.</p>}
     {pending && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Pastikan pembayaran sebelumnya sebelum mencatat pembayaran lain.</p>}
-    <label className="block text-sm font-medium">Nominal pembayaran (Rp)<input autoFocus name="amount" required type="number" min="0.01" max={pending ? undefined : item.remaining ?? 0} step="0.01" inputMode="decimal" readOnly={pending} value={amount} onChange={event => onAmountChange(event.target.value)} className={control} /></label>
+    <label className="block text-sm font-medium">Nominal pembayaran (Rp)<input autoFocus name="amount" required type="number" min="0.01" max={pending ? undefined : item.availableToPay ?? item.remaining ?? 0} step="0.01" inputMode="decimal" readOnly={pending} value={amount} onChange={event => onAmountChange(event.target.value)} className={control} /></label>
     <label className="block text-sm font-medium">Tanggal pembayaran<input name="paidAt" required type="date" min={pending ? undefined : item.payableDebtDate ?? item.debtDate ?? undefined} max={pending ? undefined : jakartaToday()} readOnly={pending} value={paidAt} onChange={event => onPaidAtChange(event.target.value)} className={control} /></label>
   </>;
 }
@@ -252,6 +266,13 @@ function GiroPanelState({ canUpdate, canLinkManual, legacyPaymentIds }: { canUpd
     },
   });
   const items = list.data?.items;
+  const asOf = list.data?.asOf ?? jakartaToday();
+
+  useEffect(() => {
+    const nextMidnight = Date.parse(`${jakartaToday()}T17:00:00.000Z`);
+    const timer = window.setTimeout(() => { void queryClient.invalidateQueries({ queryKey: ["finance", "giro"] }); }, Math.max(1000, nextMidnight - Date.now() + 250));
+    return () => window.clearTimeout(timer);
+  }, [list.data?.asOf, queryClient]);
 
   useEffect(() => {
     if (!items || !storeId || !userId) return;
@@ -322,16 +343,24 @@ function GiroPanelState({ canUpdate, canLinkManual, legacyPaymentIds }: { canUpd
             <li key={item.goodsPurchaseId} className="flex flex-wrap items-start justify-between gap-3 py-3 text-sm">
               <div className="min-w-0">
                 <p className="break-words font-semibold text-surface-900">{item.number} · {item.supplierName}</p>
-                <p className="mt-1 text-xs text-surface-600">Nominal Giro {formatRupiah(item.amount)} · Jatuh tempo {item.dueDate ?? "Belum tersedia"}</p>
+                <p className="mt-1 text-xs text-surface-600">Nominal Giro {formatRupiah(item.amount)} · Jatuh tempo {item.dueDate ? `${giroMonthLabel(item.dueDate, asOf)} · ${item.dueDate}` : "Belum tersedia"}</p>
                 {Boolean(item.schedule?.length) && <div className="mt-2 text-xs text-surface-600">
                   <p className="font-semibold">Jadwal giro</p>
                   <ul className="mt-1 space-y-1">{item.schedule?.map((giro, index) => <li key={giro.id}>
-                    Giro {index + 1}: {formatRupiah(giro.amount)} · {giro.dueDate}{giro.note ? ` · ${giro.note}` : ""}
+                    Giro {index + 1}: {formatRupiah(giro.amount)} · {giroMonthLabel(giro.dueDate, asOf)}{giro.dueDate ? ` · ${giro.dueDate}` : ""}{giro.note ? ` · ${giro.note}` : ""}
                   </li>)}</ul>
                 </div>}
                 {!item.debtDate && <p className="mt-1 text-xs text-red-700">Tanggal kewajiban belum tersedia.</p>}
                 <p className="mt-1 text-xs text-surface-600">{statusLabel[item.status]}{item.remaining !== null ? ` · Sisa ${formatRupiah(item.remaining)}` : " · Sisa belum diketahui"}</p>
-                {item.balanceIncludesOtherMethods && <p className="mt-1 text-xs text-surface-600">Sisa memperhitungkan seluruh pembayaran pembelian yang tercatat.</p>}
+                {item.balanceIncludesOtherMethods && <p className="mt-1 text-xs text-surface-600">Sisa memperhitungkan pembayaran pembelian sampai hari ini.</p>}
+                {item.remaining !== null && Boolean(item.futurePayments?.length) && <div className="mt-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-xs text-surface-700">
+                  <p className="font-semibold">Pembayaran tercatat untuk tanggal mendatang</p>
+                  <ul className="mt-1 space-y-1">{item.futurePayments?.map((payment, index) => <li key={`${payment.id ?? index}-${payment.paidAt}`}>
+                    {giroMonthLabel(payment.paidAt, asOf)} · {payment.paidAt} · {formatRupiah(payment.amount)}
+                  </li>)}</ul>
+                  <p className="mt-1">Sisa di atas berlaku per {asOf} dan otomatis berkurang pada tanggal pembayaran.</p>
+                  {item.availableToPay !== null && item.availableToPay !== undefined && <p className="mt-1">Maksimal pembayaran baru {formatRupiah(item.availableToPay)}.</p>}
+                </div>}
                 {typeof item.creditApplied === "number" && item.creditApplied > 0 &&
                   <p className="mt-1 text-xs text-surface-600">Kredit terpakai {formatRupiah(item.creditApplied)}</p>}
                 {item.historyIssue && <p className="mt-1 text-xs text-red-700">Riwayat pembayaran tidak sesuai. Hubungi pengelola untuk memeriksa data giro ini.</p>}

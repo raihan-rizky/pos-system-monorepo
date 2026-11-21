@@ -15,6 +15,18 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    id: "giro-saldo-tanggal-pembayaran-20261121", date: "2026-11-21", revision: 1,
+    highlight: { title: "Lihat waktu pembayaran giro", summary: "Sisa giro mengikuti tanggal pembayaran dan menampilkan jadwal mendatang." },
+    title: "Sisa giro mengikuti tanggal pembayaran",
+    summary: "Sisa pembelian menunjukkan pembayaran sampai hari ini. Jadwal dan pembayaran mendatang terlihat bersama bulan, tanggal, dan batas pembayaran baru.",
+    kind: "fix", impact: "major", area: "Keuangan", href: "/keuangan", visual: "financial",
+    steps: [
+      { title: "Buka giro", detail: "Buka Keuangan, lalu cari Giro Pembelian pada bagian Hutang Pemasok." },
+      { title: "Periksa tanggal", detail: "Lihat bulan dan tanggal jatuh tempo serta pembayaran yang tercatat untuk tanggal mendatang." },
+      { title: "Catat pembayaran", detail: "Jika masih tersedia, pilih Catat pembayaran dan periksa maksimal pembayaran baru sebelum menyimpan." },
+    ],
+  },
+  {
     id: "total-harian-rc-bulan-20261121", date: "2026-11-21", revision: 1,
     highlight: { title: "Subtotal harian di RC Bulan", summary: "Lihat penerimaan per tanggal langsung di sheet RC Bulan." },
     title: "Lihat penerimaan per tanggal di RC Bulan.",

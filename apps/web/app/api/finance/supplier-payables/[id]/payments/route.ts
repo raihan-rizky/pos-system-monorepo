@@ -165,8 +165,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }
       if (debt.goodsPurchaseId && !debt.giroHistoryVerifiedAt) return 'history-unknown' as const;
       if (paidAt < debt.debtDate) return 'invalid' as const;
-      const [total] = await tx.$queryRaw<{ paid: string; credited: string; financeCancelled: boolean; corrected: boolean; purchaseMethod: string | null; scheduleCount: number; giroAmount: string }[]>`
+      const [total] = await tx.$queryRaw<{ paid: string; paidAsOf: string; credited: string; financeCancelled: boolean; corrected: boolean; purchaseMethod: string | null; scheduleCount: number; giroAmount: string }[]>`
         SELECT COALESCE(SUM(p."amount") FILTER (WHERE ${Boolean(debt.goodsPurchaseId)} OR p."origin" <> 'AUTO'), 0)::text AS paid,
+          COALESCE(SUM(p."amount") FILTER (WHERE p."paidAt" <= ${today}::date), 0)::text AS "paidAsOf",
           (SELECT COALESCE(SUM(credit."amount"), 0)::text FROM "pos_expense_supplier_credit_applications" credit
            WHERE credit."storeId" = ${storeId} AND credit."payableId" = ${id} AND credit."releasedAt" IS NULL) AS credited,
           EXISTS (
@@ -189,14 +190,20 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       `;
       if (total.financeCancelled) return cancelAttempt(requestScope);
       if (total.corrected && total.purchaseMethod !== 'GIRO' && (!total.scheduleCount || Number(total.giroAmount) <= 0)) return cancelAttempt(requestScope);
-      const paid = total.corrected && debt.goodsPurchaseId
-        ? (await loadCorrectionPaymentState(tx, { storeId, purchaseId: debt.goodsPurchaseId })).paid
-        : total.paid;
+      const correction = total.corrected && debt.goodsPurchaseId
+        ? await loadCorrectionPaymentState(tx, { storeId, purchaseId: debt.goodsPurchaseId })
+        : null;
+      const paidCents = Math.round(Number(correction?.paid ?? total.paid) * 100);
+      const paidAsOfCents = correction
+        ? correction.sources.filter(source => source.paidAt <= today).reduce((sum, source) => sum + Math.round(Number(source.amount) * 100), 0)
+        : debt.goodsPurchaseId ? Math.round(Number(total.paidAsOf ?? total.paid) * 100) : paidCents;
       const amountDue = !total.corrected && debt.goodsPurchaseId && total.scheduleCount > 0 ? total.giroAmount : debt.amount;
-      const remainingCents = Math.round(Number(amountDue) * 100) - Math.round(Number(paid) * 100)
-        - Math.round(Number(total.credited ?? 0) * 100);
+      const totalCents = Math.round(Number(amountDue) * 100);
+      const creditedCents = Math.round(Number(total.credited ?? 0) * 100);
+      const remainingCents = totalCents - paidAsOfCents - creditedCents;
+      const availableCents = totalCents - paidCents - creditedCents;
       if (Math.round(expectedBalance * 100) !== remainingCents) return cancelAttempt(requestScope);
-      if (Math.round(amount * 100) > remainingCents) return 'invalid' as const;
+      if (Math.round(amount * 100) > availableCents) return 'invalid' as const;
       if (!debt.goodsPurchaseId && debt.dueDate && debt.dueDate <= today && remainingCents > 0) {
         if (!await authorizeInTransaction(tx, user, { resources: [{ resource: 'expense.payable', action: 'read' }, { resource: 'expense.payable', action: 'update' }, { resource: 'expense.payable.manual.payment', action: 'update' }], page: '/keuangan' })) return 'forbidden' as const;
       }

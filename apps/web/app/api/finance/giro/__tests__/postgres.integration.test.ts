@@ -20,6 +20,7 @@ vi.mock('@/lib/logger', () => ({ getLogger: () => ({ error: vi.fn() }) }));
 import { GET } from '../route';
 import { POST as reconcile } from '../[goodsPurchaseId]/reconcile/route';
 import { POST as postPayment } from '../../supplier-payables/[id]/payments/route';
+import { loadCorrectionPaymentState } from '@/features/suppliers/shopping-requests/repositories/shopping-request-correction-payment-state';
 
 const request = (body: unknown, key?: string) => new Request('http://localhost/api/finance/giro', {
   method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { 'Idempotency-Key': key } : {}) }, body: JSON.stringify(body),
@@ -49,22 +50,30 @@ describe.skipIf(!connection)('giro endpoints on isolated PostgreSQL', () => {
     url.searchParams.set('schema', schema);
     client = new PrismaClient({ datasourceUrl: url.toString() });
     mocks.db = client;
+    await client.$executeRawUnsafe(`CREATE TYPE "GoodsPurchaseStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')`);
+    await client.$executeRawUnsafe(`CREATE TYPE "PurchasePaymentMethod" AS ENUM ('TRANSFER', 'GIRO')`);
+    await client.$executeRawUnsafe(`CREATE TYPE "GoodsPurchaseTotalBasis" AS ENUM ('ORDERED', 'RECEIVED')`);
     await client.$executeRawUnsafe(`CREATE TABLE "pos_goods_purchases" (
       "id" text PRIMARY KEY, "storeId" text NOT NULL, "number" text NOT NULL, "supplierNameSnapshot" text NOT NULL,
       "totalAmount" numeric(12,2) NOT NULL, "shoppingRequestId" text NOT NULL, "paymentDueDate" date,
-      "status" text NOT NULL, "paymentMethod" text, "statusBeforeCancellation" text,
-      "totalBasis" text DEFAULT 'ORDERED', "initialTransferAmount" numeric(12,2)
+      "status" "GoodsPurchaseStatus" NOT NULL, "paymentMethod" "PurchasePaymentMethod", "statusBeforeCancellation" "GoodsPurchaseStatus",
+      "totalBasis" "GoodsPurchaseTotalBasis" DEFAULT 'ORDERED', "initialTransferAmount" numeric(12,2), "initialTransferPaidAt" date
     )`);
     await client.$executeRawUnsafe(`CREATE TABLE "pos_goods_purchase_payments" (
       "id" text PRIMARY KEY, "goodsPurchaseId" text NOT NULL REFERENCES "pos_goods_purchases"("id"),
-      "method" text NOT NULL, "amount" numeric(12,2) NOT NULL, "dueDate" date, "note" text
+      "method" "PurchasePaymentMethod" NOT NULL, "amount" numeric(12,2) NOT NULL, "dueDate" date, "note" text
     )`);
     await client.$executeRawUnsafe(`CREATE TABLE "pos_shopping_request_corrections" (
       "id" text PRIMARY KEY, "storeId" text NOT NULL, "shoppingRequestId" text NOT NULL,
       "createdAt" timestamptz NOT NULL DEFAULT now(), "afterSnapshot" jsonb NOT NULL DEFAULT '{}'::jsonb)`);
     await client.$executeRawUnsafe(`CREATE TABLE "pos_shopping_request_correction_allocations" (
       "correctionId" text NOT NULL, "sourceKind" text NOT NULL, "paymentId" text NOT NULL,
-      "method" text NOT NULL, "amount" numeric(12,2) NOT NULL, "sourceAmount" numeric(12,2) NOT NULL, "paidAt" date NOT NULL)`);
+      "method" "PurchasePaymentMethod" NOT NULL, "amount" numeric(12,2) NOT NULL, "sourceAmount" numeric(12,2) NOT NULL, "paidAt" date NOT NULL,
+      "id" text NOT NULL DEFAULT md5(random()::text), "details" jsonb NOT NULL DEFAULT '{}'::jsonb)`);
+    await client.$executeRawUnsafe(`CREATE TABLE "pos_expense_corrections" (
+      "storeId" text NOT NULL, "action" text NOT NULL, "paymentId" text, "before" jsonb NOT NULL)`);
+    await client.$executeRawUnsafe(`CREATE TABLE "pos_expense_supplier_credit_applications" (
+      "storeId" text NOT NULL, "payableId" text NOT NULL, "amount" numeric(12,2) NOT NULL, "releasedAt" timestamp)`);
     await client.$executeRawUnsafe(`CREATE TABLE "pos_expenses" (
       "id" text PRIMARY KEY, "storeId" text NOT NULL, "amount" numeric(12,2) NOT NULL,
       "occurredAt" timestamp NOT NULL, "deletedAt" timestamp, "goodsPurchaseId" text, "shoppingRequestId" text
@@ -87,7 +96,7 @@ describe.skipIf(!connection)('giro endpoints on isolated PostgreSQL', () => {
       "id" text PRIMARY KEY, "storeId" text NOT NULL, "expenseId" text NOT NULL, "payableId" text NOT NULL,
       "paymentId" text UNIQUE NOT NULL, "amount" numeric(12,2) NOT NULL, "createdById" text NOT NULL,
       "createdAt" timestamp NOT NULL DEFAULT now(), "updatedAt" timestamp NOT NULL DEFAULT now())`);
-    const ledgerMigration = readFileSync(path.resolve(process.cwd(), '../../packages/db/prisma/migrations/20261117050000_payable_ledger_version/migration.sql'), 'utf8');
+    const ledgerMigration = readFileSync(path.resolve(process.cwd(), '../../packages/db/prisma/migrations/20261121030000_payable_ledger_version/migration.sql'), 'utf8');
     for (const statement of ledgerMigration.split('-- statement-break').map(value => value.trim()).filter(Boolean)) await client.$executeRawUnsafe(statement);
     await client.$executeRawUnsafe(`INSERT INTO "pos_goods_purchases" ("id", "storeId", "number", "supplierNameSnapshot", "totalAmount", "shoppingRequestId", "paymentDueDate", "status", "paymentMethod") VALUES
       ('purchase-1','store-1','PB-1','Pemasok',100000,'shopping-1','2026-11-20','APPROVED','GIRO'),
@@ -349,6 +358,36 @@ describe.skipIf(!connection)('giro endpoints on isolated PostgreSQL', () => {
       await client.$executeRawUnsafe(`DELETE FROM "pos_expenses" WHERE "goodsPurchaseId" LIKE 'multi-%'`);
       await client.$executeRawUnsafe(`DELETE FROM "pos_goods_purchase_payments" WHERE "goodsPurchaseId" LIKE 'multi-%'`);
       await client.$executeRawUnsafe(`DELETE FROM "pos_goods_purchases" WHERE id LIKE 'multi-%'`);
+    }
+  });
+
+  it('keeps corrected future allocations out of today’s balance until the WIB payment date', async () => {
+    await client.$executeRaw`INSERT INTO "pos_goods_purchases" ("id", "storeId", "number", "supplierNameSnapshot", "totalAmount", "shoppingRequestId", "paymentDueDate", "status", "paymentMethod", "initialTransferAmount", "initialTransferPaidAt") VALUES ('future-purchase','store-1','PB-FUTURE','Pemasok',100000,'shopping-future','2026-12-05'::date,'APPROVED','GIRO',60000,'2026-12-05'::date)`;
+    await client.$executeRaw`INSERT INTO "pos_expenses" VALUES ('future-expense','store-1',100000,'2026-11-05 00:00:00'::timestamp,null,'future-purchase','shopping-future')`;
+    await client.$executeRaw`INSERT INTO "pos_supplier_payables" ("id", "storeId", "goodsPurchaseId", "giroHistoryVerifiedAt", "supplierName", "amount", "debtDate", "createdById") VALUES ('future-debt','store-1','future-purchase',NOW(),'Pemasok',100000,'2026-11-05'::date,'user-1')`;
+    await client.$executeRaw`INSERT INTO "pos_shopping_request_corrections" ("id", "storeId", "shoppingRequestId", "afterSnapshot") VALUES ('future-correction','store-1','shopping-future','{"paymentSnapshot":{"sources":[{"sourceKind":"TRANSFER_EXPENSE","paymentId":"future-expense","amount":"60000.00","paidAt":"2026-12-05"}],"allocations":[{"sourceKind":"TRANSFER_EXPENSE","paymentId":"future-expense","amount":"40000.00","method":"GIRO"},{"sourceKind":"TRANSFER_EXPENSE","paymentId":"future-expense","amount":"20000.00","method":"TRANSFER"}]}}'::jsonb)`;
+    await client.$executeRaw`INSERT INTO "pos_shopping_request_correction_allocations" VALUES
+      ('future-correction','TRANSFER_EXPENSE','future-expense','GIRO',40000,60000,'2026-12-05'::date),
+      ('future-correction','TRANSFER_EXPENSE','future-expense','TRANSFER',20000,60000,'2026-12-05'::date)`;
+    await client.$executeRaw`INSERT INTO "pos_expense_supplier_credit_applications" VALUES ('store-1','future-debt',5000,null)`;
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-12-04T16:59:59.000Z'));
+      const before = (await (await GET(new Request('http://localhost/api/finance/giro'))).json()).items.find((item: { number: string }) => item.number === 'PB-FUTURE');
+      expect(before).toMatchObject({ status: 'PARTIAL', remaining: 95000, availableToPay: 35000, totalPaid: 0, creditApplied: 5000,
+        futurePayments: [{ id: 'TRANSFER_EXPENSE:future-expense', amount: 60000, paidAt: '2026-12-05' }] });
+      const context = { params: Promise.resolve({ id: 'future-debt' }) };
+      const state = await client.$transaction(tx => loadCorrectionPaymentState(tx, { storeId: 'store-1', purchaseId: 'future-purchase' }));
+      expect(state.paid).toBe('60000.00');
+      expect((await pay(request({ amount: 35000, paidAt: '2026-12-04', expectedBalance: '95000' }, randomUUID()), context)).status).toBe(201);
+      const afterPayment = (await (await GET(new Request('http://localhost/api/finance/giro'))).json()).items.find((item: { number: string }) => item.number === 'PB-FUTURE');
+      expect(afterPayment).toMatchObject({ status: 'PARTIAL', remaining: 60000, availableToPay: 0, totalPaid: 35000 });
+      expect((await pay(request({ amount: 1, paidAt: '2026-12-04', expectedBalance: '60000' }, randomUUID()), context)).status).toBe(422);
+      vi.setSystemTime(new Date('2026-12-04T17:00:00.000Z'));
+      const onDate = (await (await GET(new Request('http://localhost/api/finance/giro'))).json()).items.find((item: { number: string }) => item.number === 'PB-FUTURE');
+      expect(onDate).toMatchObject({ status: 'PAID', remaining: 0, availableToPay: 0, totalPaid: 95000, futurePayments: [] });
+    } finally {
+      vi.useRealTimers();
     }
   });
 

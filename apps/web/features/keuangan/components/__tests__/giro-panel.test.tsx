@@ -40,6 +40,64 @@ const scope = { storeId: "store-1", userId: "user-1", payableId: "d3" };
 const lock = async (_name: string, work: () => Promise<void>) => work();
 
 describe("panel giro di Keuangan", () => {
+  it("menjelaskan bulan jatuh tempo dan pembayaran mendatang di samping saldo hari ini", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-21T03:00:00Z"));
+    state.items.push({
+      goodsPurchaseId: "future", number: "PB-FUTURE", supplierName: "Pemasok", amount: 100000,
+      debtDate: "2026-11-01", dueDate: "2026-11-21", payableId: "future-debt", status: "UNPAID", paid: 0,
+      remaining: 100000, availableToPay: 40000, payments: [],
+      schedule: [{ id: "one", amount: 40000, dueDate: "2026-11-21" }, { id: "two", amount: 60000, dueDate: "2026-12-05" }],
+      futurePayments: [{ id: "future-payment", amount: 60000, paidAt: "2026-12-05" }],
+    } as never);
+    try {
+      const html = renderToStaticMarkup(<SupplierPayablesPanel canCreate canUpdate />);
+      expect(html).toContain("Bulan ini");
+      expect(html).toContain("Bulan depan");
+      expect(html).toContain("2026-12-05");
+      expect(html).toContain("Pembayaran tercatat untuk");
+      expect(html).toContain("Maksimal pembayaran baru");
+      expect(html).toContain("40.000");
+    } finally {
+      state.items.pop();
+      vi.useRealTimers();
+    }
+  });
+
+  it("tidak menawarkan pembayaran baru jika seluruh sisa sudah tercatat untuk tanggal mendatang", () => {
+    const html = renderToStaticMarkup(<GiroAction item={{ ...state.items[1], remaining: 100000, availableToPay: 0, futurePayments: [{ amount: 100000, paidAt: "2026-12-05" }] } as never} canUpdate pending={false} onReview={() => {}} onPay={() => {}} />);
+    expect(html).not.toContain("Catat pembayaran");
+  });
+
+  it("membatasi nominal pada formulir sesuai pembayaran mendatang", () => {
+    const html = renderToStaticMarkup(<GiroPaymentFields item={{ ...state.items[1], remaining: 100000, availableToPay: 40000, futurePayments: [{ amount: 60000, paidAt: "2026-12-05" }] } as never} amount="" paidAt="2026-11-21" onAmountChange={() => {}} onPaidAtChange={() => {}} />);
+    expect(html).toContain('max="40000"');
+    expect(html).toContain("Maksimal pembayaran baru");
+  });
+
+  it("tidak menjanjikan pengurangan saldo saat riwayat giro belum diketahui", () => {
+    state.items.push({ ...state.items[0], goodsPurchaseId: "unknown-future", number: "PB-UNKNOWN-FUTURE", futurePayments: [{ amount: 60000, paidAt: "2026-12-05" }] } as never);
+    try {
+      const html = renderToStaticMarkup(<SupplierPayablesPanel canCreate canUpdate />);
+      expect(html).not.toContain("otomatis berkurang pada tanggal pembayaran");
+      expect(html).toContain("Periksa riwayat");
+    } finally {
+      state.items.pop();
+    }
+  });
+
+  it("menandai Januari sebagai bulan depan ketika sekarang Desember", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-12-20T03:00:00Z"));
+    state.items.push({ ...state.items[1], goodsPurchaseId: "new-year", number: "PB-NEW-YEAR", dueDate: "2027-01-05", schedule: [{ id: "jan", amount: 100000, dueDate: "2027-01-05" }] } as never);
+    try {
+      const html = renderToStaticMarkup(<SupplierPayablesPanel canCreate canUpdate />);
+      expect(html).toContain("Bulan depan · 2027-01-05");
+    } finally {
+      state.items.pop();
+      vi.useRealTimers();
+    }
+  });
   it("menawarkan pemakaian kredit di dialog pembayaran dengan tagihan aktif", () => {
     const html = renderToStaticMarkup(<giroComponents.GiroDialog
       item={state.items[1] as never} mode="payment" manualPayables={[]} scope={null} initialPending={null}
