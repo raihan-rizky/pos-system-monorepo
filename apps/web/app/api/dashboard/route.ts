@@ -184,7 +184,9 @@ export async function GET() {
         orderBy: { invoiceDate: "desc" },
       }),
       // 9. Shared receipts and current outstanding DP.
-      incomeAccess ? loadIncomePeriod(storeId, incomeStartKey, todayKey) : Promise.resolve(null),
+      incomeAccess ? loadIncomePeriod(storeId, incomeStartKey, todayKey, {
+        initialPaymentDate: "received", includeSupplierRefunds: false,
+      }) : Promise.resolve(null),
       // 10. Outstanding Tempo and manual customer receivables for this store.
       canReadReceivables ? loadReceivableBalance(storeId, todayKey) : Promise.resolve(null),
     ]);

@@ -29,7 +29,7 @@ export function ReceiptHistoryClient({ context }: { context: ReceiptHistoryConte
   const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
   const receiptTrigger = useRef<HTMLButtonElement | null>(null);
   const visible = data ? selectReceiptRows(data, isDp ? "all" : kind) : null;
-  const visibleRows = visible ? [...visible.items, ...visible.manualEntries, ...visible.manualReceivableEntries] : [];
+  const visibleRows = visible ? [...visible.items, ...visible.manualEntries, ...visible.manualReceivableEntries, ...(visible.supplierRefundEntries ?? [])] : [];
   const visibleTotal = visibleRows.reduce((sum, row) => sum + Math.round(row.amount * 100), 0) / 100;
   const displayedTotal = kind === "all" && !isDp && data?.receiptTotal !== undefined ? data.receiptTotal : visibleTotal;
   const hasHiddenDetails = Math.round(displayedTotal * 100) !== Math.round(visibleTotal * 100);
@@ -56,7 +56,7 @@ export function ReceiptHistoryClient({ context }: { context: ReceiptHistoryConte
         </label>
         {!isDp && <div className="flex flex-wrap gap-1" aria-label="Rentang penerimaan">{filters.map(filter => <button key={filter.value} type="button" aria-pressed={period === filter.value} onClick={() => update({ period: filter.value })} className={`min-h-11 rounded-lg px-4 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700 ${period === filter.value ? "bg-blue-800 text-white" : "text-surface-700 hover:bg-surface-100"}`}>{filter.label}</button>)}</div>}
         {!isDp && <label className="flex flex-col gap-1 text-sm font-medium text-surface-700">Jenis transaksi
-          <select value={kind} onChange={event => setKind(event.target.value as ReceiptKind)} className="min-h-11 max-w-full rounded-lg border border-surface-300 bg-white px-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700">{receiptKinds.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
+          <select value={kind} onChange={event => setKind(event.target.value as ReceiptKind)} className="min-h-11 max-w-full rounded-lg border border-surface-300 bg-white px-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700">{receiptKinds.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}<option value="supplier-refund">Pengembalian dana pemasok</option></select>
         </label>}
         {!isDp && <p className="w-full text-sm text-surface-600">{range.dateFrom === range.dateTo ? range.dateTo : `${range.dateFrom} – ${range.dateTo}`} · WIB</p>}
       </div>
@@ -80,6 +80,10 @@ export function ReceiptHistoryClient({ context }: { context: ReceiptHistoryConte
                 })}
                 {visible?.manualEntries.map(item => <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 bg-emerald-50 px-4 py-4"><div className="min-w-0"><p className="break-words font-semibold text-surface-900">{item.description || "Pemasukan manual"}</p><p className="text-xs text-surface-600">Pemasukan Manual · {item.date}{item.methods.length ? ` · ${item.methods.join(", ")}` : ""}</p></div><span className="font-semibold tabular-nums text-surface-900">{formatRupiahPrecise(item.amount)}</span></li>)}
                 {visible?.manualReceivableEntries.map(item => <li key={`receivable:${item.id}`} className="flex flex-wrap items-center justify-between gap-3 bg-amber-50 px-4 py-4"><div className="min-w-0"><p className="break-words font-semibold text-surface-900">{item.customerName}</p>{item.description && <p className="break-words text-sm text-surface-700">{item.description}</p>}<p className="text-xs text-surface-600">Piutang Manual · {item.date}{item.methods.length ? ` · ${item.methods.join(", ")}` : ""}</p></div><span className="font-semibold tabular-nums text-surface-900">{formatRupiahPrecise(item.amount)}</span></li>)}
+                {visible?.supplierRefundEntries?.map(item => <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-4">
+                  <div><p className="font-semibold text-surface-900">Pengembalian dana pemasok</p><p className="text-xs text-surface-600">{item.date}</p></div>
+                  <span className="font-semibold tabular-nums text-surface-900">{formatRupiahPrecise(item.amount)}</span>
+                </li>)}
               </ul>}
           </>}
     </div>

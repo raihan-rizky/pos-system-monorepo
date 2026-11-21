@@ -53,7 +53,8 @@ export async function GET(request: Request) {
     const response = { month, monthlyTotal, transactionCount, manualEntryCount: manualIncome.length, daily };
     if (metricsOnly) return NextResponse.json(response);
     const cash = buildIncomeCalculation(income);
-    return NextResponse.json({ ...response, monthlyTotal: cash.total, cashDaily: cash.daily, cashTotal: cash.total, incomeComponents: cash.components });
+    return NextResponse.json({ ...response, monthlyTotal: cash.total, cashDaily: cash.daily, cashTotal: cash.total,
+      incomeComponents: cash.components, supplierRefund: cash.supplierRefund });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

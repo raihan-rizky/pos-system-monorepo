@@ -36,6 +36,32 @@ type Build = (input: { storeId: string; month: string; now: Date; expenses: unkn
 const build = () => (finance as { buildRecognizedExpenses?: Build }).buildRecognizedExpenses;
 
 describe("sumber koreksi pengeluaran otomatis", () => {
+  it("menampilkan giro November yang belum dibayar mulai jatuh tempo April dalam WIB", () => {
+    const dueDate = date("2027-04-17");
+    const purchase = { ...expense.goodsPurchase, paymentDueDate: dueDate,
+      payments: [{ ...expense.goodsPurchase.payments[0], dueDate }],
+      supplierPayable: { ...expense.goodsPurchase.supplierPayable, payments: [] },
+    };
+    const input = { storeId: "store-1", expenses: [{ ...expense, goodsPurchase: purchase }], backdatedPurchases: [] };
+    expect(build()!({ ...input, month: "2026-11", now: date("2026-11-30") }).rows).toEqual([]);
+    expect(build()!({ ...input, month: "2027-04", now: new Date("2027-04-16T16:59:59Z") }).rows).toEqual([]);
+    expect(build()!({ ...input, month: "2027-04", now: new Date("2027-04-16T17:00:00Z") })).toMatchObject({
+      monthlyTotal: 100_000, daily: [{ date: "2027-04-17", total: 100_000 }],
+      rows: [{ recognitionKind: "giro_due", netAmount: 100_000 }],
+    });
+  });
+  it("memasukkan pembayaran pembelian yang dibatalkan ke riwayat dan total tanggal yang sama", () => {
+    const input = {
+      storeId: "store-1", month: "2026-11", now: date("2026-11-30"), expenses: [], backdatedPurchases: [],
+      correctionCash: { outflow: [{ date: "2026-11-10", total: 80_000 }], refunds: [] },
+    };
+    expect(build()!(input)).toMatchObject({
+      monthlyTotal: 80_000,
+      daily: [{ date: "2026-11-10", total: 80_000 }],
+      byCategory: [{ category: "OTHER", total: 80_000 }],
+      rows: [{ description: "Pembayaran pembelian yang dibatalkan", netAmount: 80_000 }],
+    });
+  });
   it("mempertahankan identitas daftar lama dan menautkan pembayaran ke pembelian yang terverifikasi", () => {
     const legacy = {
       ...expense, goodsPurchaseId: null, goodsPurchase: null,

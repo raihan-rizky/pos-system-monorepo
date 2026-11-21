@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({ expenses: vi.fn(), payables: vi.fn(), backdate
 vi.mock("@pos/db", async (loadOriginal) => {
   const actual = await loadOriginal<typeof import("@pos/db")>();
   const tx = { expense: { findMany: mocks.expenses }, supplierPayable: { findMany: mocks.payables },
-    backdatedPurchase: { findMany: mocks.backdated } };
+    backdatedPurchase: { findMany: mocks.backdated }, $queryRaw: async () => [] };
   return { ...actual, db: { $transaction: mocks.transaction.mockImplementation((callback: (client: typeof tx) => unknown) => callback(tx)) } };
 });
 import { loadRecognizedExpenses } from "../recognized-finance";

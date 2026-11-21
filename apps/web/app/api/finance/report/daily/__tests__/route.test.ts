@@ -7,7 +7,7 @@ vi.mock(import("@/lib/rbac/guard"), async importOriginal => ({
   getCurrentUser: mocks.user,
 }));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
-vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual }, customerReceivable: { findMany: mocks.customerReceivables }, customerReceivablePayment: { findMany: mocks.receivablePayments } } }));
+vi.mock("@pos/db", () => ({ db: { $queryRaw: async () => [], transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual }, customerReceivable: { findMany: mocks.customerReceivables }, customerReceivablePayment: { findMany: mocks.receivablePayments } } }));
 import { GET } from "../route";
 
 const targets = ["financial-report.daily-income", "financial-report.daily-category", "financial-report.daily-subcategory", "financial-report.daily-payment-method", "financial-report.daily-outstanding-dp"];
@@ -50,8 +50,8 @@ describe("daily finance API", () => {
     const query = mocks.transactions.mock.calls[0][0];
     expect(query.where.storeId).toBe("store-1");
     expect(JSON.stringify(query.where)).toContain("2026-11-04T17:00:00.000Z");
-    expect(query.where.OR).toEqual(expect.arrayContaining([expect.objectContaining({ status: "DP", createdAt: { lt: new Date("2026-11-05T17:00:00.000Z") } })]));
-    expect(query.where).not.toHaveProperty("invoiceDate");
+    expect(query.where.OR).toEqual(expect.arrayContaining([expect.objectContaining({ status: "DP", invoiceDate: { lt: new Date("2026-11-05T17:00:00.000Z") } })]));
+    expect(query.select.invoiceDate).toBe(true);
     for (const field of ["unitCost", "grossProfit", "customer", "cashier", "salesperson", "expense"]) {
       expect(JSON.stringify(query.select)).not.toContain(field);
       expect(JSON.stringify(body)).not.toContain(field);
@@ -60,7 +60,7 @@ describe("daily finance API", () => {
     expect(JSON.stringify(mocks.customerReceivables.mock.calls[0][0].select)).not.toMatch(/customer|note/i);
   });
 
-  it("keeps the initial payment and settlement on their actual receipt date when the invoice date differs", async () => {
+  it("keeps only the settlement on this date when the invoice date differs", async () => {
     const now = new Date();
     mocks.transactions.mockResolvedValueOnce([{
       id: "moved-invoice", createdAt: now, invoiceDate: new Date("2026-11-04T03:00:00Z"),
@@ -72,9 +72,9 @@ describe("daily finance API", () => {
     const response = await GET(request());
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      total: 50_000, outstandingDp: 0,
-      categories: [{ category: "ATK", amount: 50_000 }],
-      paymentMethods: [{ method: "CASH", amount: 25_000 }, { method: "TRANSFER", amount: 25_000 }],
+      total: 25_000, outstandingDp: 0,
+      categories: [{ category: "ATK", amount: 25_000 }],
+      paymentMethods: [{ method: "TRANSFER", amount: 25_000 }],
     });
   });
 

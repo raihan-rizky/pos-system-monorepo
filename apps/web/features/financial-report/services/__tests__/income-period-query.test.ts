@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ transactions: vi.fn(), manual: vi.fn(), receivables: vi.fn(), receivablePayments: vi.fn() }));
-vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual }, customerReceivable: { findMany: mocks.receivables }, customerReceivablePayment: { findMany: mocks.receivablePayments } } }));
+vi.mock("@pos/db", () => ({ db: { $queryRaw: async () => [], transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual }, customerReceivable: { findMany: mocks.receivables }, customerReceivablePayment: { findMany: mocks.receivablePayments } } }));
 import * as service from "../daily-income";
 import { buildIncomePeriod } from "../../helpers/income-period";
 

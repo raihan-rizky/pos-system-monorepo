@@ -219,17 +219,18 @@ export default function KeuanganDashboardPage() {
   const isNegative = net !== null && net < 0;
   const summaryLoading = canReadCashFlow ? cashFlow.isLoading : (canReadIncome && pemasukan.isLoading) || (canReadExpense && pengeluaran.isLoading);
   const incomeCalculation = canReadCashFlow ? cashFlowData?.income : incomeData?.cashTotal == null ? undefined
-    : { total: incomeData.cashTotal, components: incomeData.incomeComponents ?? null };
+    : { total: incomeData.cashTotal, components: incomeData.incomeComponents ?? null, supplierRefund: incomeData.supplierRefund };
   const expenseCalculation = canReadCashFlow ? cashFlowData?.expense : expenseData
-    ? { total: expenseData.monthlyTotal, incomplete: expenseData.incomplete, components: expenseData.components } : undefined;
+    ? { total: expenseData.monthlyTotal, incomplete: expenseData.incomplete, components: expenseData.components,
+      correctionOutflow: expenseData.correctionOutflow } : undefined;
   const incomeDayRows = incomeData ? (() => {
     const days = canReadCashFlow ? cashFlowData?.income.daily : incomeData.cashDaily;
     if (!days) return undefined;
     const totals = new Map(days.map(row => [row.date, row]));
     const rows = incomeData.daily.map(row => ({ ...row, total: totals.get(row.date)?.total ?? 0,
-      manualReceivable: totals.get(row.date)?.manualReceivable ?? 0 }));
+      manualReceivable: totals.get(row.date)?.manualReceivable ?? 0, supplierRefund: totals.get(row.date)?.supplierRefund }));
     const existing = new Set(rows.map(row => row.date));
-    for (const row of days) if (!existing.has(row.date)) rows.push({ ...row, count: 0, manualCount: 0 });
+    for (const row of days) if (!existing.has(row.date)) rows.push({ ...row, count: 0, manualCount: 0, supplierRefund: row.supplierRefund });
     return rows.sort((a, b) => a.date.localeCompare(b.date));
   })() : undefined;
 
@@ -365,7 +366,7 @@ export default function KeuanganDashboardPage() {
                     containIntrinsicSize: "44px",
                   }}
                 >
-                  <IncomeDayRow date={row.date} label={fullDay(row.date)} total={row.total} count={row.count} manualCount={row.manualCount ?? 0} manualReceivable={row.manualReceivable} canOpenHistory={canOpenIncomeHistory} onOpen={(date) => setIncomeDetail({ date, month, userId, storeId, authorizationFingerprint })} />
+                  <IncomeDayRow date={row.date} label={fullDay(row.date)} total={row.total} count={row.count} manualCount={row.manualCount ?? 0} manualReceivable={row.manualReceivable} supplierRefund={row.supplierRefund} canOpenHistory={canOpenIncomeHistory} onOpen={(date) => setIncomeDetail({ date, month, userId, storeId, authorizationFingerprint })} />
                 </li>
               ))}
             </ul>
@@ -509,7 +510,7 @@ export default function KeuanganDashboardPage() {
                         ? "Daftar Belanja (Legacy)"
                         : item.source.type === "MANUAL_TRANSFER_PURCHASE"
                           ? "Belanja Transfer Manual"
-                          : "Manual";
+                          : item.source.type === "CANCELLED_PURCHASE_PAYMENT" ? "Koreksi Pembelian" : "Manual";
                   const correctionActions = isAutomaticExpense ? getExpenseCorrectionActions(item, canPerform) : [];
                   const manualEdit = item.source.type === "MANUAL_TRANSFER_PURCHASE" ? canEditTransfer : canEdit;
                   const manualDelete = item.source.type === "MANUAL_TRANSFER_PURCHASE" ? canDeleteTransfer : canDelete;

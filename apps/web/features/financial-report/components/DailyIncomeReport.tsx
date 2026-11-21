@@ -48,7 +48,7 @@ export function DailyIncomeReport({ previewSales = false, fullReportPreview }: {
   return <main className="flex-1 overflow-y-auto bg-[#f1f7fb]">
     <header className="border-b border-[#dce9ed] bg-white px-4 py-5 sm:px-6">
       <div className="mx-auto flex max-w-6xl flex-wrap items-end justify-between gap-4">
-        <div><p className="text-xs font-semibold text-[#326279]">Ringkasan toko</p><h1 className="mt-1 text-2xl font-bold tracking-tight text-[#142f40]">Pemasukan Harian</h1><p className="mt-1 text-sm text-[#587586]">Uang diterima toko pada tanggal pilihan, mengikuti WIB.</p></div>
+        <div><p className="text-xs font-semibold text-[#326279]">Ringkasan toko</p><h1 className="mt-1 text-2xl font-bold tracking-tight text-[#142f40]">Pemasukan Harian</h1><p className="mt-1 text-sm text-[#587586]">Pembayaran awal/DP mengikuti tanggal nota. Pelunasan mengikuti tanggal pembayaran (WIB).</p></div>
         {hasAccess && <div className="flex flex-wrap items-end gap-2">
           <label className="flex flex-col gap-1 text-sm font-medium text-[#294b5d]">Tanggal pemasukan
             <input type="date" value={date} max={jakartaToday()} onChange={event => { if (event.target.value) setDate(event.target.value); }} className="min-h-11 rounded-lg border border-[#c9dce6] bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700" />
@@ -82,7 +82,7 @@ export function DailyIncomeReport({ previewSales = false, fullReportPreview }: {
               {access.subcategories && report.subcategories && <IncomeBreakdown title="Pemasukan per Subkategori" rows={report.subcategories.map(row => ({ label: `${row.category} / ${row.subcategory}`, amount: row.amount, href: hrefFor("subcategory", { category: row.category, subcategory: row.subcategory }) }))} />}
               {access.paymentMethods && report.paymentMethods && <IncomeBreakdown title="Pemasukan per Metode Pembayaran" rows={report.paymentMethods.map(row => ({ label: row.method === "CASH" ? "Tunai" : row.method, amount: row.amount, href: hrefFor("method", { method: row.method }) }))} />}
             </div>
-            {access.paymentMethods && report.paymentMethods?.some(row => row.method === "Belum dicatat") && <p className="text-xs text-[#587586]">Metode pembayaran pemasukan manual belum dicatat.</p>}
+            {access.paymentMethods && report.paymentMethods?.some(row => row.method === "Belum dicatat") && <p className="text-xs text-[#587586]">Sebagian pemasukan belum memiliki metode pembayaran yang tercatat.</p>}
           </>}
     </div>
     {detailsOpen && totalHref && report?.total !== undefined && <DailyIncomeReceiptDialog date={date} previewSales={previewSales} allowComparison onClose={() => setDetailsOpen(false)} />}

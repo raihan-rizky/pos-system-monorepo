@@ -17,6 +17,7 @@ export type ReceiptHistoryData = {
   manualEntries?: ManualEntry[];
   manualReceivableDetailsAvailable?: boolean;
   manualReceivableEntries?: ManualReceivableEntry[];
+  supplierRefundEntries?: Array<{ id: string; date: string; amount: number }>;
   receiptTotal?: number;
   summary?: { total: number; paymentMethods?: Array<{ method: string; amount: number }> };
   comparisonAccess?: { read: boolean; create: boolean; update: boolean };

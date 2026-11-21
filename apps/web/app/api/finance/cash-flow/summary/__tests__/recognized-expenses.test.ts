@@ -40,14 +40,16 @@ describe("ringkasan arus kas berdasarkan pengeluaran yang diakui", () => {
   });
 
   it("menghitung pembayaran yang sudah keluar dan refund berdasarkan tanggal masing-masing", async () => {
+    const income = await mocks.income();
+    mocks.income.mockResolvedValueOnce({
+      ...income, days: [...income.days, { date: "2026-11-20", total: 800_000 }],
+      contributions: [...income.contributions, { id: "refund", source: "supplier-refund", date: "2026-11-20", amount: 800_000 }],
+    });
     mocks.expenses.mockResolvedValueOnce({
-      monthlyTotal: 30_000, incomplete: false,
-      daily: [{ date: "2026-11-10", total: 30_000 }],
+      monthlyTotal: 830_000, incomplete: false,
+      daily: [{ date: "2026-11-10", total: 830_000 }],
       components: { manual: 20_000, transfer: 0, giroPayment: 0, giroDue: 10_000, overpayment: 0 },
-      correctionCash: {
-        outflow: [{ date: "2026-11-10", total: 800_000 }],
-        refunds: [{ date: "2026-11-20", total: 800_000 }],
-      },
+      correctionOutflow: 800_000,
     });
     const response = await GET(new Request("http://localhost/api/finance/cash-flow/summary?month=2026-11"));
     expect(response.status).toBe(200);

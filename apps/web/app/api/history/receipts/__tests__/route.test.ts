@@ -7,7 +7,7 @@ vi.mock(import("@/lib/rbac/guard"), async importOriginal => ({
   getCurrentUser: mocks.user,
 }));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
-vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual }, customerReceivablePayment: { findMany: mocks.receivablePayments }, customerReceivable: { findMany: mocks.receivables } } }));
+vi.mock("@pos/db", () => ({ db: { $queryRaw: async () => [], transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual }, customerReceivablePayment: { findMany: mocks.receivablePayments }, customerReceivable: { findMany: mocks.receivables } } }));
 type Route = { GET: (request: Request) => Promise<Response> };
 const loadRoute = () => vi.importActual<Route>("../route").catch(() => null);
 const request = (query = "mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11") => new Request(`http://localhost/api/history/receipts?${query}`);

@@ -6,7 +6,7 @@ import { allocateIncomePaymentItems, groupIncomeAllocations, incomeClassificatio
 export type ReceiptContribution = {
   id: string;
   date: string;
-  source: "transaction" | "manual" | "manual-receivable";
+  source: "transaction" | "manual" | "manual-receivable" | "supplier-refund";
   transactionId: string | null;
   manualIncomeId: string | null;
   receivablePaymentId?: string;
@@ -21,6 +21,8 @@ export type ReceiptContribution = {
 export type OutstandingDpEntry = { transactionId: string; createdAt: Date; remaining: number };
 export type IncomePeriod = { days: DailyIncomeReport[]; contributions: ReceiptContribution[]; outstandingDp: OutstandingDpEntry[] };
 export type IncomePeriodInput = { fromDate: string; toDate: string; transactions: DailyIncomeTransaction[]; manualIncome: DailyManualIncome[];
+  initialPaymentDate?: "invoice" | "received";
+  supplierRefunds?: Array<{ date: string; total: number }>;
   manualReceivablePayments?: DailyReceivablePayment[];
   manualReceivables?: Array<{ id: string; amount: unknown; reportCategory: string | null;
     payments: Array<{ id: string; method: string; amount: unknown; paidAt: Date | null; createdAt: Date }> }> };
@@ -51,10 +53,11 @@ export function buildIncomePeriod(input: IncomePeriodInput): IncomePeriod {
   const outstandingDp: OutstandingDpEntry[] = [];
   for (const tx of unique(input.transactions)) {
     if (tx.status !== "COMPLETED" && tx.status !== "DP") continue;
-    if (tx.status === "DP" && tx.paymentMethod !== "TEMPO" && tx.createdAt.getTime() < end) {
+    const invoiceDate = input.initialPaymentDate === "received" ? tx.createdAt : tx.invoiceDate ?? tx.createdAt;
+    if (tx.status === "DP" && tx.paymentMethod !== "TEMPO" && invoiceDate.getTime() < end) {
       const totalCents = Math.round(money(tx.total) * 100);
       const paidCents = Math.min(totalCents, Math.round(money(tx.amountPaid) * 100));
-      outstandingDp.push({ transactionId: tx.id, createdAt: tx.createdAt, remaining: Math.max(0, totalCents - paidCents) / 100 });
+      outstandingDp.push({ transactionId: tx.id, createdAt: invoiceDate, remaining: Math.max(0, totalCents - paidCents) / 100 });
     }
 
     const retained = Math.min(money(tx.total), Math.max(0, money(tx.amountPaid) - money(tx.change)));
@@ -70,9 +73,10 @@ export function buildIncomePeriod(input: IncomePeriodInput): IncomePeriod {
       ...netInitialPayments(debts, { total: Math.min(debtTotal, retained), amountPaid: Math.min(debtTotal, retained) }).map(row => ({ ...row, kind: "debt" })),
     ];
     for (const row of allocateIncomePaymentItems(rows, tx)) {
-      if (row.createdAt.getTime() < start || row.createdAt.getTime() >= end) continue;
+      const receivedAt = row.kind === "payment" && input.initialPaymentDate !== "received" ? tx.invoiceDate ?? row.createdAt : row.createdAt;
+      if (receivedAt.getTime() < start || receivedAt.getTime() >= end) continue;
       contributions.push({
-        id: `${tx.id}:${row.kind}:${row.id}`, date: dateKey(row.createdAt), source: "transaction",
+        id: `${tx.id}:${row.kind}:${row.id}`, date: dateKey(receivedAt), source: "transaction",
         transactionId: tx.id, manualIncomeId: null, method: row.method, amount: row.amount,
         isReceivableNota: tx.paymentMethod === "TEMPO" && row.kind === "debt",
         allocations: groupIncomeAllocations(row.allocations),
@@ -132,6 +136,14 @@ export function buildIncomePeriod(input: IncomePeriodInput): IncomePeriod {
     }
   }
 
+  for (const { date, total } of input.supplierRefunds ?? []) {
+    if (date < input.fromDate || date > input.toDate || total <= 0) continue;
+    contributions.push({
+      id: `supplier-refund:${date}`, date, source: "supplier-refund",
+      transactionId: null, manualIncomeId: null, method: "Belum dicatat", amount: total,
+      allocations: [{ category: "Lainnya", subcategory: "Pengembalian dana pemasok", amount: total }],
+    });
+  }
   const days: DailyIncomeReport[] = [];
   for (let at = start; at < end; at += dayMs) {
     const date = dateKey(new Date(at));

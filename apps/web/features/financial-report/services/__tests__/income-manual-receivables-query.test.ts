@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const queries = vi.hoisted(() => ({ transactions: vi.fn(), income: vi.fn(), receivables: vi.fn() }));
-vi.mock("@pos/db", () => ({ db: {
+vi.mock("@pos/db", () => ({ db: { $queryRaw: async () => [],
   transaction: { findMany: queries.transactions }, manualIncome: { findMany: queries.income },
   customerReceivable: { findMany: queries.receivables },
 } }));

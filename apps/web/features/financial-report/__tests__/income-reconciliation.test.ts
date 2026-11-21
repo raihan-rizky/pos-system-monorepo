@@ -1,16 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
-const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn(), receivablePayments: vi.fn() }));
+const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn(), receivablePayments: vi.fn(), manualReceivables: vi.fn(), correctionCash: vi.fn() }));
 vi.mock("@/lib/rbac/guard", () => ({ getCurrentUser: mocks.user, requirePermission: mocks.user, handleAuthError: () => null }));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
+vi.mock("@/features/keuangan/repositories/expense-correction-cash-repository", () => ({ loadExpenseCorrectionCash: mocks.correctionCash }));
 vi.mock("@/features/customer-debt/services/receivable-balance", () => ({
   loadReceivableBalance: async () => 0,
   loadReceivableBreakdown: async () => ({ nota: 0, manual: 0, total: 0 }),
 }));
 vi.mock("@pos/db", () => ({ db: {
   transaction: { findMany: mocks.transactions, groupBy: async () => [], aggregate: async () => ({ _sum: { total: 0, amountPaid: 0 } }) },
-  manualIncome: { findMany: mocks.manual }, customerReceivablePayment: { findMany: mocks.receivablePayments }, customerReceivable: { findMany: async () => [] }, transactionItem: { groupBy: async () => [] },
+  manualIncome: { findMany: mocks.manual }, customerReceivablePayment: { findMany: mocks.receivablePayments }, customerReceivable: { findMany: mocks.manualReceivables }, transactionItem: { groupBy: async () => [] },
   product: { count: async () => 0, findMany: async () => [] }, $queryRaw: async () => [],
 } }));
 import { GET as sales } from "@/app/api/finance/report/daily/route";
@@ -37,6 +38,8 @@ describe("Rekonsiliasi pemasukan lintas halaman", () => {
     mocks.transactions.mockImplementation(async query => query.select?.invoiceNumber ? [oldInvoice, dp] : query.select?.payments || query.select?.invoiceDate ? [oldInvoice, dp] : [oldInvoice]);
     mocks.manual.mockImplementation(async () => [manual]);
     mocks.receivablePayments.mockResolvedValue([]);
+    mocks.manualReceivables.mockResolvedValue([]);
+    mocks.correctionCash.mockResolvedValue({ outflow: [], refunds: [] });
   });
   afterEach(() => vi.useRealTimers());
 
@@ -66,7 +69,8 @@ describe("Rekonsiliasi pemasukan lintas halaman", () => {
     expect(history.items[0].amount).toBe(60_000);
   });
   it("menyamakan transaksi offline yang tersinkron pada hari berikutnya", async () => {
-    const offline = { ...oldInvoice, createdAt: new Date("2026-11-10T03:00:00Z"), offlineSyncMetadata: { reason: "REPLAYED" }, total: 40_000, amountPaid: 40_000,
+    const capturedAt = new Date("2026-11-10T03:00:00Z");
+    const offline = { ...oldInvoice, createdAt: capturedAt, invoiceDate: capturedAt, offlineSyncMetadata: { reason: "REPLAYED" }, total: 40_000, amountPaid: 40_000,
       payments: [{ id: "offline-payment", method: "CASH", amount: 40_000, createdAt: new Date("2026-11-11T03:00:00Z") }], debtPaymentLogs: [] };
     mocks.transactions.mockResolvedValue([offline]);
     mocks.manual.mockResolvedValue([]);
@@ -81,5 +85,20 @@ describe("Rekonsiliasi pemasukan lintas halaman", () => {
     expect(history.items[0].amount).toBe(daily.total);
     expect(overview.todayRevenue).toBe(0);
     expect(overview.monthlyRevenue).toBe(daily.total);
+  });
+
+  it("menyamakan pengembalian dana dan piutang manual pada tanggal yang sama", async () => {
+    mocks.correctionCash.mockResolvedValue({ outflow: [], refunds: [{ date: "2026-11-11", total: 10.25 }] });
+    mocks.manualReceivables.mockResolvedValue([{ id: "manual-debt", amount: 30.15, reportCategory: "ATK", payments: [
+      { id: "repayment", method: "TRANSFER", amount: 30.15, paidAt: new Date("2026-11-11T00:00:00Z"), createdAt: new Date("2026-11-12T03:00:00Z") },
+    ] }]);
+    const [daily, monthly, refundHistory] = await Promise.all([
+      sales(request("/api/finance/report/daily?date=2026-11-11")).then(r => r.json()),
+      finance(request("/api/finance/income/summary?month=2026-11")).then(r => r.json()),
+      receipts(request("/api/history/receipts?mode=receipt&dateFrom=2026-11-11&dateTo=2026-11-11&category=Lainnya")).then(r => r.json()),
+    ]);
+    expect(daily.total).toBe(80_040.4);
+    expect(monthly.cashDaily.find((row: { date: string }) => row.date === "2026-11-11")).toMatchObject({ total: daily.total, manualReceivable: 30.15, supplierRefund: 10.25 });
+    expect(refundHistory).toMatchObject({ receiptTotal: 10.25, supplierRefundEntries: [{ date: "2026-11-11", amount: 10.25 }] });
   });
 });

@@ -49,27 +49,42 @@ describe("income categories", () => {
 });
 
 describe("daily cash received", () => {
-  it.each(["2026-11-04T03:00:00Z", "2026-11-05T17:00:00Z"])("keeps the initial DP on its payment date when invoice date changes to %s", invoiceDate => {
+  it("reconciles the same day in the daily report and monthly cash calculation", async () => {
+    const { buildIncomePeriod } = await import("../income-period");
+    const { buildIncomeCalculation } = await import("@/features/keuangan/helpers/income-calculation");
+    const invoice = transaction({ invoiceDate: new Date("2026-11-04T03:00:00Z"), total: 100, amountPaid: 100,
+      payments: [payment("dp", "CASH", 40)],
+      debtPaymentLogs: [{ id: "settlement", paymentMethod: "TRANSFER", amount: 60, createdAt: time }],
+    });
+    const input = { fromDate: "2026-11-04", toDate: date, transactions: [invoice], manualIncome: [],
+      supplierRefunds: [{ date, total: 12.35 }],
+    };
+    const period = buildIncomePeriod(input);
+    expect(period.days.map(day => day.total)).toEqual([40, 72.35]);
+    expect(period.days[1].subcategories).toContainEqual({ category: "Lainnya", subcategory: "Pengembalian dana pemasok", amount: 12.35 });
+    expect(buildIncomeCalculation(period)).toMatchObject({ total: 112.35, supplierRefund: 12.35 });
+  });
+  it.each(["2026-11-04T03:00:00Z", "2026-11-05T17:00:00Z"])("moves the initial DP when invoice date changes to %s", invoiceDate => {
     const tx = transaction({ createdAt: time, invoiceDate: new Date(invoiceDate), status: "DP", total: 50_000, amountPaid: 25_000, payments: [payment("dp", "CASH", 25_000)] });
     const report = buildDailyIncome({ date, transactions: [tx], manualIncome: [] });
-    expect(report.total).toBe(25_000);
-    expect(report.outstandingDp).toBe(25_000);
-    expect(report.paymentMethods).toEqual([{ method: "CASH", amount: 25_000 }]);
+    expect(report.total).toBe(0);
+    expect(report.outstandingDp).toBe(invoiceDate.startsWith("2026-11-04") ? 25_000 : 0);
+    expect(report.paymentMethods).toEqual([]);
   });
-  it("attributes initial payments and settlements to their actual payment dates", () => {
+  it("attributes initial payments to invoice date and settlements to payment date", () => {
     const tx = transaction({ createdAt: time, invoiceDate: new Date("2026-11-04T03:00:00Z"), total: 50_000, amountPaid: 50_000,
       payments: [payment("initial", "CASH", 25_000)],
       debtPaymentLogs: [{ id: "settlement", paymentMethod: "TRANSFER", amount: 25_000, createdAt: time }],
     });
     const today = buildDailyIncome({ date, transactions: [tx], manualIncome: [] });
-    expect(today.total).toBe(50_000);
-    expect(today.paymentMethods).toEqual([{ method: "CASH", amount: 25_000 }, { method: "TRANSFER", amount: 25_000 }]);
-    expect(buildDailyIncome({ date: "2026-11-04", transactions: [tx], manualIncome: [] }).total).toBe(0);
+    expect(today.total).toBe(25_000);
+    expect(today.paymentMethods).toEqual([{ method: "TRANSFER", amount: 25_000 }]);
+    expect(buildDailyIncome({ date: "2026-11-04", transactions: [tx], manualIncome: [] }).total).toBe(25_000);
   });
-  it("uses the creation date for legacy payments and outstanding DP", () => {
+  it("uses invoice date for legacy payments and outstanding DP", () => {
     const tx = transaction({ createdAt: time, invoiceDate: new Date("2026-11-05T17:00:00Z"), status: "DP", total: 50_000, amountPaid: 25_000, payments: [] });
-    expect(buildDailyIncome({ date, transactions: [tx], manualIncome: [] })).toMatchObject({ total: 25_000, outstandingDp: 25_000 });
-    expect(buildDailyIncome({ date: "2026-11-06", transactions: [tx], manualIncome: [] })).toMatchObject({ total: 0, outstandingDp: 25_000 });
+    expect(buildDailyIncome({ date, transactions: [tx], manualIncome: [] })).toMatchObject({ total: 0, outstandingDp: 0 });
+    expect(buildDailyIncome({ date: "2026-11-06", transactions: [tx], manualIncome: [] })).toMatchObject({ total: 25_000, outstandingDp: 25_000 });
   });
   it("falls back to payment dates when invoiceDate is unavailable; categories and methods reconcile", () => {
     const report = buildDailyIncome({ date, transactions: [transaction()], manualIncome: [] });

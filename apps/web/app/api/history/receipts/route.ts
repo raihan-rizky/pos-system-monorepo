@@ -31,7 +31,7 @@ export async function GET(request: Request) {
     const method = params.get("method");
     const view = params.get("view");
     if ((mode !== "receipt" && mode !== "outstanding-dp") || (view !== null && view !== "sales")
-      || (category !== null && category !== "ATK" && category !== "Percetakan" && category !== "Belum ditentukan" && category !== "Piutang Manual")
+      || (category !== null && !["ATK", "Percetakan", "Belum ditentukan", "Piutang Manual", "Lainnya"].includes(category))
       || (subcategory !== null && (!category || !subcategory.trim() || subcategory.length > 150))
       || (method !== null && !methods.has(method))
       || (mode === "outstanding-dp" && (category || subcategory || method))) {
@@ -137,12 +137,17 @@ export async function GET(request: Request) {
       const detail = receivableDetails.get(row.id)!;
       return { id: row.id, receivableId: detail.receivableId, customerName: detail.receivable.customer.name, description: detail.receivable.note, date: row.date, amount: row.cents / 100, methods: access.method ? [...row.methods] : [], ...breakdown(row) };
     }).sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
+    const supplierRefundEntries = mode === "receipt" && (access.category || access.subcategory)
+      ? period.contributions.filter(row => row.source === "supplier-refund" && (!method || row.method === method)
+        && matchingAllocations(row).length > 0).map(({ id, date, amount }) => ({ id, date, amount }))
+      : [];
     const dailySummary = mode === "receipt" && fromDate === toDate && !category && !subcategory && !method && access.total
       ? period.days[0] : undefined;
     const canCompare = Boolean(dailySummary && access.method && canRolePerformAction(effectiveRole, "financial-report.daily-comparison", "read", permissions));
     return NextResponse.json({ mode, dateFrom: fromDate, dateTo: toDate, items, ...(receiptTotal !== undefined && { receiptTotal }), manualDetailsAvailable: access.manualDetails, manualReceivableDetailsAvailable: access.manualReceivableDetails,
       ...(access.manualDetails && mode === "receipt" ? { manualEntries } : {}),
       ...(access.manualReceivableDetails && mode === "receipt" ? { manualReceivableEntries } : {}),
+      ...(supplierRefundEntries.length > 0 && { supplierRefundEntries }),
       ...(dailySummary && { summary: { total: dailySummary.total, ...(access.method && { paymentMethods: dailySummary.paymentMethods }) } }),
       ...(dailySummary && access.method && { comparisonAccess: { read: canCompare, create: canCompare && view !== "sales" && canRolePerformAction(effectiveRole, "financial-report.daily-comparison", "create", permissions), update: canCompare && view !== "sales" && canRolePerformAction(effectiveRole, "financial-report.daily-comparison", "update", permissions) } }),
     }, { headers: { "Cache-Control": "private, no-store" } });

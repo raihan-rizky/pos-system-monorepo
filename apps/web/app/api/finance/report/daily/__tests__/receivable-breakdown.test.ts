@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transacti
 vi.mock("@/lib/rbac/guard", () => ({ getCurrentUser: mocks.user, handleAuthError: () => null }));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
 vi.mock("@pos/db", () => ({ db: {
+  $queryRaw: async () => [],
   transaction: { findMany: mocks.transaction }, manualIncome: { findMany: mocks.manual },
   customerReceivable: { findMany: (query: { select?: { payments?: unknown } }) => query.select?.payments ? mocks.ledger(query) : mocks.receivable(query) },
 } }));

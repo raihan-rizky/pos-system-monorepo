@@ -20,6 +20,7 @@ type ReceiptRow = AmountBreakdown & {
   transactionId?: string;
   manual: boolean;
   manualReceivable?: boolean;
+  supplierRefund?: boolean;
   isReceivableNota?: boolean;
 };
 type Props = {
@@ -62,6 +63,7 @@ export function DailyIncomeReceiptDialog({ date, previewSales = false, allowComp
     })),
     ...(data.manualEntries ?? []).map(item => ({ ...item, key: `manual:${item.id}`, label: item.description || "Pemasukan manual", manual: true })),
     ...(data.manualReceivableEntries ?? []).map(item => ({ ...item, key: `manual-receivable:${item.id}`, label: item.customerName, manual: true, manualReceivable: true })),
+    ...(data.supplierRefundEntries ?? []).map(item => ({ ...item, key: item.id, label: "Pengembalian dana pemasok", manual: false, supplierRefund: true })),
   ] : [];
   const toggle = (key: string) => setExpanded(current => {
     const next = new Set(current);
@@ -124,7 +126,7 @@ export function DailyIncomeReceiptDialog({ date, previewSales = false, allowComp
                       <span className="min-w-0 flex-1"><span className="block break-all font-semibold text-blue-800 underline-offset-4">{row.label}</span><span className="block text-xs text-[#587586]">{row.isReceivableNota ? "Piutang Nota" : "Nota"} · {row.date}</span></span>
                       <span className="break-all font-mono text-sm font-bold tabular-nums">{formatRupiahPrecise(row.amount)}</span>
                     </button> : <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                      <div className="w-full min-w-0 sm:w-auto sm:flex-1"><p className="break-words font-semibold">{row.label}</p><p className="text-xs text-[#587586]">{row.manualReceivable ? "Piutang Manual" : row.manual ? "Pemasukan Manual" : row.isReceivableNota ? "Piutang Nota" : "Nota"} · {row.date}</p></div>
+                      <div className="w-full min-w-0 sm:w-auto sm:flex-1"><p className="break-words font-semibold">{row.label}</p><p className="text-xs text-[#587586]">{row.supplierRefund ? "Lainnya" : row.manualReceivable ? "Piutang Manual" : row.manual ? "Pemasukan Manual" : row.isReceivableNota ? "Piutang Nota" : "Nota"} · {row.date}</p></div>
                       <span className="break-all font-mono text-sm font-bold tabular-nums">{formatRupiahPrecise(row.amount)}</span>
                     </div>}
                   </div>
