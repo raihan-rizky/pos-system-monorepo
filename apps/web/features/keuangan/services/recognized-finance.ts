@@ -37,10 +37,10 @@ export type RecognizedExpenseRow = {
   amount: number; changeAmount: number; netAmount: number; occurredAt: string; createdAt: string;
   transactionId: string | null; attachmentUrl: string | null; hasMissingCostSnapshot: boolean;
   recordedBy: { id: string; name: string };
-  source: { type: "MANUAL" | "MANUAL_TRANSFER_PURCHASE" }
+  source: { type: "MANUAL" | "MANUAL_TRANSFER_PURCHASE" | "CANCELLED_PURCHASE_PAYMENT" }
     | { type: "GOODS_PURCHASE" | "BACKDATED_PURCHASE"; id: string; number: string }
     | { type: "SHOPPING_REQUEST"; id: string; number: string; goodsPurchaseId: string };
-  recognitionKind: "manual" | "transfer" | "giro_payment" | "giro_due" | "overpayment";
+  recognitionKind: "manual" | "transfer" | "giro_payment" | "giro_due" | "overpayment" | "correctionOutflow";
   paymentSource?: ExpensePaymentSource;
   allocation?: { scheduleId: string; dueDate: string | null; source: "stored" | "automatic" | null };
 };
@@ -51,7 +51,7 @@ export type RecognizedExpenses = {
   daily: Array<{ date: string; total: number; byCategory: Partial<Record<ExpenseCategoryKey, number>> }>;
   byCategory: Array<{ category: ExpenseCategoryKey; total: number }>;
   components: { manual: number; transfer: number; giroPayment: number; giroDue: number; overpayment: number };
-  correctionCash?: Awaited<ReturnType<typeof loadExpenseCorrectionCash>>;
+  correctionOutflow?: number;
 };
 
 function cents(value: Money): number {
@@ -142,6 +142,7 @@ function correctedPurchasePayments(purchase: Purchase, expense: Expense): Source
 
 export function buildRecognizedExpenses(input: {
   storeId: string; month: string; now: Date; expenses: Expense[]; backdatedPurchases: BackdatedPurchase[];
+  correctionCash?: Awaited<ReturnType<typeof loadExpenseCorrectionCash>>;
 }): RecognizedExpenses {
   if (!input.storeId || !/^\d{4}-(0[1-9]|1[0-2])$/.test(input.month)) throw new Error("Toko atau bulan tidak valid.");
   const asOf = jakartaDate(input.now);
@@ -264,10 +265,21 @@ export function buildRecognizedExpenses(input: {
     } catch { incomplete = true; }
   }
 
+  for (const { date, total } of input.correctionCash?.outflow ?? []) {
+    if (!date.startsWith(input.month) || date > asOf) continue;
+    const occurredAt = new Date(`${date}T00:00:00+07:00`).toISOString();
+    rows.push({
+      id: `cancelled-purchase-payment:${date}`, applicantName: "Koreksi pembelian", category: "OTHER",
+      description: "Pembayaran pembelian yang dibatalkan", amount: total, changeAmount: 0, netAmount: total,
+      occurredAt, createdAt: occurredAt, transactionId: null, attachmentUrl: null, hasMissingCostSnapshot: false,
+      recordedBy: { id: "", name: "Ringkasan pembayaran" }, source: { type: "CANCELLED_PURCHASE_PAYMENT" },
+      recognitionKind: "correctionOutflow",
+    });
+  }
   rows.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt) || a.id.localeCompare(b.id));
   const days = new Map<string, { total: number; categories: Map<ExpenseCategoryKey, number> }>();
   const categories = new Map<ExpenseCategoryKey, number>();
-  const componentCents = { manual: 0, transfer: 0, giroPayment: 0, giroDue: 0, overpayment: 0 };
+  const componentCents = { manual: 0, transfer: 0, giroPayment: 0, giroDue: 0, overpayment: 0, correctionOutflow: 0 };
   for (const row of rows) {
     const amount = Math.round(row.netAmount * 100);
     const date = jakartaDate(new Date(row.occurredAt));
@@ -288,6 +300,7 @@ export function buildRecognizedExpenses(input: {
     byCategory: [...categories.entries()].map(([category, amount]) => ({ category, total: amount / 100 })).sort((a, b) => b.total - a.total),
     components: { manual: componentCents.manual / 100, transfer: componentCents.transfer / 100,
       giroPayment: componentCents.giroPayment / 100, giroDue: componentCents.giroDue / 100, overpayment: componentCents.overpayment / 100 },
+    correctionOutflow: componentCents.correctionOutflow / 100,
   };
 }
 
@@ -295,7 +308,7 @@ export async function loadRecognizedExpenses(
   storeId: string,
   month: string,
   now = new Date(),
-  includeCorrectionCash = false,
+  includeCorrectionCash = true,
 ): Promise<RecognizedExpenses> {
   if (!storeId) throw new Error("Toko pengguna belum tersedia.");
   const range = buildKeuanganMonthRange(month);
@@ -346,6 +359,5 @@ export async function loadRecognizedExpenses(
       payments: { where: { cancelledAt: null }, select: { id: true, amount: true, paidAt: true } } } }),
     includeCorrectionCash ? loadExpenseCorrectionCash(tx, storeId, month, now) : undefined,
   ]), { isolationLevel: "RepeatableRead", timeout: 30_000 });
-  const recognized = buildRecognizedExpenses({ storeId, month, now, expenses, backdatedPurchases });
-  return correctionCash ? { ...recognized, correctionCash } : recognized;
+  return buildRecognizedExpenses({ storeId, month, now, expenses, backdatedPurchases, correctionCash });
 }

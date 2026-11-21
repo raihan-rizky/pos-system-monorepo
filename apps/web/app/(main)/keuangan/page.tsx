@@ -85,6 +85,7 @@ function fullDay(date: string) {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    timeZone: "Asia/Jakarta",
   }).format(new Date(`${date}T00:00:00+07:00`));
 }
 
@@ -92,6 +93,7 @@ function fullDayShort(iso: string) {
   return new Intl.DateTimeFormat("id-ID", {
     day: "2-digit",
     month: "short",
+    timeZone: "Asia/Jakarta",
   }).format(new Date(iso));
 }
 
@@ -132,14 +134,14 @@ export default function KeuanganDashboardPage() {
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
 
   const canReadCashFlow = canReadIncome && canReadExpense;
-  const pemasukan = useIncomeSummary(month, canReadIncome, canReadCashFlow);
-  const pengeluaran = useExpenseSummary(month, canReadExpense, canReadCashFlow);
+  const pemasukan = useIncomeSummary(month, canReadIncome && !canReadCashFlow);
+  const pengeluaran = useExpenseSummary(month, canReadExpense && !canReadCashFlow);
   const cashFlow = useCashFlowSummary(month, canReadCashFlow);
   const list = useExpenseList(month, page, filterCategory, canReadExpense);
   const categoryQuery = useCustomExpenseCategories(canReadExpense);
   const customCategories = canReadExpense ? categoryQuery.data?.data ?? [] : [];
-  const incomeData = canReadIncome && !pemasukan.isError ? pemasukan.data : undefined;
-  const expenseData = canReadExpense && !pengeluaran.isError ? pengeluaran.data : undefined;
+  const incomeData = canReadIncome && !canReadCashFlow && !pemasukan.isError ? pemasukan.data : undefined;
+  const expenseData = canReadExpense && !canReadCashFlow && !pengeluaran.isError ? pengeluaran.data : undefined;
   const cashFlowData = canReadCashFlow && !cashFlow.isError ? cashFlow.data : undefined;
 
   const refresh = useCallback(
@@ -147,7 +149,7 @@ export default function KeuanganDashboardPage() {
     [queryClient],
   );
   const refreshAfterCorrection = useCallback(() => {
-    for (const key of ["finance", "financial-report", "shopping-requests", "goods-purchases", "supplier-payables",
+    for (const key of ["finance", "financial-report", "daily-financial-report", "shopping-requests", "goods-purchases", "supplier-payables",
       "inventory-management", "inventory-logs", "products", "product-stats", "stock-group", "dashboard"]) {
       void queryClient.invalidateQueries({ queryKey: [key] });
     }
@@ -192,14 +194,15 @@ export default function KeuanganDashboardPage() {
     else alert("Gagal menghapus");
   }, [refresh]);
 
+  const expenseCategories = canReadCashFlow ? cashFlowData?.expense.byCategory : expenseData?.byCategory;
   const stripeData = useMemo(() => {
-    if (!expenseData || expenseData.byCategory.length === 0) return [];
-    const total = expenseData.byCategory.reduce((s, c) => s + c.total, 0);
-    return expenseData.byCategory.map((c) => ({
+    if (!expenseCategories?.length) return [];
+    const total = expenseCategories.reduce((s, c) => s + c.total, 0);
+    return expenseCategories.map((c) => ({
       ...c,
       pct: total > 0 ? (c.total / total) * 100 : 0,
     }));
-  }, [expenseData]);
+  }, [expenseCategories]);
 
   const cashIncome = canReadCashFlow ? cashFlowData?.income.total : incomeData?.cashTotal;
   const cashExpense = canReadCashFlow ? cashFlowData?.expense.total : expenseData?.cashExpense?.total;
@@ -207,6 +210,17 @@ export default function KeuanganDashboardPage() {
   const isNegative = net !== null && net < 0;
   const cashIncomplete = canReadCashFlow ? cashFlowData?.expense.incomplete === true : expenseData?.cashExpense?.incomplete === true;
   const summaryLoading = canReadCashFlow ? cashFlow.isLoading : (canReadIncome && pemasukan.isLoading) || (canReadExpense && pengeluaran.isLoading);
+  const incomeLoading = canReadIncome && (canReadCashFlow ? cashFlow.isLoading : pemasukan.isLoading);
+  const expenseLoading = canReadExpense && (canReadCashFlow ? cashFlow.isLoading : pengeluaran.isLoading);
+  const incomeRows = canReadCashFlow ? cashFlowData?.income.daily : incomeData?.daily;
+  const transactionCount = canReadCashFlow ? cashFlowData?.income.transactionCount : incomeData?.transactionCount;
+  const entryCount = canReadCashFlow ? cashFlowData?.expense.entryCount : expenseData?.entryCount;
+  const incomeCalculation = canReadCashFlow ? cashFlowData?.income : cashIncome == null ? undefined : {
+    total: cashIncome, components: incomeData?.incomeComponents ?? null, supplierRefund: incomeData?.supplierRefund,
+  };
+  const expenseCalculation = canReadCashFlow ? cashFlowData?.expense : expenseData ? {
+    total: cashExpense ?? null, incomplete: cashIncomplete, components: expenseData.components, correctionOutflow: expenseData.correctionOutflow,
+  } : undefined;
 
   return (
     <div className="px-2 sm:px-3 py-2 sm:py-3 max-w-6xl mx-auto space-y-3 sm:space-y-4">
@@ -231,21 +245,21 @@ export default function KeuanganDashboardPage() {
                   isNegative ? "text-red-600" : "text-emerald-700"
                 }`}
               >
-                {net === null ? "Belum tersedia" : formatRupiah(net)}
+                {net === null ? "Belum tersedia" : formatRupiahPrecise(net)}
               </p>
             )}
             {!summaryLoading && (
               <p className="mt-1.5 text-[11px] sm:text-xs text-surface-500 tabular-nums">
                 <span className="block sm:inline">
-                  {!canReadIncome ? "Tidak memiliki akses pemasukan" : cashIncome == null ? "Pemasukan belum tersedia" : `${formatRupiah(cashIncome)} pemasukan`}
+                  {!canReadIncome ? "Tidak memiliki akses pemasukan" : cashIncome == null ? "Pemasukan belum tersedia" : `${formatRupiahPrecise(cashIncome)} pemasukan`}
                 </span>
                 <span className="hidden sm:inline"> · </span>
                 <span className="block sm:inline">
-                  {!canReadExpense ? "Tidak memiliki akses pengeluaran" : cashExpense == null ? "Pengeluaran belum tersedia" : `${formatRupiah(cashExpense)} pengeluaran`}
+                  {!canReadExpense ? "Tidak memiliki akses pengeluaran" : cashExpense == null ? "Pengeluaran belum tersedia" : `${formatRupiahPrecise(cashExpense)} pengeluaran`}
                 </span>
               </p>
             )}
-            {!summaryLoading && cashFlowData && <FinanceCalculationDetails income={cashFlowData.income} expense={cashFlowData.expense} />}
+            {!summaryLoading && (incomeCalculation || expenseCalculation) && <FinanceCalculationDetails income={incomeCalculation} expense={expenseCalculation} />}
             {!summaryLoading && cashIncomplete && (
               <p role="status" className="mt-1 text-xs text-amber-700">Riwayat giro atau belanja belum lengkap. Periksa riwayat giro untuk menghitung sisa kas.</p>
             )}
@@ -304,34 +318,49 @@ export default function KeuanganDashboardPage() {
               <span className="w-1.5 h-5 rounded-full shrink-0" style={{ backgroundColor: FLOW_COLOR_INCOME }} />
               <h2 className="text-sm font-semibold text-surface-900 truncate">Pemasukan</h2>
             </div>
-            {incomeData && (
+            {transactionCount != null && (
               <span className="text-xs text-surface-500 shrink-0">
-                {incomeData.transactionCount} trx
+                {transactionCount} trx
               </span>
             )}
           </header>
           <div className="px-3 sm:px-4 py-2 sm:py-3 border-b border-surface-100">
-            {canReadIncome && pemasukan.isLoading ? (
+            {incomeLoading ? (
               <div className="h-8 w-44 rounded-md bg-surface-100 animate-pulse" />
             ) : (
               <p className="text-xl sm:text-2xl font-bold text-emerald-700 tabular-nums break-words">
-                {!canReadIncome ? "Tidak memiliki akses pemasukan" : incomeData ? formatRupiah(incomeData.monthlyTotal) : "Pemasukan belum tersedia"}
+                {!canReadIncome ? "Tidak memiliki akses pemasukan" : cashIncome != null ? formatRupiahPrecise(cashIncome) : "Pemasukan belum tersedia"}
               </p>
             )}
           </div>
-          {!canReadIncome || (!pemasukan.isLoading && !incomeData) ? null : pemasukan.isLoading ? (
+          {!canReadIncome || (!incomeLoading && !incomeRows) ? null : incomeLoading ? (
             <div className="divide-y divide-surface-100">
               {Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="h-12 bg-surface-50 animate-pulse" />
               ))}
             </div>
-          ) : !incomeData || incomeData.daily.length === 0 ? (
+          ) : !incomeRows?.length ? (
             <div className="px-3 sm:px-4 py-10 text-center text-sm text-surface-500">
               Belum ada pemasukan bulan ini
             </div>
           ) : (
               <ul className="divide-y divide-surface-100 max-h-72 sm:max-h-80 overflow-y-auto">
-              {incomeData.daily.map((row) => (
+              {incomeRows.map((row) => {
+                const href = (row.count ?? 0) > 0 ? `/history?date=${row.date}` : row.manualCount ? "#manual-income" : null;
+                const rowContent = <>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-semibold text-surface-900">{fullDay(row.date)}</span>
+                    <span className="text-xs text-surface-500">{row.count ?? 0} transaksi · {row.manualCount ?? 0} manual</span>
+                    {Boolean(row.manualReceivable) && <span className="text-xs text-surface-500">Pelunasan piutang manual {formatRupiahPrecise(row.manualReceivable!)}</span>}
+                    {Boolean(row.supplierRefund) && <span className="text-xs text-surface-500">Pengembalian dana pemasok {formatRupiahPrecise(row.supplierRefund!)}</span>}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-sm font-semibold text-emerald-700 tabular-nums">{formatRupiahPrecise(row.total)}</span>
+                    {href && <ChevronRight className="h-3.5 w-3.5 text-surface-300" aria-hidden="true" />}
+                  </div>
+                </>;
+                const rowClass = "flex items-center justify-between gap-3 px-3 sm:px-4 py-2.5 min-h-11";
+                return (
                 <li
                   key={row.date}
                   style={{
@@ -339,25 +368,11 @@ export default function KeuanganDashboardPage() {
                     containIntrinsicSize: "44px",
                   }}
                 >
-                  <Link
-                    href={row.count > 0 ? `/history?date=${row.date}` : '#manual-income'}
-                    className="flex items-center justify-between gap-3 px-3 sm:px-4 py-2.5 min-h-11 hover:bg-surface-50 transition-colors cursor-pointer group focus:outline-none focus-visible:bg-surface-50"
-                  >
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-sm font-semibold text-surface-900 truncate">
-                        {fullDay(row.date)}
-                      </span>
-                      <span className="text-xs text-surface-500">{row.count} transaksi · {row.manualCount ?? 0} manual</span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-sm font-semibold text-emerald-700 tabular-nums">
-                        {formatRupiah(row.total)}
-                      </span>
-                      <ChevronRight className="h-3.5 w-3.5 text-surface-300 transition-colors group-hover:text-emerald-600" aria-hidden="true" />
-                    </div>
-                  </Link>
+                  {href ? <Link href={href} className={`${rowClass} hover:bg-surface-50 focus-visible:bg-surface-50`}>{rowContent}</Link>
+                    : <div className={rowClass}>{rowContent}</div>}
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
           <div id="manual-income"><ManualIncomePanel key={month} month={month} /></div>
@@ -372,24 +387,24 @@ export default function KeuanganDashboardPage() {
               <span className="w-1.5 h-5 rounded-full shrink-0" style={{ backgroundColor: FLOW_COLOR_EXPENSE }} />
               <h2 className="text-sm font-semibold text-surface-900 truncate">Pengeluaran</h2>
             </div>
-            {expenseData && (
+            {entryCount != null && (
               <span className="text-xs text-surface-500 shrink-0">
-                {expenseData.entryCount} entri
+                {entryCount} entri
               </span>
             )}
           </header>
           <div className="px-3 sm:px-4 py-2 sm:py-3 border-b border-surface-100 space-y-2">
             {canCreateTransfer && <Button type="button" size="sm" onClick={openCreateTransfer}>Tambah Belanja Transfer</Button>}
-            {pengeluaran.isLoading ? (
+            {expenseLoading ? (
               <div className="h-8 w-44 rounded-md bg-surface-100 animate-pulse" />
             ) : (
               <p className="text-xl sm:text-2xl font-bold text-red-600 tabular-nums break-words">
-                {expenseData?.monthlyTotal != null ? formatRupiahPrecise(expenseData.monthlyTotal) : "Pengeluaran belum tersedia"}
+                {cashExpense != null ? formatRupiahPrecise(cashExpense) : "Pengeluaran belum tersedia"}
               </p>
             )}
 
             {/* Differentiation anchor — category color stripe */}
-            {stripeData.length > 0 && (
+            {!cashIncomplete && stripeData.length > 0 && (
               <>
                 <div className="flex h-3 sm:h-2.5 rounded-full overflow-hidden border border-surface-200">
                   {stripeData.map((c) => (
@@ -492,7 +507,7 @@ export default function KeuanganDashboardPage() {
                         ? "Daftar Belanja (Legacy)"
                         : item.source.type === "MANUAL_TRANSFER_PURCHASE"
                           ? "Belanja Transfer Manual"
-                          : "Manual";
+                          : item.source.type === "CANCELLED_PURCHASE_PAYMENT" ? "Koreksi Pembelian" : "Manual";
                   const correctionActions = isAutomaticExpense ? getExpenseCorrectionActions(item, canPerform) : [];
                   const manualEdit = item.source.type === "MANUAL_TRANSFER_PURCHASE" ? canEditTransfer : canEdit;
                   const manualDelete = item.source.type === "MANUAL_TRANSFER_PURCHASE" ? canDeleteTransfer : canDelete;
@@ -560,6 +575,10 @@ export default function KeuanganDashboardPage() {
                         {fullDayShort(item.occurredAt)} ·{" "}
                         {item.description || "Tanpa keterangan"}
                       </p>
+                      {item.recognitionKind === "giro_due" && <p className="text-xs text-surface-600">Sisa giro pada jatuh tempo</p>}
+                      {item.recognitionKind === "giro_payment" && <p className="text-xs text-surface-600">Pembayaran giro</p>}
+                      {item.recognitionKind === "overpayment" && <p className="text-xs text-surface-600">Kelebihan pembayaran</p>}
+                      {item.allocation?.source === "automatic" && <p className="text-xs text-surface-600">Dialokasikan ke giro terdekat</p>}
                       {/* Mobile-only amount under description to avoid horizontal squeeze */}
                       <div className="sm:hidden mt-1 flex flex-row items-center gap-2">
                         <div>

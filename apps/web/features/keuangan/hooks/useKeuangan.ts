@@ -13,12 +13,14 @@ export type IncomeSummary = {
   month: string;
   monthlyTotal: number;
   transactionCount: number;
-  daily: { date: string; total: number; count: number; manualCount?: number }[];
+  daily: RecognizedIncomeDay[];
   cashDaily?: { date: string; total: number; manualReceivable: number }[];
   cashTotal?: number;
   incomeComponents?: IncomeComponents | null;
+  supplierRefund?: number;
 };
 
+type RecognizedIncomeDay = { date: string; total: number; count?: number; manualCount?: number; manualReceivable?: number; supplierRefund?: number };
 export type IncomeComponents = { sales: number; manualIncome: number; manualReceivable: number };
 export type ExpenseComponents = { manual: number; transfer: number; giroPayment: number; giroDue: number; overpayment: number };
 
@@ -36,11 +38,12 @@ export type ExpenseSummary = {
   cashDaily?: { date: string; total: number }[];
   cashExpense?: { total: number | null; incomplete: boolean };
   components: ExpenseComponents;
+  correctionOutflow?: number;
 };
 
 export type CashFlowSummary = {
   month: string;
-  income: { total: number; daily: { date: string; total: number; manualReceivable: number }[]; components: IncomeComponents | null; supplierRefund?: number };
+  income: { total: number; daily: RecognizedIncomeDay[]; components: IncomeComponents | null; supplierRefund?: number; transactionCount?: number };
   expense: { total: number | null; incomplete: boolean; daily: { date: string; total: number }[]; components: ExpenseComponents; byCategory: CategoryBucket[]; entryCount: number; correctionOutflow?: number };
 };
 
@@ -58,13 +61,12 @@ export type ExpenseListItem = {
   attachmentUrl: string | null;
   hasMissingCostSnapshot: boolean;
   source:
-    | { type: "MANUAL" }
-    | { type: "MANUAL_TRANSFER_PURCHASE" }
+    | { type: "MANUAL" | "MANUAL_TRANSFER_PURCHASE" | "CANCELLED_PURCHASE_PAYMENT" }
     | { type: "SHOPPING_REQUEST"; id: string; number: string; goodsPurchaseId?: string }
     | { type: "BACKDATED_PURCHASE"; id: string; number: string }
     | { type: "GOODS_PURCHASE"; id: string; number: string };
   recordedBy: { id: string; name: string };
-  recognitionKind?: "manual" | "transfer" | "giro_payment" | "giro_due" | "overpayment";
+  recognitionKind?: "manual" | "transfer" | "giro_payment" | "giro_due" | "overpayment" | "correctionOutflow";
   paymentSource?: ExpensePaymentSource;
   allocation?: { scheduleId: string; dueDate: string | null; source: "stored" | "automatic" | null };
 };

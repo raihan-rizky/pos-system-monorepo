@@ -318,11 +318,13 @@ export async function mockApis(page: Page) {
     if (path === "/api/finance/cash-flow/summary" && method === "GET") {
       return json(route, {
         month: "2026-05",
-        income: { total: 45_000_000, daily: [
-          { date: "2026-05-19", total: 20_000_000 },
-          { date: "2026-05-20", total: 25_000_000 },
+        income: { total: 45_000_000, transactionCount: 22, components: { sales: 45_000_000, manualIncome: 0, manualReceivable: 0 }, daily: [
+          { date: "2026-05-19", total: 20_000_000, count: 8 },
+          { date: "2026-05-20", total: 25_000_000, count: 14 },
         ] },
-        expense: { total: 850_000, incomplete: false, daily: [
+        expense: { total: 850_000, incomplete: false, entryCount: 2,
+          components: { manual: 850_000, transfer: 0, giroPayment: 0, giroDue: 0, overpayment: 0 },
+          byCategory: [{ category: "SUPPLIES", total: 500_000 }, { category: "BEVERAGES", total: 350_000 }], daily: [
           { date: "2026-05-20", total: 850_000 },
         ] },
       });
@@ -331,10 +333,10 @@ export async function mockApis(page: Page) {
       return json(route, {
         month: "2026-05",
         monthlyTotal: 45_000_000,
-        transactionCount: 312,
+        transactionCount: 22,
         daily: [
-          { date: "2026-05-19", total: 1_250_000, count: 8 },
-          { date: "2026-05-20", total: 2_100_000, count: 14 },
+          { date: "2026-05-19", total: 20_000_000, count: 8 },
+          { date: "2026-05-20", total: 25_000_000, count: 14 },
         ],
         cashDaily: [
           { date: "2026-05-19", total: 20_000_000 },

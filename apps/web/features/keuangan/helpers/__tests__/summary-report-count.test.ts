@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ permission: vi.fn(), report: vi.fn(), transaction: vi.fn(), expense: vi.fn(), manualIncome: vi.fn() }));
-vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transaction }, expense: { findMany: mocks.expense }, manualIncome: { findMany: mocks.manualIncome } } }));
+const mocks = vi.hoisted(() => ({ permission: vi.fn(), income: vi.fn() }));
 vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.permission, handleAuthError: () => null }));
-vi.mock("@/features/financial-report/services/monthly-report", () => ({ getMonthlyFinancialReport: mocks.report }));
+vi.mock("@/features/financial-report/services/daily-income", () => ({ loadMonthlyIncome: mocks.income }));
 vi.mock("@/features/keuangan/services/recognized-finance", () => ({ loadRecognizedExpenses: async () => ({
   monthlyTotal: 45_000, incomplete: false, entryCount: 3,
   daily: [{ date: "2026-11-01", total: 10_000 }, { date: "2026-11-05", total: 5_000 }, { date: "2026-11-10", total: 30_000 }],
@@ -20,28 +19,20 @@ describe("finance dashboard report count", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.permission.mockResolvedValue({ id: "user-1", storeId: "store-1" });
-    mocks.transaction.mockResolvedValue([]);
-    mocks.expense.mockResolvedValue([]);
-    mocks.manualIncome.mockResolvedValue([]);
-    mocks.report.mockResolvedValue({
-      income: [{ date: "2026-11-03", amounts: { CETAK: 100_000 } }],
-      expenses: [{ date: "2026-11-01", amount: 10_000 }],
-      purchaseExpenses: [{ date: "2026-11-05", amount: 5_000, purchase: { method: "TRANSFER" } }],
-      giroPayments: [{ date: "2026-11-10", amount: 30_000 }],
-      cashIncomplete: false,
-    });
+    mocks.income.mockResolvedValue({ total: 100_000, daily: [{ date: "2026-11-03", total: 100_000 }] });
   });
 
-  it("uses one monthly report for three dashboard requests and the recognized expense projection", async () => {
+  it("uses the same projections for separate summaries and the combined dashboard", async () => {
     const [incomeResponse, expenseResponse, cashResponse] = await Promise.all([
       income(new Request("http://localhost/api/finance/income/summary?month=2026-11&metricsOnly=1")),
       expense(new Request("http://localhost/api/finance/expenses/summary?month=2026-11&metricsOnly=1")),
       combined(new Request("http://localhost/api/finance/cash-flow/summary?month=2026-11")),
     ]);
     expect([incomeResponse.status, expenseResponse.status, cashResponse.status]).toEqual([200, 200, 200]);
-    expect(mocks.report).toHaveBeenCalledExactlyOnceWith("store-1", 2026, 11);
-    expect((await cashResponse.json()).expense.total).toBe(45_000);
-    expect(await incomeResponse.json()).not.toHaveProperty("cashTotal");
-    expect(await expenseResponse.json()).not.toHaveProperty("cashExpense");
+    expect(mocks.income).toHaveBeenCalledTimes(2);
+    expect(mocks.income).toHaveBeenCalledWith("store-1", "2026-11", expect.any(Date));
+    const cash = await cashResponse.json();
+    expect(await incomeResponse.json()).toMatchObject({ monthlyTotal: cash.income.total, daily: cash.income.daily });
+    expect(await expenseResponse.json()).toMatchObject({ monthlyTotal: cash.expense.total, daily: cash.expense.daily });
   });
 });

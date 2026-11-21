@@ -1,14 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
-const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn() }));
+const mocks = vi.hoisted(() => ({ user: vi.fn(), permissions: vi.fn(), transactions: vi.fn(), manual: vi.fn(), receivables: vi.fn(), refunds: vi.fn() }));
 vi.mock(import("@/lib/rbac/guard"), async importOriginal => ({
   ...await importOriginal(),
   getCurrentUser: mocks.user,
+  requirePermission: () => mocks.user(),
 }));
 vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: mocks.permissions }));
-vi.mock("@pos/db", () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual } } }));
+vi.mock("@pos/db", () => ({ db: {
+  $transaction: (callback: (tx: unknown) => unknown) => callback({
+    transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.manual },
+    customerReceivable: { findMany: mocks.receivables },
+  }),
+} }));
+vi.mock("@/features/keuangan/repositories/expense-correction-cash-repository", () => ({
+  loadExpenseCorrectionCash: mocks.refunds,
+}));
 import { GET } from "../route";
+import { GET as getMonthlyIncome } from "../../../income/summary/route";
 
 const targets = ["financial-report.daily-income", "financial-report.daily-category", "financial-report.daily-subcategory", "financial-report.daily-payment-method", "financial-report.daily-outstanding-dp"];
 const sections = ["total", "categories", "subcategories", "paymentMethods", "outstandingDp"];
@@ -21,6 +31,8 @@ describe("daily finance API", () => {
     mocks.permissions.mockResolvedValue(buildDefaultRolePermissions());
     mocks.transactions.mockResolvedValue([{ id: "t1", createdAt: new Date("2026-10-01T03:00:00Z"), status: "DP", total: 100, amountPaid: 40, change: 0, paymentMethod: "TRANSFER", transactionCategory: "PERCETAKAN", printingSubcategory: "PLAT", items: [], payments: [{ id: "p1", method: "TRANSFER", amount: 40, createdAt: new Date() }], debtPaymentLogs: [] }]);
     mocks.manual.mockResolvedValue([]);
+    mocks.receivables.mockResolvedValue([]);
+    mocks.refunds.mockResolvedValue({ outflow: [], refunds: [] });
   });
   afterEach(() => vi.useRealTimers());
 
@@ -44,7 +56,7 @@ describe("daily finance API", () => {
     expect(query.where.OR).toEqual(expect.arrayContaining([
       { invoiceDate: { gte: new Date("2026-11-04T17:00:00.000Z"), lt: new Date("2026-11-05T17:00:00.000Z") } },
       expect.objectContaining({ status: "DP", invoiceDate: { lt: new Date("2026-11-05T17:00:00.000Z") } }),
-      { debtPaymentLogs: { some: { createdAt: { gte: new Date("2026-11-04T17:00:00.000Z"), lt: new Date("2026-11-05T17:00:00.000Z") } } } },
+      { debtPaymentLogs: { some: { storeId: "store-1", createdAt: { gte: new Date("2026-11-04T17:00:00.000Z"), lt: new Date("2026-11-05T17:00:00.000Z") } } } },
     ]));
     expect(query.select.invoiceDate).toBe(true);
     for (const field of ["unitCost", "grossProfit", "customer", "cashier", "salesperson", "expense"]) {
@@ -52,6 +64,33 @@ describe("daily finance API", () => {
       expect(JSON.stringify(body)).not.toContain(field);
     }
     expect(mocks.manual.mock.calls[0][0].where).toMatchObject({ storeId: "store-1", deletedAt: null });
+    expect(mocks.receivables.mock.calls[0][0].where).toMatchObject({ storeId: "store-1" });
+  });
+
+  it("matches the selected day in Keuangan including receivables, refunds, and backdated DP", async () => {
+    const now = new Date();
+    mocks.transactions.mockResolvedValue([{
+      id: "invoice", createdAt: now, invoiceDate: new Date("2026-11-04T03:00:00Z"),
+      status: "COMPLETED", total: 100, amountPaid: 100, change: 0,
+      paymentMethod: "CASH", transactionCategory: "ATK", items: [],
+      payments: [{ id: "dp", method: "CASH", amount: 40, createdAt: now }],
+      debtPaymentLogs: [{ id: "settlement", paymentMethod: "TRANSFER", amount: 60, createdAt: now }],
+    }]);
+    mocks.manual.mockResolvedValue([{ id: "manual", occurredAt: now, category: "ATK", amount: 20.15 }]);
+    mocks.receivables.mockResolvedValue([{ id: "debt", amount: 50, payments: [{ id: "receipt", method: "TRANSFER", amount: 30, createdAt: now }] }]);
+    mocks.refunds.mockResolvedValue({ outflow: [], refunds: [{ date: "2026-11-05", total: 10.35 }] });
+    const [sales, keuangan] = await Promise.all([
+      GET(request()), getMonthlyIncome(new Request("http://localhost/api/finance/income/summary?month=2026-11")),
+    ]);
+    expect([sales.status, keuangan.status]).toEqual([200, 200]);
+    const salesBody = await sales.json();
+    const summary = await keuangan.json();
+    expect(salesBody.total).toBe(120.5);
+    expect(summary.daily).toMatchObject([
+      { date: "2026-11-04", total: 40 },
+      { date: "2026-11-05", total: salesBody.total, manualReceivable: 30, supplierRefund: 10.35 },
+    ]);
+    expect(summary.monthlyTotal).toBe(160.5);
   });
 
   it("keeps only today's settlement when a newly created invoice is dated yesterday", async () => {

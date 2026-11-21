@@ -59,8 +59,8 @@ describe("ringkasan arus kas Keuangan", () => {
   it("menggunakan satu snapshot untuk nilai bersih dan grafik ketika ringkasan terpisah berbeda", () => {
     const html = renderToStaticMarkup(<KeuanganDashboardPage />);
     expect(state.cashFlowEnabled).toBe(true);
-    expect(state.incomeMetricsOnly).toBe(true);
-    expect(state.expenseMetricsOnly).toBe(true);
+    expect(state.incomeEnabled).toBe(false);
+    expect(state.expenseEnabled).toBe(false);
     expect(html).toContain("160.000");
     expect(html).not.toContain("170.000");
     expect(state.chart).toMatchObject({ incomeDaily: [{ date: "2026-11-03", total: 190_000 }], expenseDaily: [{ date: "2026-11-10", total: 30_000 }] });
@@ -74,10 +74,17 @@ describe("ringkasan arus kas Keuangan", () => {
     expect(state.chart).toMatchObject({ incomeDaily: [{ date: "2026-11-03", total: 190_000 }], expenseDaily: [{ date: "2026-11-10", total: 30_000 }] });
   });
 
-  it("calculates the cash net from permitted workbook cash aggregates", () => {
+  it("menampilkan total kartu yang sama dengan angka dasar Net Cash Flow", () => {
+    const html = renderToStaticMarkup(<KeuanganDashboardPage />);
+    expect(html).not.toContain("222.222");
+    expect(html).not.toContain("111.111");
+  });
+
+  it("calculates the cash net from the amounts displayed on the cards", () => {
     const html = renderToStaticMarkup(<KeuanganDashboardPage />);
     expect(html).toContain("160.000");
-    expect(html).toContain("222.222"); // legacy transaction total remains intact
+    expect(html).toContain("190.000");
+    expect(html).toContain("30.000");
   });
 
   it("keeps expense data but shows no income, net or chart for expense-only users", () => {
@@ -86,8 +93,7 @@ describe("ringkasan arus kas Keuangan", () => {
     expect(state.incomeEnabled).toBe(false);
     expect(state.expenseEnabled).toBe(true);
     expect(state.cashFlowEnabled).toBe(false);
-    expect(state.expenseMetricsOnly).toBe(false);
-    expect(html).toContain("111.111");
+    expect(html).not.toContain("111.111");
     expect(html).toContain("30.000");
     expect(html).not.toContain("222.222");
     expect(html).not.toContain("200.000");
@@ -104,8 +110,7 @@ describe("ringkasan arus kas Keuangan", () => {
     expect(state.incomeEnabled).toBe(true);
     expect(state.expenseEnabled).toBe(false);
     expect(state.cashFlowEnabled).toBe(false);
-    expect(state.incomeMetricsOnly).toBe(false);
-    expect(html).toContain("222.222");
+    expect(html).not.toContain("222.222");
     expect(html).toContain("200.000");
     expect(html).not.toContain("111.111");
     expect(html).not.toContain("30.000");
@@ -115,10 +120,10 @@ describe("ringkasan arus kas Keuangan", () => {
     expect(state.chart).toBeNull();
   });
 
-  it("shows a separate income error while keeping the combined snapshot", () => {
+  it("ignores an obsolete separate income result when the combined snapshot is available", () => {
     state.incomeError = true;
     const html = renderToStaticMarkup(<KeuanganDashboardPage />);
-    expect(html).toContain("Pemasukan belum tersedia");
+    expect(html).not.toContain("Pemasukan belum tersedia");
     expect(html).not.toContain("Belum ada pemasukan bulan ini");
     expect(html).toContain("160.000");
     expect(state.chart).not.toBeNull();

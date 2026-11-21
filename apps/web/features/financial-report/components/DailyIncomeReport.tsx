@@ -51,7 +51,7 @@ export function DailyIncomeReport({ previewSales = false, fullReportPreview }: {
               {access.subcategories && report.subcategories && <IncomeBreakdown title="Pemasukan per Subkategori" rows={report.subcategories.map(row => ({ label: `${row.category} / ${row.subcategory}`, amount: row.amount }))} />}
               {access.paymentMethods && report.paymentMethods && <IncomeBreakdown title="Pemasukan per Metode Pembayaran" rows={report.paymentMethods.map(row => ({ label: row.method === "CASH" ? "Tunai" : row.method, amount: row.amount }))} />}
             </div>
-            {access.paymentMethods && report.paymentMethods?.some(row => row.method === "Belum dicatat") && <p className="text-xs text-surface-500">Metode pembayaran pemasukan manual belum dicatat.</p>}
+            {access.paymentMethods && report.paymentMethods?.some(row => row.method === "Belum dicatat") && <p className="text-xs text-surface-500">Sebagian pemasukan belum memiliki metode pembayaran yang tercatat.</p>}
           </>}
     </div>
   </main>;

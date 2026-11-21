@@ -1,17 +1,20 @@
 import { db } from "@pos/db";
-import { buildDailyIncome, buildDailyIncomeRange } from "../helpers/daily-income";
+import { loadExpenseCorrectionCash } from "@/features/keuangan/repositories/expense-correction-cash-repository";
+import { buildDailyIncome, buildDailyIncomeRange, buildIncomePeriod } from "../helpers/daily-income";
+import { buildMonthlyPeriod } from "../helpers/monthly-report-core";
 
-export async function loadDailyIncome(storeId: string, date: string) {
-  const { start, end } = buildDailyIncomeRange(date);
+async function loadIncomeInputs(storeId: string, month: string, start: Date, end: Date, now: Date, includeOutstandingDp: boolean) {
   const bounds = { gte: start, lt: end };
-  const [transactions, manualIncome] = await Promise.all([
-    db.transaction.findMany({
+  const paymentSelect = { id: true, method: true, amount: true, createdAt: true } as const;
+  const paymentOrder = [{ createdAt: "asc" }, { id: "asc" }] as const;
+  const [transactions, manualIncome, manualReceivables, correctionCash] = await db.$transaction(tx => Promise.all([
+    tx.transaction.findMany({
       where: {
         storeId, status: { in: ["COMPLETED", "DP"] },
         OR: [
           { invoiceDate: bounds },
-          { debtPaymentLogs: { some: { createdAt: bounds } } },
-          { status: "DP", paymentMethod: { not: "TEMPO" }, invoiceDate: { lt: end } },
+          { debtPaymentLogs: { some: { storeId, createdAt: bounds } } },
+          ...(includeOutstandingDp ? [{ status: "DP" as const, paymentMethod: { not: "TEMPO" as const }, invoiceDate: { lt: end } }] : []),
         ],
       },
       select: {
@@ -19,14 +22,32 @@ export async function loadDailyIncome(storeId: string, date: string) {
         transactionCategory: true, printingSubcategory: true, printingReceipt: { select: { subcategory: true } },
         items: { select: { subtotal: true, printingServiceId: true, product: { select: { category: { select: { name: true } } } } } },
         // Complete ledgers are needed to allocate refunds before filtering by day.
-        payments: { select: { id: true, method: true, amount: true, createdAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
-        debtPaymentLogs: { select: { id: true, paymentMethod: true, amount: true, createdAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+        payments: { select: paymentSelect, orderBy: [...paymentOrder] },
+        debtPaymentLogs: { where: { storeId }, select: { id: true, paymentMethod: true, amount: true, createdAt: true }, orderBy: [...paymentOrder] },
       },
     }),
-    db.manualIncome.findMany({
+    tx.manualIncome.findMany({
       where: { storeId, deletedAt: null, occurredAt: bounds },
       select: { id: true, occurredAt: true, category: true, amount: true, payments: { select: { method: true, amount: true } } },
     }),
-  ]);
-  return buildDailyIncome({ date, transactions, manualIncome });
+    tx.customerReceivable.findMany({
+      where: { storeId, payments: { some: { createdAt: bounds } } },
+      select: { id: true, amount: true, payments: { select: paymentSelect, orderBy: [...paymentOrder] } },
+    }),
+    loadExpenseCorrectionCash(tx, storeId, month, now),
+  ]), { isolationLevel: "RepeatableRead", timeout: 30_000 });
+  return { transactions, manualIncome, manualReceivables, supplierRefunds: correctionCash.refunds };
+}
+
+export async function loadDailyIncome(storeId: string, date: string, now = new Date()) {
+  const { start, end } = buildDailyIncomeRange(date, now);
+  const input = await loadIncomeInputs(storeId, date.slice(0, 7), start, end, now, true);
+  return buildDailyIncome({ date, ...input });
+}
+
+export async function loadMonthlyIncome(storeId: string, month: string, now = new Date()) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const { start, end } = buildMonthlyPeriod(year, monthNumber, now);
+  const input = await loadIncomeInputs(storeId, month, start, end, now, false);
+  return buildIncomePeriod(input, start, end);
 }

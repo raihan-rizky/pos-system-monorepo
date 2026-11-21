@@ -2,7 +2,12 @@ import { expect, it, vi } from 'vitest';
 import { loadDailyIncome } from '../daily-income';
 
 const mocks = vi.hoisted(() => ({ transactions: vi.fn(), incomes: vi.fn() }));
-vi.mock('@pos/db', () => ({ db: { transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.incomes } } }));
+vi.mock('@pos/db', () => ({ db: {
+  $transaction: (callback: (tx: unknown) => unknown) => callback({
+    transaction: { findMany: mocks.transactions }, manualIncome: { findMany: mocks.incomes },
+    customerReceivable: { findMany: async () => [] }, $queryRaw: async () => [],
+  }),
+} }));
 
 it('membaca rincian pembayaran pemasukan aktif pada tanggal dan toko yang dipilih', async () => {
   mocks.transactions.mockResolvedValue([]);

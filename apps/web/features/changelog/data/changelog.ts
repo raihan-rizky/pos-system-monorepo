@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "rekonsiliasi-keuangan-sales-20261121", date: "2026-11-21", revision: 1,
+    highlight: { title: "Angka Keuangan kini selaras", summary: "Pemasukan harian cocok dengan tampilan Sales, dan Arus Kas Bersih bisa ditelusuri." },
+    title: "Pemasukan dan Arus Kas Bersih kini selaras",
+    summary: "Pemasukan pada tanggal yang sama cocok di Keuangan dan Laporan Keuangan tampilan Sales. Rincian Keuangan menunjukkan komponen yang membentuk total, termasuk sisa giro saat jatuh tempo.",
+    kind: "fix", impact: "major", area: "Keuangan", href: "/keuangan", visual: "financial",
+    steps: [
+      { title: "Pilih bulan", detail: "Buka Keuangan dan pilih bulan yang ingin diperiksa." },
+      { title: "Lihat cara perhitungan", detail: "Periksa komponen Pemasukan dan Pengeluaran serta riwayat giro pada tanggalnya." },
+      { title: "Bandingkan tanggal", detail: "Di Laporan Keuangan tampilan Sales, pilih tanggal WIB yang sama dengan baris harian Pemasukan." },
+    ],
+  },
+  {
     id: "giro-saldo-tanggal-pembayaran-20261121", date: "2026-11-21", revision: 1,
     highlight: { title: "Lihat waktu pembayaran giro", summary: "Sisa giro mengikuti tanggal pembayaran dan menampilkan jadwal mendatang." },
     title: "Sisa giro mengikuti tanggal pembayaran",

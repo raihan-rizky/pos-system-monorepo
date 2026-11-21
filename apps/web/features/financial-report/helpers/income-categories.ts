@@ -1,4 +1,4 @@
-export type IncomeCategory = "ATK" | "Percetakan";
+export type IncomeCategory = "ATK" | "Percetakan" | "Lainnya";
 export type IncomeClassificationInput = {
   transactionCategory?: string | null;
   printingSubcategory?: string | null;

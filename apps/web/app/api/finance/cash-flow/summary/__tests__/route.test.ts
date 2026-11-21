@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ permission: vi.fn(), authError: vi.fn(), report: vi.fn(), recognize: vi.fn() }));
 vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.permission, handleAuthError: mocks.authError }));
-vi.mock("@/features/financial-report/services/monthly-report", () => ({ getMonthlyFinancialReport: mocks.report }));
+vi.mock("@/features/financial-report/services/daily-income", () => ({ loadMonthlyIncome: mocks.report }));
 vi.mock("@/features/keuangan/services/recognized-finance", () => ({ loadRecognizedExpenses: mocks.recognize }));
 vi.mock("@/lib/logger", () => ({ getLogger: () => ({ error: vi.fn() }) }));
 import { GET } from "../route";
@@ -21,17 +21,11 @@ describe("combined cash-flow summary", () => {
       daily: [{ date: "2026-11-04", total: 10_000 }, { date: "2026-11-05", total: 5_000 }, { date: "2026-11-10", total: 30_000 }],
     });
     mocks.report.mockResolvedValue({
-      income: [
-        { date: "2026-11-02", amounts: { CETAK: 120_000.25, ATK: 49_999.75 } },
-        { date: "2026-11-03", amounts: { UNMAPPED: 30_000 } },
+      total: 200_000,
+      daily: [
+        { date: "2026-11-02", total: 170_000 },
+        { date: "2026-11-03", total: 30_000 },
       ],
-      expenses: [{ date: "2026-11-04", amount: 10_000 }],
-      purchaseExpenses: [
-        { date: "2026-11-05", amount: 5_000, purchase: { method: "TRANSFER" } },
-        { date: "2026-11-20", amount: 100_000, purchase: { method: "GIRO" } },
-      ],
-      giroPayments: [{ date: "2026-11-10", amount: 30_000 }],
-      cashIncomplete: false,
     });
   });
   afterEach(() => vi.useRealTimers());
@@ -40,7 +34,7 @@ describe("combined cash-flow summary", () => {
     const response = await GET(request());
     expect(response.status).toBe(200);
     expect(mocks.permission.mock.calls).toEqual([["income", "read"], ["expense", "read"]]);
-    expect(mocks.report).toHaveBeenCalledExactlyOnceWith("store-1", 2026, 11);
+    expect(mocks.report).toHaveBeenCalledExactlyOnceWith("store-1", "2026-11", expect.any(Date));
     expect(await response.json()).toMatchObject({
       month: "2026-11",
       income: { total: 200_000, daily: [{ date: "2026-11-02", total: 170_000 }, { date: "2026-11-03", total: 30_000 }] },
@@ -87,7 +81,7 @@ describe("combined cash-flow summary", () => {
     const response = await GET(new Request("http://localhost/api/finance/cash-flow/summary"));
     expect(response.status).toBe(200);
     expect((await response.json()).month).toBe("2026-12");
-    expect(mocks.report).toHaveBeenCalledExactlyOnceWith("store-1", 2026, 12);
+    expect(mocks.report).toHaveBeenCalledExactlyOnceWith("store-1", "2026-12", expect.any(Date));
   });
 
   it("returns an error if the report cannot be read", async () => {

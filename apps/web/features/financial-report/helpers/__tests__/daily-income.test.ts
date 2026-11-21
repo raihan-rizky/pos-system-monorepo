@@ -37,6 +37,28 @@ describe("income categories", () => {
 });
 
 describe("daily cash received", () => {
+  it("reconciles manual receivable repayments and supplier refunds with the daily total and breakdowns", () => {
+    const input = {
+      date,
+      transactions: [transaction({ invoiceDate: time })],
+      manualIncome: [{ id: "manual", occurredAt: time, category: "ATK", amount: 20.15 }],
+      manualReceivables: [{ id: "receivable", amount: 40, payments: [
+        payment("yesterday", "CASH", 30, new Date("2026-11-04T16:59:59Z")),
+        payment("today", "TRANSFER", 20, time),
+      ] }],
+      supplierRefunds: [{ date, total: 12.35 }],
+    };
+    const report = buildDailyIncome(input);
+    expect(report.total).toBe(152.5);
+    expect(report.subcategories).toEqual(expect.arrayContaining([
+      { category: "Lainnya", subcategory: "Pelunasan piutang manual", amount: 20 },
+      { category: "Lainnya", subcategory: "Pengembalian dana pemasok", amount: 12.35 },
+    ]));
+    expect(report.paymentMethods).toEqual(expect.arrayContaining([
+      { method: "TRANSFER", amount: 20 },
+      { method: "Belum dicatat", amount: 32.5 },
+    ]));
+  });
   it.each(["2026-11-04T03:00:00Z", "2026-11-05T17:00:00Z"])("moves initial DP out of today when the invoice date is changed to %s", invoiceDate => {
     const tx = transaction({ createdAt: time, invoiceDate: new Date(invoiceDate), status: "DP", total: 50_000, amountPaid: 25_000, payments: [payment("dp", "CASH", 25_000)] });
     const report = buildDailyIncome({ date, transactions: [tx], manualIncome: [] });
