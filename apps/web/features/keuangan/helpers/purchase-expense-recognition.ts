@@ -17,6 +17,8 @@ export type PurchaseExpensePayment = {
 export type RecognizedPurchaseExpense = {
   kind: "transfer" | "giro_payment" | "giro_due" | "overpayment";
   date: string;
+  paidAt?: string;
+  paidMethod?: PurchaseExpensePayment["method"];
   amountCents: number;
   scheduleId?: string;
   paymentId?: string;
@@ -82,10 +84,16 @@ export function recognizePurchaseExpenses(input: {
     const record = (state: typeof states[number], amount: number, allocationSource: "stored" | "automatic") => {
       state.paid += amount;
       available -= amount;
-      const isGiro = state.schedule.method === "GIRO";
-      if (!isGiro || (state.schedule.dueDate && payment.paidAt <= state.schedule.dueDate)) {
-        if (isGiro) state.paidByDue += amount;
-        if (!payment.nonCash) rows.push({ kind: (payment.sourceMethod ?? payment.method) === "TRANSFER" ? "transfer" : "giro_payment", date: payment.paidAt, amountCents: amount, scheduleId: state.schedule.id, paymentId: payment.id, allocationSource });
+      if (state.schedule.method === "GIRO") {
+        const dueDate = state.schedule.dueDate;
+        if (!dueDate || payment.paidAt > dueDate) return;
+        state.paidByDue += amount;
+        if (!payment.nonCash && dueDate <= input.asOf) {
+          rows.push({ kind: "giro_payment", date: dueDate, paidAt: payment.paidAt, paidMethod: payment.sourceMethod ?? payment.method,
+            amountCents: amount, scheduleId: state.schedule.id, paymentId: payment.id, allocationSource });
+        }
+      } else if (!payment.nonCash) {
+        rows.push({ kind: "transfer", date: payment.paidAt, amountCents: amount, scheduleId: state.schedule.id, paymentId: payment.id, allocationSource });
       }
     };
     for (const allocation of allocationsByPayment.get(payment.id) ?? []) {

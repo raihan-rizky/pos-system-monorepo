@@ -15,6 +15,8 @@ describe("penjelasan perhitungan keuangan", () => {
     expect(html).toContain("<details");
     expect(html).toContain("Pemasukan − Pengeluaran");
     expect(html).toContain("Pelunasan piutang manual");
+    expect(html).toContain("Giro jatuh tempo dengan pembayaran tercatat");
+    expect(html).toContain("termasuk yang sudah dibayar lebih awal");
     expect(html).toContain("Sisa giro jatuh tempo");
     expect(html).toContain("Kelebihan pembayaran");
     expect(html).toContain("Pengembalian dana pemasok");

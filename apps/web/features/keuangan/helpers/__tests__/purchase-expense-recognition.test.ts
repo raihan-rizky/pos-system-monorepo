@@ -35,7 +35,7 @@ describe("pengakuan pengeluaran pembelian", () => {
 
     expect(result.incomplete).toBe(false);
     expect(result.rows).toMatchObject([
-      { kind: "giro_payment", date: "2026-11-10", amountCents: 3_000_000 },
+      { kind: "giro_payment", date: "2026-12-15", paidAt: "2026-11-10", amountCents: 3_000_000 },
       { kind: "giro_due", date: "2026-12-15", amountCents: 7_000_000 },
     ]);
     expect(result.rows).toHaveLength(2);
@@ -49,9 +49,9 @@ describe("rincian pengakuan dan koreksi pembelian", () => {
     payments: Array<{ id: string; method: "GIRO" | "TRANSFER"; amountCents: number; paidAt: string }>;
   }) => Result;
 
-  it("memisahkan transfer dan pembayaran giro pada tanggal pembayarannya", () => {
+  it("memisahkan transfer pada tanggal pembayaran dari giro pada jatuh tempo", () => {
     const result = calculate({
-      asOf: "2026-11-20",
+      asOf: "2026-12-15",
       schedule: [
         { id: "transfer", method: "TRANSFER", amountCents: 2_000_000, dueDate: null },
         { id: "giro", method: "GIRO", amountCents: 8_000_000, dueDate: "2026-12-15" },
@@ -64,20 +64,21 @@ describe("rincian pengakuan dan koreksi pembelian", () => {
     expect(result.incomplete).toBe(false);
     expect(result.rows).toMatchObject([
       { kind: "transfer", date: "2026-11-05", amountCents: 2_000_000 },
-      { kind: "giro_payment", date: "2026-11-10", amountCents: 3_000_000 },
+      { kind: "giro_payment", date: "2026-12-15", paidAt: "2026-11-10", amountCents: 3_000_000 },
+      { kind: "giro_due", date: "2026-12-15", amountCents: 5_000_000 },
     ]);
-    expect(result.rows).toHaveLength(2);
+    expect(result.rows).toHaveLength(3);
   });
 
   it("menampilkan kelebihan pembayaran yang belum dikembalikan setelah nilai dikoreksi", () => {
     const result = calculate({
-      asOf: "2026-11-20",
+      asOf: "2026-11-30",
       schedule: [{ id: "giro", method: "GIRO", amountCents: 7_000_000, dueDate: "2026-11-30" }],
       payments: [{ id: "payment", method: "GIRO", amountCents: 10_000_000, paidAt: "2026-11-10" }],
     });
     expect(result.rows).toMatchObject([
-      { kind: "giro_payment", date: "2026-11-10", amountCents: 7_000_000 },
       { kind: "overpayment", date: "2026-11-10", amountCents: 3_000_000 },
+      { kind: "giro_payment", date: "2026-11-30", paidAt: "2026-11-10", amountCents: 7_000_000 },
     ]);
     expect(result.rows).toHaveLength(2);
   });
@@ -88,8 +89,7 @@ describe("rincian pengakuan dan koreksi pembelian", () => {
       schedule: [{ id: "giro", method: "GIRO", amountCents: 10_000_000, dueDate: "2026-12-15" }],
       payments: [{ id: "payment", method: "GIRO", amountCents: 3_000_000, paidAt: "2026-11-10" }],
     });
-    expect(result.rows).toMatchObject([{ kind: "giro_payment", date: "2026-11-10", amountCents: 3_000_000 }]);
-    expect(result.rows).toHaveLength(1);
+    expect(result.rows).toEqual([]);
   });
 });
 
@@ -114,7 +114,7 @@ describe("kelengkapan dan alokasi giro", () => {
 
   it("memakai alokasi yang tersimpan sebelum urutan jatuh tempo", () => {
     const result = calculate({
-      asOf: "2026-11-10",
+      asOf: "2026-12-20",
       schedule: [
         { id: "first", method: "GIRO", amountCents: 5_000_000, dueDate: "2026-11-20" },
         { id: "second", method: "GIRO", amountCents: 5_000_000, dueDate: "2026-12-20" },
@@ -123,7 +123,9 @@ describe("kelengkapan dan alokasi giro", () => {
       allocations: [{ paymentId: "payment", scheduleId: "second", amountCents: 1_000_000 }],
     });
     expect(result.incomplete).toBe(false);
-    expect(result.rows).toMatchObject([{ kind: "giro_payment", date: "2026-11-01", amountCents: 1_000_000, scheduleId: "second" }]);
+    expect(result.rows.filter(row => row.kind === "giro_payment")).toMatchObject([
+      { kind: "giro_payment", date: "2026-12-20", paidAt: "2026-11-01", amountCents: 1_000_000, scheduleId: "second" },
+    ]);
   });
 
   it("menandai jadwal giro tanpa tanggal jatuh tempo sebagai belum lengkap", () => {
@@ -138,6 +140,23 @@ describe("kelengkapan dan alokasi giro", () => {
 });
 
 describe("beberapa jadwal dan data lama", () => {
+  it("memisahkan giro yang sudah tertutup transfer menurut bulan jatuh tempo", () => {
+    const input = {
+      schedule: [
+        { id: "november", method: "GIRO" as const, amountCents: 5_000_000, dueDate: "2026-11-21" },
+        { id: "december", method: "GIRO" as const, amountCents: 4_000_000, dueDate: "2026-12-05" },
+      ],
+      payments: [{ id: "transfer", method: "GIRO" as const, sourceMethod: "TRANSFER" as const, amountCents: 9_100_000, paidAt: "2026-11-17" }],
+    };
+    const overpayment = { kind: "overpayment", date: "2026-11-17", amountCents: 100_000 };
+    const november = { kind: "giro_payment", date: "2026-11-21", paidAt: "2026-11-17", scheduleId: "november", amountCents: 5_000_000 };
+    expect(recognition.recognizePurchaseExpenses({ ...input, asOf: "2026-11-20" }).rows).toMatchObject([overpayment]);
+    expect(recognition.recognizePurchaseExpenses({ ...input, asOf: "2026-11-21" }).rows).toMatchObject([overpayment, november]);
+    expect(recognition.recognizePurchaseExpenses({ ...input, asOf: "2026-12-05" }).rows).toMatchObject([
+      overpayment, november,
+      { kind: "giro_payment", date: "2026-12-05", paidAt: "2026-11-17", scheduleId: "december", amountCents: 4_000_000 },
+    ]);
+  });
   it("mengalokasikan pembayaran transfer ke giro setelah perubahan metode tanpa menghitung giro dua kali", () => {
     const result = recognition.recognizePurchaseExpenses({
       asOf: "2026-12-31",
@@ -145,8 +164,8 @@ describe("beberapa jadwal dan data lama", () => {
       payments: [{ id: "transfer", method: "TRANSFER", amountCents: 10_000_000, paidAt: "2026-11-10" }],
     });
     expect(result.rows).toMatchObject([
-      { kind: "transfer", date: "2026-11-10", amountCents: 7_000_000 },
       { kind: "overpayment", date: "2026-11-10", amountCents: 3_000_000 },
+      { kind: "giro_payment", date: "2026-11-30", paidAt: "2026-11-10", paidMethod: "TRANSFER", amountCents: 7_000_000 },
     ]);
     expect(result.rows).toHaveLength(2);
   });
@@ -177,8 +196,8 @@ describe("beberapa jadwal dan data lama", () => {
     });
     expect(result.incomplete).toBe(false);
     expect(result.rows).toMatchObject([
-      { kind: "giro_payment", date: "2026-11-10", amountCents: 4_000_000, scheduleId: "first" },
-      { kind: "giro_payment", date: "2026-11-10", amountCents: 1_000_000, scheduleId: "second" },
+      { kind: "giro_payment", date: "2026-11-20", paidAt: "2026-11-10", amountCents: 4_000_000, scheduleId: "first" },
+      { kind: "giro_payment", date: "2026-12-15", paidAt: "2026-11-10", amountCents: 1_000_000, scheduleId: "second" },
       { kind: "giro_due", date: "2026-12-15", amountCents: 5_000_000, scheduleId: "second" },
     ]);
     expect(result.rows).toHaveLength(3);
@@ -186,7 +205,7 @@ describe("beberapa jadwal dan data lama", () => {
 
   it("mempertahankan alokasi tersimpan untuk pembayaran berikutnya", () => {
     const result = recognition.recognizePurchaseExpenses({
-      asOf: "2026-11-10",
+      asOf: "2026-12-20",
       schedule: [
         { id: "first", method: "GIRO", amountCents: 5_000_000, dueDate: "2026-11-20" },
         { id: "second", method: "GIRO", amountCents: 5_000_000, dueDate: "2026-12-20" },
@@ -198,8 +217,8 @@ describe("beberapa jadwal dan data lama", () => {
       allocations: [{ paymentId: "allocated", scheduleId: "first", amountCents: 5_000_000 }],
     });
     expect(result.rows).toMatchObject([
-      { kind: "giro_payment", scheduleId: "second", amountCents: 5_000_000 },
       { kind: "giro_payment", scheduleId: "first", amountCents: 5_000_000 },
+      { kind: "giro_payment", scheduleId: "second", amountCents: 5_000_000 },
     ]);
   });
 

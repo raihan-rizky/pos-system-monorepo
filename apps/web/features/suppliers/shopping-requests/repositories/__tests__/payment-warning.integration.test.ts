@@ -11,6 +11,7 @@ import { refreshReceivedPurchaseTotal } from "../refresh-received-purchase-total
 import { InventoryInboundReceiptRepository } from "@/features/inventory-management/repositories/InventoryInboundReceiptRepository";
 import { GET as listGiro } from "@/app/api/finance/giro/route";
 import { POST as payGiro } from "@/app/api/finance/supplier-payables/[id]/payments/route";
+import { loadRecognizedExpenses } from "@/features/keuangan/services/recognized-finance";
 import { getMonthlyFinancialReport } from "@/features/financial-report/services/monthly-report";
 
 const enabled = process.env.POS_PAYMENT_WARNING_INTEGRATION === "1";
@@ -184,6 +185,10 @@ describe.skipIf(!enabled)("koreksi pembayaran dengan penerimaan tertunda", () =>
         ] } };
     await db.$transaction(tx => commitShoppingRequestCorrectionRecord(tx, { requestId: ids.request, actor, data }), { timeout: 30000 });
     expect(await read()).toMatchObject({ amount: 3988656, status: "PAID", remaining: 0 });
+    expect(await loadRecognizedExpenses(actor.storeId, "2026-11", new Date("2026-11-19T12:00:00Z")))
+      .toMatchObject({ incomplete: false, monthlyTotal: 4947500 });
+    expect(await loadRecognizedExpenses(actor.storeId, "2026-12", new Date("2026-12-05T00:00:00+07:00")))
+      .toMatchObject({ incomplete: false, monthlyTotal: 3988656 });
     const afterPayment = await getMonthlyFinancialReport(actor.storeId, 2026, 11, new Date("2026-11-19T12:00:00Z"));
     expect(afterPayment).toMatchObject({ supplierDebtBalance: 0, cashIncomplete: false });
     expect(afterPayment.purchasePayments).toEqual(expect.arrayContaining([

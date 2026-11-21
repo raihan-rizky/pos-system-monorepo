@@ -34,7 +34,7 @@ import { FinanceCalculationDetails } from "@/features/keuangan/components/Financ
 import { SupplierPayablesPanel } from "@/features/keuangan/components/SupplierPayablesPanel";
 import { ManualIncomePanel } from "@/features/keuangan/components/ManualIncomePanel";
 import { ManualFinanceFormModal, type ManualFinanceInitial } from "@/features/keuangan/components/ManualFinanceFormModal";
-import { formatRupiah, formatRupiahPrecise } from "@/lib/utils";
+import { formatRupiahPrecise } from "@/lib/utils";
 import { getExpenseCorrectionActions, type ExpenseCorrectionAction } from "@/features/keuangan/helpers/expense-correction-actions";
 
 const ExpenseCorrectionPanel = dynamic(
@@ -415,7 +415,7 @@ export default function KeuanganDashboardPage() {
                         setFilterCategory((cur) => (cur === c.category ? null : c.category));
                         setPage(1);
                       }}
-                      title={`${expenseCategoryLabel(c.category, customCategories)} — ${formatRupiah(c.total)}`}
+                      title={`${expenseCategoryLabel(c.category, customCategories)} — ${formatRupiahPrecise(c.total)}`}
                       style={{
                         width: `${c.pct}%`,
                         minWidth: c.pct > 0 ? "10px" : 0,
@@ -575,18 +575,21 @@ export default function KeuanganDashboardPage() {
                         {fullDayShort(item.occurredAt)} ·{" "}
                         {item.description || "Tanpa keterangan"}
                       </p>
-                      {item.recognitionKind === "giro_due" && <p className="text-xs text-surface-600">Sisa giro pada jatuh tempo</p>}
-                      {item.recognitionKind === "giro_payment" && <p className="text-xs text-surface-600">Pembayaran giro</p>}
-                      {item.recognitionKind === "overpayment" && <p className="text-xs text-surface-600">Kelebihan pembayaran</p>}
-                      {item.allocation?.source === "automatic" && <p className="text-xs text-surface-600">Dialokasikan ke giro terdekat</p>}
+                      {item.allocation?.dueDate && <p className="text-xs text-surface-600">
+                        {`${item.recognitionKind === "giro_due" ? "Sisa " : ""}${item.allocation.source === "automatic" ? "Alokasi otomatis, " : item.allocation.source === "stored" ? "Alokasi tercatat, " : ""}giro jatuh tempo ${fullDay(item.allocation.dueDate)}`}
+                      </p>}
+                      {item.recognitionKind === "giro_payment" && item.paidAt && <p className="text-xs text-surface-600">
+                        {item.paidMethod === "TRANSFER" ? "Transfer" : "Pembayaran giro"} tercatat {fullDay(item.paidAt)}
+                      </p>}
+                      {item.recognitionKind === "overpayment" && <p className="text-xs text-surface-600">Kelebihan pembayaran belum dikembalikan</p>}
                       {/* Mobile-only amount under description to avoid horizontal squeeze */}
                       <div className="sm:hidden mt-1 flex flex-row items-center gap-2">
                         <div>
                           <p className="text-sm font-semibold text-red-600 tabular-nums">
-                            {formatRupiah(item.netAmount)}
+                            {formatRupiahPrecise(item.netAmount)}
                             {item.changeAmount > 0 && (
                               <span className="ml-2 text-[10px] text-surface-500 font-normal">
-                                kembali {formatRupiah(item.changeAmount)}
+                                kembali {formatRupiahPrecise(item.changeAmount)}
                               </span>
                             )}
                           </p>
@@ -610,11 +613,11 @@ export default function KeuanganDashboardPage() {
                     <div className="hidden sm:flex items-center gap-3 shrink-0">
                       <div className="text-right">
                         <p className="text-sm font-semibold text-red-600 tabular-nums">
-                          {formatRupiah(item.netAmount)}
+                          {formatRupiahPrecise(item.netAmount)}
                         </p>
                         {item.changeAmount > 0 && (
                           <p className="text-[10px] text-surface-500 tabular-nums">
-                            kembali {formatRupiah(item.changeAmount)}
+                            kembali {formatRupiahPrecise(item.changeAmount)}
                           </p>
                         )}
                       </div>
