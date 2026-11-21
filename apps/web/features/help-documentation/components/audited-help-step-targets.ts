@@ -41,7 +41,7 @@ export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepT
   ],
   "owner-piutang": [["customers", "customers-primary"], ["customers", "customers-filter-debt"], ["customers", "customers-profile"]],
   "owner-performa-sales": [["salespersons", "salespersons-primary"], ["salespersons", "salespersons-summary"], ["salespersons", "salespersons-detail"]],
-  "owner-approval-transaksi": [["history", "history-filter"], ["history", "history-approval-actions"], ["history", "history-approval-actions"], ["history", "history-approval-actions"], ["history", "history-approval-actions"]],
+  "owner-approval-transaksi": [["history", "history-filter"], ["history", "history-approval-actions"], ["history", "history-approval-actions"], ["history", "history-approval-actions"], ["history", "history-approval-actions"], ["history", "history-approval-actions"]],
   "owner-custom-invoice-date": [["history", "history-primary"], ["history", "history-action-menu"], ["history", "history-invoice-date-action"], ["history", "history-print-button"]],
   "owner-export-reports": [["finance", "finance-primary"], ["finance", "finance-export"], ["finance", "finance-export"], ["finance", "finance-export"], ["finance", "finance-export"]],
   "owner-expenses": [["finance", "finance-primary"], ["finance", "finance-primary"], ["finance", "finance-expense-create"], ["finance", "finance-proof-url"], ["finance", "finance-save"], ["finance", "finance-proof-url"], ["finance", "finance-manual-income-form"], ["finance", "finance-manual-transfer-form"], ["finance", "finance-primary"], ["finance", "finance-summary"]],

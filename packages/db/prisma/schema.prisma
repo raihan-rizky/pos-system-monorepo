@@ -865,6 +865,7 @@ model InventoryLog {
 
 model TransactionLifecycleAudit {
   id             String                      @id @default(cuid())
+  sequence       BigInt                      @unique @default(autoincrement())
   storeId        String
   transactionId  String
   invoiceNumber  String?
@@ -878,7 +879,8 @@ model TransactionLifecycleAudit {
   actor          User?                       @relation("transaction_lifecycle_audit_actor", fields: [actorId], references: [id], onDelete: SetNull)
   store          Store                       @relation(fields: [storeId], references: [id])
 
-  @@unique([storeId, transactionId, action])
+  @@index([storeId, transactionId, action, sequence], map: "pos_tx_lifecycle_action_seq_idx")
+  @@index([storeId, transactionId, sequence], map: "pos_tx_lifecycle_seq_idx")
   @@index([storeId, createdAt])
   @@index([transactionId, createdAt])
   @@map("pos_transaction_lifecycle_audits")
@@ -2276,6 +2278,7 @@ enum ProductSalesGroup {
 enum TransactionLifecycleAction {
   VOID
   DELETE
+  UNVOID
 }
 
 enum TransactionStatus {
@@ -2357,6 +2360,7 @@ enum InventoryInboundReceiptLineReviewStatus {
 enum InventoryReason {
   SALE
   SALE_RETURN
+  TRANSACTION_RESTORE
   RESTOCK
   SUPPLIER_RETURN
   WASTE

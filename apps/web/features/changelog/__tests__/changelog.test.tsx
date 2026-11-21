@@ -22,6 +22,13 @@ const entry = (id: string, date: string, revision = 1): ChangeEntry => ({
 const now = new Date("2026-10-18T03:00:00Z");
 
 describe("manual changelog", () => {
+  it("illustrates transaction recovery in the release note", () => {
+    const change = CHANGELOG.find(item => item.id === "pulihkan-transaksi-void-20261121")!;
+    const html = renderToStaticMarkup(<ChangeIllustration visual={change.visual} />);
+    expect(html).toContain("Ilustrasi fitur");
+    expect(html).toContain("Pulihkan transaksi");
+    expect(html).toContain("Tinjau dampak");
+  });
   it("announces and illustrates daily receipt subtotals in the monthly RC sheet", () => {
     const update = CHANGELOG.find(change => change.id === "total-harian-rc-bulan-20261121");
     expect(update).toMatchObject({

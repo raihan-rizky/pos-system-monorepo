@@ -31,6 +31,13 @@ export function invalidateTransactionViews(queryClient: QueryClient): void {
   queryClient.invalidateQueries({ queryKey: ["printing-receipts"] });
 }
 
+export function invalidateUnvoidViews(queryClient: QueryClient, transactionId: string): void {
+  invalidateTransactionViews(queryClient);
+  for (const queryKey of [["transaction", transactionId], ["customers"], ["customer-receivables"], ["inventory-logs"], ["financial-report"], ["daily-financial-report"], ["finance"], ["customer-recap"]]) {
+    void queryClient.invalidateQueries({ queryKey });
+  }
+}
+
 function replaceTransaction<T extends TransactionLike>(
   rows: T[],
   transaction: T,

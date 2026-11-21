@@ -222,6 +222,17 @@ const writerInventory: ReadonlyArray<WriterSpec> = [
       "restoreStock(tx, input, transaction, journal, returns)",
     ],
   },
+  {
+    name: "transaction unvoid stock deduction",
+    relativePath: "features/transactions-stock/services/transaction-unvoid-service.ts",
+    startMarker: "export async function restoreTransactionUnvoid(",
+    requiredMarkers: [
+      "lockStockMutationRows(",
+      "const current = await previewTransactionUnvoid(tx, input)",
+      "tx.productStockGroup.updateMany(",
+      "tx.product.updateMany(",
+    ],
+  },
 ];
 
 function productionTypeScriptFiles(directory: string): string[] {
@@ -290,8 +301,8 @@ describe("shared-stock writer source audit", () => {
       new Set(writerInventory.map((writer) => writer.relativePath)),
     ).sort();
 
-    expect(writerInventory).toHaveLength(20);
-    expect(new Set(writerInventory.map((writer) => writer.name)).size).toBe(20);
+    expect(writerInventory).toHaveLength(21);
+    expect(new Set(writerInventory.map((writer) => writer.name)).size).toBe(21);
     expect(discovered).toEqual(classifiedPaths);
   });
 

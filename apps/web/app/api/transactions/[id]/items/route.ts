@@ -240,7 +240,8 @@ export async function PATCH(
         }
         const journal = stockDeltaItems.length > 0 ? await tx.inventoryLog.findMany({
           where: { OR: [{ transactionId: id }, { sourceTransactionRef: id }] },
-          select: { productId: true, status: true, stockGroupIdSnapshot: true, unitMultiplierSnapshot: true, stockBaseDelta: true },
+          select: { productId: true, status: true, stockGroupIdSnapshot: true, unitMultiplierSnapshot: true, stockBaseDelta: true,
+            type: true, reason: true, quantity: true, note: true },
         }) : [];
         const productIds = [...new Set([
           ...unitChanges.flatMap(change => [change.from, change.to]),
@@ -277,6 +278,38 @@ export async function PATCH(
           changedProducts.set(product.id, product);
         }
         if (stockDeltaItems.length > 0) {
+          const baseUnitReturns = journal.filter((row) => {
+            const product = byId.get(row.productId);
+            const multiplier = product?.stockGroupId ? Number(product.unitMultiplierToBase) : 1;
+            return row.unitMultiplierSnapshot !== null && Number.isFinite(multiplier) &&
+              Math.abs(row.unitMultiplierSnapshot - multiplier) > 1e-10 * Math.max(1, multiplier);
+          });
+          if (baseUnitReturns.length) {
+            const audits = await tx.transactionLifecycleAudit.findMany({
+              where: { storeId, transactionId: id, action: "VOID" }, select: { snapshot: true },
+            });
+            const auditSchema = z.object({ action: z.literal("VOID"), transaction: z.object({ invoiceNumber: z.string().nullable() }), stockReturns: z.array(z.object({
+              productId: z.string(), stockGroupIdSnapshot: z.string().nullable(), baseDelta: z.number().finite().positive(),
+            })) });
+            const allowed = new Map<string, number>();
+            for (const audit of audits) {
+              const parsed = auditSchema.safeParse(audit.snapshot);
+              if (!parsed.success) throw new Error("ITEM_STOCK_HISTORY_REQUIRED");
+              for (const item of parsed.data.stockReturns) {
+                const key = JSON.stringify([item.productId, item.stockGroupIdSnapshot, item.baseDelta, `Void transaksi ${parsed.data.transaction.invoiceNumber ?? id}`]);
+                allowed.set(key, (allowed.get(key) ?? 0) + 1);
+              }
+            }
+            for (const row of baseUnitReturns) {
+              const key = JSON.stringify([row.productId, row.stockGroupIdSnapshot, row.stockBaseDelta, row.note]);
+              const remaining = allowed.get(key) ?? 0;
+              if (row.type !== "IN" || row.reason !== "SALE_RETURN" || row.unitMultiplierSnapshot !== 1 ||
+                  row.stockBaseDelta !== row.quantity || !remaining) {
+                throw new Error("ITEM_STOCK_HISTORY_REQUIRED");
+              }
+              allowed.set(key, remaining - 1);
+            }
+          }
           const actualStock = new Map<string, number>();
           for (const row of journal) {
             const product = byId.get(row.productId);
@@ -284,7 +317,7 @@ export async function PATCH(
             if (!product || product.conversionNeedsReview || row.status !== "APPROVED" || row.stockBaseDelta == null ||
                 !Number.isFinite(row.stockBaseDelta) || row.stockGroupIdSnapshot !== product.stockGroupId ||
                 row.unitMultiplierSnapshot == null || !Number.isFinite(multiplier) || multiplier <= 0 ||
-                Math.abs(row.unitMultiplierSnapshot - multiplier) > 1e-10 * Math.max(1, multiplier)) {
+                (Math.abs(row.unitMultiplierSnapshot - multiplier) > 1e-10 * Math.max(1, multiplier) && !baseUnitReturns.includes(row))) {
               throw new Error("ITEM_STOCK_HISTORY_REQUIRED");
             }
             actualStock.set(row.productId, (actualStock.get(row.productId) ?? 0) + row.stockBaseDelta);

@@ -81,6 +81,7 @@ export type FinancialReportInventoryLog = {
     | "MANUAL_ADJUSTMENT"
     | "SALE"
     | "SALE_RETURN"
+    | "TRANSACTION_RESTORE"
     | "RESTOCK"
     | "SUPPLIER_RETURN"
     | null;

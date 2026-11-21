@@ -991,7 +991,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     faqNumber: 51,
     slug: "transaction-actions",
     title: "Bagaimana cara Void atau Hapus transaksi beserta surat jalan terkait?",
-    aliases: ["void transaksi", "batalkan transaksi", "hapus transaksi", "void nota percetakan", "hapus nota percetakan", "hapus nota penawaran", "hapus transaksi dengan surat jalan", "peringatan stok nota penawaran"],
+    aliases: ["void transaksi", "batalkan transaksi", "pulihkan transaksi void", "unvoid transaksi", "hapus transaksi", "void nota percetakan", "hapus nota percetakan", "hapus nota penawaran", "hapus transaksi dengan surat jalan", "peringatan stok nota penawaran"],
     route: "/history",
     actionLabel: "Buka Riwayat",
     iconKey: "history",
@@ -999,6 +999,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     steps: [
       { title: "Cari transaksi", description: "Buka Riwayat, cari transaksi, lalu buka menu tiga titik pada baris komputer atau kartu ponsel. Semua jenis transaksi, termasuk ATK, Percetakan, nota penawaran, dan transaksi dengan surat jalan, mengikuti izin akun serta statusnya." },
       { title: "Pilih Void bila ingin membatalkan", description: "Void memerlukan transaction.update dan tersedia bagi role yang diberi izin pada transaksi aktif, termasuk draft dan pending. Transaksi VOIDED atau REFUNDED tidak dapat di-void ulang. Seluruh surat jalan PENDING/CONFIRMED terkait ikut menjadi CANCELLED; surat jalan yang sudah CANCELLED/REJECTED tetap pada statusnya." },
+      { title: "Pulihkan transaksi void", description: "Owner memilih Pulihkan transaksi pada menu tiga titik transaksi void, memeriksa pratinjau status, stok, surat jalan, dan perhitungan pelanggan, lalu mengonfirmasi. Jika stok tidak cukup atau audit perlu diperiksa, pemulihan ditolak dan tidak ada perubahan yang disimpan." },
       { title: "Pilih Hapus bila ingin menghapus", description: "Hapus memerlukan transaction.delete bagi role yang diberi izin. Transaksi, seluruh surat jalan terkait, dan item dokumennya dihapus permanen. Pada transaksi Percetakan, nota sumbernya juga dihapus; snapshot dokumen tetap tersimpan dalam audit. Jurnal stok tetap tersimpan. Baca dampak seluruh dokumen terkait pada konfirmasi sebelum melanjutkan." },
       { title: "Periksa dampak stok", description: "Stok yang terbukti sudah keluar dikembalikan paling banyak satu kali berdasarkan mutasi yang tercatat. Hapus setelah Void tidak mengembalikan stok lagi. Dampak keuangan invoice tetap diproses saat Hapus; masalah keuangan atau kegagalan sistem tetap perlu diselesaikan." },
       { title: "Konfirmasi dan baca hasil", description: "Tinjau dampaknya, lalu konfirmasi tindakan yang dipilih. Semua jenis transaksi, termasuk ATK, Percetakan, dan nota penawaran yang sudah atau belum menjadi invoice, tetap dapat dihapus bila riwayat stok kosong atau tidak konsisten, dengan peringatan yang juga ditampilkan setelah berhasil dan tercatat di audit. Sistem tidak menebak pengembalian stok; tindak lanjuti peringatan bila perlu pemeriksaan." },

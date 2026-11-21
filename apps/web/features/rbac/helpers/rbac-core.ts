@@ -7,6 +7,7 @@ export const PAGE_SCOPE = "page" as const;
 export const RESOURCE_SCOPE = "resource" as const;
 export const OWNER_LOCKED_RESOURCE_TARGETS: ReadonlySet<string> = new Set([
   "inventory.approve",
+  "transaction.unvoid",
   "rbac",
 ]);
 
@@ -58,6 +59,7 @@ export const PAGE_TARGETS = [
 
 export const RESOURCE_TARGETS = [
   "transaction",
+  "transaction.unvoid",
   "financial-report",
   "financial-report.daily-income",
   "financial-report.daily-outstanding-dp",

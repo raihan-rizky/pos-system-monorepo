@@ -15,6 +15,7 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
       changelog: { Icon: History, title: "Terus berkembang.", detail: "Lihat yang baru, langsung coba." },
       printing: { Icon: FileText, title: "Nota Percetakan langsung.", detail: "Pilih jenis · Isi nota · Bayar / DP" },
       shopping: { Icon: ShoppingBag, title: "Pantau pembayaran belanja.", detail: "Metode pembayaran dan jatuh tempo" },
+      "transaction-unvoid": { Icon: History, title: "Pulihkan transaksi void.", detail: "Tinjau dampak · Pulihkan" },
       "history-table": { Icon: History, title: "Tabel Riwayat menyesuaikan layar.", detail: "Kolom dan aksi terlihat bersama" },
       "receipt-audit": { Icon: FileClock, title: "Jejak nota mudah ditelusuri.", detail: "Pilih revisi · Bandingkan · Periksa asli" },
       financial: { Icon: FileText, title: "Saldo laporan otomatis.", detail: "Inventaris dan hutang tercatat" },
@@ -70,6 +71,14 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
             {["UMUM", "AGEN", "INDUSTRI", "PEMERINTAH"].map((type, index) => <span key={type} className={`rounded-lg px-3 py-2 ${index === 0 ? "bg-brand-100 text-brand-900 ring-1 ring-brand-300" : "bg-surface-50 text-surface-700"}`}>{type}{index === 0 ? " · pilihan awal" : ""}</span>)}
           </div>
           <p className="mt-3 text-xs text-surface-600">Jenis pilihan menentukan harga checkout.</p>
+        </div>
+      )}
+      {visual === "transaction-unvoid" && (
+        <div className={`mx-auto w-full max-w-md ${panel}`}>
+          <div className="flex items-center gap-2 text-sm font-bold"><History className={icon} aria-hidden="true" /> Pulihkan transaksi</div>
+          <p className="mt-4 text-sm font-semibold text-surface-900">Tinjau dampak</p>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs font-medium text-brand-800">{["Stok", "Surat jalan", "Pelanggan"].map(label => <span key={label} className="rounded-lg bg-brand-50 px-3 py-2">{label}</span>)}</div>
+          <p className="mt-4 text-xs text-surface-600">Periksa pratinjau sebelum memulihkan transaksi void.</p>
         </div>
       )}
       {visual === "history-table" && (
