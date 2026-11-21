@@ -398,6 +398,7 @@ function GiroPanelState({ canUpdate }: { canUpdate: boolean }) {
                   </div>
 
                   {!item.debtDate && <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-red-700"><CircleAlert className="h-4 w-4" aria-hidden="true" />Tanggal kewajiban belum tersedia.</p>}
+                  {item.historyIssue && <p role="status" className="mt-3 inline-flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-800"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />Riwayat pembayaran tidak sesuai. Hubungi pengelola untuk memeriksa data giro ini.</p>}
 
                   {Boolean(item.schedule?.length) && <section aria-label="Jadwal giro" className="mt-3 rounded-xl border border-surface-200 bg-surface-50/70 p-3">
                     <div className="flex items-center gap-2">
@@ -445,7 +446,6 @@ function GiroPanelState({ canUpdate }: { canUpdate: boolean }) {
                     </div>
                   </aside>}
 
-                  {item.historyIssue && <p role="status" className="mt-3 inline-flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-800"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />Riwayat pembayaran tidak sesuai. Hubungi pengelola untuk memeriksa data giro ini.</p>}
                   {storageError && <p role="alert" className="mt-3 inline-flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-800"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />{storageError}</p>}
 
                   {item.status !== "UNKNOWN" && item.payments.length > 0 && <details className="group mt-3 overflow-hidden rounded-xl border border-surface-200 bg-white">
