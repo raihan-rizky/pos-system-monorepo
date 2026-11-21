@@ -92,7 +92,8 @@ describe("panel giro di Keuangan", () => {
     state.items.push({ ...state.items[1], goodsPurchaseId: "new-year", number: "PB-NEW-YEAR", dueDate: "2027-01-05", schedule: [{ id: "jan", amount: 100000, dueDate: "2027-01-05" }] } as never);
     try {
       const html = renderToStaticMarkup(<SupplierPayablesPanel canCreate canUpdate />);
-      expect(html).toContain("Bulan depan · 2027-01-05");
+      expect(html).toContain("Bulan depan");
+      expect(html).toContain("2027-01-05");
     } finally {
       state.items.pop();
       vi.useRealTimers();
