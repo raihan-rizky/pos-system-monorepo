@@ -63,8 +63,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }
       if (debt.goodsPurchaseId && !debt.giroHistoryVerifiedAt) return 'history-unknown' as const;
       if (paidAt < debt.debtDate) return 'invalid' as const;
-      const [total] = await tx.$queryRaw<{ paid: string; credited: string; financeCancelled: boolean; corrected: boolean; purchaseMethod: string | null }[]>`
+      const today = jakartaToday();
+      const [total] = await tx.$queryRaw<{ paid: string; paidAsOf: string; credited: string; financeCancelled: boolean; corrected: boolean; purchaseMethod: string | null }[]>`
         SELECT COALESCE(SUM(p."amount"), 0)::text AS paid,
+          COALESCE(SUM(p."amount") FILTER (WHERE p."paidAt" <= ${today}::date), 0)::text AS "paidAsOf",
           (SELECT COALESCE(SUM(credit."amount"), 0)::text FROM "pos_expense_supplier_credit_applications" credit
            WHERE credit."storeId" = ${storeId} AND credit."payableId" = ${id} AND credit."releasedAt" IS NULL) AS credited,
           EXISTS (
@@ -87,13 +89,19 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         const giroSchedule = await tx.goodsPurchasePayment.count({ where: { goodsPurchaseId: debt.goodsPurchaseId!, method: 'GIRO', amount: { gt: 0 } } });
         if (!giroSchedule) return 'balance-changed' as const;
       }
-      const paid = total.corrected && debt.goodsPurchaseId
-        ? (await loadCorrectionPaymentState(tx, { storeId, purchaseId: debt.goodsPurchaseId })).paid
-        : total.paid;
-      const remainingCents = Math.round(Number(debt.amount) * 100) - Math.round(Number(paid) * 100)
-        - Math.round(Number(total.credited ?? 0) * 100);
+      const correction = total.corrected && debt.goodsPurchaseId
+        ? await loadCorrectionPaymentState(tx, { storeId, purchaseId: debt.goodsPurchaseId })
+        : null;
+      const paidCents = correction ? Math.round(Number(correction.paid) * 100) : Math.round(Number(total.paid) * 100);
+      const paidAsOfCents = correction
+        ? correction.sources.filter(source => source.paidAt <= today).reduce((sum, source) => sum + Math.round(Number(source.amount) * 100), 0)
+        : Math.round(Number(total.paidAsOf ?? total.paid) * 100);
+      const totalCents = Math.round(Number(debt.amount) * 100);
+      const creditedCents = Math.round(Number(total.credited ?? 0) * 100);
+      const remainingCents = Math.max(0, totalCents - paidAsOfCents - creditedCents);
+      const availableCents = Math.max(0, totalCents - paidCents - creditedCents);
       if (debt.goodsPurchaseId && Math.round(expectedBalance! * 100) !== remainingCents) return 'balance-changed' as const;
-      if (Math.round(amount * 100) > remainingCents) return 'invalid' as const;
+      if (Math.round(amount * 100) > availableCents) return 'invalid' as const;
       if (requestScope) {
         const inserted = await tx.$queryRaw<{ id: string }[]>`
           INSERT INTO "pos_supplier_payable_payments" ("id", "payableId", "amount", "paidAt", "createdById", "requestScope", "requestExpectedBalance")

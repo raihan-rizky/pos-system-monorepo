@@ -14,7 +14,7 @@ type GiroRow = {
   debtDate: string | null; dueDate: string | null; payableId: string | null; payableDebtDate: string | null;
   historyVerifiedAt: Date | null; payableNote: string | null; payments: Payment[];
   schedule?: { id: string; amount: string; dueDate: string; note: string | null }[];
-  correctionId: string | null; payableAmount: string | null; effectivePaid: string; credited: string;
+  correctionId: string | null; payableAmount: string | null; effectivePayments: Payment[]; credited: string;
 };
 type ManualRow = {
   id: string; supplierName: string; amount: string; debtDate: string;
@@ -35,7 +35,7 @@ export async function GET(_request: Request): Promise<Response> {
     const rows = await db.$queryRaw<GiroRow[]>`
       SELECT g."id" AS "goodsPurchaseId", g."number", g."supplierNameSnapshot" AS "supplierName",
         (CASE WHEN s."count" > 0 THEN s."giroAmount" ELSE g."totalAmount" END)::text AS "amount", e."debtDate", (CASE WHEN s."count" > 0 THEN s."dueDate" ELSE g."paymentDueDate" END)::text AS "dueDate",
-        d."id" AS "payableId", d."amount"::text AS "payableAmount", d."debtDate"::text AS "payableDebtDate", d."note" AS "payableNote", d."giroHistoryVerifiedAt" AS "historyVerifiedAt", correction."id" AS "correctionId", p."payments", effective."effectivePaid", credit."credited", s."schedule"
+        d."id" AS "payableId", d."amount"::text AS "payableAmount", d."debtDate"::text AS "payableDebtDate", d."note" AS "payableNote", d."giroHistoryVerifiedAt" AS "historyVerifiedAt", correction."id" AS "correctionId", p."payments", effective."effectivePayments", credit."credited", s."schedule"
       FROM "pos_goods_purchases" g
       LEFT JOIN LATERAL (
         SELECT COUNT(*) AS "count", SUM(pay."amount") FILTER (WHERE pay."method"::text = 'GIRO') AS "giroAmount",
@@ -79,24 +79,31 @@ export async function GET(_request: Request): Promise<Response> {
         ) pay
       ) p ON true
       LEFT JOIN LATERAL (
-        SELECT COALESCE(SUM(paid."amount"), 0)::text AS "effectivePaid"
+        SELECT COALESCE(json_agg(json_build_object('id', paid."id", 'amount', paid."amount"::text, 'paidAt', paid."paidAt"::text)
+          ORDER BY paid."paidAt", paid."id") FILTER (WHERE paid."amount" > 0), '[]'::json) AS "effectivePayments"
         FROM (
-          SELECT a."amount" FROM "pos_shopping_request_correction_allocations" a WHERE a."correctionId" = correction."id"
-          UNION ALL
-          SELECT pay."amount" FROM "pos_supplier_payable_payments" pay
-          WHERE pay."payableId" = d."id" AND NOT EXISTS (
-            SELECT 1 FROM jsonb_array_elements(COALESCE(correction."afterSnapshot" #> '{paymentSnapshot,sources}', '[]'::jsonb)) source
-            WHERE source->>'sourceKind' = 'PAYABLE_PAYMENT' AND source->>'paymentId' = pay."id"
-          )
-          UNION ALL
-          SELECT COALESCE(g."initialTransferAmount", CASE
-            WHEN s."transferCount" > 0 THEN s."transferAmount"
-            WHEN g."paymentMethod" = 'TRANSFER' AND g."totalBasis" = 'ORDERED' THEN e."amount"
-            ELSE 0 END)
-          WHERE correction."id" IS NOT NULL AND e."id" IS NOT NULL AND NOT EXISTS (
-            SELECT 1 FROM jsonb_array_elements(COALESCE(correction."afterSnapshot" #> '{paymentSnapshot,sources}', '[]'::jsonb)) source
-            WHERE source->>'sourceKind' = 'TRANSFER_EXPENSE' AND source->>'paymentId' = e."id"
-          )
+          SELECT source."id", SUM(source."amount") AS "amount", source."paidAt"
+          FROM (
+            SELECT CASE WHEN a."sourceKind" = 'PAYABLE_PAYMENT' THEN a."paymentId"
+              ELSE a."sourceKind" || ':' || a."paymentId" END AS "id", a."amount", a."paidAt"
+            FROM "pos_shopping_request_correction_allocations" a WHERE a."correctionId" = correction."id"
+            UNION ALL
+            SELECT pay."id", pay."amount", pay."paidAt" FROM "pos_supplier_payable_payments" pay
+            WHERE pay."payableId" = d."id" AND NOT EXISTS (
+              SELECT 1 FROM jsonb_array_elements(COALESCE(correction."afterSnapshot" #> '{paymentSnapshot,sources}', '[]'::jsonb)) source
+              WHERE source->>'sourceKind' = 'PAYABLE_PAYMENT' AND source->>'paymentId' = pay."id"
+            )
+            UNION ALL
+            SELECT 'TRANSFER_EXPENSE:' || e."id", COALESCE(g."initialTransferAmount", CASE
+              WHEN s."transferCount" > 0 THEN s."transferAmount"
+              WHEN g."paymentMethod" = 'TRANSFER' AND g."totalBasis" = 'ORDERED' THEN e."amount"
+              ELSE 0 END), COALESCE(g."initialTransferPaidAt", e."debtDate"::date)
+            WHERE correction."id" IS NOT NULL AND e."id" IS NOT NULL AND NOT EXISTS (
+              SELECT 1 FROM jsonb_array_elements(COALESCE(correction."afterSnapshot" #> '{paymentSnapshot,sources}', '[]'::jsonb)) source
+              WHERE source->>'sourceKind' = 'TRANSFER_EXPENSE' AND source->>'paymentId' = e."id"
+            )
+          ) source
+          GROUP BY source."id", source."paidAt"
         ) paid
       ) effective ON true
       LEFT JOIN LATERAL (
@@ -130,23 +137,23 @@ export async function GET(_request: Request): Promise<Response> {
       ORDER BY d."debtDate" DESC, d."createdAt" DESC, d."id"
     ` : [];
     const today = jakartaToday();
-    const items = rows.map(({ amount, historyVerifiedAt, correctionId, payableAmount, effectivePaid, credited, payments: rawPayments, schedule: rawSchedule, ...row }) => {
+    const items = rows.map(({ amount, historyVerifiedAt, correctionId, payableAmount, effectivePayments: rawEffectivePayments, credited, payments: rawPayments, schedule: rawSchedule, ...row }) => {
       const schedule = (rawSchedule ?? []).map(payment => ({ ...payment, amount: Number(payment.amount) }));
       const payments = rawPayments.map(payment => ({ ...payment, amount: Number(payment.amount) }));
       if (!row.debtDate) return { ...row, schedule, amount: Number(amount), payments, status: 'UNKNOWN', paid: null, remaining: null, historyIssue: true };
       try {
         const corrected = Boolean(correctionId);
-        if (corrected && (payableAmount === null || payableAmount === undefined || effectivePaid === undefined)) throw new Error('Saldo pembelian terkoreksi tidak tersedia.');
+        if (corrected && (payableAmount === null || payableAmount === undefined || !Array.isArray(rawEffectivePayments))) throw new Error('Saldo pembelian terkoreksi tidak tersedia.');
         const total = corrected ? Number(payableAmount) : Number(amount);
-        const effective = corrected ? Number(effectivePaid) : 0;
         const creditApplied = Number(credited ?? 0);
-        const cashPayments = corrected ? effective ? [{ amount: effective, paidAt: today }] : [] : payments;
+        const cashPayments = corrected ? rawEffectivePayments.map(payment => ({ ...payment, amount: Number(payment.amount) })) : payments;
         const cashBalance = summarizeGiro(total, cashPayments, Boolean(historyVerifiedAt), today, { allowCorrection: corrected });
-        const balance = creditApplied > 0
-          ? summarizeGiro(total, [...cashPayments, { amount: creditApplied, paidAt: today }], Boolean(historyVerifiedAt), today, { allowCorrection: corrected })
-          : cashBalance;
+        const balancePayments = creditApplied > 0 ? [...cashPayments, { amount: creditApplied, paidAt: today }] : cashPayments;
+        const balance = creditApplied > 0 ? summarizeGiro(total, balancePayments, Boolean(historyVerifiedAt), today, { allowCorrection: corrected }) : cashBalance;
+        const committedBalance = summarizeGiro(total, balancePayments, Boolean(historyVerifiedAt), '9999-12-31', { allowCorrection: corrected });
         const giroPaid = corrected ? summarizeGiro(Number(amount), payments, Boolean(historyVerifiedAt), today, { allowCorrection: true }).paid : cashBalance.paid;
-        return { ...row, schedule, amount: Number(amount), payments, ...balance, paid: giroPaid, creditApplied, ...(corrected ? { totalPaid: cashBalance.paid } : {}), balanceIncludesOtherMethods: corrected, historyIssue: false };
+        const futurePayments = cashPayments.filter(payment => payment.paidAt > today);
+        return { ...row, schedule, amount: Number(amount), payments, ...balance, paid: giroPaid, creditApplied, availableToPay: committedBalance.remaining, futurePayments, ...(corrected ? { totalPaid: cashBalance.paid } : {}), balanceIncludesOtherMethods: corrected, historyIssue: false };
       } catch (error) {
         log.error('Riwayat pembayaran giro tidak konsisten', error);
         return { ...row, schedule, amount: Number(amount), payments, status: 'UNKNOWN', paid: null, remaining: null, historyIssue: true };
@@ -157,7 +164,7 @@ export async function GET(_request: Request): Promise<Response> {
       const paid = payments.reduce((sum, payment) => sum + Math.round(payment.amount * 100), 0) / 100;
       return { ...row, amount: Number(amount), paid, payments };
     });
-    return NextResponse.json({ items, manualPayables }, { headers: { 'Cache-Control': 'private, no-store' } });
+    return NextResponse.json({ items, manualPayables, asOf: today }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
     const authError = handleAuthError(error);
     if (authError) return authError;
