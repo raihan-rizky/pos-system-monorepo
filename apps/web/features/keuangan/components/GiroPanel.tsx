@@ -13,6 +13,8 @@ import { GiroSupplierCredit } from "./GiroSupplierCredit";
 export { planGiroLink, postGiroLink } from "../helpers/giro-link";
 export { GiroLinkDialog, GiroLinkFields } from "./GiroLinkDialog";
 
+const GIRO_PANEL_EXPANDED_STORAGE_KEY = "keuangan:giro-pembelian:expanded";
+
 type GiroPayment = { id?: string; amount: number; paidAt: string };
 type Giro = {
   goodsPurchaseId: string;
@@ -285,6 +287,8 @@ function GiroPanelState({ canUpdate, canLinkManual, legacyPaymentIds }: { canUpd
   const [selection, setSelection] = useState<{ item: Giro; mode: "review" | "payment"; initialPending?: PendingGiroPayment | null; initialGeneration?: string | null } | null>(null);
   const [linkItem, setLinkItem] = useState<Giro | null>(null);
   const [pendingById, setPendingById] = useState<Record<string, PendingState>>({});
+  const giroPanelRef = useRef<HTMLDetailsElement>(null);
+  const hasRestoredGiroPanelPreference = useRef(false);
   const list = useQuery({
     queryKey: ["finance", "giro", storeId, userId, authorizationFingerprint],
     enabled: Boolean(storeId && userId),
@@ -296,6 +300,19 @@ function GiroPanelState({ canUpdate, canLinkManual, legacyPaymentIds }: { canUpd
   });
   const items = list.data?.items;
   const asOf = list.data?.asOf ?? jakartaToday();
+
+  useEffect(() => {
+    const panel = giroPanelRef.current;
+    if (!panel) return;
+    try {
+      const saved = window.localStorage.getItem(GIRO_PANEL_EXPANDED_STORAGE_KEY);
+      if (saved === "true" || saved === "false") panel.open = saved === "true";
+    } catch {
+      // Keep the default-open panel usable when browser storage is unavailable.
+    } finally {
+      hasRestoredGiroPanelPreference.current = true;
+    }
+  }, []);
 
   useEffect(() => {
     const nextMidnight = Date.parse(`${jakartaToday()}T17:00:00.000Z`);
@@ -353,8 +370,31 @@ function GiroPanelState({ canUpdate, canLinkManual, legacyPaymentIds }: { canUpd
 
   return (
     <section aria-labelledby="giro-title" className="mt-5 border-t border-surface-200 pt-5">
-      <h2 id="giro-title" className="text-sm font-semibold text-surface-900">Giro Pembelian</h2>
-      <p className="mt-1 text-xs text-surface-600">Periksa riwayat dan catat pembayaran giro agar saldo dan arus kas sesuai.</p>
+      <details
+        ref={giroPanelRef}
+        open
+        onToggle={event => {
+          if (!hasRestoredGiroPanelPreference.current) return;
+          try { window.localStorage.setItem(GIRO_PANEL_EXPANDED_STORAGE_KEY, String(event.currentTarget.open)); }
+          catch { /* The disclosure still works when browser storage is unavailable. */ }
+        }}
+        className="group overflow-hidden rounded-xl border border-surface-200 bg-white shadow-sm"
+      >
+        <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-3.5 py-3 outline-none transition-colors hover:bg-surface-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500 sm:px-4">
+          <span className="flex min-w-0 items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-100">
+              <ReceiptText className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <span className="min-w-0">
+              <span className="flex flex-wrap items-center gap-2">
+                <h2 id="giro-title" className="text-sm font-semibold text-surface-900">Giro Pembelian</h2>
+                {list.data && <span className="rounded-full bg-surface-100 px-2 py-0.5 text-[10px] font-semibold text-surface-600">{list.data.items.length} giro</span>}
+              </span>
+            </span>
+          </span>
+          <ChevronDown className="h-5 w-5 shrink-0 text-surface-500 transition-transform duration-200 group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        <p className="border-t border-surface-200 bg-surface-50/40 px-3 pb-3 pt-3 text-xs text-surface-600 sm:px-4">Periksa riwayat dan catat pembayaran giro agar saldo dan arus kas sesuai.</p>
       {canUpdate && Object.entries(pendingById).filter(([id, pending]) => pending && 'key' in pending && pending.resource !== 'MANUAL' && !items?.some(item => item.payableId === id)).map(([id, value]) => {
         const pending = value as PendingGiroPayment;
         const balance = Number(pending.expectedBalance ?? 0);
@@ -495,6 +535,7 @@ function GiroPanelState({ canUpdate, canLinkManual, legacyPaymentIds }: { canUpd
           ); })}
         </ul>
       )}
+      </details>
       {selection && <GiroDialog item={selection.item} mode={selection.mode} scope={storeId && userId && selection.item.payableId ? { storeId, userId, payableId: selection.item.payableId } : null} manualPayables={canLinkManual ? list.data?.manualPayables ?? [] : []} initialPending={selection.initialPending ?? null} initialGeneration={selection.initialGeneration} onPendingChange={value => { if (selection.item.payableId) setPendingById(current => ({ ...current, [selection.item.payableId!]: value })); }} onClose={() => setSelection(null)} onSaved={() => queryClient.invalidateQueries({ queryKey: ["finance"] })} onRefreshReview={async () => { const result = await list.refetch(); if (result.isError || !result.data) throw new Error("Gagal memuat giro"); return { ...result.data, manualPayables: canLinkManual ? result.data.manualPayables : [] }; }} />}
       {linkItem && <GiroLinkDialog item={linkItem} manualPayables={list.data?.manualPayables ?? []} onClose={() => setLinkItem(null)} onSaved={() => queryClient.invalidateQueries({ queryKey: ["finance"] })} onRefresh={async () => { const result = await list.refetch(); if (result.isError || !result.data) throw new Error("Gagal memuat giro"); return result.data; }} />}
     </section>

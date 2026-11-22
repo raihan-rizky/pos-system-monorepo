@@ -61,7 +61,7 @@ describe.skipIf(process.env.FINANCE_BROWSER_TEST !== "1")("isolasi identitas dia
         }) {
           pluginBuild.onResolve({ filter: /^(lucide-react|@pos\/ui|@\/lib\/utils)$/ }, args => ({ path: args.path, namespace: "giro-stub" }));
           pluginBuild.onLoad({ filter: /.*/, namespace: "giro-stub" }, args => ({
-            contents: args.path === "lucide-react" ? "export const X = () => null;"
+            contents: args.path === "lucide-react" ? "export const Banknote = () => null; export const CalendarDays = () => null; export const ChevronDown = () => null; export const CircleAlert = () => null; export const CircleCheck = () => null; export const CircleDollarSign = () => null; export const CircleHelp = () => null; export const Clock3 = () => null; export const ClipboardCheck = () => null; export const History = () => null; export const Info = () => null; export const Link2 = () => null; export const ReceiptText = () => null; export const X = () => null;"
               : args.path === "@pos/ui" ? "import React from 'react'; export const Button = ({children, loading, ...props}) => <button {...props}>{children}</button>;"
                 : "export const formatRupiah = value => 'Rp ' + value;",
             loader: "jsx", resolveDir: process.cwd(),
@@ -86,6 +86,39 @@ describe.skipIf(process.env.FINANCE_BROWSER_TEST !== "1")("isolasi identitas dia
       await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     }
   }, 60_000);
+
+  it("mempertahankan pilihan buka atau tutup Giro Pembelian setelah halaman dimuat ulang", async () => {
+    const page = await browser.newPage();
+    await page.route(`${origin}/**`, route => route.fulfill({
+      status: 200,
+      contentType: "text/html",
+      body: `<!doctype html><html><body><div id="root"></div><script>${script}</script></body></html>`,
+    }));
+
+    try {
+      await page.goto(origin);
+      const panel = page.locator('section[aria-labelledby="giro-title"] > details');
+      const summary = page.locator('section[aria-labelledby="giro-title"] > details > summary');
+      await page.getByText("GIRO-LAMA", { exact: true }).waitFor({ state: "attached" });
+      expect(await panel.evaluate(element => (element as HTMLDetailsElement).open)).toBe(true);
+
+      await summary.click();
+      await expect.poll(() => panel.evaluate(element => (element as HTMLDetailsElement).open)).toBe(false);
+      await expect.poll(() => page.evaluate(() => localStorage.getItem("keuangan:giro-pembelian:expanded"))).toBe("false");
+      await page.reload();
+      await page.getByText("GIRO-LAMA", { exact: true }).waitFor({ state: "attached" });
+      expect(await page.evaluate(() => localStorage.getItem("keuangan:giro-pembelian:expanded"))).toBe("false");
+      await expect.poll(() => panel.evaluate(element => (element as HTMLDetailsElement).open)).toBe(false);
+
+      await summary.click();
+      await expect.poll(() => panel.evaluate(element => (element as HTMLDetailsElement).open)).toBe(true);
+      await page.reload();
+      await page.getByText("GIRO-LAMA", { exact: true }).waitFor({ state: "attached" });
+      await expect.poll(() => panel.evaluate(element => (element as HTMLDetailsElement).open)).toBe(true);
+    } finally {
+      await page.close();
+    }
+  }, 15_000);
 
   it.each([
     ["Periksa riwayat", "store"], ["Periksa riwayat", "user"], ["Periksa riwayat", "fingerprint"], ["Periksa riwayat", "permission"],
