@@ -40,6 +40,34 @@ const scope = { storeId: "store-1", userId: "user-1", payableId: "d3" };
 const lock = async (_name: string, work: () => Promise<void>) => work();
 
 describe("panel giro di Keuangan", () => {
+  it("menyembunyikan semua kartu dan aksi saat panel Giro Pembelian ditutup", async () => {
+    const html = renderToStaticMarkup(<SupplierPayablesPanel canCreate canUpdate />);
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage();
+      await page.setContent(html);
+      const disclosure = page.locator('section[aria-labelledby="giro-title"] > details');
+      const summary = page.locator('section[aria-labelledby="giro-title"] > details > summary');
+      expect(await disclosure.count()).toBe(1);
+      expect(await disclosure.evaluate(element => (element as HTMLDetailsElement).open)).toBe(true);
+      expect(await summary.getByText("5 giro").isVisible()).toBe(true);
+      expect(await page.getByText("PB-001").isVisible()).toBe(true);
+      expect(await page.getByRole("button", { name: "Periksa riwayat" }).isVisible()).toBe(true);
+
+      await summary.click();
+      expect(await disclosure.evaluate(element => (element as HTMLDetailsElement).open)).toBe(false);
+      expect(await page.getByText("Giro Pembelian").isVisible()).toBe(true);
+      expect(await page.getByText("PB-001").isVisible()).toBe(false);
+      expect(await page.getByRole("button", { name: "Periksa riwayat" }).isVisible()).toBe(false);
+
+      await summary.click();
+      expect(await page.getByText("PB-001").isVisible()).toBe(true);
+      expect(await page.getByRole("button", { name: "Periksa riwayat" }).isVisible()).toBe(true);
+    } finally {
+      await browser.close();
+    }
+  });
+
   it("menjelaskan bulan jatuh tempo dan pembayaran mendatang di samping saldo hari ini", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-11-21T03:00:00Z"));

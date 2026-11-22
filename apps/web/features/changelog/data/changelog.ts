@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "giro-pembelian-toggle-20261122", date: "2026-11-22", revision: 1,
+    highlight: { title: "Ringkas daftar Giro Pembelian", summary: "Pilihan panel dipulihkan dari browser ini saat Keuangan dibuka." },
+    title: "Ringkas tampilan Giro Pembelian",
+    summary: "Tutup daftar untuk merapikan Keuangan; pilihan buka atau tutup dipulihkan dari browser yang sama.",
+    kind: "improvement", impact: "minor", area: "Keuangan", href: "/keuangan", visual: "financial",
+    steps: [
+      { title: "Buka Giro Pembelian", detail: "Di Keuangan, cari bagian Hutang Pemasok. Badge jumlah giro tetap terlihat saat daftar ditutup." },
+      { title: "Ringkas daftar", detail: "Pilih judul Giro Pembelian untuk menutup atau membuka seluruh kartu dan tombol aksinya. Pilihan disimpan di browser ini." },
+      { title: "Lanjutkan tindakan", detail: "Pilih Riwayat pembayaran atau Catat pembayaran pada kartu yang ingin diperiksa." },
+    ],
+  },
+  {
     id: "pengeluaran-giro-bulan-jatuh-tempo-20261121", date: "2026-11-21", revision: 1,
     highlight: { title: "Giro mengikuti bulan jatuh tempo", summary: "Pengeluaran menampilkan giro mulai tanggal jatuh temponya, termasuk yang lunas." },
     title: "Pengeluaran Giro mengikuti bulan jatuh tempo",
