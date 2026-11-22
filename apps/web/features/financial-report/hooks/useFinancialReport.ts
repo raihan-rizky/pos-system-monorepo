@@ -6,6 +6,7 @@ import type { FinancialReport } from "../helpers/report-core";
 export type FinancialReportParams = {
   dateFrom: string;
   dateTo: string;
+  view?: "sales";
 };
 
 async function fetchFinancialReport(params: FinancialReportParams) {
@@ -13,6 +14,7 @@ async function fetchFinancialReport(params: FinancialReportParams) {
     dateFrom: params.dateFrom,
     dateTo: params.dateTo,
   });
+  if (params.view === "sales") searchParams.set("view", "sales");
 
   const response = await fetch(`/api/finance/report?${searchParams}`);
   if (!response.ok) {

@@ -27,7 +27,7 @@ describe('pencatatan keuangan manual', () => {
     expect(validateManualIncome(payload,now).success).toBe(false);
   });
   it('memvalidasi penerima dan keterangan belanja transfer', () => {
-    const payload = { applicantName:' Pemasok ', description:' Kertas ',amount:25000,occurredAt:'2026-11-02',attachmentUrl:null };
+    const payload = { applicantName:' Pemasok ', description:' Kertas ',amount:25000,occurredAt:'2026-11-02',attachmentUrl:null, reportCategory:'ATK' };
     expect(validateManualTransfer(payload,now)).toEqual({success:true,data:{...payload,applicantName:'Pemasok',description:'Kertas'}});
     expect(validateManualTransfer({...payload,applicantName:''},now)).toMatchObject({success:false,errors:{applicantName:expect.any(Array)}});
   });

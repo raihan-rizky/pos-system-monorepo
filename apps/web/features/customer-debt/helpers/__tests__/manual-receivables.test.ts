@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createReceivableSchema, receivablePaymentSchema, createReceivable, payReceivable } from "../manual-receivables";
 
-const input = { customerId: "customer-1", amount: 125000, debtDate: "2026-09-01", dueDate: "2026-10-01", clientMutationId: "9e70ff2c-9401-4edb-91a6-d0637ed226ad" };
+const input = { customerId: "customer-1", amount: 125000, debtDate: "2026-09-01", dueDate: "2026-10-01", clientMutationId: "9e70ff2c-9401-4edb-91a6-d0637ed226ad", reportCategory: "ATK" as const };
 const user = { id: "user-1", storeId: "store-1" };
 function fixture() {
   const entry = { id: "debt-1", ...input, storeId: "store-1", amountPaid: 25000, note: null };
@@ -205,6 +205,16 @@ describe("manual customer receivables", () => {
       where: { id: entry.id, storeId: user.storeId },
     }));
     expect(tx.customerReceivable.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects payment if a concurrent correction moved the receivable to another customer", async () => {
+    const { tx, entry } = fixture();
+    tx.customerReceivable.findFirst.mockResolvedValueOnce(entry).mockResolvedValueOnce({ ...entry, customerId: "customer-2" });
+    await expect(payReceivable(tx as unknown as Tx, entry.id, receivablePaymentSchema.parse({
+      amount: 1000, method: "CASH", clientMutationId: input.clientMutationId,
+    }), user)).rejects.toMatchObject({ status: 409 });
+    expect(tx.customerReceivable.updateMany).not.toHaveBeenCalled();
+    expect(tx.customer.updateMany).not.toHaveBeenCalled();
   });
 
   it.each([0.01, 0.29, 9999999999.99])("accepts valid monetary boundary %s", (amount) => {

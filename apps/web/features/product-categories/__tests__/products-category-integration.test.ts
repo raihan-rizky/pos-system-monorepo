@@ -13,6 +13,8 @@ describe("product category integration permissions", () => {
   });
   it("provides the category workspace and clears deleted category filters", () => {
     expect(source.includes('id: "categories" as PageTab')).toBe(true);
-    expect(/<CategoryManagementTab[\s\S]*?onDeleted=\{[\s\S]*?includes\(categoryId\)[\s\S]*?setCategoryId\(""\)/.test(source)).toBe(true);
+    const workspace = readFileSync(join(process.cwd(), "app/(main)/products/ProductCategoriesWorkspace.tsx"), "utf8");
+    expect(workspace).toContain("onDeleted={onLegacyCategoriesDeleted}");
+    expect(/<ProductCategoriesWorkspace[\s\S]*?onLegacyCategoriesDeleted=\{[\s\S]*?includes\(categoryId\)[\s\S]*?setCategoryId\(""\)/.test(source)).toBe(true);
   });
 });

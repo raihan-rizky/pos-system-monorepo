@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getMonthlyFinancialReport } from "../monthly-report";
 vi.mock("@/features/keuangan/repositories/expense-correction-cash-repository", () => ({ loadExpenseCorrectionCash: async () => ({ outflow: [], refunds: [] }) }));
 
-const mocks = vi.hoisted(() => ({ expense: vi.fn(), balances: vi.fn() }));
+const mocks = vi.hoisted(() => ({ expense: vi.fn(), balances: vi.fn(), manualPayables: vi.fn() }));
 vi.mock("@pos/db", async (original) => ({
   ...await original(),
   db: { $transaction: (callback: (tx: unknown) => unknown) => callback({
     transaction: { findMany: async () => [] }, expense: { findMany: mocks.expense },
-    customerReceivable: { findMany: async () => [] }, backdatedPurchase: { findMany: async () => [] }, manualIncome: { findMany: async () => [] },
+    customerReceivable: { findMany: async () => [] }, supplierPayable: { findMany: mocks.manualPayables }, backdatedPurchase: { findMany: async () => [] }, manualIncome: { findMany: async () => [] },
   }) },
 }));
 vi.mock("../monthly-balances", () => ({ getMonthlyBalances: mocks.balances }));
@@ -38,7 +38,23 @@ describe("laporan uang aktual setelah koreksi belanja", () => {
   });
   beforeEach(() => {
     mocks.expense.mockReset();
+    mocks.manualPayables.mockReset().mockResolvedValue([]);
     mocks.balances.mockReset().mockResolvedValue({ openingInventoryBalance: 0, inventoryBalance: 0, supplierDebts: [], supplierDebtBalance: 0 });
+  });
+
+  it("mempertahankan alokasi transfer manual saat pembayaran belanja lain dikoreksi", async () => {
+    const manual = { id: 'manual-transfer', storeId: 'store-1', occurredAt: new Date('2026-11-05T03:00:00Z'), category: 'SUPPLIES', reportCategory: 'SALARY',
+      amount: 350, changeAmount: 0, description: 'Transfer', applicantName: 'Pemasok manual', manualPurchasePaymentMethod: 'TRANSFER', goodsPurchase: null, shoppingRequest: null,
+      manualTransferAllocations: [{ paymentId: 'manual-payment', payableId: 'manual-debt', amount: 300 }] };
+    mocks.expense.mockResolvedValue([expense(), manual]);
+    mocks.manualPayables.mockResolvedValue([{ id: 'manual-debt', storeId: 'store-1', supplierName: 'Pemasok manual', amount: 300,
+      debtDate: date('2026-11-01'), dueDate: null, note: null, reportCategory: 'ATK',
+      payments: [{ id: 'manual-payment', amount: 300, paidAt: date('2026-11-05'), origin: 'MANUAL' }] }]);
+    const report = await getMonthlyFinancialReport('store-1', 2026, 11, now);
+    expect(report.purchasePayments?.filter(row => row.id.startsWith('manual-transfer')).map(({ group, amount }) => ({ group, amount }))).toEqual([
+      { group: 'ATK', amount: 300 }, { group: 'SALARY', amount: 50 },
+    ]);
+    expect(report.expenses.filter(row => row.id.startsWith('manual-payable:'))).toEqual([]);
   });
 
   it("mempertahankan uang Transfer dan tanggal aslinya saat nilai belanja serta tanggal usaha berubah", async () => {

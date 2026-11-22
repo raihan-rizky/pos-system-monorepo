@@ -3,6 +3,8 @@ import { resolveTransactionCustomPrice, TRANSACTION_CUSTOM_PRICE_RULE_ID } from 
 import { CUSTOMER_MANUAL_PRICE_RULE_ID, resolveCustomerManualPrice } from "@/features/pos-checkout/helpers/customer-manual-price";
 import { getPriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
 import { getSpecialPricingEnabled } from "@/features/customer-category-pricing/server/special-pricing-settings";
+import { loadCustomerPricingRules } from "@/features/customer-category-pricing/server/pricing-rule-loader";
+import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
 import { createHash } from "node:crypto";
 import { Prisma } from "@pos/db";
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
@@ -96,6 +98,9 @@ interface CanonicalProduct {
   hargaDinas: unknown;
   unit: string;
   categoryId: string;
+  catalogSubcategoryId: string | null;
+  catalogSubcategory: { legacyCategoryId: string | null } | null;
+  stockGroupId: string | null;
   category: { name: string };
   brandId: string | null;
   brand: { name: string } | null;
@@ -234,7 +239,7 @@ export async function buildApprovalQuote(
     ),
   ];
 
-  const [products, services, rawRules] = await Promise.all([
+  const [products, services, rules] = await Promise.all([
     productIds.length > 0
       ? tx.product.findMany({
           where: { id: { in: productIds }, storeId: input.storeId, isActive: true },
@@ -248,6 +253,9 @@ export async function buildApprovalQuote(
             hargaDinas: true,
             unit: true,
             categoryId: true,
+            catalogSubcategoryId: true,
+            catalogSubcategory: { select: { legacyCategoryId: true } },
+            stockGroupId: true,
             category: { select: { name: true } },
             brandId: true,
             brand: { select: { name: true } },
@@ -270,13 +278,7 @@ export async function buildApprovalQuote(
           },
         })
       : Promise.resolve([]),
-    tx.categoryCustomerPricingRule.findMany({
-      where: { storeId: input.storeId, isActive: true },
-      include: {
-        category: { select: { name: true } },
-        brand: { select: { name: true } },
-      },
-    }),
+    loadCustomerPricingRules(tx, input.storeId),
   ]);
 
   const productById = new Map(
@@ -294,22 +296,7 @@ export async function buildApprovalQuote(
     }
   }
 
-  const rules = rawRules.map((rule) => ({
-    id: rule.id,
-    categoryId: rule.categoryId,
-    categoryName: rule.category.name,
-    customerType: (rule.customerType ?? "ALL") as CategoryPricingRule["customerType"],
-    customerTypes: rule.customerTypes,
-    mode: rule.mode,
-    value: Number(rule.value),
-    discountPercent: Number(rule.discountPercent ?? 0),
-    isActive: rule.isActive,
-    unit: rule.unit,
-    units: rule.units,
-    brandId: rule.brandId,
-    brandName: rule.brand?.name ?? null,
-    updatedAt: rule.updatedAt,
-  })) satisfies CategoryPricingRule[];
+  const baseCosts = await loadProductBaseCosts(tx, products);
   const customerType = (transaction.customer?.type ?? "UMUM") as CustomerType;
 
   const roundingSettings = await getPriceRoundingSettings();
@@ -331,8 +318,11 @@ export async function buildApprovalQuote(
         {
           categoryId: product.categoryId,
           categoryName: product.category.name,
+          catalogSubcategoryId: product.catalogSubcategoryId,
+          catalogSubcategoryLegacyCategoryId: product.catalogSubcategory?.legacyCategoryId ?? null,
           price: regular,
           costPrice: product.costPrice == null ? null : Number(product.costPrice),
+          ...baseCosts.get(product.id),
           hargaAgen: product.hargaAgen == null ? null : Number(product.hargaAgen),
           hargaDinas: product.hargaDinas == null ? null : Number(product.hargaDinas),
           unit: product.unit,

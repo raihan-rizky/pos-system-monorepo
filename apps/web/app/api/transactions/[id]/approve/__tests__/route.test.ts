@@ -70,6 +70,46 @@ vi.mock("@/features/rbac/helpers/rbac-server", () => ({
 }));
 
 describe("POST /api/transactions/[id]/approve", () => {
+  it("checks payment permission when replacing methods on a legacy paid invoice", async () => {
+    const current = await transactionFindFirstMock();
+    transactionFindFirstMock.mockResolvedValue({ ...current, status: "COMPLETED", requestedById: "sales", cashierId: null, payments: [{ method: "CASH", amount: 50000 }] });
+    requirePermissionMock.mockImplementation(async (resource: string) => {
+      if (resource === "customer.receivable.payment") throw new Error("Forbidden");
+      return { id: "cashier", storeId: "store-main" };
+    });
+    handleAuthErrorMock.mockImplementation((error: unknown) => error instanceof Error && error.message === "Forbidden" ? new Response(null, { status: 403 }) : null);
+    const response = await POST(new Request("http://localhost", { method: "POST", body: JSON.stringify({ paymentMethod: "DEBIT", amountPaid: 50000 }) }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(403);
+    expect(paymentDeleteManyMock).not.toHaveBeenCalled();
+    expect(customerUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("conflicts if a legacy invoice payment changes before the conditional write", async () => {
+    const current = await transactionFindFirstMock();
+    transactionFindFirstMock.mockResolvedValue({ ...current, status: "DP", requestedById: "sales", cashierId: null, amountPaid: 10000, payments: [{ method: "TRANSFER", amount: 10000 }] });
+    transactionUpdateManyMock.mockImplementation(async ({ where }: { where: Record<string, unknown> }) => ({ count: where.amountPaid === 10000 && where.status === "DP" ? 0 : 1 }));
+    const response = await POST(new Request("http://localhost", { method: "POST", body: JSON.stringify({ amountPaid: 50000 }) }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(409);
+    expect(paymentDeleteManyMock).not.toHaveBeenCalled();
+    expect(inventoryLogCreateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("requires receivable permission before changing an already-active legacy invoice", async () => {
+    const current = await transactionFindFirstMock();
+    transactionFindFirstMock.mockResolvedValue({ ...current, status: "DP", requestedById: "sales", cashierId: null, amountPaid: 10000, payments: [{ method: "TRANSFER", amount: 10000 }] });
+    requirePermissionMock.mockImplementation(async (resource: string) => {
+      if (resource.startsWith("customer.receivable")) throw new Error("Forbidden");
+      return { id: "cashier", storeId: "store-main" };
+    });
+    handleAuthErrorMock.mockImplementation((error: unknown) => error instanceof Error && error.message === "Forbidden" ? new Response(null, { status: 403 }) : null);
+    const response = await POST(new Request("http://localhost", { method: "POST", body: JSON.stringify({ amountPaid: 50000, paymentMethod: "TRANSFER" }) }), { params: Promise.resolve({ id: "tx-1" }) });
+    expect(response.status).toBe(403);
+    expect(customerUpdateMock).not.toHaveBeenCalled();
+    expect(transactionUpdateManyMock).not.toHaveBeenCalled();
+    expect(paymentCreateManyMock).not.toHaveBeenCalled();
+    expect(inventoryLogCreateManyMock).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["APPROVAL_CUSTOM_PRICE_FORBIDDEN", 403],
     ["APPROVAL_INVALID_PRICE", 422],

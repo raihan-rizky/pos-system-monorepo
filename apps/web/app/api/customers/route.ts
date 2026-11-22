@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { z } from "zod";
-import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError, canAuthenticatedUserPerform, AuthError } from "@/lib/rbac/guard";
 import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
 import { CUSTOMER_TYPES, toDbCustomerType } from "@/lib/customers";
 import {
@@ -31,6 +31,7 @@ const createCustomerSchema = z.object({
 export async function GET(request: Request) {
   try {
     const user = await requirePermission("customer", "read");
+    const canViewReceivables = await canAuthenticatedUserPerform(user, "customer.receivable", "read");
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const type = searchParams.get("type") || "";
@@ -68,13 +69,14 @@ export async function GET(request: Request) {
       notes: true,
       totalSpent: true,
       totalOrders: true,
-      totalDebt: true,
+      totalDebt: canViewReceivables,
       loyaltyPoint: true,
       lastVisitAt: true,
       createdAt: true,
     } satisfies Prisma.CustomerSelect;
 
     const hasDebt = searchParams.get("hasDebt") === "true";
+    if (hasDebt && !canViewReceivables) throw new AuthError(403, "Izin melihat piutang diperlukan.");
 
     if (hasDebt) {
       const allMatchingCustomers = await db.customer.findMany({
@@ -106,6 +108,9 @@ export async function GET(request: Request) {
         select: customerSelect,
       }),
     ]);
+    if (!canViewReceivables) {
+      return apiList(customers.map(({ totalDebt: _totalDebt, ...customer }) => customer), buildPaginationMeta(total, page, limit));
+    }
     const debtByCustomerId = await loadCustomerDebtByActiveDp(db, {
       storeId,
       customers,

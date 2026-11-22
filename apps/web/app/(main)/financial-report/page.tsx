@@ -15,7 +15,7 @@ import {
   PackageX,
   ReceiptText,
 } from "lucide-react";
-import { formatRupiah } from "@/lib/utils";
+import { formatRupiahPrecise } from "@/lib/utils";
 import {
   buildFinancialReportRange,
   type FinancialReportPreset,
@@ -77,25 +77,27 @@ function formatRange(dateFrom: string, dateTo: string): string {
 
 export default function FinancialReportPage() {
   const { role, canAccess, canPerform } = useRole();
-  const [viewMode, setViewMode] = React.useState<"full" | "sales">("full");
+  const [viewMode, setViewMode] = React.useState<"full" | "daily" | "sales">("full");
   if (!canAccess("/financial-report")) return <p className="p-6 text-sm text-surface-600">Akses Laporan Keuangan belum diizinkan.</p>;
   const canReadFullReport = canPerform("financial-report", "read");
   if (!canReadFullReport) return <DailyIncomeReport />;
-  if (role !== "OWNER") return <FullFinancialReport />;
+  const currentView = viewMode === "sales" && role !== "OWNER" ? "full" : viewMode;
+  const views: Array<["full" | "daily" | "sales", string]> = [["full", "Laporan Lengkap"], ["daily", "Pemasukan Harian"]];
+  if (role === "OWNER") views.push(["sales", "Lihat sebagai Sales"]);
   return <div className="flex min-h-0 flex-1 flex-col">
     <div className="border-b border-surface-200 bg-white px-4 py-3 md:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div role="group" aria-label="Tampilan laporan" className="inline-flex flex-wrap gap-1 rounded-xl bg-surface-100 p-1">
-          {([ ["full", "Laporan Lengkap"], ["sales", "Lihat sebagai Sales"] ] as const).map(([mode, label]) => <button key={mode} type="button" aria-pressed={viewMode === mode} onClick={() => setViewMode(mode)} className={`min-h-10 rounded-lg px-3 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${viewMode === mode ? "bg-white text-brand-800 shadow-sm" : "text-surface-600 hover:bg-white hover:text-surface-900"}`}>{label}</button>)}
+          {views.map(([mode, label]) => <button key={mode} type="button" aria-pressed={currentView === mode} onClick={() => setViewMode(mode)} className={`min-h-10 rounded-lg px-3 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${currentView === mode ? "bg-white text-brand-800 shadow-sm" : "text-surface-600 hover:bg-white hover:text-surface-900"}`}>{label}</button>)}
         </div>
-        {viewMode === "sales" && <p className="text-xs text-surface-600">Tampilan Sales mengikuti izin Sales yang diatur di Hak Akses.</p>}
+        {currentView === "sales" && <p className="text-xs text-surface-600">Tampilan Sales mengikuti izin Sales yang diatur di Hak Akses.</p>}
       </div>
     </div>
-    {viewMode === "sales" ? <DailyIncomeReport previewSales fullReportPreview={<FullFinancialReport />} /> : <FullFinancialReport />}
+    {currentView === "sales" ? <DailyIncomeReport previewSales fullReportPreview={exportAccess => <FullFinancialReport previewSales previewExportAccess={exportAccess} />} /> : currentView === "daily" ? <DailyIncomeReport /> : <FullFinancialReport />}
   </div>;
 }
 
-function FullFinancialReport() {
+function FullFinancialReport({ previewSales = false, previewExportAccess = false }: { previewSales?: boolean; previewExportAccess?: boolean } = {}) {
   const initialRange = React.useMemo(
     () => buildFinancialReportRange("month"),
     [],
@@ -108,6 +110,7 @@ function FullFinancialReport() {
   const { data: report, isLoading, isFetching, error } = useFinancialReport({
     dateFrom,
     dateTo,
+    ...(previewSales ? { view: "sales" as const } : {}),
   });
 
   const selectPreset = React.useCallback((nextPreset: FinancialReportPreset) => {
@@ -179,7 +182,7 @@ function FullFinancialReport() {
           name: row.categoryName,
           primaryValue: row.revenue,
           secondaryValue: row.grossProfit,
-          countLabel: `${row.transactionCount} trx`,
+          countLabel: `${row.transactionCount} entri`,
         })),
     [report?.categories],
   );
@@ -224,7 +227,7 @@ function FullFinancialReport() {
                   );
                 })}
               </div>
-              <ReportExportMenu />
+              <ReportExportMenu previewSales={previewSales} previewExportAccess={previewExportAccess} reportRange={{ from: dateFrom, to: dateTo }} />
             </div>
           </div>
         </div>
@@ -300,6 +303,12 @@ function FullFinancialReport() {
             </div>
           )}
 
+          {!isLoading && (summary?.manualIncomeCount ?? 0) > 0 && (
+            <p role="note" className="border-t border-amber-100 bg-amber-50/70 px-4 py-2.5 text-[12px] text-amber-800 md:px-5">
+              Pemasukan manual masuk omzet dan terkumpul, tetapi tidak dihitung dalam laba kotor karena HPP tidak dicatat.
+            </p>
+          )}
+
           {!isLoading && lossStokUnclassifiedCount > 0 && (
             <div
               role="note"
@@ -348,8 +357,8 @@ function FullFinancialReport() {
         >
           <KpiCard
             label="Omzet"
-            value={formatRupiah(summary?.revenue ?? 0)}
-            hint={`${transactionCount} transaksi`}
+            value={formatRupiahPrecise(summary?.revenue ?? 0)}
+            hint={`${transactionCount} transaksi${summary?.manualIncomeCount ? ` · ${summary.manualIncomeCount} pemasukan manual` : ""}`}
             tone="brand"
             loading={isLoading}
             icon={<Wallet className="h-4 w-4" aria-hidden="true" />}
@@ -362,7 +371,7 @@ function FullFinancialReport() {
           />
           <KpiCard
             label="Terkumpul"
-            value={formatRupiah(summary?.collected ?? 0)}
+            value={formatRupiahPrecise(summary?.collected ?? 0)}
             hint={`${(collectionRate * 100).toFixed(1)}% dari omzet`}
             tone="success"
             loading={isLoading}
@@ -376,7 +385,7 @@ function FullFinancialReport() {
           />
           <KpiCard
             label="Laba Kotor"
-            value={formatRupiah(summary?.grossProfit ?? 0)}
+            value={formatRupiahPrecise(summary?.grossProfit ?? 0)}
             hint="Setelah HPP & Loss Stok"
             tone="success"
             loading={isLoading}
@@ -390,7 +399,7 @@ function FullFinancialReport() {
           />
           <KpiCard
             label="Pengeluaran"
-            value={formatRupiah(summary?.expenseTotal ?? 0)}
+            value={formatRupiahPrecise(summary?.expenseTotal ?? 0)}
             hint={`${summary?.expenseEntryCount ?? 0} entri`}
             tone="danger"
             loading={isLoading}
@@ -404,20 +413,37 @@ function FullFinancialReport() {
           />
           <KpiCard
             label="Outstanding DP"
-            value={formatRupiah(summary?.outstandingDp ?? 0)}
+            value={formatRupiahPrecise(summary?.outstandingDp ?? 0)}
             hint="Sisa belum dibayar"
             tone="warning"
             loading={isLoading}
             icon={<Hourglass className="h-4 w-4" aria-hidden="true" />}
             infoText={{
               title: "Sisa DP Belum Lunas",
-              description: "Uang yang masih harus ditagih dari transaksi DP.",
+              description:
+                "Sisa transaksi berstatus DP. Tidak termasuk Tempo atau Piutang Manual.",
               formula: "total − dibayar (untuk transaksi DP)",
             }}
           />
+          {report?.summary.receivableBalance !== undefined && (
+            <KpiCard
+              label="Piutang"
+              value={formatRupiahPrecise(report.summary.receivableBalance)}
+              hint="Saldo terkini"
+              tone="warning"
+              loading={isLoading}
+              icon={<Wallet className="h-4 w-4" aria-hidden="true" />}
+              infoText={{
+                title: "Piutang Tempo dan Manual",
+                description:
+                  "Sisa tagihan Tempo dan Piutang Manual yang tercatat hingga tanggal akhir laporan, berdasarkan pembayaran terbaru. Tidak termasuk DP.",
+                formula: "sisa Tempo + sisa Piutang Manual",
+              }}
+            />
+          )}
           <KpiCard
             label="Loss Stok"
-            value={formatRupiah(lossStokNet)}
+            value={formatRupiahPrecise(lossStokNet)}
             hint={
               lossStokUnclassifiedCount > 0
                 ? `${lossStokUnclassifiedCount} belum diklasifikasi`
@@ -480,8 +506,8 @@ function FullFinancialReport() {
           <RankedListCard
             title="Top Subkategori"
             accent="brand"
-            rows={(report?.subcategories ?? []).slice().sort((a, b) => b.revenue - a.revenue).map(row => ({ key: `${row.categoryName}:${row.subcategoryName}`, name: `${row.categoryName} / ${row.subcategoryName}`, primaryValue: row.revenue, secondaryValue: row.grossProfit, countLabel: `${row.transactionCount} trx` }))}
-            maxRows={100}
+            rows={(report?.subcategories ?? []).slice().sort((a, b) => b.revenue - a.revenue).map(row => ({ key: `${row.categoryName}:${row.subcategoryName}`, name: `${row.categoryName} / ${row.subcategoryName}`, primaryValue: row.revenue, secondaryValue: row.grossProfit, countLabel: `${row.transactionCount} entri` }))}
+            maxRows={report?.subcategories?.length ?? 0}
             loading={isLoading}
             emptyText="Belum ada subkategori pada periode ini."
           />

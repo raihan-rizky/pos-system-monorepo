@@ -61,6 +61,7 @@ describe("GET /api/transactions/[id]/approval-quote", () => {
       product: { findMany: vi.fn().mockResolvedValue([{ id: "paper", name: "Kertas", price: 4049, costPrice: 1000, hargaAgen: null, hargaDinas: null, unit: "pcs", categoryId: "paper-category", category: { name: "Kertas" }, brandId: null, brand: null }]) },
       printingService: { findMany: vi.fn().mockResolvedValue([]) },
       categoryCustomerPricingRule: { findMany: vi.fn().mockResolvedValue([]) },
+      subcategoryCustomerPricingRule: { findMany: vi.fn().mockResolvedValue([]) },
     };
     buildApprovalQuoteMock.mockImplementation((_tx, input) => buildApprovalQuote(client as never, input));
     const response = await POST(new Request("http://localhost/api/transactions/tx-1/approval-quote", { method: "POST", body: JSON.stringify({ type: "draft",

@@ -16,8 +16,9 @@ const bundle = await build({ stdin: { contents: `
   const client=new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}});
   window.invalidated=[]; const invalidate=client.invalidateQueries.bind(client);
   client.invalidateQueries=(options)=>{window.invalidated.push(options.queryKey);return invalidate(options)};
+  window.refetchReceivables=()=>client.refetchQueries({queryKey:['customer-receivables']});
   const root=createRoot(document.getElementById('root'));
-  window.renderSection=(props={customerId:'customer-1',customerName:'Pelanggan Contoh'})=>root.render(
+  window.renderSection=(props={customerId:'customer-1',customerName:'Pelanggan Contoh',canAdd:true,canPay:true,canEdit:true,canEditPayment:true})=>root.render(
     <QueryClientProvider client={client}><CustomerReceivablesSection key={JSON.stringify(props)} {...props}/></QueryClientProvider>);
   window.renderSection();`, resolveDir:web, loader:'tsx' }, bundle:true,write:false,platform:'browser',format:'iife',jsx:'automatic',alias:{'@':web},define:{'process.env.NODE_ENV':'"production"'} });
 const modalBundle = await build({ stdin: { contents: `
@@ -44,15 +45,58 @@ try {
     if(req.method()==='GET'){
       if(url.pathname.endsWith('/dp-transactions'))return route.fulfill({json:[]});
       if(url.pathname==='/api/customers/customer-1')return route.fulfill({json:{id:'customer-1',name:'Pelanggan Contoh',totalDebt:entries.reduce((sum,e)=>sum+Number(e.amount)-Number(e.amountPaid),0)}});
+      if(url.pathname==='/api/customers')return route.fulfill({json:{data:[{id:'customer-1',name:'Pelanggan Contoh'},{id:'customer-2',name:'Pelanggan Kedua'}],pagination:{page:1,total:2,totalPages:1}}});
       gets.push(url.search);
       if(failList)return route.fulfill({status:503,json:{message:'Layanan piutang sedang tidak tersedia.'}});
       return route.fulfill({json:{data:url.searchParams.get('status')==='open'?entries.filter(e=>Number(e.amount)>Number(e.amountPaid)):entries,pagination:{page:Number(url.searchParams.get('page')),total:totalPages===2?21:entries.length,totalPages}}});}
     const payload=req.postDataJSON();requests.push({url:url.pathname,payload});
+    if(req.method()==='PATCH'){
+      if(url.pathname.includes('/payments/')) entries=entries.map(e=>({...e,amountPaid:String(Number(e.amountPaid)-Number(e.payments[0].amount)+payload.amount),payments:e.payments.map(p=>({...p,...payload}))}));
+      else entries=entries.map(e=>({...e,...payload,amount:String(payload.amount)}));
+      return route.fulfill({json:{success:true}});
+    }
     if(failSave)return route.fulfill({status:500,json:{message:'Koneksi terputus. Coba lagi.'}});
     if(failPayment && url.pathname.endsWith('/payments'))return route.fulfill({status:409,json:{message:'Sisa piutang berubah. Periksa nominal pembayaran lalu coba lagi.'}});
     if(url.pathname.endsWith('/payments')){entries=entries.map(e=>({...e,amountPaid:String(Number(e.amountPaid)+payload.amount),payments:[...e.payments,{id:`p${requests.length}`,...payload,createdAt:'2026-10-20T01:00:00Z'}]}));if(entries.every(e=>Number(e.amountPaid)>=Number(e.amount)))totalPages=1;return route.fulfill({json:entries[0]});}
-    entries=[{id:'manual-1',customerId:'customer-1',customer:{id:'customer-1',name:'Pelanggan Contoh'},amount:String(payload.amount),amountPaid:'0',debtDate:payload.debtDate,dueDate:payload.dueDate,note:payload.note,payments:[],createdAt:'2026-10-20T00:00:00Z'}];return route.fulfill({status:201,json:entries[0]});
+    entries=[{id:'manual-1',customerId:'customer-1',customer:{id:'customer-1',name:'Pelanggan Contoh'},amount:String(payload.amount),amountPaid:'0',debtDate:payload.debtDate,dueDate:payload.dueDate,reportCategory:payload.reportCategory,note:payload.note,payments:[],createdAt:'2026-10-20T00:00:00Z',updatedAt:'2026-10-20T00:00:00.000Z'}];return route.fulfill({status:201,json:entries[0]});
   });
+  await page.goto('http://localhost:3004/__receivables');await page.addStyleTag({content:css.css});await page.addScriptTag({content:bundle.outputFiles[0].text});
+  await page.evaluate(()=>window.localStorage.clear());
+  await page.evaluate(()=>window.renderSection({customerId:'customer-1',customerName:'Pelanggan Contoh',canAdd:false,canPay:true,collapsible:true}));
+  const manualToggle=page.getByRole('button',{name:'Piutang Manual',exact:true});
+  assert.equal(await manualToggle.count(),1,'the manual receivables heading exposes a toggle');
+  await manualToggle.waitFor();
+  assert.equal(await manualToggle.getAttribute('aria-expanded'),'true','a missing preference defaults to expanded');
+  const contentId=await manualToggle.getAttribute('aria-controls');
+  assert.ok(contentId,'the toggle points to its controlled content');
+  const manualContent=page.locator('[id="'+contentId+'"]');
+  assert.equal(await manualContent.isVisible(),true,'expanded manual receivables content is visible');
+  await manualToggle.focus();await page.keyboard.press('Space');
+  await page.waitForFunction(id=>document.getElementById(id)?.hidden===true,contentId);
+  assert.equal(await manualToggle.getAttribute('aria-expanded'),'false');
+  assert.equal(await page.evaluate(key=>window.localStorage.getItem(key),'pos:customers:manual-receivables:expanded'),'false');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(id=>document.getElementById(id)?.hidden===false,contentId);
+  assert.equal(await manualToggle.getAttribute('aria-expanded'),'true');
+  await page.keyboard.press('Space');
+  await page.waitForFunction(id=>document.getElementById(id)?.hidden===true,contentId);
+  await page.reload();await page.addStyleTag({content:css.css});await page.addScriptTag({content:bundle.outputFiles[0].text});
+  await page.evaluate(()=>window.renderSection({customerId:'customer-1',customerName:'Pelanggan Contoh',canAdd:false,canPay:true,collapsible:true}));
+  const restoredToggle=page.getByRole('button',{name:'Piutang Manual',exact:true});
+  await restoredToggle.waitFor();
+  const restoredContentId=await restoredToggle.getAttribute('aria-controls');
+  await page.waitForFunction(id=>document.getElementById(id)?.hidden===true,restoredContentId);
+  assert.equal(await restoredToggle.getAttribute('aria-expanded'),'false','the collapsed state is restored after reload');
+  await page.evaluate(()=>{
+    Object.defineProperty(Storage.prototype,'getItem',{configurable:true,value:()=>{throw new Error('storage blocked')}});
+    Object.defineProperty(Storage.prototype,'setItem',{configurable:true,value:()=>{throw new Error('storage blocked')}});
+    window.renderSection({customerId:'customer-1',customerName:'Pelanggan Contoh',canAdd:false,canPay:false,collapsible:true});
+  });
+  const fallbackToggle=page.getByRole('button',{name:'Piutang Manual',exact:true});
+  await fallbackToggle.waitFor();
+  assert.equal(await fallbackToggle.getAttribute('aria-expanded'),'true','storage read failures keep the section usable');
+  await fallbackToggle.focus();await page.keyboard.press('Space');
+  assert.equal(await fallbackToggle.getAttribute('aria-expanded'),'false','storage write failures do not block toggling');
   await page.goto('http://localhost:3004/__receivables');await page.addStyleTag({content:css.css});await page.addScriptTag({content:bundle.outputFiles[0].text});
   await page.getByRole('button',{name:'Tambah Piutang',exact:true}).focus();await page.keyboard.press('Enter');
   const amount=page.getByLabel('Nominal piutang');
@@ -76,6 +120,11 @@ try {
   await page.waitForFunction(()=>document.querySelector('button[type=submit]')?.textContent==='Simpan Piutang');
   assert.equal(requests.length,0,'more than two decimals is rejected before HTTP');failSave=false;
   await page.getByLabel('Nominal piutang').fill('125000');await page.getByLabel('Tanggal utang',{exact:true}).fill('2026-10-01');await page.getByLabel('Tanggal jatuh tempo',{exact:true}).fill('2026-10-31');await page.getByLabel('Catatan (opsional)',{exact:true}).fill('Saldo awal pelanggan');
+  await save.click();
+  assert.equal(await page.getByLabel('Kategori laporan').getAttribute('aria-invalid'),'true');
+  assert.equal(await page.getByLabel('Kategori laporan').evaluate(el=>el===document.activeElement),true,'missing category receives focus');
+  assert.equal(requests.length,0,'category is required before creating a receivable');
+  await page.getByLabel('Kategori laporan').selectOption('PLAT');
   const note=page.getByLabel('Catatan (opsional)',{exact:true});
   assert.equal(await note.getAttribute('maxlength'),'500');
   await note.fill('a'.repeat(501));assert.equal((await note.inputValue()).length,500,'native note limit prevents more than500 characters');
@@ -97,7 +146,8 @@ try {
   assert.equal(requests[0].payload.clientMutationId,requests[1].payload.clientMutationId,'retry uses the same idempotency key');
   failSave=false;await save.click();await page.getByText('Saldo awal pelanggan',{exact:true}).waitFor();
   assert.equal(requests[2].payload.clientMutationId,requests[0].payload.clientMutationId);
-  assert.deepEqual(Object.keys(requests[2].payload).sort(),['amount','clientMutationId','customerId','debtDate','dueDate','note']);
+  assert.deepEqual(Object.keys(requests[2].payload).sort(),['amount','clientMutationId','customerId','debtDate','dueDate','note','reportCategory']);
+  assert.equal(requests[2].payload.reportCategory,'PLAT');
   for(const key of ['customers','customer-recap','customer-receivables'])assert.ok((await page.evaluate(()=>window.invalidated)).some(q=>q[0]===key));
   console.log('PASS add, accessible validation, server failure and idempotent retry; invalidate customer summaries.');
   console.log('PASS keyboard entry/focus, zero/negative/precision/maximum amount boundaries, future debt date, due-date ordering, note500 limit.');
@@ -128,12 +178,30 @@ try {
   assert.equal(requests.at(-1).payload.note,'Cicilan dari pelanggan');
   console.log('PASS payment409 error preserves fields, repeated retry UUID, edited payload UUID, retry success, payment note limit and keyboard focus.');
   await page.getByText('Riwayat pembayaran').click();await page.getByText(/Transfer/).waitFor();
+  await page.getByRole('button',{name:'Ubah piutang',exact:true}).click();
+  entries[0].updatedAt='2026-10-20T00:00:01.000Z';
+  await page.evaluate(()=>window.refetchReceivables());
+  await page.getByLabel('Pelanggan piutang').selectOption('customer-2');
+  await page.getByLabel('Kategori laporan piutang').selectOption('ATK');
+  await page.getByLabel('Nominal piutang',{exact:true}).fill('125000.25');
+  await page.getByRole('button',{name:'Simpan perubahan piutang'}).click();
+  await page.getByText('Piutang berhasil diubah.').waitFor();
+  assert.equal(requests.at(-1).payload.reportCategory,'ATK');
+  assert.equal(requests.at(-1).payload.customerId,'customer-2');
+  assert.equal(requests.at(-1).payload.expectedUpdatedAt,'2026-10-20T00:00:00.000Z','a refreshed record must not change the draft version');
+  if(!await page.locator('details').evaluate(element=>element.open))await page.getByText('Riwayat pembayaran').click();
+  await page.getByRole('button',{name:'Ubah pembayaran piutang'}).click();
+  await page.getByLabel('Tanggal pembayaran piutang').fill('2026-10-21');
+  await page.getByLabel('Nominal pembayaran piutang',{exact:true}).fill('20000');
+  await page.getByRole('button',{name:'Simpan perubahan pembayaran'}).click();
+  await page.getByText('Pembayaran berhasil diubah.').waitFor();
+  assert.equal(requests.at(-1).payload.paidAt,'2026-10-21');
   await page.getByRole('button',{name:'Halaman berikutnya'}).click();await page.waitForFunction(()=>document.body.textContent.includes('Halaman 2 dari 2'));assert.ok(gets.at(-1).includes('page=2'));
   const beforeLastPayment=structuredClone(entries);
   await page.getByRole('button',{name:'Bayar Piutang Manual',exact:true}).click();await page.getByRole('button',{name:'Simpan Pembayaran',exact:true}).click();
   await page.getByText('Tidak ada piutang manual yang belum lunas.',{exact:true}).waitFor();
   assert.ok(gets.at(-1).includes('page=1'),'paying last open item on page2 resets pagination to available page1');
-  entries=beforeLastPayment;totalPages=2;
+  entries=beforeLastPayment;entries[0].amountPaid='25000';totalPages=2;
   await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.screenshot({path:path.join(artifacts,'mobile.png')});
   await page.evaluate(()=>window.renderSection({customerId:'customer-1',canAdd:false,canPay:false}));await page.getByRole('heading',{name:'Piutang Manual'}).waitFor();assert.equal(await page.getByRole('button',{name:'Tambah Piutang',exact:true}).count(),0);assert.equal(await page.getByRole('button',{name:'Bayar Piutang Manual',exact:true}).count(),0);
@@ -145,10 +213,11 @@ try {
   await page.getByText('Pelanggan Contoh',{exact:true}).waitFor();assert.equal(await page.getByRole('alert').count(),0,'list error clears after keyboard retry');
   console.log('PASS global list503 error and keyboard retry recover without mutating entries.');
   await page.getByLabel('Cari piutang manual').fill('Contoh');await page.waitForTimeout(450);assert.ok(gets.at(-1).includes('search=Contoh'));assert.ok(gets.at(-1).includes('status=open'));
-  await page.setViewportSize({width:900,height:1000});await page.getByLabel('Cari piutang manual').fill('');await page.waitForTimeout(450);await page.getByRole('region',{name:'Piutang Manual'}).screenshot({path:path.join(repo,'apps/web/public/images/changelog/piutang-manual-pelanggan.png')});
+  await page.setViewportSize({width:900,height:1000});await page.getByLabel('Cari piutang manual').fill('');await page.waitForTimeout(450);await page.getByRole('region',{name:'Piutang Manual'}).screenshot({path:path.join(artifacts,'piutang-manual-pelanggan.png')});
   await page.goto('http://localhost:3004/__modal');await page.addScriptTag({content:modalBundle.outputFiles[0].text});
   await page.getByText('Rp 100.000,25',{exact:true}).and(page.locator('p')).waitFor();
   assert.equal(await page.getByRole('button',{name:'Tambah Piutang',exact:true}).count(),0);
+  assert.equal(await page.getByRole('button',{name:'Piutang Manual',exact:true}).count(),0,'the existing payment modal keeps its static manual receivables heading');
   await page.getByRole('button',{name:'Bayar Piutang Manual',exact:true}).click();
   await page.getByRole('button',{name:'Simpan Pembayaran',exact:true}).click();
   await page.getByText('Rp 0',{exact:true}).first().waitFor();await page.getByText('Lunas',{exact:true}).waitFor();

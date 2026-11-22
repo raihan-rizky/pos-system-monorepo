@@ -24,6 +24,7 @@ describe("offline POS authorization", () => {
           window.offlineVault = { ensureOfflineGeneration, invalidateOfflineAccess, saveOfflinePage, listOfflinePages, clearClientAuthState };
           const permissions = buildDefaultRolePermissions();
           if (window.noTransactionPermission) permissions.CASHIER.resources.transaction.create = false;
+          if (window.noProductPermission) permissions.CASHIER.resources.product.read = false;
           window.providerRole = window.initialRole || 'CASHIER';
           window.snapshot = { user: { id:'cashier-1', name:'Kasir', role:window.providerRole, storeId:'store-1' }, authorizationFingerprint:'0123456789abcdef', permissions };
           window.mode = window.initialMode || 'offline';
@@ -67,7 +68,7 @@ describe("offline POS authorization", () => {
             window.renderedAccess.push({ visible: role.canAccess('/pos'), create: role.canPerform('transaction', 'create') });
             return <main id='protected' data-pos={String(role.canAccess('/pos'))} data-settings={String(role.canAccess('/settings'))}
               data-create={String(role.canPerform('transaction','create'))} data-edit={String(role.canPerform('product','update'))}
-              data-delete-proof={String(role.canPerform('proof_upload','delete'))}>POS</main>;
+              data-catalog-read={String(role.canReadOfflineCatalog)} data-delete-proof={String(role.canPerform('proof_upload','delete'))}>POS</main>;
           }
           createRoot(document.getElementById('root')).render(<RoleProvider role={window.providerRole} userId='cashier-1' userName='Kasir'
             storeId='store-1' authorizationFingerprint='0123456789abcdef' permissions={permissions} permissionsVerified={window.initiallyVerified !== false}><Probe /></RoleProvider>);
@@ -102,12 +103,13 @@ describe("offline POS authorization", () => {
   });
 
   async function open(options: { handoff?: boolean; fingerprint?: string; verified?: boolean; path?: string;
-    cashierId?: string; storeId?: string; role?: string; preparedAt?: string; revoked?: boolean; noTransactionPermission?: boolean; mode?: string; vaultMissing?: boolean; providerRole?: string } = {}, context?: BrowserContext) {
+    cashierId?: string; storeId?: string; role?: string; preparedAt?: string; revoked?: boolean; noTransactionPermission?: boolean; noProductPermission?: boolean; mode?: string; vaultMissing?: boolean; providerRole?: string } = {}, context?: BrowserContext) {
     const page = context ? await context.newPage() : await browser.newPage();
     await page.goto(`${origin}${options.path ?? "/pos"}`);
-    await page.evaluate(async ({ handoff, fingerprint, verified, cashierId, storeId, role, preparedAt, revoked, noTransactionPermission, mode, vaultMissing, providerRole }) => {
+    await page.evaluate(async ({ handoff, fingerprint, verified, cashierId, storeId, role, preparedAt, revoked, noTransactionPermission, noProductPermission, mode, vaultMissing, providerRole }) => {
       (window as any).initiallyVerified = verified;
       (window as any).noTransactionPermission = noTransactionPermission;
+      (window as any).noProductPermission = noProductPermission;
       (window as any).initialMode = mode;
       (window as any).initialRole = providerRole;
       if (revoked) localStorage.setItem('pos:offline-access-revoked:["cashier-1","store-1"]', 'revoked');
@@ -154,6 +156,15 @@ describe("offline POS authorization", () => {
       expect(await page.locator("#protected").getAttribute("data-create")).toBe("true");
       expect(await page.locator("#protected").getAttribute("data-settings")).toBe("false");
       expect(await page.locator("#protected").getAttribute("data-edit")).toBe("false");
+      expect(await page.locator("#protected").getAttribute("data-catalog-read")).toBe("true");
+    } finally { await page.close(); }
+  }, 15_000);
+
+  it("does not grant offline catalog pricing access without product read permission", async () => {
+    const page = await open({ handoff: true, noProductPermission: true });
+    try {
+      await expect.poll(() => page.locator("#protected").isVisible()).toBe(true);
+      expect(await page.locator("#protected").getAttribute("data-catalog-read")).toBe("false");
     } finally { await page.close(); }
   }, 15_000);
 

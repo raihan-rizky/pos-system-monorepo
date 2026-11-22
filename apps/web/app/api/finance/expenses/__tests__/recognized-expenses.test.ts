@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ permission: vi.fn(), findMany: vi.fn(), count: vi.fn(), recognized: vi.fn() }));
 vi.mock("@pos/db", () => ({ db: { expense: { findMany: mocks.findMany, count: mocks.count } } }));
-vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.permission, requireRole: mocks.permission, handleAuthError: () => null }));
+vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.permission, requireRole: mocks.permission,
+  canAuthenticatedUserAccessPage: async () => true, handleAuthError: () => null }));
 vi.mock("@/features/keuangan/services/recognized-finance", () => ({ loadRecognizedExpenses: mocks.recognized }));
 vi.mock("@/lib/logger", () => ({ getLogger: () => ({ error: vi.fn() }) }));
 import { GET as summary } from "../summary/route";

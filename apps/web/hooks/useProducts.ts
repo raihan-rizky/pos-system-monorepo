@@ -4,12 +4,31 @@ import { invalidatePricingQueries } from "@/features/product-stock-groups/invali
 import { useEffect } from "react";
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDebounce } from "./useDebounce";
-import type { ProductStockStatusFilter } from "@/features/pos-search/pos-stock-filter";
+import { matchesStockFilter, type ProductStockStatusFilter } from "@/features/pos-search/pos-stock-filter";
+import { matchesPosCatalogFilter } from "@/features/pos-search/pos-catalog-filter";
+import { matchesSearchTokens, parseSearchQuery } from "@/features/pos-search/pos-search";
 import type { AppliedCategoryPricing } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import type { PriceRoundingResult } from "@/features/product-price-rounding/rounding";
 import type { OfflineCatalogIdentity } from "@/lib/offline/offline-db";
 
+type ProductCategoryClassification = {
+  id: string;
+  group: "ATK" | "PERCETAKAN";
+  name: string;
+  legacyCategoryId?: string | null;
+};
+type ProductCategory = {
+  id: string;
+  name: string;
+  icon: string | null;
+  color: string | null;
+  catalogSubcategory?: ProductCategoryClassification | null;
+};
+
 export interface ProductVariant {
+  catalogSubcategoryId?: string | null;
+  catalogSubcategory?: ProductCategoryClassification | null;
+  category?: ProductCategory;
   priceRounding?: PriceRoundingResult | null;
   description?: string | null;
   displayPrice?: number;
@@ -43,6 +62,8 @@ export interface ProductVariant {
 }
 
 export interface Product {
+  catalogSubcategoryId?: string | null;
+  catalogSubcategory?: ProductCategoryClassification | null;
   priceRounding?: PriceRoundingResult | null;
   description?: string | null;
   displayPrice?: number;
@@ -73,12 +94,7 @@ export interface Product {
     baseUnit: string;
     baseStock: number;
   } | null;
-  category: {
-    id: string;
-    name: string;
-    icon: string | null;
-    color: string | null;
-  };
+  category: ProductCategory;
   brandId?: string | null;
   brand?: {
     id: string;
@@ -118,6 +134,8 @@ export interface ProductsResponse {
 }
 
 export interface UseProductsOptions {
+  catalogGroup?: "ATK" | "PERCETAKAN" | "UNCLASSIFIED";
+  catalogSubcategoryId?: string;
   unit?: string;
   page?: number;
   limit?: number;
@@ -144,6 +162,7 @@ export function productQueryKey(
     options.stockStatus === "all" ? undefined : options.stockStatus,
     options.stockGroupMinVariants || undefined,
     ...(options.unit?.trim() ? [options.unit.trim().toLowerCase()] : []),
+    ...(options.catalogGroup || options.catalogSubcategoryId ? ["classification", options.catalogGroup || "", options.catalogSubcategoryId || ""] : []),
     ...(options.offlineIdentity ? ["offline-identity", options.offlineIdentity.cashierId, options.offlineIdentity.storeId] : []),
   ] as const;
 }
@@ -159,12 +178,16 @@ export async function fetchProducts(
   signal?: AbortSignal,
   unit?: string,
   offlineIdentity?: OfflineCatalogIdentity,
+  catalogGroup?: UseProductsOptions["catalogGroup"],
+  catalogSubcategoryId?: string,
 ): Promise<ProductsResponse> {
   const params = new URLSearchParams();
   const normalizedUnit = unit?.trim().toLowerCase() || "";
   if (normalizedUnit) params.set("unit", normalizedUnit);
   if (search) params.set("search", search);
   if (categoryId) params.set("categoryId", categoryId);
+  if (catalogGroup) params.set("catalogGroup", catalogGroup);
+  if (catalogSubcategoryId) params.set("catalogSubcategoryId", catalogSubcategoryId);
   params.set("page", String(page));
   params.set("limit", String(limit));
   if (inStockOnly) params.set("inStockOnly", "true");
@@ -190,25 +213,39 @@ export async function fetchProducts(
     const { getCachedCatalogProducts } = await import("@/lib/offline/offline-db");
     signal?.throwIfAborted();
     const cachedProducts = await getCachedCatalogProducts<Product>(
-      search,
+      catalogGroup || catalogSubcategoryId ? undefined : search,
       categoryId,
-      inStockOnly,
+      normalizedUnit || catalogGroup || catalogSubcategoryId || (stockStatus && stockStatus !== "all") ? false : inStockOnly,
       offlineIdentity,
     );
     signal?.throwIfAborted();
-    if (cachedProducts.length > 0) {
-      const cached = normalizedUnit
+    // A verified cashier snapshot can legitimately contain no matching rows.
+    if (cachedProducts.length > 0 || offlineIdentity) {
+      const classificationFilter = {
+        group: catalogGroup === "ATK" || catalogGroup === "PERCETAKAN" ? catalogGroup : undefined,
+        subcategoryId: catalogSubcategoryId || undefined,
+      };
+      const cached = normalizedUnit || catalogGroup || catalogSubcategoryId || (stockStatus && stockStatus !== "all")
         ? cachedProducts.flatMap((product) => {
-            const variants = product.variants?.filter(
-              (variant) => variant.unit.trim().toLowerCase() === normalizedUnit,
-            );
-            if (product.unit.trim().toLowerCase() === normalizedUnit) {
-              return [{ ...product, variants }];
-            }
-            const variant = variants?.[0];
-            return variant
-              ? [{ ...product, ...variant, variants, defaultVariant: variant }]
-              : [];
+            const candidates = product.variants?.length ? product.variants : [product];
+            const matches = candidates.filter((variant) => {
+              const candidate = { ...product, ...variant, category: variant.category ?? product.category };
+              if (normalizedUnit && variant.unit.trim().toLowerCase() !== normalizedUnit) return false;
+              if (!matchesStockFilter({ stock: variant.stock }, inStockOnly)) return false;
+              if (stockStatus === "negative" && !(variant.stock < 0)) return false;
+              if (stockStatus === "out" && variant.stock !== 0) return false;
+              if ((catalogGroup || catalogSubcategoryId) && !matchesSearchTokens({
+                name: product.name, sku: variant.sku, barcode: variant.barcode,
+                category: product.category, brand: variant.brand ?? product.brand,
+              }, parseSearchQuery(search))) return false;
+              if (catalogGroup === "UNCLASSIFIED" && variant.catalogSubcategoryId != null) return false;
+              if (catalogGroup === "UNCLASSIFIED") return true;
+              return (!classificationFilter.group && !classificationFilter.subcategoryId) || matchesPosCatalogFilter(candidate, classificationFilter);
+            });
+            const variant = matches.find((item) => item.id === product.id) ?? matches[0];
+            if (!variant) return [];
+            const variants = product.variants?.length ? matches : undefined;
+            return [{ ...product, ...variant, category: variant.category ?? product.category, variants, defaultVariant: variant }];
           })
         : cachedProducts;
       return {
@@ -229,7 +266,7 @@ export async function fetchProducts(
   const { cacheCatalogProducts } = await import("@/lib/offline/offline-db");
   signal?.throwIfAborted();
   // Filtered groups omit sibling units and must not replace complete offline groups.
-  if (!normalizedUnit) await cacheCatalogProducts(response.data, signal);
+  if (!normalizedUnit && !catalogGroup && !catalogSubcategoryId) await cacheCatalogProducts(response.data, signal);
   signal?.throwIfAborted();
   return response;
 }
@@ -263,12 +300,13 @@ async function fetchCategories(signal?: AbortSignal, offlineIdentity?: OfflineCa
   return json.data;
 }
 
-export function useCategories(initialData?: Category[], offlineIdentity?: OfflineCatalogIdentity) {
+export function useCategories(initialData?: Category[], offlineIdentity?: OfflineCatalogIdentity, enabled = true) {
   return useQuery({
     queryKey: offlineIdentity ? ["categories", offlineIdentity.cashierId, offlineIdentity.storeId] : ["categories"],
+    enabled,
     networkMode: "always",
     queryFn: ({ signal }) => fetchCategories(signal, offlineIdentity),
-    initialData,
+    initialData: enabled ? initialData : undefined,
   });
 }
 
@@ -305,6 +343,9 @@ export function useProducts(
         options.stockGroupMinVariants,
         signal,
         options.unit,
+        options.offlineIdentity,
+        options.catalogGroup,
+        options.catalogSubcategoryId,
       ),
     select: (data) => data.data,
     placeholderData: keepPreviousData,
@@ -322,10 +363,13 @@ export interface ProductStats {
 async function fetchProductStats(
   search?: string,
   categoryId?: string,
+  classification?: Pick<UseProductsOptions, "catalogGroup" | "catalogSubcategoryId">,
 ): Promise<ProductStats> {
   const params = new URLSearchParams();
   if (search) params.set("search", search);
   if (categoryId) params.set("categoryId", categoryId);
+  if (classification?.catalogGroup) params.set("catalogGroup", classification.catalogGroup);
+  if (classification?.catalogSubcategoryId) params.set("catalogSubcategoryId", classification.catalogSubcategoryId);
 
   const res = await fetch(`/api/products/stats?${params.toString()}`, { cache: "no-store" });
   if (!res.ok) {
@@ -335,16 +379,17 @@ async function fetchProductStats(
   return res.json();
 }
 
-export function useProductStats(search?: string, categoryId?: string) {
+export function useProductStats(search?: string, categoryId?: string, classification?: Pick<UseProductsOptions, "catalogGroup" | "catalogSubcategoryId">) {
   const debouncedSearch = useDebounce(search?.trim() || "", 300);
 
   return useQuery({
-    queryKey: ["product-stats", debouncedSearch, categoryId],
-    queryFn: () => fetchProductStats(debouncedSearch, categoryId),
+    queryKey: ["product-stats", debouncedSearch, categoryId, classification?.catalogGroup, classification?.catalogSubcategoryId],
+    queryFn: () => fetchProductStats(debouncedSearch, categoryId, classification),
   });
 }
 
 export interface CreateProductInput {
+  catalogSubcategoryId?: string | null;
   additionalUnitVariants?: import("@/lib/product-form/product-unit-variants").AdditionalUnitInput[];
   name: string;
   sku: string;
@@ -578,18 +623,21 @@ export function useUpdateStock() {
 export function useProductsPage(
   search?: string,
   categoryId?: string,
-  options: UseProductsOptions = {},
+  options: UseProductsOptions & { enabled?: boolean } = {},
 ) {
-  const { page = 1, limit = 100, inStockOnly = false, stockStatus } = options;
+  const { page = 1, limit = 100, inStockOnly = false, stockStatus, enabled = true } = options;
   const debouncedSearch = useDebounce(search?.trim() || "", 300);
   const queryClient = useQueryClient();
   const canUseInitialData =
+    enabled &&
     !debouncedSearch &&
     !categoryId &&
     !inStockOnly &&
     (!stockStatus || stockStatus === "all") &&
     !options.stockGroupMinVariants &&
     !options.unit?.trim() &&
+    !options.catalogGroup &&
+    !options.catalogSubcategoryId &&
     options.initialData?.pagination.page === page &&
     options.initialData.pagination.limit === limit;
   const initialData = canUseInitialData ? options.initialData : undefined;
@@ -616,6 +664,7 @@ export function useProductsPage(
 
   return useQuery({
     queryKey: productQueryKey(debouncedSearch, categoryId, options),
+    enabled,
     networkMode: "always",
     queryFn: ({ signal }) =>
       fetchProducts(
@@ -629,6 +678,8 @@ export function useProductsPage(
         signal,
         options.unit,
         options.offlineIdentity,
+        options.catalogGroup,
+        options.catalogSubcategoryId,
       ),
     initialData,
     initialDataUpdatedAt: canUseInitialData ? options.initialDataUpdatedAt : undefined,

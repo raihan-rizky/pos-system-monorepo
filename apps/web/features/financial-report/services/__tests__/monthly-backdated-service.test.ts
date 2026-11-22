@@ -6,9 +6,10 @@ const mocks = vi.hoisted(() => {
   const receivables = vi.fn();
   const backdated = vi.fn();
   const manualIncome = vi.fn();
+  const supplierPayable = vi.fn();
   const balances = vi.fn();
-  const tx = { transaction: { findMany: transactions }, expense: { findMany: expenses }, customerReceivable: { findMany: receivables }, backdatedPurchase: { findMany: backdated }, manualIncome: { findMany: manualIncome } };
-  return { transactions, expenses, receivables, backdated, manualIncome, balances, tx, run: vi.fn(), correctionCash: vi.fn() };
+  const tx = { transaction: { findMany: transactions }, expense: { findMany: expenses }, customerReceivable: { findMany: receivables }, supplierPayable: { findMany: supplierPayable }, backdatedPurchase: { findMany: backdated }, manualIncome: { findMany: manualIncome } };
+  return { transactions, expenses, receivables, supplierPayable, backdated, manualIncome, balances, tx, run: vi.fn(), correctionCash: vi.fn() };
 });
 vi.mock('@pos/db', () => ({ db: { $transaction: mocks.run } }));
 vi.mock('../monthly-balances', () => ({ getMonthlyBalances: mocks.balances }));
@@ -17,7 +18,7 @@ import { getMonthlyFinancialReport } from '../monthly-report';
 
 describe('pembacaan ledger belanja terdahulu', () => {
   beforeEach(() => {
-    [mocks.transactions, mocks.expenses, mocks.receivables, mocks.backdated, mocks.manualIncome].forEach(mock => mock.mockReset().mockResolvedValue([]));
+    [mocks.transactions, mocks.expenses, mocks.receivables, mocks.supplierPayable, mocks.backdated, mocks.manualIncome].forEach(mock => mock.mockReset().mockResolvedValue([]));
     mocks.balances.mockReset().mockResolvedValue({ openingInventoryBalance: 100, inventoryBalance: 90, supplierDebts: [{ id: 'manual', date: '2026-10-01', dueDate: null, supplier: 'Pemasok', note: null, amount: 5 }], supplierDebtBalance: 5 });
     mocks.correctionCash.mockReset().mockResolvedValue({ outflow: [], refunds: [] });
     mocks.run.mockReset().mockImplementation(callback => callback(mocks.tx));

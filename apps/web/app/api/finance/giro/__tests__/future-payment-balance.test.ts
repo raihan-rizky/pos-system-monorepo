@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ permission: vi.fn(), authError: vi.fn(), query: vi.fn() }));
 vi.mock("@pos/db", () => ({ db: { $queryRaw: mocks.query } }));
-vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.permission, handleAuthError: mocks.authError }));
+vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.permission, canAuthenticatedUserAccessPage: async () => true, handleAuthError: mocks.authError }));
 vi.mock("@/lib/logger", () => ({ getLogger: () => ({ error: vi.fn() }) }));
 
 import { GET } from "../route";
@@ -21,7 +21,7 @@ describe("saldo giro dengan pembayaran bertanggal mendatang", () => {
     vi.useFakeTimers();
     mocks.permission.mockResolvedValue({ id: "user-1", storeId: "store-1" });
     mocks.authError.mockReturnValue(null);
-    mocks.query.mockImplementation(async () => [purchase]);
+    mocks.query.mockImplementation(async (query: TemplateStringsArray) => query.join(" ").includes('FROM "pos_goods_purchases" g') ? [purchase] : []);
   });
   afterEach(() => vi.useRealTimers());
 

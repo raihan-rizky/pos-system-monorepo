@@ -4,20 +4,51 @@ import { GET } from "../route";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
+const globalRolePermissionsMock = vi.hoisted(() => vi.fn(async () => ({})));
+const canRolePerformActionMock = vi.hoisted(() =>
+  vi.fn(
+    (_role: string, _resource: string, _action: string, _permissions: unknown) =>
+      false,
+  ),
+);
+const loadReceivableBalanceMock = vi.hoisted(() =>
+  vi.fn(async (_storeId: string, _asOfDate: string) => 0),
+);
 const transactionFindManyMock = vi.hoisted(() => vi.fn());
 const debtPaymentLogFindManyMock = vi.hoisted(() => vi.fn());
 const cashierShiftFindManyMock = vi.hoisted(() => vi.fn());
 const inventoryLogFindManyMock = vi.hoisted(() => vi.fn());
 const expenseAggregateMock = vi.hoisted(() => vi.fn());
 const expenseCountMock = vi.hoisted(() => vi.fn());
+const expenseFindManyMock = vi.hoisted(() => vi.fn());
+const payableFindManyMock = vi.hoisted(() => vi.fn());
+const receivableFindManyMock = vi.hoisted(() => vi.fn());
+const manualIncomeFindManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
   handleAuthError: handleAuthErrorMock,
 }));
 
+vi.mock("@/features/rbac/helpers/rbac-server", () => ({
+  getGlobalRolePermissions: globalRolePermissionsMock,
+}));
+
+vi.mock("@/features/rbac/helpers/rbac-core", () => ({
+  canRolePerformAction: canRolePerformActionMock,
+}));
+
+vi.mock("@/features/customer-debt/services/receivable-balance", () => ({
+  loadReceivableBalance: loadReceivableBalanceMock,
+}));
+
 vi.mock("@pos/db", () => ({
   db: {
+    $transaction: async (callback: (tx: unknown) => Promise<unknown>) => callback({
+      expense: { aggregate: expenseAggregateMock, count: expenseCountMock, findMany: expenseFindManyMock },
+      supplierPayable: { findMany: payableFindManyMock },
+    }),
+    manualIncome: { findMany: manualIncomeFindManyMock },
     transaction: {
       findMany: transactionFindManyMock,
     },
@@ -33,7 +64,10 @@ vi.mock("@pos/db", () => ({
     expense: {
       aggregate: expenseAggregateMock,
       count: expenseCountMock,
+      findMany: expenseFindManyMock,
     },
+    supplierPayable: { findMany: payableFindManyMock },
+    customerReceivable: { findMany: receivableFindManyMock },
   },
 }));
 
@@ -54,6 +88,13 @@ describe("GET /api/finance/report", () => {
       _count: { _all: 0 },
     });
     expenseCountMock.mockResolvedValue(0);
+    expenseFindManyMock.mockResolvedValue([]);
+    payableFindManyMock.mockResolvedValue([]);
+    receivableFindManyMock.mockResolvedValue([]);
+    globalRolePermissionsMock.mockResolvedValue({});
+    canRolePerformActionMock.mockImplementation(() => false);
+    loadReceivableBalanceMock.mockReset();
+    manualIncomeFindManyMock.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -68,6 +109,18 @@ describe("GET /api/finance/report", () => {
     await GET(request);
 
     expect(requirePermissionMock).toHaveBeenCalledWith("financial-report", "read");
+  });
+
+  it("includes only the current store's manual income in the selected WIB period", async () => {
+    manualIncomeFindManyMock.mockResolvedValue([{ id: "m1", occurredAt: new Date("2026-05-03T04:00:00Z"), category: "ATK", amount: 100, payments: [{ method: "CASH", amount: 100 }] }]);
+    const response = await GET(new NextRequest("http://localhost/api/finance/report?dateFrom=2026-05-03&dateTo=2026-05-03"));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(manualIncomeFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: {
+      storeId: "store-main", deletedAt: null, occurredAt: { gte: new Date("2026-05-02T17:00:00.000Z"), lt: new Date("2026-05-03T17:00:00.000Z") },
+    } }));
+    expect(body.summary).toMatchObject({ revenue: 100, collected: 100, grossProfit: 0 });
+    expect(body.subcategories).toEqual([expect.objectContaining({ categoryName: "ATK", subcategoryName: "Pemasukan manual", revenue: 100 })]);
   });
 
   it("queries initial collections independently of invoice date", async () => {
@@ -92,6 +145,7 @@ describe("GET /api/finance/report", () => {
 
     const response = await GET(request);
     expect(response.status).toBe(200);
+    expect(transactionFindManyMock.mock.calls[0][0].select.items.select.product.select.catalogSubcategory).toEqual({ select: { group: true, name: true } });
 
     expect(transactionFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -235,6 +289,35 @@ describe("GET /api/finance/report", () => {
     expect(body.summary.estimatedNetProfit).toBe(-30000);
   });
 
+  it("menghitung pelunasan otomatis dan transfer beberapa hutang tepat satu kali", async () => {
+    expenseAggregateMock.mockResolvedValue({ _sum: { amount: 350, changeAmount: 0 }, _count: { _all: 1 } });
+    const payment = (id: string, amount: number) => ({ id, amount, paidAt: new Date("2026-11-05T00:00:00Z"), origin: "MANUAL" });
+    const debt = (id: string, amount: number, reportCategory: string, payments: unknown[], dueDate: Date | null = null) => ({ id, storeId: "store-main", supplierName: id, amount, debtDate: new Date("2026-11-01T00:00:00Z"), dueDate, reportCategory, note: null, payments });
+    payableFindManyMock.mockResolvedValue([
+      debt("a", 100, "ATK", [payment("p-a", 100)]), debt("b", 200, "SPANDUK", [payment("p-b", 200)]),
+      debt("c", 600, "ATK", [], new Date("2026-11-05T00:00:00Z")),
+    ]);
+    expenseFindManyMock.mockResolvedValue([{ id: "transfer", storeId: "store-main", amount: 350, changeAmount: 0,
+      occurredAt: new Date("2026-11-05T03:00:00Z"), reportCategory: "CETAK_PLAT", manualTransferAllocations: [
+        { paymentId: "p-a", payableId: "a", amount: 100 }, { paymentId: "p-b", payableId: "b", amount: 200 },
+      ] }]);
+    const response = await GET(new NextRequest("http://localhost/api/finance/report?dateFrom=2026-11-05&dateTo=2026-11-05"));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.summary.expenseTotal).toBe(950);
+    expect(body.summary.expenseEntryCount).toBe(2);
+  });
+
+  it("menambahkan pembayaran piutang manual ke penerimaan tanpa menambah penjualan", async () => {
+    receivableFindManyMock.mockResolvedValue([{ id: "r1", amount: 100, reportCategory: "ATK", note: null, customer: { name: "Pelanggan" },
+      payments: [{ id: "p1", amount: 100, method: "TRANSFER", paidAt: new Date("2026-11-05T00:00:00Z"), createdAt: new Date("2026-11-06T04:00:00Z") }] }]);
+    const response = await GET(new NextRequest("http://localhost/api/finance/report?dateFrom=2026-11-05&dateTo=2026-11-05"));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.summary).toMatchObject({ collected: 100, revenue: 0, transactionCount: 0 });
+    expect(body.paymentMethods).toEqual(expect.arrayContaining([expect.objectContaining({ method: "TRANSFER", collected: 100, revenue: 0 })]));
+  });
+
   it("rejects invalid date ranges before querying the database", async () => {
     const invalidDate = new NextRequest(
       "http://localhost/api/finance/report?dateFrom=not-a-date&dateTo=2026-05-31",
@@ -323,5 +406,150 @@ describe("GET /api/finance/report", () => {
         }),
       }),
     );
+  });
+
+  it("includes Piutang as of dateTo for an Owner Sales preview with both read permissions", async () => {
+    const permissions = { catalog: "test" };
+    requirePermissionMock.mockResolvedValueOnce({
+      id: "owner-1",
+      role: "OWNER",
+      storeId: "store-main",
+    });
+    globalRolePermissionsMock.mockResolvedValueOnce(permissions);
+    canRolePerformActionMock.mockImplementation(
+      (_role, resource, action) =>
+        action === "read" && ["transaction", "customer.receivable"].includes(resource),
+    );
+    loadReceivableBalanceMock.mockResolvedValueOnce(425000);
+
+    const response = await GET(
+      new NextRequest(
+        "http://localhost/api/finance/report?dateFrom=2026-05-01&dateTo=2026-05-31&view=sales",
+      ),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(canRolePerformActionMock).toHaveBeenCalledWith(
+      "SALES",
+      "transaction",
+      "read",
+      permissions,
+    );
+    expect(canRolePerformActionMock).toHaveBeenCalledWith(
+      "SALES",
+      "customer.receivable",
+      "read",
+      permissions,
+    );
+    expect(canRolePerformActionMock).not.toHaveBeenCalledWith(
+      "SALES",
+      "customer",
+      "read",
+      permissions,
+    );
+    expect(loadReceivableBalanceMock).toHaveBeenCalledWith(
+      "store-main",
+      "2026-05-31",
+    );
+    expect(body.summary.receivableBalance).toBe(425000);
+  });
+
+  it.each(["transaction", "customer.receivable"])(
+    "omits Piutang from the full report when the effective role lacks %s:read",
+    async (deniedResource) => {
+      const permissions = { catalog: "test" };
+      requirePermissionMock.mockResolvedValueOnce({
+        id: "owner-1",
+        role: "OWNER",
+        storeId: "store-main",
+      });
+      globalRolePermissionsMock.mockResolvedValueOnce(permissions);
+      canRolePerformActionMock.mockImplementation(
+        (role, resource, action) =>
+          role === "OWNER" && action === "read" && resource !== deniedResource,
+      );
+
+      const response = await GET(
+        new NextRequest(
+          "http://localhost/api/finance/report?dateFrom=2026-05-01&dateTo=2026-05-31",
+        ),
+      );
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(canRolePerformActionMock).toHaveBeenCalledWith(
+        "OWNER",
+        "transaction",
+        "read",
+        permissions,
+      );
+      expect(canRolePerformActionMock).toHaveBeenCalledWith(
+        "OWNER",
+        deniedResource,
+        "read",
+        permissions,
+      );
+      expect(loadReceivableBalanceMock).not.toHaveBeenCalled();
+      expect(body.summary).not.toHaveProperty("receivableBalance");
+    },
+  );
+
+  it.each(["transaction", "customer.receivable"])(
+    "omits Piutang when the effective role lacks %s:read",
+    async (deniedResource) => {
+      const permissions = { catalog: "test" };
+      requirePermissionMock.mockResolvedValueOnce({
+        id: "owner-1",
+        role: "OWNER",
+        storeId: "store-main",
+      });
+      globalRolePermissionsMock.mockResolvedValueOnce(permissions);
+      canRolePerformActionMock.mockImplementation(
+        (role, resource, action) =>
+          role === "SALES" && action === "read" && resource !== deniedResource,
+      );
+
+      const response = await GET(
+        new NextRequest(
+          "http://localhost/api/finance/report?dateFrom=2026-05-01&dateTo=2026-05-31&view=sales",
+        ),
+      );
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(canRolePerformActionMock).toHaveBeenCalledWith(
+        "SALES",
+        "transaction",
+        "read",
+        permissions,
+      );
+      expect(canRolePerformActionMock).toHaveBeenCalledWith(
+        "SALES",
+        deniedResource,
+        "read",
+        permissions,
+      );
+      expect(loadReceivableBalanceMock).not.toHaveBeenCalled();
+      expect(body.summary).not.toHaveProperty("receivableBalance");
+    },
+  );
+
+  it("rejects view=sales for non-Owners", async () => {
+    requirePermissionMock.mockResolvedValueOnce({
+      id: "sales-1",
+      role: "SALES",
+      storeId: "store-main",
+    });
+
+    const response = await GET(
+      new NextRequest(
+        "http://localhost/api/finance/report?dateFrom=2026-05-01&dateTo=2026-05-31&view=sales",
+      ),
+    );
+
+    expect(response.status).toBe(403);
+    expect(transactionFindManyMock).not.toHaveBeenCalled();
+    expect(loadReceivableBalanceMock).not.toHaveBeenCalled();
   });
 });

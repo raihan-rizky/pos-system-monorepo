@@ -7,8 +7,10 @@ const useTransactionHistoryMock = vi.hoisted(() => vi.fn());
 const usePayTransactionDebtMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/useTransactions", () => ({
+  useTransaction: () => ({}),
   useTransactionHistory: useTransactionHistoryMock,
 }));
+vi.mock("../../hooks/useReceivableInvoices", () => ({ useReceivableInvoices: useTransactionHistoryMock }));
 
 vi.mock("@/hooks/useCustomers", () => ({
   usePayTransactionDebt: usePayTransactionDebtMock,
@@ -53,5 +55,22 @@ describe("DebtTransactionsList", () => {
     expect(markup).toContain("Sisa");
     expect(markup).toContain("Dibayar");
     expect(markup).not.toContain("Dibayar (DP)");
+  });
+
+  it("defaults to read-only invoice details in desktop and mobile layouts", () => {
+    const markup = renderToStaticMarkup(<DebtTransactionsList />);
+    expect(markup).toContain("INV-TEMPO-1");
+    expect(markup).not.toContain("Bayar Piutang");
+    expect(markup).not.toContain("Lihat <");
+  });
+
+  it("shows payment controls only with an explicit grant", () => {
+    const markup = renderToStaticMarkup(<DebtTransactionsList canPay={true} />);
+    expect(markup.match(/Bayar Piutang/g)).toHaveLength(2);
+  });
+
+  it("uses the independent minimal receivable query", () => {
+    renderToStaticMarkup(<DebtTransactionsList canPay={false} />);
+    expect(useTransactionHistoryMock).toHaveBeenCalledWith(expect.objectContaining({ status: "all" }));
   });
 });

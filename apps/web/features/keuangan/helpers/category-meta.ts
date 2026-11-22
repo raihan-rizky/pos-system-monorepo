@@ -1,4 +1,5 @@
 import type { ExpenseCategory, ExpenseCategoryKey } from "./keuangan-core";
+import { isManualExpenseReportCategory, MANUAL_EXPENSE_REPORT_LABELS } from "./manual-report-categories";
 
 export const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
   SUPPLIES: "#6366F1", // indigo
@@ -35,6 +36,10 @@ export function customExpenseCategoryId(category: string): string | null {
 }
 
 export function expenseCategoryLabel(category: ExpenseCategoryKey, customCategories: CustomExpenseCategory[] = []): string {
+  if (category.startsWith("report:")) {
+    const reportCategory = category.slice(7);
+    return isManualExpenseReportCategory(reportCategory) ? MANUAL_EXPENSE_REPORT_LABELS[reportCategory] : "Belum ditentukan";
+  }
   const customId = customExpenseCategoryId(category);
   return customId
     ? customCategories.find((item) => item.id === customId)?.name ?? "Kategori khusus"
@@ -42,6 +47,11 @@ export function expenseCategoryLabel(category: ExpenseCategoryKey, customCategor
 }
 
 export function expenseCategoryColor(category: ExpenseCategoryKey): string {
+  const reportColors: Record<string, string> = {
+    "report:CETAK_PLAT": "#6366F1", "report:SPANDUK": "#0EA5E9", "report:ATK": "#14B8A6",
+    "report:SALARY": "#F59E0B", "report:UNASSIGNED": "#64748B",
+  };
+  if (category.startsWith("report:")) return reportColors[category] ?? "#475569";
   return customExpenseCategoryId(category) ? "#475569" : CATEGORY_COLORS[category as ExpenseCategory] ?? "#475569";
 }
 

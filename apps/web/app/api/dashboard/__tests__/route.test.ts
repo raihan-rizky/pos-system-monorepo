@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { buildDefaultRolePermissions } from "@/features/rbac/helpers/rbac-core";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
@@ -9,28 +10,45 @@ const productCountMock = vi.hoisted(() => vi.fn());
 const productFindManyMock = vi.hoisted(() => vi.fn());
 const queryRawMock = vi.hoisted(() => vi.fn());
 const transactionItemGroupByMock = vi.hoisted(() => vi.fn());
+const manualIncomeFindManyMock = vi.hoisted(() => vi.fn());
+const customerReceivablePaymentFindManyMock = vi.hoisted(() => vi.fn());
+const receivableFindManyMock = vi.hoisted(() => vi.fn());
+const getGlobalRolePermissionsMock = vi.hoisted(() => vi.fn());
+const loadReceivableBalanceMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
   handleAuthError: handleAuthErrorMock,
 }));
 
-vi.mock("@pos/db", () => ({
-  db: {
+vi.mock("@/features/rbac/helpers/rbac-server", () => ({ getGlobalRolePermissions: getGlobalRolePermissionsMock }));
+vi.mock("@/features/customer-debt/services/receivable-balance", () => ({ loadReceivableBalance: loadReceivableBalanceMock }));
+
+vi.mock("@pos/db", () => {
+  const db = {
     transaction: {
       findMany: transactionFindManyMock,
       groupBy: transactionGroupByMock,
       aggregate: transactionAggregateMock,
     },
     transactionItem: { groupBy: transactionItemGroupByMock },
+    manualIncome: { findMany: manualIncomeFindManyMock },
+    customerReceivablePayment: { findMany: customerReceivablePaymentFindManyMock },
+    customerReceivable: { findMany: receivableFindManyMock },
     product: { count: productCountMock, findMany: productFindManyMock },
     $queryRaw: queryRawMock,
-  },
-}));
+  };
+  return { db: { ...db, $transaction: (read: (tx: typeof db) => unknown) => read(db) } };
+});
 
 describe("GET /api/dashboard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getGlobalRolePermissionsMock.mockResolvedValue(buildDefaultRolePermissions());
+    loadReceivableBalanceMock.mockResolvedValue(0);
+    manualIncomeFindManyMock.mockResolvedValue([]);
+    customerReceivablePaymentFindManyMock.mockResolvedValue([]);
+    receivableFindManyMock.mockResolvedValue([]);
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-09T04:00:00.000Z"));
     requirePermissionMock.mockResolvedValue({
@@ -102,6 +120,10 @@ describe("GET /api/dashboard", () => {
 
     transactionFindManyMock.mockImplementation(async (query) => {
       if (query.include?.items) return [];
+      if (query.select?.payments) return [previousMonthRow, monthRow, todayRow].map((row, index) => ({
+        ...row, id: `tx-${index}`, createdAt: row.invoiceDate, change: 0, transactionCategory: "ATK", printingSubcategory: null,
+        payments: [{ id: `payment-${index}`, method: row.paymentMethod, amount: row.amountPaid, createdAt: row.invoiceDate }], debtPaymentLogs: [],
+      }));
       if (query.select?.invoiceDate && query.select?.paymentMethod) {
         return [previousMonthRow, monthRow, todayRow];
       }
@@ -118,7 +140,7 @@ describe("GET /api/dashboard", () => {
     const response = await GET();
     const body = await response.json();
 
-    expect(transactionFindManyMock).toHaveBeenCalledTimes(2);
+    expect(transactionFindManyMock).toHaveBeenCalledTimes(3);
     expect(transactionFindManyMock.mock.calls[0][0]).toEqual(
       expect.objectContaining({
         select: expect.objectContaining({
@@ -219,5 +241,38 @@ describe("GET /api/dashboard", () => {
       "Toner HP",
       "Jasa",
     ]);
+  });
+
+  it("uses transaction and receivable access without requiring customer profile access", async () => {
+    const permissions = buildDefaultRolePermissions();
+    permissions.SALES.resources.transaction.read = true;
+    permissions.SALES.resources.customer.read = false;
+    permissions.SALES.resources["customer.receivable"].read = true;
+    getGlobalRolePermissionsMock.mockResolvedValueOnce(permissions);
+    requirePermissionMock.mockResolvedValueOnce({ id: "sales-1", role: "SALES", storeId: "store-main" });
+    loadReceivableBalanceMock.mockResolvedValue(125_000);
+
+    const { GET } = await import("../route");
+    const response = await GET();
+    const body = await response.json();
+
+    expect(body.receivableBalance).toBe(125_000);
+    expect(loadReceivableBalanceMock).toHaveBeenCalledWith("store-main", "2026-07-09");
+  });
+
+  it("returns null when the role lacks customer receivable read access", async () => {
+    const permissions = buildDefaultRolePermissions();
+    permissions.SALES.resources.transaction.read = true;
+    permissions.SALES.resources.customer.read = true;
+    permissions.SALES.resources["customer.receivable"].read = false;
+    getGlobalRolePermissionsMock.mockResolvedValueOnce(permissions);
+    requirePermissionMock.mockResolvedValueOnce({ id: "sales-1", role: "SALES", storeId: "store-main" });
+
+    const { GET } = await import("../route");
+    const response = await GET();
+    const body = await response.json();
+
+    expect(body.receivableBalance).toBeNull();
+    expect(loadReceivableBalanceMock).not.toHaveBeenCalled();
   });
 });

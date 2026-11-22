@@ -42,10 +42,7 @@ export function formatRupiah(amount: number | string): string {
 export function formatRupiahPrecise(amount: number | string): string {
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
   return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    style: "currency", currency: "IDR", minimumFractionDigits: 0, maximumFractionDigits: 2,
   }).format(num);
 }
 

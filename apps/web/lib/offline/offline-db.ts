@@ -94,6 +94,7 @@ export type OfflineCatalogIdentity = { cashierId: string; storeId: string };
 export type OfflineCatalogSnapshot = OfflineCatalogIdentity & {
   id: string;
   generatedAt: string;
+  pricing?: import("./offline-pricing").OfflineCatalogPricing;
   products: (Record<string, unknown> & { id: string })[];
   categories: (Record<string, unknown> & { id: string })[];
 };

@@ -11,7 +11,7 @@ export function MoveProductsImpact({ preview }: { preview: MovePreview }) {
     <p>{preview.totals.products} produk akan dipindahkan. {preview.totals.unchanged} produk sudah di tujuan dan tidak perlu dipindah.</p>
     <p>Jumlah ini mencakup semua satuan dalam grup stok, termasuk satuan yang tidak aktif.</p>
     <ul className="space-y-1">{preview.origins.map(origin => <li key={origin.id} className="break-words">Asal {origin.name}: {origin.products} produk</li>)}</ul>
-    <p>Aturan harga pelanggan dan kelompok penjualan mengikuti kategori tujuan. Harga pelanggan dapat berubah. Stok, unit, dan harga dasar produk tetap tersimpan.</p>
+    <p>Pemindahan ini hanya mengubah kategori lama; klasifikasi baru tetap. Satuan yang belum diklasifikasikan mengikuti aturan kategori lama tujuan. Perubahan pembulatan dapat memengaruhi harga pelanggan semua satuan. Stok, unit, dan harga dasar produk tetap tersimpan.</p>
   </div>;
 }
 

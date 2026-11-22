@@ -4,10 +4,12 @@ import { applyProcessedMaterialCorrections } from "./processed-stock-correction"
 import { StockMutationConflictError } from "@/features/product-stock-groups/stock-group-lock";
 import { resolveInvoiceDateTime } from "@/features/invoice-date/helpers/invoice-date-core";
 import type { Role } from "@/lib/rbac/permissions";
+import { AuthError } from "@/lib/rbac/guard";
 import { getPrintingReceiptCheckoutLines, parsePrintingReceiptDocument, parsePrintingReceiptNumber, PrintingReceiptValidationError } from "../domain";
-import { planProcessedPrintingReceiptEdit, type ProcessedPrintingReceiptInput, type ProcessedPrintingReceiptReview } from "../processed-edit";
+import { parseProcessedPrintingReceiptTransactionInput, planProcessedPrintingReceiptEdit, type ProcessedPrintingReceiptInput, type ProcessedPrintingReceiptReview } from "../processed-edit";
 import { getPrintingReceipt, PrintingReceiptStorageError } from "./receipt-store";
 import { parsePrintingReceiptRevision } from "./route-support";
+import { assertReceivableChangeAllowed, type ReceivableAccess } from "@/features/customer-debt/helpers/receivable-authorization";
 import { captureReceiptSnapshot, recordReceiptChange, shouldRecordReceiptChange } from "@/features/receipt-changes/server/receipt-change-audit";
 import { hasAuditedVoidStockReturns } from "@/features/transactions-stock/helpers/audited-void-stock-returns";
 
@@ -17,7 +19,7 @@ const conflict = () => new PrintingReceiptStorageError(409, "Nota, pembayaran, a
 const productSelect = { id: true, name: true, unit: true, isActive: true, stockGroupId: true, unitMultiplierToBase: true, conversionNeedsReview: true, costPrice: true } as const;
 
 async function prepare(tx: Tx, storeId: string, id: string, raw: ProcessedPrintingReceiptInput) {
-  const input = { revision: parsePrintingReceiptRevision(raw.revision), number: parsePrintingReceiptNumber(raw.number), document: parsePrintingReceiptDocument(raw.document) };
+  const input = { revision: parsePrintingReceiptRevision(raw.revision), number: parsePrintingReceiptNumber(raw.number), document: parsePrintingReceiptDocument(raw.document), transaction: parseProcessedPrintingReceiptTransactionInput(raw.transaction) };
   const hint = await tx.printingReceipt.findFirst({ where: { id, storeId }, select: { transactionId: true } });
   if (!hint) throw new PrintingReceiptStorageError(404, "Nota tidak ditemukan di toko ini.");
   if (!hint.transactionId) throw conflict();
@@ -39,7 +41,23 @@ async function prepare(tx: Tx, storeId: string, id: string, raw: ProcessedPrinti
     const customer = await tx.customer.findFirst({ where: { id: input.document.customerId, storeId }, select: { id: true } });
     if (!customer) throw new PrintingReceiptValidationError("Pelanggan tidak ditemukan di toko ini.");
   }
-  const plan = planProcessedPrintingReceiptEdit(transaction, input.document);
+const currentPaymentIds = new Set(transaction.payments.map(payment => payment.id));
+  const requestedPaymentIds = new Set(input.transaction.initialPayments.flatMap(payment => payment.sourcePaymentId ? [payment.sourcePaymentId] : []));
+  if (requestedPaymentIds.size !== transaction.payments.length || [...requestedPaymentIds].some(paymentId => !currentPaymentIds.has(paymentId))) throw conflict();
+  const plan = planProcessedPrintingReceiptEdit(transaction, input.document, input.transaction);
+  if (!plan.transaction || !plan.transactionPaymentPlan) throw new PrintingReceiptValidationError("Data transaksi tidak valid.");
+  const nextSalesperson = input.transaction.salespersonId
+    ? await tx.salesperson.findFirst({ where: { id: input.transaction.salespersonId, storeId }, select: { id: true, name: true } })
+    : null;
+  if (input.transaction.salespersonId && !nextSalesperson) throw new PrintingReceiptValidationError("Sales transaksi tidak ditemukan di toko ini.");
+  const salespersonReview = {
+    before: { id: transaction.salespersonId ?? null, name: transaction.salesName ?? null },
+    after: nextSalesperson
+      ? { id: nextSalesperson.id, name: nextSalesperson.name }
+      : transaction.salespersonId
+        ? { id: null, name: null }
+        : { id: null, name: transaction.salesName ?? null },
+  };
   const ids = plan.materials.map(item => item.productId);
   const products = ids.length ? await tx.product.findMany({ where: { id: { in: ids }, storeId }, select: productSelect, orderBy: { id: "asc" } }) : [];
   const byId = new Map(products.map(product => [product.id, product]));
@@ -68,8 +86,8 @@ async function prepare(tx: Tx, storeId: string, id: string, raw: ProcessedPrinti
     }
     if (!await hasAuditedVoidStockReturns(tx, storeId, transaction.id, baseUnitReturns)) throw conflict();
   }
-  const reviewToken = createHash("sha256").update(JSON.stringify({ storeId, id, input, current, transaction, products, journal })).digest("hex");
-  const review: ProcessedPrintingReceiptReview = { reviewToken, before: plan.before, after: plan.after, materials: plan.materials.map(row => ({ ...row, name: byId.get(row.productId)!.name, unit: byId.get(row.productId)!.unit })) };
+  const reviewToken = createHash("sha256").update(JSON.stringify({ storeId, id, input, current, transaction, salesperson: salespersonReview.after, products, journal })).digest("hex");
+  const review: ProcessedPrintingReceiptReview = { reviewToken, before: plan.before, after: plan.after, materials: plan.materials.map(row => ({ ...row, name: byId.get(row.productId)!.name, unit: byId.get(row.productId)!.unit })), transaction: { ...plan.transaction, salesperson: salespersonReview } };
   return { input, current, transaction, products, plan, review };
 }
 
@@ -85,27 +103,91 @@ export async function reviewProcessedPrintingReceipt(storeId: string, id: string
   catch (error) { return normalizeDatabaseError(error); }
 }
 
-export async function saveProcessedPrintingReceipt(storeId: string, id: string, raw: ProcessedPrintingReceiptInput & { acknowledged: boolean; reviewToken: string }, actor: Actor) {
+export async function saveProcessedPrintingReceipt(storeId: string, id: string, raw: ProcessedPrintingReceiptInput & { acknowledged: boolean; reviewToken: string }, actor: Actor, receivableAccess?: ReceivableAccess & { canCreatePayment?: boolean }) {
   if (raw.acknowledged !== true || typeof raw.reviewToken !== "string" || !raw.reviewToken) throw new PrintingReceiptValidationError("Setujui dampak perubahan dan tinjau nota sebelum menyimpan.");
   try {
     await db.$transaction(async tx => {
       const { input, current, transaction, products, plan, review } = await prepare(tx, storeId, id, raw);
       if (review.reviewToken !== raw.reviewToken) throw conflict();
+      const before = { ...transaction, total: Number(transaction.total), amountPaid: Number(transaction.amountPaid) };
+      const additionalPaymentsTotal = plan.transaction!.additionalPaymentsTotal;
+      if (additionalPaymentsTotal > 0 && !(receivableAccess?.canView === true && receivableAccess?.canCreatePayment === true)) {
+        throw new AuthError(403, "Belum diizinkan mencatat pembayaran tambahan.");
+      }
+      const correctionAfter = {
+        ...before,
+        total: plan.after.total,
+        status: plan.after.status,
+        amountPaid: plan.after.total !== plan.before.total ? plan.before.paid : before.amountPaid,
+        change: plan.after.total !== plan.before.total ? 0 : before.change,
+        customerName: input.document.customerName || null,
+      };
+      assertReceivableChangeAllowed(before, correctionAfter, receivableAccess?.canView === true, receivableAccess?.canEdit === true);
       const receiptBefore = shouldRecordReceiptChange(actor, transaction.status)
         ? await captureReceiptSnapshot(tx, storeId, transaction.id)
         : null;
       const receiptWrite = await tx.printingReceipt.updateMany({ where: { id, storeId, revision: input.revision, transactionId: transaction.id }, data: { document: input.document as unknown as Prisma.InputJsonObject, revision: { increment: 1 } } });
       if (receiptWrite.count !== 1) throw conflict();
       const invoiceDate = resolveInvoiceDateTime({ mode: "edit", date: input.document.date, previousInvoiceDate: transaction.invoiceDate, now: new Date() });
-      const transactionWrite = await tx.transaction.updateMany({ where: { id: transaction.id, storeId, status: transaction.status, total: transaction.total, amountPaid: transaction.amountPaid, change: transaction.change, customerId: transaction.customerId }, data: { subtotal: plan.after.subtotal, tax: plan.tax, taxRate: plan.taxRate, taxMethod: plan.taxMethod, total: plan.after.total, status: plan.after.status as "DP" | "COMPLETED" | "PENDING_APPROVAL", customerName: input.document.customerName || null, note: input.document.note || null, invoiceDate,
-        // The cash change has already left the drawer. Keep payment history intact,
-        // and normalize the invoice balance used by existing debt/payment screens.
-        ...(plan.after.total !== plan.before.total ? { amountPaid: plan.after.paid, change: 0 } : {}),
+      const retainedPaymentIds = new Set<string>();
+      const initialPaymentPlan = plan.transactionPaymentPlan!;
+      const legacyPaymentSplit = initialPaymentPlan.initialPayments.filter(payment => payment.sourcePaymentId === null).length > 1;
+      for (const payment of initialPaymentPlan.initialPayments) {
+        const source = payment.sourcePaymentId
+          ? transaction.payments.find(row => row.id === payment.sourcePaymentId)
+          : null;
+        if (payment.sourcePaymentId && !source) throw conflict();
+        if (!source && !legacyPaymentSplit) continue;
+        if (source && !retainedPaymentIds.has(source.id)) {
+          const paymentWrite = await tx.transactionPayment.updateMany({
+            where: { id: source.id, transactionId: transaction.id },
+            data: { amount: payment.amount, method: payment.method },
+          });
+          if (paymentWrite.count !== 1) throw conflict();
+          retainedPaymentIds.add(source.id);
+        } else {
+          await tx.transactionPayment.create({
+            data: {
+              transactionId: transaction.id,
+              amount: payment.amount,
+              method: payment.method,
+              createdAt: payment.createdAt,
+            },
+          });
+        }
+      }
+      const transactionWrite = await tx.transaction.updateMany({ where: { id: transaction.id, storeId, status: transaction.status, total: transaction.total, amountPaid: transaction.amountPaid, change: transaction.change, customerId: transaction.customerId, paymentMethod: transaction.paymentMethod, salespersonId: transaction.salespersonId }, data: { subtotal: plan.after.subtotal, tax: plan.tax, taxRate: plan.taxRate, taxMethod: plan.taxMethod, total: plan.after.total, status: plan.after.status as "DP" | "COMPLETED" | "PENDING_APPROVAL", customerName: input.document.customerName || null, note: input.document.note || null, invoiceDate,
+        paymentMethod: plan.transaction!.summaryPaymentMethod.after as typeof transaction.paymentMethod,
+        salespersonId: review.transaction.salesperson.after.id,
+        salesName: review.transaction.salesperson.after.name,
+        // Cash change has already left the drawer; new payments remain distinct logs.
+        ...(plan.after.total !== plan.before.total
+          ? { amountPaid: plan.after.paid, change: 0 }
+          : additionalPaymentsTotal > 0
+            ? { amountPaid: Number(transaction.amountPaid) + additionalPaymentsTotal }
+            : {}),
       } });
       if (transactionWrite.count !== 1) throw conflict();
+      for (const payment of plan.transactionPaymentPlan!.additionalPayments) {
+        await tx.debtPaymentLog.create({
+          data: {
+            transactionId: transaction.id,
+            customerId: transaction.customerId,
+            storeId,
+            amount: payment.amount,
+            paymentMethod: payment.method,
+          },
+        });
+      }
       const debtDelta = Math.round((plan.after.debt - plan.before.debt) * 100) / 100;
-      if (transaction.customerId && debtDelta !== 0) {
-        const customerWrite = await tx.customer.updateMany({ where: { id: transaction.customerId, storeId, ...(debtDelta < 0 ? { totalDebt: { gte: -debtDelta } } : {}) }, data: { totalDebt: { increment: debtDelta } } });
+      if (transaction.customerId && (debtDelta !== 0 || additionalPaymentsTotal > 0)) {
+        const customerWrite = await tx.customer.updateMany({
+          where: { id: transaction.customerId, storeId, ...(debtDelta < 0 ? { totalDebt: { gte: -debtDelta } } : {}) },
+          data: {
+            ...(debtDelta !== 0 ? { totalDebt: { increment: debtDelta } } : {}),
+            ...(additionalPaymentsTotal > 0 ? { totalSpent: { increment: additionalPaymentsTotal }, lastVisitAt: new Date() } : {}),
+          },
+        });
         if (customerWrite.count !== 1) throw conflict();
       }
       if (invoiceDate.getTime() !== transaction.invoiceDate.getTime()) await tx.invoiceDateChangeLog.create({ data: { transactionId: transaction.id, storeId, oldInvoiceDate: transaction.invoiceDate, newInvoiceDate: invoiceDate, oldDocumentNumber: current.number, newDocumentNumber: current.number, reason: "Koreksi manual nota percetakan diproses", actorId: actor.id, actorName: actor.name || "Pengguna", actorRole: actor.role || "OWNER" } });

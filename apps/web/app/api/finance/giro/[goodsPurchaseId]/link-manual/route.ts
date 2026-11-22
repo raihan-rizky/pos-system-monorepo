@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { db } from '@pos/db';
 import { apiError } from '@/lib/api/responses';
-import { handleAuthError, requirePermission } from '@/lib/rbac/guard';
+import { authorizeInTransaction, canAuthenticatedUserAccessPage, handleAuthError, requirePermission } from '@/lib/rbac/guard';
 import { getLogger } from '@/lib/logger';
 import { parseGiroLinkManual, planGiroLink } from '@/features/keuangan/helpers/giro-link-manual';
 import { jakartaToday } from '@/features/keuangan/helpers/supplier-payable-input';
+import { hasUnreviewedAutomaticSettlement } from '@/features/keuangan/helpers/payable-ledger';
 
 const log = getLogger('api:finance:giro-link-manual');
 
@@ -13,7 +14,7 @@ type Payable = {
   id: string; supplierName: string; amount: string; debtDate: string; dueDate: string | null; note: string | null;
   goodsPurchaseId: string | null; historyVerifiedAt: Date | null;
 };
-type Payment = { id: string; payableId: string; amount: string; paidAt: string; requestScope: string | null };
+type Payment = { id: string; payableId: string; amount: string; paidAt: string; requestScope: string | null; origin: string };
 type Audit = { manualPayableId: string; storeId: string; goodsPurchaseId: string; giroPayableId: string; sameRequest: boolean };
 type ErrorCode = 'NotFound' | 'HistoryChanged' | 'PotentialDuplicate' | 'Conflict';
 
@@ -30,9 +31,14 @@ export async function POST(request: Request, context: { params: Promise<{ goodsP
   try {
     const user = await requirePermission("expense.giro", "update");
     if (!user.storeId) return apiError('Toko pengguna belum tersedia.', 403, { code: 'Forbidden' });
+    if (!await canAuthenticatedUserAccessPage(user, '/keuangan')) return apiError('Akses halaman Keuangan diperlukan.', 403, { code: 'Forbidden' });
     const input = parseGiroLinkManual(await request.json().catch(() => null));
     if (!input || input.payableId === input.expectedGiroPayableId) {
       return apiError('Periksa data hutang, pembayaran, dan konfirmasi riwayat.', 422, { code: 'ValidationError' });
+    }
+    for (const [target, action] of [['expense.payable', 'read'], ['expense.payable.manual', 'update'], ['expense.payable.manual.payment', 'update']] as const) {
+      const authorized = await requirePermission(target, action);
+      if (authorized.id !== user.id || authorized.storeId !== user.storeId || authorized.role !== user.role) return apiError('Sesi pengguna berubah. Muat ulang dan coba lagi.', 403, { code: 'Forbidden' });
     }
     const { goodsPurchaseId } = await context.params;
     const storeId = user.storeId;
@@ -40,8 +46,11 @@ export async function POST(request: Request, context: { params: Promise<{ goodsP
     const result = await db.$transaction(async tx => {
       await tx.$executeRaw`SET LOCAL lock_timeout = '2s'`;
       await tx.$executeRaw`SET LOCAL statement_timeout = '3s'`;
-      // Freeze the rows and possible new matching expenses used by GET while
-      // this short transaction validates its displayed purchase snapshot.
+      const [lockedPurchase] = await tx.$queryRaw<{ id: string }[]>`
+        SELECT "id" FROM "pos_goods_purchases" WHERE "id" = ${goodsPurchaseId} AND "storeId" = ${storeId} FOR UPDATE
+      `;
+      if (!lockedPurchase) throw notFound();
+      // Freeze possible matching expenses while the displayed snapshot is checked.
       await tx.$executeRaw`LOCK TABLE "pos_goods_purchases", "pos_expenses" IN SHARE MODE`;
       // Prevent concurrent FK DDL from changing the safety check before deletion.
       await tx.$executeRaw`LOCK TABLE "pos_supplier_payables" IN ROW EXCLUSIVE MODE`;
@@ -76,7 +85,13 @@ export async function POST(request: Request, context: { params: Promise<{ goodsP
         SELECT "manualPayableId", "storeId", "goodsPurchaseId", "giroPayableId", "requestPayload" = ${requestPayload}::jsonb AS "sameRequest"
         FROM "pos_supplier_payable_manual_links" WHERE "manualPayableId" = ${input.payableId}
       `;
+      const authorize = () => authorizeInTransaction(tx, user, {
+        resources: [{ resource: 'expense.giro', action: 'update' }, { resource: 'expense.payable', action: 'read' },
+          { resource: 'expense.payable.manual', action: 'update' }, { resource: 'expense.payable.manual.payment', action: 'update' }],
+        page: '/keuangan',
+      });
       if (audit) {
+        if (!await authorize()) return { forbidden: true as const };
         if (audit.storeId !== storeId) throw notFound();
         if (audit.goodsPurchaseId !== goodsPurchaseId || audit.giroPayableId !== input.expectedGiroPayableId || !audit.sameRequest) {
           throw conflict('Hutang ini sudah ditautkan dengan data yang berbeda. Muat ulang halaman.');
@@ -120,17 +135,32 @@ export async function POST(request: Request, context: { params: Promise<{ goodsP
               (SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = c.conrelid AND attname = 'payableId'))
             OR (c.conrelid = '"pos_supplier_payable_manual_links"'::regclass AND cardinality(c.conkey) = 1 AND c.conkey[1] =
               (SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = c.conrelid AND attname = 'giroPayableId')))
+            OR (c.conname = 'pos_manual_transfer_alloc_payable_fkey'
+              AND c.conrelid = '"pos_manual_transfer_allocations"'::regclass
+              AND c.confdeltype = 'r' AND c.confupdtype = 'r'
+              AND c.conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = c.conrelid AND attname = 'payableId'),
+                (SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = c.conrelid AND attname = 'storeId')]
+              AND c.confkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = c.confrelid AND attname = 'id'),
+                (SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = c.confrelid AND attname = 'storeId')])
           ) LIMIT 1
       `;
       if (unknownReferences.length) throw conflict('Hutang memiliki hubungan data lain yang perlu diperiksa. Hubungi bantuan.');
+      const allocations = await tx.$queryRaw<{ exists: number }[]>`
+        SELECT 1 AS "exists" FROM "pos_manual_transfer_allocations"
+        WHERE "payableId" = ${manual.id} AND "storeId" = ${storeId} LIMIT 1
+      `;
+      if (allocations.length) throw conflict('Lepaskan alokasi transfer dari hutang ini sebelum menautkannya ke giro.');
       const existingLinks = await tx.$queryRaw<{ exists: number }[]>`
         SELECT 1 AS "exists" FROM "pos_supplier_payable_manual_links" WHERE "giroPayableId" = ${manual.id} LIMIT 1
       `;
       if (existingLinks.length) throw conflict('Hutang sudah memiliki riwayat penautan. Hubungi bantuan.');
       const payments = await tx.$queryRaw<Payment[]>`
-        SELECT "id", "payableId", "amount"::text AS "amount", "paidAt"::text AS "paidAt", "requestScope"
+        SELECT "id", "payableId", "amount"::text AS "amount", "paidAt"::text AS "paidAt", "requestScope", "origin"::text AS "origin"
         FROM "pos_supplier_payable_payments" WHERE "payableId" IN (${giro.id}, ${manual.id}) ORDER BY "id" FOR UPDATE
       `;
+      if (hasUnreviewedAutomaticSettlement(manual, payments.filter(payment => payment.payableId === manual.id), jakartaToday())) {
+        throw conflict('Periksa dan ubah pelunasan otomatis pada hutang manual sebelum menautkannya ke giro.');
+      }
       const plan = planGiroLink({
         amount: giro.amount, giroDebtDate: giro.debtDate, manualDebtDate: manual.debtDate,
         giroPayments: payments.filter(payment => payment.payableId === giro.id),
@@ -149,10 +179,19 @@ export async function POST(request: Request, context: { params: Promise<{ goodsP
         await tx.$executeRaw`LOCK TABLE "pos_supplier_payable_payments" IN ROW EXCLUSIVE MODE`;
         const paymentReferences = await tx.$queryRaw<{ constraint: string }[]>`
           SELECT c.conname AS "constraint" FROM pg_catalog.pg_constraint c
-          WHERE c.contype = 'f' AND c.confrelid = '"pos_supplier_payable_payments"'::regclass LIMIT 1
+          WHERE c.contype = 'f' AND c.confrelid = '"pos_supplier_payable_payments"'::regclass
+            AND NOT (c.conname = 'pos_manual_transfer_alloc_payment_fkey'
+              AND c.conrelid = '"pos_manual_transfer_allocations"'::regclass
+              AND c.confdeltype = 'r' AND c.confupdtype = 'r'
+              AND c.conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = c.conrelid AND attname = 'paymentId'),
+                (SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = c.conrelid AND attname = 'payableId')]
+              AND c.confkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = c.confrelid AND attname = 'id'),
+                (SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = c.confrelid AND attname = 'payableId')]) LIMIT 1
         `;
         if (paymentReferences.length) throw conflict('Pembayaran memiliki hubungan data lain yang perlu diperiksa. Hubungi bantuan.');
       }
+
+      if (!await authorize()) return { forbidden: true as const };
 
       const inserted = await tx.$executeRaw`
         INSERT INTO "pos_supplier_payable_manual_links" (
@@ -179,6 +218,7 @@ export async function POST(request: Request, context: { params: Promise<{ goodsP
       if (deleted !== 1) throw historyChanged();
       return { payableId: giro.id, replay: false };
     }, { isolationLevel: 'ReadCommitted', timeout: 5000 });
+    if ('forbidden' in result) return apiError('Sesi atau izin pengguna berubah. Muat ulang halaman dan coba lagi.', 403, { code: 'Forbidden' });
     return NextResponse.json({ payableId: result.payableId }, { status: result.replay ? 200 : 201 });
   } catch (error) {
     const authError = handleAuthError(error);

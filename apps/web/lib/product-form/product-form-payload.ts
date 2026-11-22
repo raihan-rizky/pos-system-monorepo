@@ -8,6 +8,7 @@ export type ProductFormValues = {
   description?: string;
   sku: string;
   categoryId: string;
+  catalogSubcategoryId?: string;
   brandId?: string;
   price: string;
   costPrice: string;
@@ -83,6 +84,7 @@ export function buildProductFormPayload(
 
   return {
     ...common,
+    ...(formData.catalogSubcategoryId ? { catalogSubcategoryId: formData.catalogSubcategoryId } : {}),
     ...(formData.additionalUnits?.length
       ? { additionalUnitVariants: buildAdditionalUnitInputs(formData, formData.additionalUnits) }
       : {}),

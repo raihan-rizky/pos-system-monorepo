@@ -1,9 +1,16 @@
 "use client";
 
 import React, { useEffect, useId, useRef, useState } from "react";
-import { Plus, Wallet, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Wallet, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { useDebounce } from "@/hooks/useDebounce";
+import {
+  loadCustomerReceivablesExpanded,
+  saveCustomerReceivablesExpanded,
+} from "../helpers/customer-receivables-preferences";
 import { CustomerReceivable, ReceivablePaymentMethod, useCreateCustomerReceivable, useCustomerReceivables, usePayCustomerReceivable } from "../hooks/useCustomerReceivables";
+import { isManualReceiptReportCategory, MANUAL_RECEIPT_REPORT_CATEGORIES, MANUAL_RECEIPT_REPORT_LABELS, type ManualReceiptReportCategory } from "@/features/keuangan/helpers/manual-report-categories";
+import { useRole } from "@/components/providers/RoleProvider";
+import { ReceivableCorrectionForm } from "./ReceivableCorrectionForm";
 
 const inputClass = "min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 aria-[invalid=true]:border-red-500";
 const primaryClass = "min-h-11 rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-50";
@@ -26,6 +33,7 @@ function ReceivableForm({ customerId, onClose, onSaved }: { customerId: string; 
   const [amount, setAmount] = useState("");
   const [debtDate, setDebtDate] = useState(todayWib);
   const [dueDate, setDueDate] = useState(todayWib);
+  const [reportCategory, setReportCategory] = useState<ManualReceiptReportCategory | "">("");
   const [note, setNote] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
@@ -36,9 +44,11 @@ function ReceivableForm({ customerId, onClose, onSaved }: { customerId: string; 
     if (!isValidAmount(amount)) next.amount = "Isi nominal lebih dari 0, maksimal Rp 9.999.999.999,99 dengan paling banyak 2 angka desimal.";
     if (!validDate(debtDate) || debtDate > todayWib()) next.debtDate = "Tanggal utang harus valid dan tidak boleh melewati hari ini.";
     if (!validDate(dueDate) || dueDate < debtDate) next.dueDate = "Tanggal jatuh tempo harus sama atau setelah tanggal utang.";
+    if (!isManualReceiptReportCategory(reportCategory)) next.reportCategory = "Pilih kategori laporan.";
     setErrors(next); setError("");
     if (Object.keys(next).length) { form.current?.querySelector<HTMLElement>(`[name="${Object.keys(next)[0]}"]`)?.focus(); return; }
-    try { await mutation.mutateAsync({ customerId, amount: Number(amount), debtDate, dueDate, ...(note.trim() ? { note: note.trim() } : {}) }); onSaved(); }
+    if (!isManualReceiptReportCategory(reportCategory)) return;
+    try { await mutation.mutateAsync({ customerId, amount: Number(amount), debtDate, dueDate, reportCategory, ...(note.trim() ? { note: note.trim() } : {}) }); onSaved(); }
     catch (err) { setError(err instanceof Error ? err.message : "Piutang belum berhasil disimpan."); }
   }
   const clear = (field: string) => { setErrors(current => ({ ...current, [field]: "" })); setError(""); };
@@ -49,6 +59,17 @@ function ReceivableForm({ customerId, onClose, onSaved }: { customerId: string; 
     <fieldset
       disabled={mutation.isPending}
       className="grid min-w-0 gap-4 sm:grid-cols-2">
+      <div className="sm:col-span-2">
+        <label htmlFor={`${id}-report-category`} className="mb-1 block text-sm font-semibold text-slate-700">Kategori laporan</label>
+        <select id={`${id}-report-category`} name="reportCategory" required value={reportCategory}
+          onChange={event => { setReportCategory(event.target.value as ManualReceiptReportCategory | ""); clear("reportCategory"); }}
+          className={inputClass} aria-invalid={!!errors.reportCategory}
+          aria-describedby={errors.reportCategory ? `${id}-category-error` : undefined}>
+          <option value="" disabled>Pilih kategori laporan</option>
+          {MANUAL_RECEIPT_REPORT_CATEGORIES.map(value => <option key={value} value={value}>{MANUAL_RECEIPT_REPORT_LABELS[value]}</option>)}
+        </select>
+        {errors.reportCategory && <p id={`${id}-category-error`} className="mt-1 text-sm text-red-700">{errors.reportCategory}</p>}
+      </div>
       <div
         className="sm:col-span-2">
         <label
@@ -210,8 +231,10 @@ function ReceivablePaymentForm({ entry, onSaved, onClose }: { entry: CustomerRec
   </form>;
 }
 
-function ReceivableCard({ entry, canPay }: { entry: CustomerReceivable; canPay: boolean }) {
+function ReceivableCard({ entry, canPay, canEdit, canEditPayment }: { entry: CustomerReceivable; canPay: boolean; canEdit: boolean; canEditPayment: boolean }) {
   const [paying, setPaying] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<string | null>(null);
   const [success, setSuccess] = useState("");
   const remaining = Math.max(0, Number(entry.amount) - Number(entry.amountPaid));
   const overdue = remaining > 0 && entry.dueDate.slice(0, 10) < todayWib();
@@ -224,7 +247,7 @@ function ReceivableCard({ entry, canPay }: { entry: CustomerReceivable; canPay: 
         <p
           className="break-words text-sm font-bold text-slate-900">{entry.customer.name}</p>
         <p
-          className="mt-1 text-xs font-semibold text-slate-500">Piutang manual · {date(entry.debtDate)}</p>
+          className="mt-1 text-xs font-semibold text-slate-500">Piutang manual · {date(entry.debtDate)} · {entry.reportCategory ? MANUAL_RECEIPT_REPORT_LABELS[entry.reportCategory] : "Belum berkategori"}</p>
       </div>
       <span
         className={`rounded-full px-2.5 py-1 text-xs font-bold ${remaining <= 0 ? "bg-emerald-50 text-emerald-700" : overdue ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-800"}`}>{remaining <= 0 ? "Lunas" : overdue ? "Lewat jatuh tempo" : "Belum lunas"}</span>
@@ -270,9 +293,9 @@ function ReceivableCard({ entry, canPay }: { entry: CustomerReceivable; canPay: 
             <span
               className="font-bold text-slate-900">{money(payment.amount)}</span>
             <span
-              className="text-slate-600">{methods.find(method => method.value === payment.method)?.label ?? payment.method} · {date(payment.createdAt)}</span>
+              className="text-slate-600">{methods.find(method => method.value === payment.method)?.label ?? payment.method} · {date(payment.paidAt ?? payment.createdAt)}</span>
           </p>{payment.note && <p
-            className="mt-1 break-words text-slate-600">{payment.note}</p>}</li>)}</ul>
+            className="mt-1 break-words text-slate-600">{payment.note}</p>}{canEditPayment && editingPayment !== payment.id && <button type="button" onClick={() => { setEditingPayment(payment.id); setSuccess(""); }} className={`${secondaryClass} mt-2`}>Ubah pembayaran piutang</button>}{canEditPayment && editingPayment === payment.id && <ReceivableCorrectionForm entry={entry} payment={payment} onClose={() => setEditingPayment(null)} onSaved={() => { setEditingPayment(null); setSuccess("Pembayaran berhasil diubah."); }} />}</li>)}</ul>
     </details>}
     <p role="status"
       className="mt-2 text-sm font-semibold text-emerald-700">{success}</p>
@@ -281,11 +304,18 @@ function ReceivableCard({ entry, canPay }: { entry: CustomerReceivable; canPay: 
       onClick={() => { setPaying(true); setSuccess(""); }}
       className={`${secondaryClass} mt-3`}>Bayar Piutang Manual</button>}
     {canPay && paying && <ReceivablePaymentForm entry={entry} onClose={() => setPaying(false)} onSaved={() => { setPaying(false); setSuccess("Pembayaran berhasil dicatat."); }} />}
+    {canEdit && !editing && <button type="button" onClick={() => { setEditing(true); setSuccess(""); }} className={`${secondaryClass} mt-3 ml-2`}>Ubah piutang</button>}
+    {canEdit && editing && <ReceivableCorrectionForm entry={entry} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); setSuccess("Piutang berhasil diubah."); }} />}
   </article>;
 }
 
-export function CustomerReceivablesSection({ customerId, customerName, canAdd = true, canPay = true }: { customerId?: string; customerName?: string; canAdd?: boolean; canPay?: boolean }) {
+export function CustomerReceivablesSection({ customerId, customerName, canAdd = false, canPay = false, canEdit, canEditPayment, collapsible = false }: { customerId?: string; customerName?: string; canAdd?: boolean; canPay?: boolean; canEdit?: boolean; canEditPayment?: boolean; collapsible?: boolean }) {
+  const { canPerform } = useRole();
+  const mayEdit = canEdit ?? canPerform("customer.receivable.manual", "update");
+  const mayEditPayment = canEditPayment ?? canPerform("customer.receivable.manual.payment", "update");
   const titleId = useId();
+  const contentId = useId();
+  const [expanded, setExpanded] = useState(true);
   const [adding, setAdding] = useState(false);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -295,32 +325,69 @@ export function CustomerReceivablesSection({ customerId, customerName, canAdd = 
   const query = useCustomerReceivables({ customerId, page, search: debouncedSearch, status });
   const totalPages = query.data?.pagination.totalPages;
   useEffect(() => {
+    if (collapsible) {
+      setExpanded(loadCustomerReceivablesExpanded());
+    }
+  }, [collapsible]);
+  useEffect(() => {
     if (totalPages !== undefined && page > Math.max(1, totalPages)) {
       setPage(Math.max(1, totalPages));
     }
   }, [page, totalPages]);
+  const toggleExpanded = () => {
+    const nextExpanded = !expanded;
+    setExpanded(nextExpanded);
+    saveCustomerReceivablesExpanded(nextExpanded);
+  };
   return <section aria-labelledby={titleId}
     className="min-w-0 rounded-3xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
     <div
       className="flex flex-wrap items-start justify-between gap-3">
       <div
-        className="min-w-0">
-        <h3
+        className="min-w-0 flex-1">
+        {collapsible ? <h3
           id={titleId}
-          className="flex items-center gap-2 text-base font-black text-slate-900">
-          <Wallet aria-hidden="true"
-            className="h-5 w-5 text-brand-600" />Piutang Manual</h3>
-        <p
-          className="mt-1 max-w-xl text-sm leading-6 text-slate-600">Catat piutang lama atau tagihan di luar kasir{customerName ? ` untuk ${customerName}` : ""}. Catatan ini tidak menambah penjualan, order, atau mengubah stok.</p>
+          className="m-0 w-full">
+          <button
+            type="button"
+            aria-expanded={expanded}
+            aria-controls={contentId}
+            onClick={toggleExpanded}
+            className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">
+            <span
+              className="flex items-center gap-2 text-base font-black text-slate-900">
+              <Wallet aria-hidden="true"
+                className="h-5 w-5 text-brand-600" />
+              Piutang Manual
+            </span>
+            <ChevronDown aria-hidden="true"
+              className={expanded
+                ? "h-5 w-5 shrink-0 rotate-180 text-slate-500 transition-transform"
+                : "h-5 w-5 shrink-0 text-slate-500 transition-transform"} />
+          </button>
+        </h3> : <>
+          <h3
+            id={titleId}
+            className="flex items-center gap-2 text-base font-black text-slate-900">
+            <Wallet aria-hidden="true"
+              className="h-5 w-5 text-brand-600" />Piutang Manual</h3>
+          <p
+            className="mt-1 max-w-xl text-sm leading-6 text-slate-600">Catat piutang lama atau tagihan di luar kasir{customerName ? ` untuk ${customerName}` : ""}. Catatan ini tidak menambah penjualan, order, atau mengubah stok.</p>
+        </>}
       </div>{customerId && canAdd && !adding && <button
         type="button"
         onClick={() => { setAdding(true); setSuccess(""); }}
         className={`${primaryClass} inline-flex items-center gap-2`}>
         <Plus aria-hidden="true"
           className="h-4 w-4" />Tambah Piutang</button>}</div>
-    <p role="status"
-      className="mt-2 text-sm font-semibold text-emerald-700">{success}</p>
-    {customerId && canAdd && adding && <ReceivableForm customerId={customerId} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); setPage(1); setStatus("all"); setSuccess("Piutang berhasil dicatat."); }} />}
+    <div
+      id={contentId}
+      hidden={collapsible && !expanded}>
+      {collapsible && <p
+        className="mt-3 max-w-xl text-sm leading-6 text-slate-600">Catat piutang lama atau tagihan di luar kasir{customerName ? ` untuk ${customerName}` : ""}. Catatan ini tidak menambah penjualan, order, atau mengubah stok.</p>}
+      <p role="status"
+        className="mt-2 text-sm font-semibold text-emerald-700">{success}</p>
+      {customerId && canAdd && adding && <ReceivableForm customerId={customerId} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); setPage(1); setStatus("all"); setSuccess("Piutang berhasil dicatat."); }} />}
     <div
       className="mt-4 flex flex-col gap-3 sm:flex-row">{!customerId && <input
         type="search"
@@ -348,9 +415,9 @@ export function CustomerReceivablesSection({ customerId, customerName, canAdd = 
           onClick={() => void query.refetch()}
           className={`${secondaryClass} mt-2`}>Coba lagi</button>
       </div> : <div
-        className="mt-4 space-y-3">{query.data?.data.length ? query.data.data.map(entry => <ReceivableCard key={entry.id} entry={entry} canPay={canPay} />) : <p
+        className="mt-4 space-y-3">{query.data?.data.length ? query.data.data.map(entry => <ReceivableCard key={entry.id} entry={entry} canPay={canPay} canEdit={mayEdit} canEditPayment={mayEditPayment} />) : <p
           className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-600">{status === "open" ? "Tidak ada piutang manual yang belum lunas." : "Belum ada piutang manual."}</p>}</div>}
-    {query.data && query.data.pagination.totalPages > 1 && <nav
+      {query.data && query.data.pagination.totalPages > 1 && <nav
       aria-label="Halaman piutang manual"
       className="mt-4 flex flex-wrap items-center justify-between gap-2">
       <p
@@ -375,7 +442,8 @@ export function CustomerReceivablesSection({ customerId, customerName, canAdd = 
           <ChevronRight aria-hidden="true"
             className="h-4 w-4" />
         </button>
-      </div>
-    </nav>}
+        </div>
+      </nav>}
+    </div>
   </section>;
 }

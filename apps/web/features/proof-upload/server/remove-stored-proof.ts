@@ -15,11 +15,18 @@ export function isUnknownProofReferenceError(error: unknown) {
   return error instanceof UnknownProofReferenceError;
 }
 
+function isExpenseProof(url: string) {
+  let path: string;
+  try { path = decodeURIComponent(new URL(url).pathname).replace(/^\/+/, ""); } catch { return false; }
+  return path.startsWith("proofs/manual-transfers/") || path.startsWith("proofs/expenses/");
+}
+
 export async function removeStoredProofAsset(
   url: string,
   deleteR2: typeof deleteProofFromR2 = deleteProofFromR2,
 ) {
   if (isPrntScUrl(url)) return { storage: "legacy" as const };
+  if (isExpenseProof(url)) return { storage: "retained" as const };
 
   try {
     const result = await deleteR2(url);

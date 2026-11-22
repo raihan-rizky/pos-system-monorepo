@@ -11,7 +11,8 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 1. Buka sidebar **Katalog > Produk** (`/products`).
 2. Klik tombol hitam **Tambah Produk** di kanan atas. Anda juga dapat meminta **Pak Teladan membuka modal Tambah Produk**; form tetap harus diperiksa, diisi, dan disimpan oleh pengguna.
 3. Isi formulir pendaftaran produk:
-   - **Informasi Utama:** Nama produk, SKU (harus unik), Kategori, dan Merek bila ada. Jika merek belum tersedia, ketik nama merek baru lalu klik **Tambah**.
+   - **Informasi Utama:** Nama produk, SKU (harus unik), Kategori lama, dan Merek bila ada. Jika merek belum tersedia, ketik nama merek baru lalu klik **Tambah**.
+   - **Kategori produk:** Kategori lama wajib dipilih. Klasifikasi baru dapat diatur nanti; untuk menyimpannya sekarang, pilih **Kategori utama** lalu **Subkategori**. Pilihan ini berlaku untuk semua satuan produk baru; perubahan per satuan dilakukan lewat **Produk > Kategori**.
    - **Harga:** Harga Jual dasar dan Harga Modal/HPP (opsional). Harga Agen dan Dinas mengikuti harga jual secara default; isi harga manual hanya jika perlu harga tetap yang berbeda.
    - **Stok & Satuan:** Satuan/Unit (misal: pcs, dus), Stok Saat Ini dalam unit tersebut, dan Batas Minimum Stok.
 4. **Unit lain (opsional):** Klik **Tambah unit lain (opsional)** jika barang juga dijual dalam satuan lain. Pilih **Lebih besar** atau **Lebih kecil** dari unit utama, lalu isi konversi, misalnya **1 dus = 12 pcs**. Badge **Unit kecil** berwarna hijau dan **Unit besar** berwarna ungu mengikuti konversi. Harga jual dan SKU disarankan otomatis dan bisa diubah; buka **Detail tambahan** untuk SKU, barcode, dan HPP. Anda dapat menambahkan beberapa unit atau menghapus unit yang tidak diperlukan. Masukkan stok awal sekali dalam unit utama. Semua unit otomatis dikelompokkan saat disimpan dan memakai stok bersama, tanpa menghitung stok dua kali.
@@ -23,6 +24,7 @@ Halaman ini berisi kumpulan tanya-jawab (FAQ) dan panduan langkah-demi-langkah (
 2. Klik **Pratinjau harga**, periksa dampak pada semua satuan, lalu **Terapkan harga grup**. Harga grup disimpan terpisah; draft formulir tetap ada. Jika data grup berubah, buat pratinjau baru. Buka **Riwayat Harga** untuk melihat perubahan.
 3. **Harga Agen** dan **Harga Dinas** yang kosong otomatis **mengikuti harga jual**, termasuk saat harga grup berubah. Isi manual untuk menetapkan harga tetap pada produk/satuan ini; harga ini ditandai badge **Harga manual**. Klik **Ikuti harga jual** atau kosongkan kolom, lalu **Simpan Harga**, untuk kembali otomatis. Harga manual lama tetap dipertahankan; tombol ini tidak menerapkan ulang harga grup. Untuk diskon atau tambahan otomatis, Owner memakai **Atur diskon / tambahan → Produk > Harga Khusus**; pengguna lain dapat meminta Owner mengaturnya.
 4. Di **POS**, tombol **Harga** pada kartu keranjang membuka **Ubah Harga Nota**. Isi **Harga custom per satuan**, periksa harga otomatis, pembulatan dan subtotal, lalu klik **Terapkan harga**. Harga ini hanya berlaku untuk nota tersebut, tersedia meskipun Harga Khusus toko nonaktif, dan tidak mengubah harga produk. Badge amber **Harga custom** tampil di keranjang, pembayaran, dan detail riwayat; penanda tidak dicetak pada nota/PDF. Harga tetap tersimpan pada draft dan transaksi. Klik **Kembalikan harga otomatis** untuk menghapusnya; nota berikutnya memakai harga otomatis.
+
 
 ### Q3: Bagaimana cara mengatur harga khusus/diskon bagi grup pelanggan (Agen, Industri, Dinas)?
 **A:** Owner dapat membuat satu aturan untuk satu atau beberapa tipe pelanggan:
@@ -128,7 +130,7 @@ Transaksi lama dengan sumber stok SURAT_JALAN tetap mengikuti alur stok historis
 4. Sistem mengecilkan dimensi, menghapus metadata, mengompresi, dan menyimpan rotasi gambar ke R2.
 5. Jika penyimpanan R2 gagal, input **prnt.sc** akan muncul. Unggah gambar ke [prnt.sc](https://prnt.sc/) lalu tempel tautannya sebagai fallback.
 6. Klik **Simpan** untuk mengaitkan bukti dengan transaksi.
-7. OWNER atau role dengan izin `proof_upload:delete` dapat memilih **Hapus foto**. Foto R2 dihapus permanen, sedangkan bukti prnt.sc hanya dikosongkan tautannya.
+7. Di Keuangan, pilih **Lepaskan foto** untuk melepas bukti pengeluaran dari catatan. File pengeluaran tetap tersimpan. Untuk bukti transaksi pelanggan, pilih **Hapus foto**. Aksi pada foto yang sudah tersimpan mengikuti izin `proof_upload:delete`.
 
 ### Q12: Bagaimana cara memulai (buka) dan mengakhiri (tutup) shift kerja kasir?
 **A:** Ikuti langkah berikut untuk mengelola laci uang kasir:
@@ -360,21 +362,21 @@ Transaksi lama dengan sumber stok SURAT_JALAN tetap mengikuti alur stok historis
 ---
 
 ### Q41: Bagaimana cara mencatat piutang manual pelanggan?
-**A:** Gunakan untuk utang lama atau tagihan di luar kasir tanpa membuat transaksi penjualan, order, atau mengubah stok. Melihat memerlukan `customer.read`; menambah dan membayar memerlukan `customer.update`.
+**A:** Gunakan untuk utang lama atau tagihan di luar kasir tanpa membuat transaksi penjualan, order, atau mengubah stok. Melihat piutang memerlukan `customer.receivable:read`. Menambah catatan memerlukan `customer.receivable:create`, dan mencatat cicilan atau pelunasan memerlukan `customer.receivable.payment:create`. Buka detail pelanggan dengan izin `customer:read`.
 Pelanggan yang memiliki riwayat piutang manual tidak dapat dihapus, termasuk yang sudah lunas, agar riwayat piutang dan pembayaran tetap tersimpan.
 1. Buka **Pelanggan** (`/customers`), lalu buka detail pelanggan yang sudah terdaftar.
 2. Di bagian **Piutang Manual**, klik **Tambah Piutang**. Pelanggan mengikuti profil yang dibuka.
-3. Isi **Nominal piutang** lebih dari nol, **Tanggal utang** paling lambat hari ini dalam WIB, dan **Tanggal jatuh tempo** sama dengan atau setelah tanggal utang. Tambahkan **Catatan** bila perlu.
+3. Isi **Nominal piutang** lebih dari nol, **Tanggal utang** paling lambat hari ini dalam WIB, **Tanggal jatuh tempo** sama dengan atau setelah tanggal utang, dan **Kategori laporan**. Tambahkan **Catatan** bila perlu.
 4. Klik **Simpan Piutang**. Catatan muncul pada detail pelanggan dan bagian **Piutang Manual** di tab **Piutang**.
-5. Untuk cicilan atau pelunasan, klik **Bayar Piutang Manual**, isi nominal hingga maksimal sisa piutang, pilih satu metode, lalu klik **Simpan Pembayaran**. Buka **Riwayat pembayaran** untuk memeriksa pembayaran; catatan lunas tetap tersedia melalui filter **Semua piutang**.
+5. Untuk cicilan atau pelunasan, klik **Bayar Piutang Manual**, isi nominal hingga maksimal sisa piutang, pilih satu metode, lalu klik **Simpan Pembayaran**. Pelunasan masuk laporan pada tanggal pembayaran dan kategori yang dicatat. Buka **Riwayat pembayaran** untuk memeriksa pembayaran. Catatan lunas tersedia melalui filter **Semua piutang**.
 
 ### Q42: Bagaimana cara mengedit nota Percetakan yang sudah diproses?
 **A:** Gunakan koreksi ketika isi nota, harga, tanggal, atau pemakaian bahan perlu diperbaiki. Izin `printing_receipt.processed:update` default hanya untuk Owner; izin dapat diberikan ke role lain melalui **Hak Akses**. Nota dibatalkan atau refund tidak dapat diedit.
 
 1. Di **Riwayat**, klik **Edit nota diproses** di samping **Lihat Struk** pada transaksi Percetakan, atau buka nota tersimpan di **Kasir > Percetakan** dan pilih **Edit nota diproses**. Baca peringatan: nota yang sebelumnya lunas dapat kembali memiliki piutang jika total naik. Centang **Saya memahami dampaknya terhadap transaksi, stok, dan piutang.**, lalu klik **Tetap edit nota** untuk melanjutkan.
-2. Koreksi nama pelanggan, tanggal, catatan, item, harga, atau hubungan bahan. Perubahan **tidak tersimpan otomatis**. Nomor nota dan pelanggan terdaftar tetap; riwayat pembayaran tidak dihapus. Total baru tidak boleh lebih kecil daripada pembayaran bersih yang sudah diterima, yaitu pembayaran setelah dikurangi kembalian. Jika keluar sebelum menyimpan, konfirmasikan pembuangan perubahan.
-3. Klik **Tinjau perubahan**. Bandingkan total, pembayaran, piutang, status, dan pemakaian bahan **sebelum** serta **sesudah**. Kembali ke penyuntingan bila masih perlu diperbaiki.
-4. Klik **Simpan dan perbarui transaksi**. Nota, transaksi, penyesuaian stok bahan beserta jurnalnya, piutang, dan status diperbarui bersama. Nota **menunggu persetujuan** tetap pending; stok dan piutang baru diterapkan setelah disetujui. Jika penyimpanan gagal, periksa pesan lalu tinjau ulang sebelum mencoba lagi.
+2. Koreksi nama pelanggan, tanggal, catatan, item, harga, atau hubungan bahan. Pada bagian **Data transaksi**, ubah **Metode pembayaran** untuk setiap pembayaran awal dan pilih **Sales transaksi**. Klik **Pecah pembayaran awal** untuk membagi satu pembayaran ke beberapa metode tanpa mengubah jumlah atau tanggal penerimaan. Untuk uang baru yang diterima saat koreksi, pilih **Tambah pembayaran tambahan**, lalu isi metode dan nominal; waktu penerimaan mengikuti saat disimpan. Pembayaran tambahan memerlukan izin `customer.receivable:read` dan `customer.receivable.payment:create`. Jika perubahan nota menaikkan sisa piutang, role juga memerlukan `customer.receivable:update`. Status menjadi Lunas jika seluruh tagihan terbayar dan tetap DP bila masih ada sisa. Nominal dan tanggal pembayaran awal tetap. Pembayaran lanjutan tetap utuh, begitu juga tanda tangan yang tercetak. Ringkasan metode transaksi mengikuti pembayaran awal dengan nominal terbesar; transaksi Tempo tetap berlabel Tempo. Perubahan **tidak tersimpan otomatis**. Nomor nota dan pelanggan terdaftar tetap; total baru tidak boleh lebih kecil daripada pembayaran bersih setelah dikurangi kembalian. Jika keluar sebelum menyimpan, konfirmasikan pembuangan perubahan.
+3. Klik **Tinjau perubahan**. Bandingkan metode pembayaran, sales transaksi, total, pembayaran, piutang, status, dan pemakaian bahan **sebelum** serta **sesudah**. Kembali ke penyuntingan bila masih perlu diperbaiki.
+4. Klik **Simpan dan perbarui transaksi**. Nota, transaksi, pembagian metode pembayaran awal, pembayaran baru yang diterima, atribusi sales, penyesuaian stok bahan beserta jurnalnya, piutang, dan status diperbarui bersama; pembayaran lanjutan tetap. Nota **menunggu persetujuan** tetap pending; stok dan piutang baru diterapkan setelah disetujui. Jika penyimpanan gagal, periksa pesan lalu tinjau ulang sebelum mencoba lagi.
 
 ---
 
@@ -390,11 +392,13 @@ Kebijakan terakhir yang berhasil dimuat disimpan untuk tampilan offline. Jika ke
 
 ### Q44: Bagaimana cara mencatat hutang pemasok?
 
-**A:** Buka **Keuangan**, lalu pilih **Tambahkan Hutang** pada bagian Hutang Pemasok. Isi pemasok, nominal, dan tanggal hutang. Jatuh tempo, catatan, dan pembayaran awal bersifat opsional.
+**A:** Buka **Keuangan**, lalu pilih **Tambahkan Hutang** pada bagian Hutang Pemasok. Isi pemasok, nominal, tanggal hutang, dan kategori laporan. Jatuh tempo, catatan, dan pembayaran awal bersifat opsional.
 
-Untuk pembayaran berikutnya, pilih **Catat pembayaran** pada hutang yang belum lunas. Pembayaran dapat sebagian atau sekaligus; nominal tidak boleh melebihi sisa hutang. Pencatatan awal memerlukan izin `expense:create`, dan pembayaran berikutnya memerlukan `expense:update`. Saldo hutang manual yang dicatat masuk laporan bulanan sesuai tanggal; pembayaran hutang tidak otomatis menjadi pengeluaran.
+Selama masih ada sisa, pilih **Catat pembayaran** untuk mencatat cicilan atau pelunasan. Saat jatuh tempo dalam WIB, sisa hutang tampil sebagai pelunasan bertanda **Otomatis**, termasuk untuk hutang lama. Pembayaran manual memakai tanggal pembayaran aktual. Hutang tanpa jatuh tempo tetap terbuka sampai dibayar. Pembayaran hutang masuk pengeluaran pada tanggal dan kategori yang berlaku. Jika pembayaran terhubung ke transfer, laporan menghitungnya satu kali.
 
-Di bagian **Giro Pembelian**, giro lama berstatus **Belum diketahui** sampai riwayatnya diperiksa. Pilih **Periksa riwayat**, hubungkan hutang manual yang sama bila ada, periksa pembayaran yang sudah tersimpan, dan tambahkan pembayaran sebelumnya beserta tanggalnya tanpa mengulang yang sudah ada. Centang bahwa riwayat pembayaran sudah lengkap, lalu simpan. Untuk giro yang sudah diperiksa, pilih **Catat pembayaran** dan isi nominal serta tanggal pembayaran aktual. Pembayaran dapat sebagian atau lunas. Melihat giro memerlukan `expense:read`; pemeriksaan dan pembayaran memerlukan `expense:update`.
+Izin `expense.payable:create` diperlukan untuk mencatat hutang. Menambahkan pembayaran awal atau mencatat pembayaran berikutnya memerlukan izin `expense.payable:read` dan `expense.payable:update`. Koreksi pembayaran mengikuti izin `expense.payable.manual.payment:update`.
+
+Di bagian **Giro Pembelian**, giro lama berstatus **Belum diketahui** sampai riwayatnya diperiksa. Pilih **Periksa riwayat**, hubungkan hutang manual yang sama bila ada, periksa pembayaran yang sudah tersimpan, dan tambahkan pembayaran sebelumnya beserta tanggalnya tanpa mengulang yang sudah ada. Centang bahwa riwayat pembayaran sudah lengkap, lalu simpan. Untuk giro yang sudah diperiksa, pilih **Catat pembayaran** dan isi nominal serta tanggal pembayaran aktual. Pembayaran dapat sebagian atau lunas. Melihat giro memerlukan `expense.giro:read`. Pemeriksaan dan pembayaran memerlukan `expense.giro:update`.
 
 Untuk menghubungkan giro yang sudah diperiksa dengan hutang manual yang benar-benar sama, pilih **Hubungkan hutang manual** dan pilih hutang bernominal sama. Periksa catatan kedua hutang, riwayat pembayaran, dan bukti, tentukan setiap pembayaran yang cocok sebagai pembayaran yang sama atau transaksi berbeda, lalu centang konfirmasi dan simpan. Pembayaran yang sama dihitung sekali dan catatan kedua hutang disimpan pada giro. Pembayaran yang dipindahkan masuk arus kas giro pada tanggal aslinya; periksa pengeluaran manual agar tidak tercatat dua kali.
 
@@ -422,13 +426,13 @@ Untuk menghubungkan giro yang sudah diperiksa dengan hutang manual yang benar-be
 
 1. Buka **Keuangan**, lalu klik **Tambah Pemasukan** di bagian **Pemasukan tanpa transaksi**.
 2. Isi tanggal, keterangan / sumber, nominal, dan kategori RC: **ATK, Cetak, Spanduk, Print, Stempel**. Pilih satu atau beberapa metode pembayaran; jumlah masing-masing metode harus sesuai total nominal. Klik **Simpan**.
-3. Gunakan **Ubah/Hapus** sesuai izin bila perlu. **Unduh ulang** Excel bulanan agar RC serta ringkasan memuat data terbaru. File lama tidak berubah otomatis.
+3. Gunakan **Ubah/Hapus** sesuai izin bila perlu. Pilih tanggal pada bagian **Pemasukan** untuk melihat rincian penerimaan hari itu sesuai izin, termasuk pelunasan nota lama. **Unduh ulang** Excel bulanan agar RC serta ringkasan memuat data terbaru. File lama tidak berubah otomatis.
 
 ### Q49: Bagaimana cara mencatat belanja manual via transfer?
 
 1. Buka **Keuangan** dan klik **Tambah Belanja Transfer** pada bagian Pengeluaran.
-2. Isi tanggal transfer, penerima / supplier, keterangan, dan nominal; bukti transfer opsional. Klik **Simpan** untuk mencatat keuangan tanpa menambah stok.
-3. Gunakan menu aksi pada badge **Belanja Transfer Manual** untuk koreksi sesuai izin. **Unduh ulang** Excel untuk melihat **PENGELUARAN BELANJA → VIA TRANSFER** dan RP. Pengeluaran dihitung sekali pada total.
+2. Isi tanggal transfer, penerima / supplier, keterangan, nominal, dan kategori laporan. Bukti transfer opsional. Jika transfer membayar hutang, pada **Bayar hutang dengan transfer ini** pilih pembayaran pada tanggal transfer atau catat pembayaran baru, lalu tambahkan alokasi untuk setiap hutang. Klik **Simpan**.
+3. Gunakan menu aksi pada badge **Belanja Transfer Manual** untuk koreksi dan alokasi sesuai izin. Alokasi mengikuti kategori tiap hutang dan sisa memakai kategori transfer. **Unduh ulang** Excel untuk melihat **PENGELUARAN BELANJA → VIA TRANSFER** dan RP. Pengeluaran dihitung sekali pada total.
 
 ### Q50: Bagaimana Owner memeriksa perubahan nota oleh Sales?
 
@@ -449,6 +453,9 @@ Untuk menghubungkan giro yang sudah diperiksa dengan hutang manual yang benar-be
 1. Buka Laporan Keuangan.
 2. Pilih hari ini atau tanggal sebelumnya dalam WIB.
 3. Baca total, ATK/Percetakan, subkategori, dan metode pembayaran sesuai izin.
+4. Klik total atau **Lihat rincian pemasukan** untuk membuka ringkasan dan daftar penerimaan tanggal itu. Pilih **Rincian** pada baris untuk melihat nominal per metode dan kategori sesuai izin; pemasukan manual hanya ditampilkan jika diizinkan.
+5. Nominal kategori, subkategori, metode, dan Outstanding DP tetap membuka Riwayat sesuai izin. Dalam pratinjau Sales, catat nomor nota, pilih Laporan Lengkap, lalu cari nota di Riwayat dengan hak Owner.
+6. Bila perlu, buka **Cocokkan penerimaan**, isi nominal aktual untuk metode yang ingin diperiksa, lalu pilih **Simpan pemeriksaan**. Kosong berarti belum dicek; pengguna berizin di toko yang sama dapat membuka hasilnya kembali. Pratinjau Sales tidak dapat menyimpan.
 
 ### Q53: Bagaimana cara mengoreksi daftar belanja yang sudah diproses?
 
@@ -461,3 +468,10 @@ Untuk menghubungkan giro yang sudah diperiksa dengan hutang manual yang benar-be
 1. Masuk seperti biasa di perangkat tambahan. Tombol **Keluar** mengakhiri sesi pada perangkat yang digunakan.
 2. Saat koneksi sedang dipulihkan, biarkan tab tetap terbuka. Pemeriksaan izin akan diulang dan isian dapat dilanjutkan setelah berhasil.
 3. Jika sesi berakhir, pilih **Masuk lagi**. Gunakan akun dan toko yang sama pada tab tersebut untuk melanjutkan item keranjang yang tersimpan.
+
+
+### Q55: Bagaimana cara menata kategori dan subkategori produk per satuan?
+
+**Menata kategori produk per satuan:** Buka **Produk > Kategori** untuk melihat daftar produk. Untuk mengelola kategori lama, pilih **Kelola kategori lama**. Produk lama belum diklasifikasikan otomatis; kategori lama tetap tersimpan dan dapat dicari dengan filter **Kategori lama** atau status **Belum diatur**. Buka induk produk untuk mencentang satuan satu per satu, atau centang induk untuk memilih seluruh satuannya, termasuk yang tertutup dan tidak aktif. Pilih semua pada halaman hanya mencakup produk halaman itu; pilihan tetap ada saat mencari atau berpindah halaman.
+
+Di baki pemindahan, pilih **ATK** atau **PERCETAKAN**, lalu subkategori; di ponsel ketuk **Atur tujuan**. Pilihan PERCETAKAN adalah **PLAT**, **PRINT**, **STEMPEL**, **CETAK**, dan **SPANDUK**. Klik **Tinjau pemindahan**, periksa tujuan, jumlah aktif/nonaktif dan dampak harga pelanggan, lalu klik **Pindahkan satuan**. Jika data berubah atau pratinjau kedaluwarsa, tinjau ulang. Hanya satuan yang dipilih berpindah; stok bersama, konversi dan harga dasar tetap tersimpan. Kelola subkategori ATK di bagian bawah sesuai izin; subkategori yang masih dipakai tidak dapat dihapus. Aksi **Pindahkan Kategori** pada daftar Produk tetap mengubah kategori lama seluruh grup stok dan berbeda dari penataan per satuan.

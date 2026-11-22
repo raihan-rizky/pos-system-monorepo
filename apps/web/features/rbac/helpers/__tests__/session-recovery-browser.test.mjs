@@ -172,7 +172,7 @@ try {
   assert.deepEqual(login, { scope: "local", staleCookie: false, staleStorage: null, clearSessionRequests: 0 });
 
   assert.deepEqual(errors, []);
-  console.log("PASS: form survives temporary outage, stale response cannot undo logout, cart restore checks ownership, and login clears stale artifacts locally");
+  process.stdout.write("PASS: form survives temporary outage, stale response cannot undo logout, cart restore checks ownership, and login clears stale artifacts locally\n");
 } finally {
   await browser.close();
 }

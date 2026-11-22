@@ -54,7 +54,7 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = React.memo(
     if (!data || data.length === 0) {
       return (
         <div className="h-[300px] w-full rounded-xl border border-dashed border-surface-200 flex items-center justify-center text-sm text-surface-500">
-          Belum ada data revenue dalam 7 hari terakhir.
+          Belum ada data dalam 7 hari terakhir.
         </div>
       );
     }
@@ -62,7 +62,7 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = React.memo(
       <div className="relative">
         <div className="absolute right-0 top-0 z-10">
           <ChartAiInsightButton
-            chartTitle="Tren Revenue 7 Hari"
+            chartTitle="Tren Pemasukan dan Profit 7 Hari"
             chartContext={JSON.stringify(data)}
           />
         </div>
@@ -118,11 +118,11 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = React.memo(
               formatter={(value: unknown, name: unknown) => [
                 formatRupiah(Number(value)),
                 typeof name === "string"
-                  ? name.charAt(0).toUpperCase() + name.slice(1)
+                  ? name === "revenue" ? "Pemasukan" : name.charAt(0).toUpperCase() + name.slice(1)
                   : "",
               ]}
             />
-            <Area
+            {data.some(point => point.revenue !== null) && <Area
               type="monotone"
               dataKey="revenue"
               stroke="#0c98e9"
@@ -130,7 +130,7 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = React.memo(
               fillOpacity={1}
               fill="url(#dash-revenue)"
               isAnimationActive={false}
-            />
+            />}
             <Area
               type="monotone"
               dataKey="profit"

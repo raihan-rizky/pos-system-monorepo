@@ -11,6 +11,7 @@ const productFindManyMock = vi.hoisted(() => vi.fn());
 const customerFindFirstMock = vi.hoisted(() => vi.fn());
 const salespersonFindFirstMock = vi.hoisted(() => vi.fn());
 const pricingRuleFindManyMock = vi.hoisted(() => vi.fn());
+const subcategoryPricingRuleFindManyMock = vi.hoisted(() => vi.fn());
 const dbTransactionMock = vi.hoisted(() => vi.fn());
 const transactionCountMock = vi.hoisted(() => vi.fn());
 const transactionFindManyMock = vi.hoisted(() => vi.fn());
@@ -51,6 +52,7 @@ vi.mock("@pos/db", () => ({
     customer: { findFirst: customerFindFirstMock },
     salesperson: { findFirst: salespersonFindFirstMock },
     categoryCustomerPricingRule: { findMany: pricingRuleFindManyMock },
+    subcategoryCustomerPricingRule: { findMany: subcategoryPricingRuleFindManyMock },
     $transaction: dbTransactionMock,
   },
   Prisma: {},
@@ -87,6 +89,21 @@ function request(transactions: unknown[]) {
 }
 
 describe("POST /api/offline-sync/transactions", () => {
+  it("holds offline sales for review when the selected unit's subcategory changed", async () => {
+    const original = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...original, catalogSubcategoryId: "print", catalogSubcategory: { legacyCategoryId: null } }]);
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(), items: [{ productId: "product-1", name: "Kertas", catalogSubcategoryId: "bot", price: 1000, quantity: 1 }], amountPaid: 1000, originalSubtotal: 1000, originalTotal: 1000 })]));
+    expect((await response.json()).results[0].status).toBe("PENDING_APPROVAL");
+    expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
+  });
+  it("recalculates a replay using the current subcategory rule", async () => {
+    const original = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...original, catalogSubcategoryId: "print", catalogSubcategory: { legacyCategoryId: null } }]);
+    subcategoryPricingRuleFindManyMock.mockResolvedValue([{ id: "rule-print", subcategoryId: "print", subcategory: { group: "PERCETAKAN", name: "PRINT" }, customerType: null, customerTypes: [], unit: null, units: [], brandId: null, brand: null, mode: "PERCENT_DISCOUNT", value: 20, discountPercent: 0, isActive: true, updatedAt: new Date() }]);
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(), items: [{ productId: "product-1", name: "Kertas", catalogSubcategoryId: "print", price: 1000, quantity: 1 }], amountPaid: 1000, originalSubtotal: 1000, originalTotal: 1000 })]));
+    expect((await response.json()).results[0].status).toBe("PENDING_APPROVAL");
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 800, pricingRuleId: "rule-print" });
+  });
   it("holds an invoice price for approval when its grant was revoked", async () => {
     canRolePerformActionMock.mockImplementation((_role, resource) => resource !== "transaction.custom_price");
     customerFindFirstMock.mockResolvedValue({ id: "customer-1", type: "INDUSTRI" });
@@ -125,6 +142,19 @@ describe("POST /api/offline-sync/transactions", () => {
       amountPaid: 1000, originalSubtotal: 1000, originalTotal: 1000,
     })]));
     expect((await response.json()).results[0].status).toBe("PENDING_APPROVAL");
+    expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
+  });
+  it("holds a replay if rounding changed after the offline catalog was prepared", async () => {
+    roundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50, excludedCategoryIds: [] });
+    const original = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...original, price: 1200 }]);
+    const response = await POST(request([offlineTx({ createdAt: new Date().toISOString(),
+      priceRoundingSettings: { enabled: false, increment: 500, threshold: 50, excludedCategoryIds: [] },
+      items: [{ productId: "product-1", name: "Pulpen", price: 1200, quantity: 1 }],
+      amountPaid: 1200, originalSubtotal: 1200, originalTotal: 1200,
+    })]));
+    expect((await response.json()).results[0].status).toBe("PENDING_APPROVAL");
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 1500 });
     expect(applyProductStockDeltasMock).not.toHaveBeenCalled();
   });
   it("replays distinct customer manual prices for the same excluded product", async () => {
@@ -539,6 +569,7 @@ describe("POST /api/offline-sync/transactions", () => {
     customerFindFirstMock.mockResolvedValue(null);
     salespersonFindFirstMock.mockResolvedValue(null);
     pricingRuleFindManyMock.mockResolvedValue([]);
+    subcategoryPricingRuleFindManyMock.mockReset().mockResolvedValue([]);
     transactionCountMock.mockResolvedValue(0);
     transactionFindManyMock.mockReset().mockResolvedValue([]);
     transactionCreateMock.mockResolvedValue({ id: "tx-1" });

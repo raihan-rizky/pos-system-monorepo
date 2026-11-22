@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import type { CatalogSubcategory } from "@/features/product-classification/types";
 import { useCategories } from "@/hooks/useProducts";
 import { useBrands, useCreateBrand } from "@/hooks/useBrands";
 import {
@@ -58,15 +60,24 @@ export function PricingRuleForm({
     isActive: initialRule?.isActive ?? true,
   }));
   const [errors, setErrors] = useState<PricingFormErrors>({});
+  const [scope, setScope] = useState<"CATEGORY" | "SUBCATEGORY">(initialRule?.scope ?? "CATEGORY");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [brandName, setBrandName] = useState("");
   const [brandError, setBrandError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const categoriesQuery = useCategories();
+  const catalogQuery = useQuery({
+    queryKey: ["product-classification", "catalog"],
+    queryFn: async ({ signal }): Promise<{ subcategories: CatalogSubcategory[] }> => {
+      const response = await fetch("/api/product-classification", { signal });
+      if (!response.ok) throw new Error("Subkategori belum dapat dimuat.");
+      return response.json();
+    },
+  });
   const brandsQuery = useBrands();
   const createBrand = useCreateBrand();
   const rulesQuery = useCustomerCategoryPricingRules();
-  const unitsQuery = usePricingUnitOptions(form.categoryId);
+  const unitsQuery = usePricingUnitOptions(form.categoryId, scope);
   const method = getPricingMethod(form.mode);
   const isUnitFormula = form.mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT";
   const isFormula = form.mode.startsWith("COST_PLUS") || isUnitFormula;
@@ -75,7 +86,7 @@ export function PricingRuleForm({
     form.categoryId,
     selectedUnits.length === 1 ? selectedUnits[0] : selectedUnits.length ? selectedUnits : null,
     form.brandId || null,
-    { enabled: Boolean(form.categoryId) },
+    scope === "CATEGORY" ? { enabled: Boolean(form.categoryId) } : { enabled: Boolean(form.categoryId), scope },
   );
   const categories = categoriesQuery.data ?? [];
   const brands = brandsQuery.data ?? [];
@@ -83,7 +94,7 @@ export function PricingRuleForm({
     new Set([
       ...(unitsQuery.data ?? []),
       ...(rulesQuery.data ?? [])
-        .filter((rule) => rule.categoryId === form.categoryId)
+        .filter((rule) => rule.categoryId === form.categoryId && (rule.scope ?? "CATEGORY") === scope)
         .flatMap((rule) => normalizePricingUnits(rule.units, rule.unit)),
       ...selectedUnits,
     ]),
@@ -140,6 +151,7 @@ export function PricingRuleForm({
     try {
       setSaveError(null);
       await onSave({
+        scope,
         categoryId: form.categoryId,
         customerTypes: [...form.customerTypes],
         unit: selectedUnits.length === 1 ? selectedUnits[0] : null,
@@ -214,31 +226,35 @@ export function PricingRuleForm({
               htmlFor="pricing-category"
               className="text-sm font-semibold text-slate-700"
             >
-              Kategori <span className="text-red-600">*</span>
+              Kategori atau subkategori <span className="text-red-600">*</span>
             </label>
             <select
               id="pricing-category"
               name="categoryId"
-              value={form.categoryId}
+              value={form.categoryId ? `${scope}:${form.categoryId}` : ""}
               aria-invalid={Boolean(errors.categoryId)}
               aria-describedby={
                 errors.categoryId ? "pricing-categoryId-error" : undefined
               }
               className={controlClass}
               onChange={(event) => {
-                change("categoryId", event.target.value);
+                const [nextScope, ...parts] = event.target.value.split(":");
+                setScope(nextScope === "SUBCATEGORY" ? "SUBCATEGORY" : "CATEGORY");
+                change("categoryId", parts.join(":"));
                 change("unit", "");
                 change("units", []);
               }}
             >
               <option value="">Pilih kategori</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
+              {(!initialRule || scope === "SUBCATEGORY") && <optgroup label="Subkategori produk">
+                {(catalogQuery.data?.subcategories ?? []).map((item) => <option key={item.id} value={`SUBCATEGORY:${item.id}`}>{item.group} / {item.name}</option>)}
+              </optgroup>}
+              {(!initialRule || scope === "CATEGORY") && <optgroup label="Kategori lama">
+                {categories.map((category) => <option key={category.id} value={`CATEGORY:${category.id}`}>{category.name}</option>)}
+              </optgroup>}
             </select>
             {inlineError("categoryId")}
+            {catalogQuery.isError && <p role="alert" className="mt-1 text-sm text-red-700">Subkategori belum dapat dimuat. <button type="button" onClick={() => void catalogQuery.refetch()} className="underline">Coba lagi</button></p>}
             {categoriesQuery.isError && (
               <p role="alert" className="mt-1 text-sm text-red-700">
                 Kategori belum dapat dimuat.{" "}
@@ -531,7 +547,7 @@ export function PricingRuleForm({
               const invalid = Object.keys(validatePricingForm(form)).length > 0;
               let priceRounding: PriceRoundingResult | null = null;
               if (!preview.missingBaseCost && !invalid) {
-                try { priceRounding = roundSellingPrice(preview.price, roundingSettings, form.categoryId); } catch { /* Hide incomplete or out-of-range previews. */ }
+                try { priceRounding = roundSellingPrice(preview.price, roundingSettings, product.categoryId ?? (scope === "CATEGORY" ? form.categoryId : undefined)); } catch { /* Hide incomplete or out-of-range previews. */ }
               }
               const showResult = priceRounding !== null;
               const effectivePrice = priceRounding?.roundedPrice ?? preview.price;

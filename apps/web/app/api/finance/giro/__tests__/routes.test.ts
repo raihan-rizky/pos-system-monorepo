@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  permission: vi.fn(), authError: vi.fn(), query: vi.fn(), execute: vi.fn(), transaction: vi.fn(),
+  permission: vi.fn(), page: vi.fn(), authError: vi.fn(), query: vi.fn(), execute: vi.fn(), transaction: vi.fn(),
 }));
 vi.mock('@pos/db', () => ({ db: { $queryRaw: mocks.query, $transaction: mocks.transaction } }));
-vi.mock('@/lib/rbac/guard', () => ({ requirePermission: mocks.permission, handleAuthError: mocks.authError }));
+vi.mock('@/lib/rbac/guard', () => ({ requirePermission: mocks.permission, canAuthenticatedUserAccessPage: mocks.page, authorizeInTransaction: async (_tx: unknown, actor: { id: string; storeId: string; role?: string }, requirements: { resources: { resource: string; action: string }[]; page?: string }) => {
+  try { if (requirements.page && !await mocks.page()) return false; for (const grant of requirements.resources) { const current = await mocks.permission(grant.resource, grant.action); if (current.id !== actor.id || current.storeId !== actor.storeId || current.role !== actor.role) return false; } return true; } catch { return false; }
+}, handleAuthError: mocks.authError }));
 vi.mock('@/lib/logger', () => ({ getLogger: () => ({ error: vi.fn() }) }));
 
 import { GET } from '../route';
@@ -23,6 +25,7 @@ describe('giro endpoints', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-11-01T03:00:00Z'));
     mocks.permission.mockResolvedValue({ id: 'user-1', storeId: 'store-1' });
+    mocks.page.mockResolvedValue(true);
     mocks.authError.mockReturnValue(null);
     mocks.transaction.mockImplementation(async callback => callback({ $queryRaw: mocks.query, $executeRaw: mocks.execute }));
     mocks.execute.mockResolvedValue(1);
@@ -41,6 +44,25 @@ describe('giro endpoints', () => {
     expect(response.status).toBe(200);
     expect((await response.json()).manualPayables).toEqual([]);
     expect(mocks.query).toHaveBeenCalledTimes(1);
+  });
+  it('tidak membaca giro dan hutang manual tanpa akses halaman Keuangan', async () => {
+    mocks.page.mockResolvedValue(false);
+    expect((await GET(new Request('http://localhost/api/finance/giro'))).status).toBe(403);
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+  it('memerlukan izin koreksi hutang dan pembayaran untuk menghubungkan hutang manual ke giro', async () => {
+    const denied = new Error('manual-denied');
+    mocks.permission.mockImplementation(async resource => {
+      if (resource === 'expense.payable.manual.payment') throw denied;
+      return { id: 'user-1', storeId: 'store-1' };
+    });
+    mocks.authError.mockImplementation(error => error === denied ? new Response(null, { status: 403 }) : null);
+    mocks.query.mockResolvedValueOnce([purchase]).mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'manual-1', amount: '100000.00', debtDate: '2026-10-10', goodsPurchaseId: null, historyVerifiedAt: null }]);
+    const response = await POST(review({ ...input, payableId: 'manual-1', expectedPayments: [] }), context);
+    expect(response.status).toBe(403);
+    expect(mocks.permission).toHaveBeenCalledWith('expense.payable.manual', 'update');
+    expect(mocks.query).toHaveBeenCalledTimes(3);
+    expect(mocks.execute).not.toHaveBeenCalled();
   });
 
   it('includes stable payment IDs on both giro and manual debt histories', async () => {
@@ -98,7 +120,7 @@ describe('giro endpoints', () => {
       { ...purchase, goodsPurchaseId: purchase.id, payableId: null, historyVerifiedAt: null, payments: [] },
       { ...purchase, goodsPurchaseId: 'purchase-2', payableId: 'linked-2', payableDebtDate: '2026-10-01', historyVerifiedAt: new Date(), payments: [{ amount: '30000.00', paidAt: '2026-10-20' }] },
     ]).mockResolvedValueOnce([
-      { id: 'manual-1', supplierName: 'Pemasok', amount: '100000.00', debtDate: '2026-10-10', dueDate: null, payments: [{ amount: '10000.00', paidAt: '2026-10-15' }] },
+      { id: 'manual-1', supplierName: 'Pemasok', amount: '100000.00', debtDate: '2026-10-10', dueDate: null, payments: [{ id: 'p-manual', amount: '10000.00', paidAt: '2026-10-15', origin: 'MANUAL' }] },
     ]);
     const response = await GET(new Request('http://localhost/api/finance/giro?storeId=other'));
     expect(response.status).toBe(200);
@@ -113,6 +135,14 @@ describe('giro endpoints', () => {
     expect(mocks.permission).toHaveBeenCalledWith("expense.giro", "read");
     expect(mocks.query.mock.calls.every(call => call.includes('store-1'))).toBe(true);
     expect(mocks.query.mock.calls.some(call => call.includes('other'))).toBe(false);
+  });
+  it('shows an overdue manual debt as settled even before its automatic payment is persisted', async () => {
+    mocks.query.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'manual-due', supplierName: 'Pemasok', amount: '1000.00', debtDate: '2026-10-01', dueDate: '2026-10-20', note: null,
+      payments: [{ id: 'p1', amount: '400', paidAt: '2026-10-10', origin: 'MANUAL' }] }]);
+    const response = await GET(new Request('http://localhost/api/finance/giro'));
+    expect((await response.json()).manualPayables[0]).toMatchObject({ paid: 1000, payments: [
+      { id: 'p1', amount: 400 }, { id: 'auto:manual-due', amount: 600, paidAt: '2026-10-20', origin: 'AUTO' },
+    ] });
   });
 
   it('keeps the list available and marks inconsistent payment history unknown', async () => {
@@ -156,7 +186,7 @@ describe('giro endpoints', () => {
     const response = await POST(review(input), context);
     expect(response.status).toBe(201);
     expect(await response.json()).toEqual({ payableId: expect.any(String) });
-    expect(mocks.execute).toHaveBeenCalledTimes(2);
+    expect(mocks.execute).toHaveBeenCalledTimes(3);
     expect(mocks.permission).toHaveBeenCalledWith("expense.giro", "update");
     expect(mocks.query.mock.calls[0].join(' ')).toContain('FOR UPDATE');
     expect(mocks.query.mock.calls[0]).toContain('store-1');
@@ -169,9 +199,18 @@ describe('giro endpoints', () => {
     const response = await POST(review({ ...input, payableId: 'manual-1', expectedPayments: [{ amount: '20000.00', paidAt: '2026-10-15' }] }), context);
     expect(response.status).toBe(201);
     expect(await response.json()).toEqual({ payableId: 'manual-1' });
-    expect(mocks.execute).toHaveBeenCalledTimes(2);
+    expect(mocks.execute).toHaveBeenCalledTimes(3);
     expect(mocks.query.mock.calls[2].join(' ')).toContain('FOR UPDATE');
     expect(mocks.query.mock.calls[2]).toContain('store-1');
+  });
+
+  it('does not convert a manual debt with a transfer allocation into a giro', async () => {
+    mocks.query.mockResolvedValueOnce([purchase]).mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'manual-1', amount: '100000.00', debtDate: '2026-10-10', goodsPurchaseId: null, historyVerifiedAt: null }])
+      .mockResolvedValueOnce([{ amount: '20000.00', paidAt: '2026-10-15', allocated: true }]);
+    const response = await POST(review({ ...input, payableId: 'manual-1', expectedPayments: [{ amount: '20000', paidAt: '2026-10-15' }] }), context);
+    expect(response.status).toBe(409);
+    expect(mocks.execute).not.toHaveBeenCalled();
   });
 
   it('verifies an already linked unknown giro and preserves its previous payments', async () => {
@@ -181,7 +220,7 @@ describe('giro endpoints', () => {
     const response = await POST(review({ ...input, payableId: 'linked-1', expectedPayments: [{ amount: '20000.00', paidAt: '2026-10-15' }] }), context);
     expect(response.status).toBe(201);
     expect(await response.json()).toEqual({ payableId: 'linked-1' });
-    expect(mocks.execute).toHaveBeenCalledTimes(2);
+    expect(mocks.execute).toHaveBeenCalledTimes(3);
   });
 
   it('rejects a missing or cross-store purchase and missing or cross-store manual debt', async () => {

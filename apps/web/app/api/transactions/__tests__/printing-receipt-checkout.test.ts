@@ -35,6 +35,7 @@ vi.mock("@pos/db", () => ({
     printingService: {findMany: vi.fn(async () => [])},
     transaction: {count: async () => 0, findFirst: mocks.findTransaction},
     categoryCustomerPricingRule: {findMany: async () => []},
+    subcategoryCustomerPricingRule: {findMany: async () => []},
     $transaction: mocks.dbTransaction,
   },
 }));

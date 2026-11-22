@@ -57,6 +57,8 @@ export function groupProductsByNameAndCategory(
     merged.push({
       ...variants[0], // Copy base product info from first variant
       id: defaultVariant.id, // Use default variant ID as group ID
+      catalogSubcategoryId: defaultVariant.catalogSubcategoryId,
+      catalogSubcategory: defaultVariant.catalogSubcategory,
       description,
       sku: defaultVariant.sku,
       price: defaultVariant.price,
@@ -80,6 +82,8 @@ export function groupProductsByNameAndCategory(
       },
       variants: variants.map((v) => ({
         id: v.id,
+        catalogSubcategoryId: v.catalogSubcategoryId,
+        catalogSubcategory: v.catalogSubcategory,
         description,
         unit: v.unit,
         price: v.price,

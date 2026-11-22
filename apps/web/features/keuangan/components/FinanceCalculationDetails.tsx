@@ -2,7 +2,7 @@ import { formatRupiahPrecise } from "@/lib/utils";
 
 type Income = { total: number; supplierRefund?: number; components: { sales: number; manualIncome: number; manualReceivable: number } | null };
 type Expense = { total: number | null; incomplete: boolean; correctionOutflow?: number; components?: {
-  manual: number; transfer: number; giroPayment: number; giroDue: number; overpayment: number;
+  manual: number; transfer: number; giroPayment: number; giroDue: number; overpayment: number; manualPayable?: number;
 } };
 
 export function FinanceCalculationDetails({ income, expense }: { income?: Income; expense?: Expense }) {
@@ -21,6 +21,7 @@ export function FinanceCalculationDetails({ income, expense }: { income?: Income
       {expense && <div><p className="font-semibold">Pengeluaran</p>{expense.components ? <dl className="mt-1 space-y-1">
         <div className="flex justify-between gap-4"><dt>Pengeluaran manual setelah kembalian</dt><dd className="tabular-nums">{formatRupiahPrecise(expense.components.manual)}</dd></div>
         <div className="flex justify-between gap-4"><dt>Belanja transfer</dt><dd className="tabular-nums">{formatRupiahPrecise(expense.components.transfer)}</dd></div>
+        <div className="flex justify-between gap-4"><dt>Pembayaran hutang manual yang belum terhubung ke transfer</dt><dd className="tabular-nums">{formatRupiahPrecise(expense.components.manualPayable ?? 0)}</dd></div>
         <div className="flex justify-between gap-4"><dt>Giro jatuh tempo dengan pembayaran tercatat</dt><dd className="tabular-nums">{formatRupiahPrecise(expense.components.giroPayment)}</dd></div>
         <div className="flex justify-between gap-4"><dt>Sisa giro jatuh tempo</dt><dd className="tabular-nums">{formatRupiahPrecise(expense.components.giroDue)}</dd></div>
         <div className="flex justify-between gap-4"><dt>Kelebihan pembayaran belum dikembalikan</dt><dd className="tabular-nums">{formatRupiahPrecise(expense.components.overpayment)}</dd></div>

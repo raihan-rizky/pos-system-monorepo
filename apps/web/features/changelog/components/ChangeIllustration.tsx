@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowRight, Check, FileClock, FileText, FolderInput, History, Layers, Package, ReceiptText, ShoppingBag } from "lucide-react";
+import { ArrowDown, ArrowRight, Check, ChevronDown, FileClock, FileText, FolderInput, History, Layers, Package, ReceiptText, ShoppingBag, User } from "lucide-react";
 import type { ChangeVisual } from "../types";
 
 export function ChangeIllustration({ visual, compact = false }: { visual: ChangeVisual; compact?: boolean }) {
@@ -20,6 +20,9 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
       "receipt-audit": { Icon: FileClock, title: "Jejak nota mudah ditelusuri.", detail: "Pilih revisi · Bandingkan · Periksa asli" },
       financial: { Icon: FileText, title: "Saldo laporan otomatis.", detail: "Inventaris dan hutang tercatat" },
       rbac: { Icon: Check, title: "Izin Riwayat lebih jelas.", detail: "Halaman · Data · Tindakan" },
+      "manual-receivables": { Icon: ChevronDown, title: "Lipat Piutang Manual", detail: "Pilihan tersimpan di browser yang sama" },
+      "checkout-customer-type": { Icon: User, title: "Jenis pelanggan baru", detail: "UMUM · AGEN · INDUSTRI · PEMERINTAH" },
+      "pos-catalog": { Icon: Package, title: "Filter kategori di POS", detail: "Grup · Subkategori · Satuan aktif" },
       "daily-subtotal": { Icon: FileText, title: "Subtotal harian di RC Bulan", detail: "Per tanggal · Per kategori · Mint" },
     };
     const preview = previews[visual];
@@ -46,6 +49,28 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
             ))}
           </div>
           <p className="mt-3 text-xs text-surface-500">Periksa prasyarat, tinjau perubahan, lalu simpan.</p>
+        </div>
+      )}
+      {visual === "manual-receivables" && (
+        <div className="mx-auto grid w-full max-w-lg gap-3 sm:grid-cols-2">
+          <div className={panel}>
+            <div className="flex items-center justify-between gap-3"><span className="text-sm font-bold">Piutang Manual</span><ChevronDown className={`${icon} rotate-180`} aria-hidden="true" /></div>
+            <div className="mt-3 rounded-lg bg-brand-50 p-3 text-xs"><p className="font-semibold text-brand-900">Contoh piutang</p><p className="mt-1 text-brand-700">Sisa tagihan tersedia</p></div>
+            <p className="mt-2 text-[11px] font-medium text-brand-800">Bagian terbuka</p>
+          </div>
+          <div className={panel}>
+            <div className="flex items-center justify-between gap-3"><span className="text-sm font-bold">Piutang Manual</span><ChevronDown className={icon} aria-hidden="true" /></div>
+            <p className="mt-3 text-xs text-surface-600">Bagian tertutup</p>
+          </div>
+        </div>
+      )}
+      {visual === "checkout-customer-type" && (
+        <div className={`mx-auto w-full max-w-md ${panel}`}>
+          <p className="text-sm font-bold text-surface-900">Jenis pelanggan</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-semibold">
+            {["UMUM", "AGEN", "INDUSTRI", "PEMERINTAH"].map((type, index) => <span key={type} className={`rounded-lg px-3 py-2 ${index === 0 ? "bg-brand-100 text-brand-900 ring-1 ring-brand-300" : "bg-surface-50 text-surface-700"}`}>{type}{index === 0 ? " · pilihan awal" : ""}</span>)}
+          </div>
+          <p className="mt-3 text-xs text-surface-600">Jenis pilihan menentukan harga checkout.</p>
         </div>
       )}
       {visual === "transaction-unvoid" && (
@@ -112,6 +137,42 @@ export function ChangeIllustration({ visual, compact = false }: { visual: Change
           </div>
           <ArrowRight className="h-6 w-6 shrink-0 text-brand-600" aria-hidden="true" />
           <div className={`${panel} flex-1 text-center`}><FolderInput className="mx-auto mb-3 h-9 w-9 text-brand-600" aria-hidden="true" /><p className="text-sm font-bold text-surface-900">Kategori tujuan</p><p className="mt-1 text-xs text-surface-500">Satu kali pemindahan</p></div>
+        </div>
+      )}
+      {visual === "pos-catalog" && (
+        <div className="mx-auto w-full max-w-lg space-y-3">
+          <div className={`${panel} space-y-4`}>
+            <div className="space-y-1">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-surface-500">01 · Kategori produk</p>
+              <div role="group" aria-label="Kategori produk" className="flex gap-2 overflow-x-auto py-1">
+                {["Semua kategori", "ATK", "PERCETAKAN"].map(label => {
+                  const selected = label === "PERCETAKAN";
+                  return <span key={label} data-selected={selected ? "true" : "false"} className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold ${selected ? "border-brand-700 bg-brand-700 text-white" : "border-surface-200 bg-white text-surface-700"}`}>
+                    {selected && <Check aria-hidden="true" className="h-3 w-3" />}{label}
+                  </span>;
+                })}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-surface-500">02 · Subkategori</p>
+              <div role="group" aria-label="Subkategori" className="flex gap-2 overflow-x-auto py-1">
+                {["Semua subkategori", "PLAT", "PRINT", "STEMPEL", "CETAK", "SPANDUK"].map(label => {
+                  const selected = label === "CETAK";
+                  return <span key={label} data-selected={selected ? "true" : "false"} className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold ${selected ? "border-brand-700 bg-brand-700 text-white" : "border-surface-200 bg-white text-surface-700"}`}>
+                    {selected && <Check aria-hidden="true" className="h-3 w-3" />}{label}
+                  </span>;
+                })}
+              </div>
+            </div>
+          </div>
+          <div className={`${panel} flex items-center justify-between gap-4`}>
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-brand-700">Satuan dipilih</span>
+              <p className="mt-1 text-lg font-extrabold text-surface-900">Rim</p>
+            </div>
+            <Package className="h-8 w-8 text-brand-700" aria-hidden="true" />
+          </div>
+          <p className="text-center text-xs font-medium text-brand-800">Nama satuan jual terlihat langsung pada baris keranjang.</p>
         </div>
       )}
       {visual === "daily-subtotal" && (

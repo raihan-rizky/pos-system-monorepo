@@ -9,9 +9,10 @@ import { useRole } from "@/components/providers/RoleProvider";
 import { useDebounce } from "@/hooks/useDebounce";
 import type { Transaction } from "@/hooks/useTransactions";
 import type { CheckoutCustomerSelection } from "@/features/pos-checkout/customer-selection";
+import { toJakartaInputParts } from "@/features/invoice-date/helpers/server-clock";
 import { invalidateTransactionViews } from "@/features/transaction-history/helpers/invalidate";
 import { formatRupiah } from "@/lib/utils";
-import { buildPrintingReceiptCartItems } from "../checkout";
+import { applyPrintingReceiptCheckoutNames, buildPrintingReceiptCartItems } from "../checkout";
 import { getPrintingReceiptLayout, getPrintingReceiptTotals } from "../layout";
 import { getPrintingReceiptScopeKey, getPrintingReceiptWritePermissions } from "../permissions";
 import { usePrintingReceiptAutosave } from "../hooks/usePrintingReceiptAutosave";
@@ -24,6 +25,29 @@ import { ProcessedPrintingReceiptEditor } from "./ProcessedPrintingReceiptEditor
 
 interface ReceiptList { data: PrintingReceipt[]; pagination: { page: number; total: number; totalPages: number; hasNextPage?: boolean } }
 type PaymentInput = Parameters<ComponentProps<typeof PaymentModal>["onConfirm"]>[0];
+interface CachedPaymentCustomerSelection {
+  draftCustomerFingerprint: string;
+  selection: CheckoutCustomerSelection;
+}
+
+function getReceiptCustomerFingerprint(receipt: PrintingReceipt): string {
+  return JSON.stringify([receipt.document.customerId, receipt.document.customerName, receipt.document.customerPhone ?? ""]);
+}
+
+function getReceiptCustomerSelection(receipt: PrintingReceipt): CheckoutCustomerSelection {
+  const document = receipt.document;
+  if (document.customerId) return { kind: "existing", customer: { id: document.customerId, name: document.customerName } };
+  if (document.customerName.trim() && document.customerName !== "Pelanggan Umum") return { kind: "new", name: document.customerName, phone: document.customerPhone || undefined };
+  return { kind: "general" };
+}
+
+function getTransactionInvoiceDate(invoiceDate: string | null | undefined, fallback: string): string {
+  if (!invoiceDate) return fallback;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(invoiceDate)) return invoiceDate;
+  const parsed = new Date(invoiceDate);
+  return Number.isNaN(parsed.getTime()) ? fallback : toJakartaInputParts(parsed).date;
+}
+
 const makeBlankLine = (): PrintingReceiptLine => ({ id: crypto.randomUUID(), name: "", material: "", quantity: null, price: null, stockLink: null });
 
 export interface PrintingReceiptWorkspaceProps {
@@ -60,9 +84,11 @@ function PrintingReceiptSession({ canCheckout = true, onRequireShift, isCurrentS
   const [confirmAction, setConfirmAction] = useState<"delete" | "reload" | null>(null);
   const [stockLineId, setStockLineId] = useState<string | null>(null);
   const [paymentReceipt, setPaymentReceipt] = useState<PrintingReceipt | null>(null);
+  const [paymentCustomerSelections, setPaymentCustomerSelections] = useState<Record<string, CachedPaymentCustomerSelection>>({});
   const [previewReceipt, setPreviewReceipt] = useState<PrintingReceipt | null>(null);
   const [processedEditReceipt, setProcessedEditReceipt] = useState<PrintingReceipt | null>(null);
   const canEditProcessed = canPerform("printing_receipt.processed", "update");
+  const canAddProcessedPayment = canPerform("customer.receivable", "read") && canPerform("customer.receivable.payment", "create");
   const selectedBySubcategory = useRef<Partial<Record<PrintingSubcategory, string>>>({});
   const checkoutPending = useRef(false);
   const queryClient = useQueryClient();
@@ -83,11 +109,26 @@ function PrintingReceiptSession({ canCheckout = true, onRequireShift, isCurrentS
   const paymentItems = useMemo(() => paymentReceipt ? buildPrintingReceiptCartItems(paymentReceipt.document.lines) : [], [paymentReceipt]);
   const initialCustomer = useMemo<CheckoutCustomerSelection>(() => {
     if (!paymentReceipt) return { kind: "general" };
-    const document = paymentReceipt.document;
-    if (document.customerId) return { kind: "existing", customer: { id: document.customerId, name: document.customerName } };
-    if (document.customerName.trim() && document.customerName !== "Pelanggan Umum") return { kind: "new", name: document.customerName, phone: document.customerPhone || undefined };
-    return { kind: "general" };
-  }, [paymentReceipt]);
+    const currentDraft = receipt?.id === paymentReceipt.id && !receipt.transactionId ? receipt : paymentReceipt;
+    const cached = paymentCustomerSelections[currentDraft.id];
+    if (cached?.draftCustomerFingerprint === getReceiptCustomerFingerprint(currentDraft)) return cached.selection;
+    return getReceiptCustomerSelection(currentDraft);
+  }, [paymentReceipt, paymentCustomerSelections, receipt]);
+  const rememberPaymentCustomerSelection = (selection: CheckoutCustomerSelection) => {
+    if (!paymentReceipt) return;
+    setPaymentCustomerSelections(current => ({
+      ...current,
+      [paymentReceipt.id]: { draftCustomerFingerprint: getReceiptCustomerFingerprint(paymentReceipt), selection },
+    }));
+  };
+  const forgetPaymentCustomerSelection = (receiptId: string) => {
+    setPaymentCustomerSelections(current => {
+      if (!(receiptId in current)) return current;
+      const next = { ...current };
+      delete next[receiptId];
+      return next;
+    });
+  };
 
   const loadRecord = (record: PrintingReceipt) => {
     if (!isCurrentSession()) return;
@@ -163,22 +204,44 @@ function PrintingReceiptSession({ canCheckout = true, onRequireShift, isCurrentS
     if (!isCurrentSession() || checkoutPending.current) return;
     checkoutPending.current = true; setBusy(true); setError(null);
     try {
-      let saved = await editor.flush();
+      const saved = await editor.flush();
       if (!isCurrentSession()) return;
       if (!saved) throw new Error("Nota aktif tidak ditemukan. Buka kembali nota sebelum pembayaran.");
-      if (saved.document.customerName !== data.customerName || saved.document.customerId !== data.customerId) {
-        editor.update({ ...saved, document: { ...saved.document, customerName: data.customerName, customerId: data.customerId } });
-        saved = await editor.flush();
-      }
-      if (!isCurrentSession()) return;
-      if (!saved) throw new Error("Nota belum tersimpan. Coba lagi.");
       const response = await fetch("/api/transactions", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...data, note: data.note || saved.document.note, items: buildPrintingReceiptCartItems(saved.document.lines), printingReceiptId: saved.id, printingReceiptRevision: saved.revision }),
+        body: JSON.stringify({ ...data, note: data.note || saved.document.note, items: buildPrintingReceiptCartItems(saved.document.lines), printingReceiptId: saved.id, printingReceiptRevision: saved.revision, printingReceiptCheckout: { customerName: data.customerName, customerId: data.customerId } }),
       });
+      const newlyCreated = response.status === 201;
       const transaction = await readPrintingReceiptResponse<Transaction>(response);
       if (!isCurrentSession()) return;
-      const processed = { ...saved, transactionId: transaction.id, transaction };
+      let processed: PrintingReceipt | null = null;
+      try {
+        const current = await getPrintingReceiptPreviewRecord({ ...saved, transactionId: transaction.id, transaction });
+        if (current.transactionId === transaction.id) processed = current;
+      } catch {
+        if (newlyCreated) {
+          const fallbackDocument = applyPrintingReceiptCheckoutNames(
+            { ...saved.document, date: getTransactionInvoiceDate(transaction.invoiceDate, saved.document.date) },
+            saved.subcategory,
+            {
+              customerName: transaction.customerName ?? saved.document.customerName,
+              customerId: transaction.customerId ?? null,
+              salesName: transaction.salespersonId ? transaction.salesperson?.name ?? transaction.salesName : undefined,
+            },
+          );
+          processed = { ...saved, document: fallbackDocument, transactionId: transaction.id, transaction };
+        }
+      }
+      if (!isCurrentSession()) return;
+      if (!processed) {
+        forgetPaymentCustomerSelection(saved.id);
+        editor.load(null); setPaymentReceipt(null);
+        setError("Pembayaran sudah tercatat, tetapi nota belum dapat dimuat ulang. Periksa akses, lalu buka kembali nota dari daftar atau Riwayat.");
+        void queryClient.invalidateQueries({ queryKey: ["printing-receipts"] });
+        invalidateTransactionViews(queryClient);
+        return;
+      }
+      forgetPaymentCustomerSelection(saved.id);
       editor.load(processed); setPaymentReceipt(null); setPreviewReceipt(processed);
       void queryClient.invalidateQueries({ queryKey: ["printing-receipts"] });
       invalidateTransactionViews(queryClient);
@@ -195,7 +258,7 @@ function PrintingReceiptSession({ canCheckout = true, onRequireShift, isCurrentS
       if (!saved || !isCurrentSession()) return;
       await readPrintingReceiptResponse(await fetch(`/api/printing-receipts/${encodeURIComponent(saved.id)}?revision=${saved.revision}`, { method: "DELETE" }));
       if (!isCurrentSession()) return;
-      delete selectedBySubcategory.current[subcategory]; editor.load(null);
+      delete selectedBySubcategory.current[subcategory]; forgetPaymentCustomerSelection(saved.id); editor.load(null);
       void queryClient.invalidateQueries({ queryKey: ["printing-receipts"] });
     }
     setConfirmAction(null);
@@ -306,12 +369,12 @@ function PrintingReceiptSession({ canCheckout = true, onRequireShift, isCurrentS
       </main>
     </div>
     {stockLine && editable && <PrintingReceiptStockLinkModal key={stockLine.id} line={stockLine} onClose={() => setStockLineId(null)} onSave={stockLink => editor.update({ ...receipt!, document: { ...receipt!.document, lines: receipt!.document.lines.map(line => line.id === stockLine.id ? { ...line, stockLink } : line) } })} />}
-    {paymentReceipt && <PaymentModal open onClose={() => { if (!busy) { setPaymentReceipt(null); setError(null); } }} items={paymentItems} subtotal={getPrintingReceiptTotals(paymentReceipt).subtotal} initialCustomerSelection={initialCustomer} onConfirm={data => void checkout(data)} isProcessing={busy} allowItemDiscounts={false} receiptInvoiceDate={paymentReceipt.document.date} draftError={error} />}
+    {paymentReceipt && <PaymentModal open onClose={() => { if (!busy) { setPaymentReceipt(null); setError(null); } }} items={paymentItems} subtotal={getPrintingReceiptTotals(paymentReceipt).subtotal} initialCustomerSelection={initialCustomer} onCustomerSelectionChange={rememberPaymentCustomerSelection} preserveCustomerSelectionOnClose onConfirm={data => void checkout(data)} isProcessing={busy} allowItemDiscounts={false} receiptInvoiceDate={paymentReceipt.document.date} draftError={error} />}
     {previewReceipt && <PrintingReceiptModal open onClose={() => setPreviewReceipt(null)} onReceiptUpdated={saved => {
       if (!isCurrentSession()) return;
       setPreviewReceipt(saved); loadRecord(saved);
     }} receipt={previewReceipt} transaction={previewReceipt.transaction} />}
-    {processedEditReceipt && canEditProcessed && <ProcessedPrintingReceiptEditor key={processedEditReceipt.id} receipt={processedEditReceipt} onClose={() => setProcessedEditReceipt(null)} onSaved={savedProcessedEdit} />}
+    {processedEditReceipt && canEditProcessed && <ProcessedPrintingReceiptEditor key={processedEditReceipt.id} receipt={processedEditReceipt} onClose={() => setProcessedEditReceipt(null)} onSaved={savedProcessedEdit} canAddPayment={canAddProcessedPayment} />}
     <Modal open={Boolean(confirmAction)} onClose={() => { if (!busy) setConfirmAction(null); }} title={confirmAction === "delete" ? "Hapus draft nota?" : "Muat ulang versi tersimpan?"} size="sm">
       <p className="text-sm text-surface-600">{confirmAction === "delete" ? "Draft ini akan dihapus dari daftar nota. Nota yang sudah diproses tidak dapat dihapus di sini." : "Isian lokal yang belum tersimpan akan diganti dengan versi terbaru di server."}</p>
       <div className="mt-5 flex justify-end gap-2"><Button variant="secondary" disabled={busy} onClick={() => setConfirmAction(null)}>Batal</Button><Button variant={confirmAction === "delete" ? "danger" : "primary"} loading={busy} onClick={() => void confirm()}>{confirmAction === "delete" ? <Trash2 size={15} /> : <RotateCcw size={15} />}{confirmAction === "delete" ? "Hapus draft" : "Muat ulang"}</Button></div>

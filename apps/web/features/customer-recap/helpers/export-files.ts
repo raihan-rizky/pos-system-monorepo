@@ -22,7 +22,8 @@ const COLORS = {
 
 const NUMBER_FORMAT = "#,##0;[Red]-#,##0";
 
-function formatRupiah(value: number): string {
+function formatRupiah(value: number | undefined): string {
+  if (value === undefined) return "-";
   return `Rp ${Math.round(value).toLocaleString("id-ID")}`;
 }
 
@@ -127,13 +128,14 @@ function styleTitle(
 }
 
 function buildTypeWorksheet(XLSX: XlsxModule, data: CustomerRecapExportData, group: CustomerRecapExportGroup) {
+  const showReceivables = data.summary.totalDebtOutstanding !== undefined;
   const customerHeaders = [
     "No",
     "Nama Pelanggan",
     "Jumlah Transaksi",
     "Total Belanja",
     "Rata-rata Belanja",
-    "Piutang Tersisa",
+    ...(showReceivables ? ["Piutang Tersisa"] : []),
     "Kunjungan Terakhir",
     "Produk Favorit",
   ];
@@ -155,7 +157,7 @@ function buildTypeWorksheet(XLSX: XlsxModule, data: CustomerRecapExportData, gro
         customer.orderCount,
         customer.totalSpent,
         customer.averageOrderValue,
-        customer.totalDebt,
+        ...(showReceivables ? [customer.totalDebt ?? ""] : []),
         formatDate(customer.lastVisitAt),
         customer.favoriteProducts || "-",
       ]),
@@ -191,7 +193,7 @@ function buildTypeWorksheet(XLSX: XlsxModule, data: CustomerRecapExportData, gro
     { wch: 18 },
     { wch: 18 },
     { wch: 20 },
-    { wch: 18 },
+    ...(showReceivables ? [{ wch: 18 }] : []),
     { wch: 20 },
     { wch: 36 },
   ];
@@ -205,7 +207,7 @@ function buildTypeWorksheet(XLSX: XlsxModule, data: CustomerRecapExportData, gro
     customerDataStart,
     customerDataStart + Math.max(group.customers.length, 1) - 1,
     customerHeaders.length,
-    new Set([0, 2, 3, 4, 5]),
+    new Set(showReceivables ? [0, 2, 3, 4, 5] : [0, 2, 3, 4]),
   );
   styleTitle(XLSX, worksheet, productTitleRow, productHeaders.length, 12);
   styleHeader(XLSX, worksheet, productHeaderRow, productHeaders.length);
@@ -222,29 +224,34 @@ function buildTypeWorksheet(XLSX: XlsxModule, data: CustomerRecapExportData, gro
 }
 
 function buildSummaryWorksheet(XLSX: XlsxModule, data: CustomerRecapExportData, aiAnalysis: string[]) {
+  const {totalDebtOutstanding, debtCollectedInPeriod} = data.summary;
+  const showReceivables = totalDebtOutstanding !== undefined && debtCollectedInPeriod !== undefined;
+  const summaryColumns = showReceivables ? 6 : 5;
+  const kpiRows: (string | number)[][] = [
+    ["Pelanggan Baru", data.summary.newCustomers],
+    ["Pelanggan Kembali", data.summary.returningCustomers],
+    ["Risiko Churn", data.summary.churnedCustomers],
+    ...(showReceivables ? [["Piutang Total", totalDebtOutstanding], ["Piutang Terbayar", debtCollectedInPeriod]] : []),
+    ["Rata-rata Belanja", data.summary.avgOrderValue],
+    ["Frekuensi Order", data.summary.orderFrequency],
+    ["Rasio Pembelian Ulang", data.summary.repeatPurchaseRate],
+  ];
   const rows: (string | number)[][] = [
     ["Ringkasan Semua Tipe Pelanggan"],
     [`Periode: ${formatPeriod(data.dateFrom, data.dateTo)}`],
     [],
     ["KPI Keseluruhan", "Nilai"],
-    ["Pelanggan Baru", data.summary.newCustomers],
-    ["Pelanggan Kembali", data.summary.returningCustomers],
-    ["Risiko Churn", data.summary.churnedCustomers],
-    ["Piutang Total", data.summary.totalDebtOutstanding],
-    ["Piutang Terbayar", data.summary.debtCollectedInPeriod],
-    ["Rata-rata Belanja", data.summary.avgOrderValue],
-    ["Frekuensi Order", data.summary.orderFrequency],
-    ["Rasio Pembelian Ulang", data.summary.repeatPurchaseRate],
+    ...kpiRows,
     [],
     ["Ringkasan per Tipe"],
-    ["Tipe Pelanggan", "Pelanggan Aktif", "Jumlah Transaksi", "Total Belanja", "Rata-rata Belanja", "Piutang Tersisa"],
+    ["Tipe Pelanggan", "Pelanggan Aktif", "Jumlah Transaksi", "Total Belanja", "Rata-rata Belanja", ...(showReceivables ? ["Piutang Tersisa"] : [])],
     ...data.typeSummaries.map((summary) => [
       TYPE_LABELS[summary.type],
       summary.customerCount,
       summary.transactionCount,
       summary.totalSpent,
       summary.averageOrderValue,
-      summary.debtOutstanding,
+      ...(showReceivables ? [summary.debtOutstanding ?? ""] : []),
     ]),
     [],
     ["Analisis AI"],
@@ -260,15 +267,17 @@ function buildSummaryWorksheet(XLSX: XlsxModule, data: CustomerRecapExportData, 
     { wch: 18 },
   ];
   worksheet["!rows"] = [{ hpt: 26 }, { hpt: 18 }];
-  styleTitle(XLSX, worksheet, 0, 6, 15);
-  styleTitle(XLSX, worksheet, 1, 6, 9);
+  styleTitle(XLSX, worksheet, 0, summaryColumns, 15);
+  styleTitle(XLSX, worksheet, 1, summaryColumns, 9);
   styleHeader(XLSX, worksheet, 3, 2);
-  styleTableRows(XLSX, worksheet, 4, 11, 2, new Set([1]));
-  styleTitle(XLSX, worksheet, 13, 6, 12);
-  styleHeader(XLSX, worksheet, 14, 6);
-  styleTableRows(XLSX, worksheet, 15, 14 + data.typeSummaries.length, 6, new Set([1, 2, 3, 4, 5]));
-  const aiTitleRow = 16 + data.typeSummaries.length;
-  styleTitle(XLSX, worksheet, aiTitleRow, 6, 12);
+  styleTableRows(XLSX, worksheet, 4, 3 + kpiRows.length, 2, new Set([1]));
+  const typeTitleRow = 5 + kpiRows.length;
+  const typeHeaderRow = typeTitleRow + 1;
+  styleTitle(XLSX, worksheet, typeTitleRow, summaryColumns, 12);
+  styleHeader(XLSX, worksheet, typeHeaderRow, summaryColumns);
+  styleTableRows(XLSX, worksheet, typeHeaderRow + 1, typeHeaderRow + data.typeSummaries.length, summaryColumns, new Set([1, 2, 3, 4, 5]));
+  const aiTitleRow = typeHeaderRow + data.typeSummaries.length + 2;
+  styleTitle(XLSX, worksheet, aiTitleRow, summaryColumns, 12);
   for (let row = aiTitleRow + 1; row < rows.length; row += 1) {
     setCellStyle(XLSX, worksheet, row, 0, {
       font: { name: "Calibri", sz: 10, color: { rgb: COLORS.text } },
@@ -277,7 +286,7 @@ function buildSummaryWorksheet(XLSX: XlsxModule, data: CustomerRecapExportData, 
   }
   worksheet["!merges"] = worksheet["!merges"] ?? [];
   for (let row = aiTitleRow + 1; row < rows.length; row += 1) {
-    worksheet["!merges"].push({ s: { r: row, c: 0 }, e: { r: row, c: 5 } });
+    worksheet["!merges"].push({ s: { r: row, c: 0 }, e: { r: row, c: summaryColumns - 1 } });
   }
   worksheet["!freeze"] = { xSplit: 0, ySplit: 4 };
   return worksheet;
@@ -341,13 +350,15 @@ export async function exportCustomerRecapPdf(
   const autoTable = autoTableModule.default ?? autoTableModule;
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
   const period = formatPeriod(data.dateFrom, data.dateTo);
+  const {totalDebtOutstanding, debtCollectedInPeriod} = data.summary;
+  const showReceivables = totalDebtOutstanding !== undefined && debtCollectedInPeriod !== undefined;
   const customerHead = [[
     "No",
     "Nama Pelanggan",
     "Transaksi",
     "Total Belanja",
     "Rata-rata",
-    "Piutang",
+    ...(showReceivables ? ["Piutang"] : []),
     "Kunjungan Terakhir",
     "Produk Favorit",
   ]];
@@ -366,16 +377,16 @@ export async function exportCustomerRecapPdf(
             customer.orderCount,
             formatRupiah(customer.totalSpent),
             formatRupiah(customer.averageOrderValue),
-            formatRupiah(customer.totalDebt),
+            ...(showReceivables ? [formatRupiah(customer.totalDebt)] : []),
             formatDate(customer.lastVisitAt),
             customer.favoriteProducts || "-",
           ])
-        : [["", "Tidak ada data", "", "", "", "", "", ""]],
+        : [["", "Tidak ada data", ...Array(customerHead[0].length - 2).fill("")]],
       theme: "grid",
       styles: { font: "helvetica", fontSize: 8, cellPadding: 5, textColor: [15, 23, 42], lineColor: [203, 213, 225], lineWidth: 0.4 },
       headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold" },
       alternateRowStyles: { fillColor: [248, 250, 252] },
-      columnStyles: { 0: { cellWidth: 26 }, 2: { halign: "right", cellWidth: 54 }, 3: { halign: "right", cellWidth: 86 }, 4: { halign: "right", cellWidth: 86 }, 5: { halign: "right", cellWidth: 82 }, 7: { cellWidth: 145 } },
+      columnStyles: { 0: { cellWidth: 26 }, 2: { halign: "right", cellWidth: 54 }, 3: { halign: "right", cellWidth: 86 }, 4: { halign: "right", cellWidth: 86 }, ...(showReceivables ? { 5: { halign: "right", cellWidth: 82 } } : {}), [showReceivables ? 7 : 6]: { cellWidth: 145 } },
     });
 
     const customerEndY = (doc as any).lastAutoTable?.finalY ?? 100;
@@ -411,8 +422,7 @@ export async function exportCustomerRecapPdf(
       ["Pelanggan Baru", String(data.summary.newCustomers)],
       ["Pelanggan Kembali", String(data.summary.returningCustomers)],
       ["Risiko Churn", String(data.summary.churnedCustomers)],
-      ["Piutang Total", formatRupiah(data.summary.totalDebtOutstanding)],
-      ["Piutang Terbayar", formatRupiah(data.summary.debtCollectedInPeriod)],
+      ...(showReceivables ? [["Piutang Total", formatRupiah(totalDebtOutstanding)], ["Piutang Terbayar", formatRupiah(debtCollectedInPeriod)]] : []),
       ["Rata-rata Belanja", formatRupiah(data.summary.avgOrderValue)],
       ["Frekuensi Order", data.summary.orderFrequency.toFixed(2)],
       ["Rasio Pembelian Ulang", `${(data.summary.repeatPurchaseRate * 100).toFixed(1)}%`],
@@ -428,14 +438,14 @@ export async function exportCustomerRecapPdf(
   doc.text("Ringkasan per Tipe", 40, kpiEndY + 24);
   autoTable(doc, {
     startY: kpiEndY + 32,
-    head: [["Tipe", "Pelanggan Aktif", "Transaksi", "Total Belanja", "Rata-rata", "Piutang"]],
+    head: [["Tipe", "Pelanggan Aktif", "Transaksi", "Total Belanja", "Rata-rata", ...(showReceivables ? ["Piutang"] : [])]],
     body: data.typeSummaries.map((summary) => [
       TYPE_LABELS[summary.type],
       summary.customerCount,
       summary.transactionCount,
       formatRupiah(summary.totalSpent),
       formatRupiah(summary.averageOrderValue),
-      formatRupiah(summary.debtOutstanding),
+      ...(showReceivables ? [formatRupiah(summary.debtOutstanding)] : []),
     ]),
     theme: "grid",
     styles: { font: "helvetica", fontSize: 8, cellPadding: 5, textColor: [15, 23, 42], lineColor: [203, 213, 225], lineWidth: 0.4 },

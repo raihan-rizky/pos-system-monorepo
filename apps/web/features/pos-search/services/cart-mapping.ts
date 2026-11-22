@@ -40,6 +40,7 @@ function mapStockGroupUnitOptions(
     brandName: variant.brand?.name ?? null,
     categoryId: product.category.id,
     categoryName: product.category.name,
+    ...(variant.catalogSubcategoryId !== undefined ? { catalogSubcategoryId: variant.catalogSubcategoryId, catalogSubcategoryLegacyCategoryId: variant.catalogSubcategory?.legacyCategoryId ?? null } : {}),
     size: variant.size ?? undefined,
     material: variant.material ?? undefined,
   }));
@@ -78,6 +79,7 @@ export function mapProductToCartItem(product: Product, variantId?: string) {
       stockGroup: variant.stockGroup ?? product.stockGroup ?? null,
       categoryId: product.category.id,
       categoryName: product.category.name,
+      ...(variant.catalogSubcategoryId !== undefined ? { catalogSubcategoryId: variant.catalogSubcategoryId, catalogSubcategoryLegacyCategoryId: variant.catalogSubcategory?.legacyCategoryId ?? null } : {}),
       size: variant.size ?? undefined,
       material: variant.material ?? undefined,
       ...(unitOptions ? { unitOptions } : {}),
@@ -103,6 +105,7 @@ export function mapProductToCartItem(product: Product, variantId?: string) {
     stockGroup: product.stockGroup ?? null,
     categoryId: product.category.id,
     categoryName: product.category.name,
+    ...(product.catalogSubcategoryId !== undefined ? { catalogSubcategoryId: product.catalogSubcategoryId, catalogSubcategoryLegacyCategoryId: product.catalogSubcategory?.legacyCategoryId ?? null } : {}),
     size: product.size ?? undefined,
     material: product.material ?? undefined,
     ...(unitOptions ? { unitOptions } : {}),

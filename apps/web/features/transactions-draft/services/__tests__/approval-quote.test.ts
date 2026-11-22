@@ -7,6 +7,14 @@ import {
 } from "../approval-quote";
 
 describe("buildApprovalFingerprint", () => {
+  it("quotes the selected product using its current subcategory rule", async () => {
+    const client = makeQuoteClient({ customerType: "UMUM" });
+    const product = (await client.product.findMany())[0];
+    client.product.findMany.mockResolvedValue([{ ...product, catalogSubcategoryId: "print", catalogSubcategory: { legacyCategoryId: null } }] as never);
+    client.subcategoryCustomerPricingRule.findMany.mockResolvedValue([{ id: "sub-rule", subcategoryId: "print", subcategory: { group: "PERCETAKAN", name: "PRINT" }, customerType: null, customerTypes: [], unit: null, units: [], brandId: null, brand: null, mode: "PERCENT_DISCOUNT", value: 20, discountPercent: 0, isActive: true, updatedAt: new Date("2026-11-13T00:00:00Z") }] as never);
+    const quote = await buildApprovalQuote(client as never, { storeId: "store-1", transactionId: "tx-1", actorRole: "OWNER", canViewCostPrice: true, items: [{ productId: "paper", quantity: 1, priceIntent: "AUTOMATIC" }] });
+    expect(quote.items[0]).toMatchObject({ appliedUnitPrice: 80, appliedPricing: { ruleId: "sub-rule" } });
+  });
   it("does not apply a saved customer manual price after Harga Khusus is disabled", async () => {
     const client = makeQuoteClient({ customerType: "INDUSTRI" });
     client.storeSettings.findUnique.mockResolvedValue({ specialPricingEnabled: false });
@@ -593,5 +601,6 @@ function makeQuoteClient(input: {
     categoryCustomerPricingRule: {
       findMany: vi.fn().mockResolvedValue(input.rules ?? []),
     },
+    subcategoryCustomerPricingRule: { findMany: vi.fn().mockResolvedValue([]) },
   };
 }

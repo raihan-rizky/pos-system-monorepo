@@ -1,3 +1,5 @@
+import { isManualExpenseReportCategory } from './manual-report-categories';
+
 const MAX_AMOUNT = 9_999_999_999.99;
 
 export function jakartaToday(): string {
@@ -24,13 +26,14 @@ export function parsePayable(input: unknown) {
   const amount = parseAmount(body.amount);
   const debtDate = body.debtDate;
   const dueDate = body.dueDate || null;
+  const reportCategory = body.reportCategory;
   const initialPayment = body.initialPayment === '' || body.initialPayment == null ? null : parseAmount(body.initialPayment);
   const initialPaidAt = body.initialPaidAt;
-  if (!supplierName || supplierName.length > 200 || note.length > 1000 || !amount || !validDate(debtDate) || debtDate > jakartaToday()) return null;
+  if (!supplierName || supplierName.length > 200 || note.length > 1000 || !amount || !isManualExpenseReportCategory(reportCategory) || !validDate(debtDate) || debtDate > jakartaToday()) return null;
   if (dueDate !== null && (!validDate(dueDate) || dueDate < debtDate)) return null;
   if (body.initialPayment !== '' && body.initialPayment != null && initialPayment === null) return null;
   if (initialPayment !== null && (initialPayment > amount || !validDate(initialPaidAt) || initialPaidAt < debtDate || initialPaidAt > jakartaToday())) return null;
-  return { supplierName, note: note || null, amount, debtDate, dueDate, initialPayment, initialPaidAt: initialPayment === null ? null : initialPaidAt as string };
+  return { supplierName, note: note || null, amount, debtDate, dueDate, reportCategory, initialPayment, initialPaidAt: initialPayment === null ? null : initialPaidAt as string };
 }
 
 export function parseGiroReview(input: unknown, today = jakartaToday()) {

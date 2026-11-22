@@ -8,6 +8,7 @@ import { getLogger } from "@/lib/logger";
 import { db, type Prisma } from "@pos/db";
 import { pricingRuleSchema, pricingRulePatchSchema, readCustomerTargets, storedCustomerTargets, serializePricingRule, pricingRuleInclude, lockPricingRules, hasOverlappingPricingRule, overlapMessage } from "@/features/customer-category-pricing/helpers/rule-persistence";
 import { pricingRuleTransactionOptions } from "@/features/customer-category-pricing/helpers/rule-persistence";
+import { hasOverlappingSubcategoryPricingRule, serializeSubcategoryPricingRule, subcategoryPricingRuleInclude } from "@/features/customer-category-pricing/helpers/rule-persistence";
 
 const log = getLogger("api:customer-category-pricing-rules:id");
 
@@ -19,6 +20,10 @@ async function findRule(id: string, storeId: string, client: Pick<Prisma.Transac
       brand: { select: { id: true, name: true, normalizedName: true } },
     },
   });
+}
+
+async function findSubcategoryRule(id: string, storeId: string, client: Pick<Prisma.TransactionClient, "subcategoryCustomerPricingRule"> = db) {
+  return client.subcategoryCustomerPricingRule.findFirst({ where: { id, storeId }, include: subcategoryPricingRuleInclude });
 }
 
 async function assertCategoryExists(categoryId: string) {
@@ -50,7 +55,10 @@ export async function GET(
     const { id } = await params;
 
     const rule = await findRule(id, storeId);
-    if (!rule) return apiError("Aturan harga tidak ditemukan", 404, { code: "NotFound" });
+    if (!rule) {
+      const scoped = await findSubcategoryRule(id, storeId);
+      return scoped ? Response.json(serializeSubcategoryPricingRule(scoped)) : apiError("Aturan harga tidak ditemukan", 404, { code: "NotFound" });
+    }
 
     return Response.json(serializePricingRule(rule));
   } catch (error) {
@@ -78,8 +86,31 @@ export async function PATCH(
     return await db.$transaction(async (tx) => {
       await lockPricingRules(tx, storeId);
       const existing = await findRule(id, storeId, tx);
-      if (!existing) return apiError("Aturan harga tidak ditemukan", 404, { code: "NotFound" });
       const data = parsed.data;
+      if (!existing) {
+        const scoped = await findSubcategoryRule(id, storeId, tx);
+        if (!scoped) return apiError("Aturan harga tidak ditemukan", 404, { code: "NotFound" });
+        const targets = data.customerTypes !== undefined || data.customerType !== undefined
+          ? storedCustomerTargets(data) : storedCustomerTargets({ customerTypes: readCustomerTargets(scoped) });
+        const units = data.units !== undefined || data.unit !== undefined ? normalizePricingUnits(data.units, data.unit) : normalizePricingUnits(scoped.units, scoped.unit);
+        const next = {
+          categoryId: data.categoryId ?? scoped.subcategoryId, ...targets,
+          unit: units.length === 1 ? units[0] : null, units,
+          brandId: data.brandId !== undefined ? data.brandId || null : scoped.brandId,
+          mode: data.mode ?? scoped.mode, value: data.value ?? Number(scoped.value),
+          discountPercent: (data.mode ?? scoped.mode) === "UNIT_COST_PLUS_PERCENT_DISCOUNT"
+            ? data.discountPercent ?? (scoped.mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT" ? Number(scoped.discountPercent) : undefined) : 0,
+          isActive: data.isActive ?? scoped.isActive,
+        };
+        const validation = pricingRuleSchema.safeParse({ ...next, customerType: undefined, customerTypes: next.customerTypes.length ? next.customerTypes : ["ALL"] });
+        if (!validation.success) return apiValidationError(validation.error);
+        if (data.categoryId && !(await tx.productSubcategory.findUnique({ where: { id: next.categoryId }, select: { id: true } }))) return apiError("Subkategori tidak ditemukan", 404, { code: "NotFound" });
+        if (data.brandId !== undefined && !(await assertBrandExists(storeId, next.brandId))) return apiError("Merek tidak ditemukan", 404, { code: "NotFound" });
+        if (next.isActive && await hasOverlappingSubcategoryPricingRule(tx, { storeId, ...next, excludeId: id })) return apiError(overlapMessage, 409, { code: "Conflict" });
+        const { categoryId, ...values } = next;
+        const updated = await tx.subcategoryCustomerPricingRule.update({ where: { id }, data: { ...values, subcategoryId: categoryId, mode: next.mode as CategoryCustomerPricingMode, updatedBy: user.id }, include: subcategoryPricingRuleInclude });
+        return Response.json(serializeSubcategoryPricingRule(updated));
+      }
       const targets = data.customerTypes !== undefined || data.customerType !== undefined
         ? storedCustomerTargets(data) : storedCustomerTargets({ customerTypes: readCustomerTargets(existing) });
       const units = data.units !== undefined || data.unit !== undefined
@@ -130,7 +161,12 @@ export async function DELETE(
     return await db.$transaction(async (tx) => {
       await lockPricingRules(tx, storeId);
       const existing = await findRule(id, storeId, tx);
-      if (!existing) return apiError("Aturan harga tidak ditemukan", 404, { code: "NotFound" });
+      if (!existing) {
+        const scoped = await findSubcategoryRule(id, storeId, tx);
+        if (!scoped) return apiError("Aturan harga tidak ditemukan", 404, { code: "NotFound" });
+        await tx.subcategoryCustomerPricingRule.update({ where: { id: scoped.id }, data: { isActive: false, updatedBy: user.id } });
+        return apiNoContent();
+      }
       await tx.categoryCustomerPricingRule.update({ where: { id: existing.id }, data: { isActive: false, updatedBy: user.id } });
       return apiNoContent();
     }, pricingRuleTransactionOptions);

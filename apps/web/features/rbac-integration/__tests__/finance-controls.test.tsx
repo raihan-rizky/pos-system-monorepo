@@ -7,7 +7,7 @@ const mocks=vi.hoisted(()=>({permission:vi.fn(),query:vi.fn(),client:{invalidate
 vi.mock('@/components/providers/RoleProvider',()=>({useRole:()=>({canPerform:mocks.permission,userId:'u-1',storeId:'s-1',authorizationFingerprint:'v1'})}));
 vi.mock('@tanstack/react-query',()=>({useQuery:(options:unknown)=>{mocks.query(options);return {data:{items:[{id:'p1',supplierName:'Rahasia hutang',amount:100,paid:0,debtDate:'2026-11-01'}],data:[{id:'i1',description:'Rahasia pemasukan',amount:100,occurredAt:'2026-11-02',category:'ATK'}],pagination:{totalPages:1}},isLoading:false};},useQueryClient:()=>mocks.client}));
 vi.mock('@/features/ai-assistant/hooks/useAssistantModalAction',()=>({useAssistantModalAction:vi.fn()}));
-vi.mock('@/features/keuangan/components/GiroPanel',()=>({GiroPanel:({canUpdate}:{canUpdate:boolean})=><div data-giro-update={canUpdate}>Daftar giro</div>}));
+vi.mock('@/features/keuangan/components/GiroPanel',()=>({GiroPanel:({canUpdate,canLinkManual}:{canUpdate:boolean;canLinkManual?:boolean})=><div data-giro-update={canUpdate} data-giro-link={canLinkManual}>Daftar giro</div>}));
 describe('Izin panel keuangan terpisah',()=>{
  beforeEach(()=>{vi.clearAllMocks();mocks.permission.mockReturnValue(false);});
  it('menyembunyikan pemasukan manual meski izin pemasukan umum ada',()=>{
@@ -32,5 +32,11 @@ describe('Izin panel keuangan terpisah',()=>{
   const html=renderToStaticMarkup(<SupplierPayablesPanel canRead canCreate={false} canUpdate canReadGiro={false} canUpdateGiro={false}/>);
   expect(html).toContain('Rahasia hutang');
   expect(html).not.toContain('Daftar giro');
+ });
+ it('hanya menawarkan tautan giro bila izin baca dan kedua izin koreksi hutang tersedia',()=>{
+  const render=(canEdit:boolean,canEditPayment:boolean)=>renderToStaticMarkup(<SupplierPayablesPanel canRead canCreate={false} canUpdate canEdit={canEdit} canEditPayment={canEditPayment} canReadGiro canUpdateGiro/>);
+  expect(render(true,false)).toContain('data-giro-link="false"');
+  expect(render(false,true)).toContain('data-giro-link="false"');
+  expect(render(true,true)).toContain('data-giro-link="true"');
  });
 });

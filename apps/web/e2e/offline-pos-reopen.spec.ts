@@ -41,7 +41,10 @@ async function exerciseOfflineCheckout({ page, context }: { page: Page; context:
       : path === "/api/products"
         ? { data: products, pagination: { total: products.length, page: 1, limit: 24, totalPages: 1, hasNextPage: false, hasPreviousPage: false } }
         : path === "/api/offline-sync/catalog"
-          ? { cashierId: "e2e-user", storeId: "store-main", generatedAt: new Date().toISOString(), products, categories }
+          ? {
+              cashierId: "e2e-user", storeId: "store-main", generatedAt: new Date().toISOString(), products, categories,
+              pricing: { specialPricingEnabled: false, rounding: { enabled: false, increment: 500, threshold: 50, excludedCategoryIds: [] }, rules: [] },
+            }
         : path === "/api/printing-receipts"
           ? { data: [], pagination: { total: 0, page: 1, totalPages: 1, hasNextPage: false } }
         : path === "/api/settings/price-rounding" ? { enabled: false, increment: 500, threshold: 50 }

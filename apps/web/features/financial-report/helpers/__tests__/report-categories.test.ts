@@ -7,10 +7,10 @@ describe("full report main categories and subcategories", () => {
   it("groups only ATK/Percetakan and keeps product/printing detail in subcategories", () => {
     const report = buildFinancialReport({ dateFrom: "2026-11-05", dateTo: "2026-11-05", transactions: [tx(), tx({ id: "t2", transactionCategory: "PERCETAKAN", printingSubcategory: "PLAT", total: 100, amountPaid: 30, items: [] })] as FinancialReportTransaction[], shifts: [] });
     expect(report.categories.map(row => row.categoryName)).toEqual(["ATK", "Percetakan"]);
-    expect(report.categories.map(row => row.revenue)).toEqual([100, 100]);
+    expect(report.categories.map(row => row.revenue)).toEqual([90, 100]);
     expect(report.subcategories).toEqual(expect.arrayContaining([
-      expect.objectContaining({ categoryName: "ATK", subcategoryName: "Buku", revenue: 60 }),
-      expect.objectContaining({ categoryName: "ATK", subcategoryName: "Alat Tulis", revenue: 40 }),
+      expect.objectContaining({ categoryName: "ATK", subcategoryName: "Buku", revenue: 54 }),
+      expect.objectContaining({ categoryName: "ATK", subcategoryName: "Alat Tulis", revenue: 36 }),
       expect.objectContaining({ categoryName: "Percetakan", subcategoryName: "Plat", revenue: 100 }),
     ]));
     expect(report.summary.revenue).toBe(190);

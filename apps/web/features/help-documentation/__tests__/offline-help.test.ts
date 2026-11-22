@@ -21,3 +21,17 @@ it("guides cashiers through PIN preparation, offline reopening, and reconciliati
   expect(CHANGELOG.find((entry) => entry.id === "pos-offline-sync-recovery")?.steps).toHaveLength(3);
   expect(CHANGELOG.find((entry) => entry.id === "pos-offline-sync-recovery")?.summary).toContain("PIN");
 });
+
+it("explains offline automatic pricing, online-only changes, and recovery for older snapshots", () => {
+  const guides = [
+    ...["OWNER", "ADMIN", "CASHIER", "SALES"].map((role) => HELP_ROLE_CONTENT[role].find((item) => item.id === `${role.toLowerCase()}-offline-sync`)?.steps ?? []),
+    FAQ_WORKFLOWS.find((item) => item.faqNumber === 45)?.steps ?? [],
+  ];
+  for (const steps of guides) {
+    const text = steps.map((step) => step.description).join(" ");
+    expect(text).toMatch(/aturan harga otomatis.*snapshot katalog.*offline/i);
+    expect(text).toMatch(/perubahan harga manual.*layanan.*online/i);
+    expect(text).toMatch(/snapshot harga.*lama atau tidak lengkap.*siapkan ulang.*online/i);
+    expect(text).not.toMatch(/layanan dan harga khusus tersedia kembali saat online/i);
+  }
+});

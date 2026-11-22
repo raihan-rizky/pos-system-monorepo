@@ -5,7 +5,7 @@ import { formatRupiah } from "@/lib/utils";
 import type { PaymentMixRow } from "../types";
 
 interface PaymentMixCardProps {
-  rows: PaymentMixRow[];
+  rows: PaymentMixRow[] | null;
   loading?: boolean;
 }
 
@@ -54,10 +54,14 @@ export const PaymentMixCard: React.FC<PaymentMixCardProps> = React.memo(
       );
     }
 
+    if (rows === null) {
+      return <p className="py-10 text-center text-sm text-surface-500">Metode pembayaran belum diizinkan atau belum tersedia.</p>;
+    }
+
     if (sorted.length === 0) {
       return (
         <p className="text-sm text-surface-500 text-center py-10">
-          Belum ada transaksi hari ini.
+          Belum ada pemasukan hari ini.
         </p>
       );
     }
@@ -66,7 +70,7 @@ export const PaymentMixCard: React.FC<PaymentMixCardProps> = React.memo(
       <div className="space-y-4">
         <div
           role="img"
-          aria-label="Komposisi revenue per metode pembayaran hari ini"
+          aria-label="Komposisi pemasukan per metode pembayaran hari ini"
           className="flex h-2.5 rounded-full overflow-hidden border border-surface-200"
         >
           {sorted.map((row) => {
@@ -101,14 +105,14 @@ export const PaymentMixCard: React.FC<PaymentMixCardProps> = React.memo(
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold text-surface-900 truncate">
-                      {row.method}
+                      {row.method === "CASH" ? "Tunai" : row.method}
                     </p>
                     <p className="text-sm font-semibold text-surface-900 tabular-nums shrink-0">
                       {formatRupiah(row.revenue)}
                     </p>
                   </div>
                   <p className="mt-0.5 text-[11px] text-surface-500">
-                    {row.transactionCount} transaksi · {pct.toFixed(1)}%
+                    {row.transactionCount} nota (metode utama) · {pct.toFixed(1)}%
                   </p>
                 </div>
               </li>

@@ -40,6 +40,7 @@ vi.mock("@pos/db", () => {
     const result = await run({
       category: model("category"),
       product: model("product"),
+      productSubcategory: model("subcategory"),
       productStockGroup: model("group"),
       categoryCustomerPricingRule: model("rule"),
       $queryRaw: async (query: TemplateStringsArray, id: string, storeId: string) => {
@@ -68,6 +69,7 @@ beforeEach(() => {
     ],
     group: [{ id: "group-1", storeId: "s1", groupKey: "kertas|old||", baseUnit: "rim", baseStock: 10, pricingConfig: { revision: 1 }, updatedAt: "2026-10-18" }],
     rule: [],
+    subcategory: [],
   };
 });
 

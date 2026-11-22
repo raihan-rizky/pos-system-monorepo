@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect, useMemo, useDeferredValue, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { buildDraftCheckoutItems, buildOfflineCheckoutTotals } from "@/features/pos-checkout/helpers/checkout-persistence";
 import { AlertTriangle, Check, CircleMinus, Clock, Search, ShoppingCart, X } from "lucide-react";
@@ -10,7 +11,6 @@ import { ShiftStatusBanner } from "@/components/ShiftStatusBanner";
 import { PosTopPanel } from "@/features/pos-search/components/PosTopPanel";
 import { Pagination } from "@/components/Pagination";
 import { Button, Input, Modal } from "@pos/ui";
-import { CategoryIcon } from "@/lib/category-icons";
 import { loadCloseShiftModal, loadOpenShiftModal, loadPaymentModal, warmOfflineCheckoutModules } from "@/lib/offline/offline-module-preparation";
 
 import { getLogger } from "@/lib/logger";
@@ -59,13 +59,13 @@ import { useCart, type ProductCartItem } from "@/hooks/useCart";
 import { useCustomerCategoryPricingRules, type CustomerCategoryPricingRule } from "@/hooks/useCustomerCategoryPricingRules";
 import { mapCheckoutPricingRule, priceCartItemsForCheckout } from "@/features/pos-checkout/helpers/checkout-pricing";
 import { useCartCatalogPrices } from "@/features/pos-checkout/hooks/useCartCatalogPrices";
+import { refreshCartCatalogPrices } from "@/features/pos-checkout/helpers/cart-catalog-pricing";
 import type { CheckoutCustomerSelection } from "@/features/pos-checkout/customer-selection";
 import { useCreateTransaction, type Transaction } from "@/hooks/useTransactions";
 import { WAIT_FOR_SESSION_RECOVERY } from "@/lib/auth/session-failure";
 import { buildClientMutationId } from "@/lib/offline/offline-core";
 import { OfflinePreparationBeacon } from "@/lib/offline/OfflinePreparationBeacon";
 import { useCreateDraft } from "@/features/transactions-draft";
-import { HorizontalScroll } from "@/components/ui/HorizontalScroll";
 import { useActiveShift, type CashierShift } from "@/hooks/useShift";
 import { useShiftSettings } from "@/hooks/useShiftSettings";
 import { usePriceRoundingSettings } from "@/features/product-price-rounding/hooks/usePriceRoundingSettings";
@@ -91,6 +91,8 @@ import {
   getCartCheckoutMode,
 } from "@/features/nota-penawaran/helpers/quotation-rules";
 import type { DraftCreateInput } from "@/features/transactions-draft";
+import { CatalogClassificationFilter } from "@/features/product-classification/components/CatalogClassificationFilter";
+import type { UseProductsOptions } from "@/hooks/useProducts";
 
 const POS_PAGE_SIZE = 24;
 const EMPTY_PRICING_RULES: CustomerCategoryPricingRule[] = [];
@@ -127,7 +129,8 @@ export default function POSClientPage({
   const checkoutMutationId = useRef<string | null>(null);
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
-  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [catalogGroup, setCatalogGroup] = useState<NonNullable<UseProductsOptions["catalogGroup"]> | "">("");
+  const [catalogSubcategoryId, setCatalogSubcategoryId] = useState("");
   const [page, setPage] = useState(1);
   const [hideOutOfStock, setHideOutOfStock] = useState<boolean>(
     getInitialHideOutOfStock,
@@ -202,10 +205,10 @@ export default function POSClientPage({
     initialData.activeShift ?? undefined,
   );
   const { data: shiftSettings } = useShiftSettings(initialData.shiftEnabled);
-  const { role, userId, storeId, canPerform, isOfflineSession, isSessionRecovering } = useRole();
+  const { role, userId, storeId, authorizationFingerprint, canPerform, canReadOfflineCatalog, isOfflineSession, isSessionRecovering } = useRole();
   const offlineIdentity = useMemo(
-    () => userId ? { cashierId: userId, storeId: storeId || "store-main" } : undefined,
-    [userId, storeId],
+    () => canReadOfflineCatalog && userId ? { cashierId: userId, storeId: storeId || "store-main" } : undefined,
+    [canReadOfflineCatalog, userId, storeId],
   );
   const isSales = role === "SALES";
   const shiftRequired = shiftSettings?.enabled !== false;
@@ -213,7 +216,10 @@ export default function POSClientPage({
   const canEditPrice = canPerform("transaction.custom_price", "update");
   const canCreateTransaction = canPerform(role === "SALES" ? "transaction.request" : "transaction", "create");
 
-  const productsQuery = useProductsPage(deferredSearch, selectedCategory, {
+  const productsQuery = useProductsPage(deferredSearch, "", {
+    enabled: canReadOfflineCatalog,
+    catalogGroup: catalogGroup || undefined,
+    catalogSubcategoryId: catalogSubcategoryId || undefined,
     page,
     limit: POS_PAGE_SIZE,
     inStockOnly: hideOutOfStock,
@@ -221,16 +227,19 @@ export default function POSClientPage({
     initialDataUpdatedAt: initialData.productsUpdatedAt,
     offlineIdentity,
   });
+  const { data: catalogCategories } = useCategories(initialData.categories, offlineIdentity, canReadOfflineCatalog);
+  const categories = canReadOfflineCatalog ? catalogCategories ?? [] : [];
+  const catalogPage = canReadOfflineCatalog ? productsQuery.data : undefined;
   const visibleProducts = useMemo(
     () =>
-      (productsQuery.data?.data ?? []).filter((p) =>
+      (catalogPage?.data ?? []).filter((p) =>
         matchesStockFilter({ stock: p.stock }, hideOutOfStock),
       ),
-    [productsQuery.data?.data, hideOutOfStock],
+    [catalogPage?.data, hideOutOfStock],
   );
-  const productsLoading = productsQuery.isLoading;
-  const isPageFetching = productsQuery.isFetching;
-  const pagination = productsQuery.data?.pagination;
+  const productsLoading = canReadOfflineCatalog && productsQuery.isLoading;
+  const isPageFetching = canReadOfflineCatalog && productsQuery.isFetching;
+  const pagination = catalogPage?.pagination;
   const totalPages = Math.max(1, pagination?.totalPages ?? 1);
   const currentPage = Math.min(
     Math.max(1, pagination?.page ?? page),
@@ -238,7 +247,6 @@ export default function POSClientPage({
   );
   const searchTokens = parseSearchQuery(deferredSearch);
 
-  const { data: categories = [] } = useCategories(initialData.categories, offlineIdentity);
   const { data: brands = [] } = useBrands({
     enabled: Boolean(productEditItem),
   });
@@ -246,10 +254,34 @@ export default function POSClientPage({
   const [pricingCustomer, setPricingCustomer] = useState<CheckoutCustomerSelection>({ kind: "general" });
   const resetPricingCustomer = useCallback(() => setPricingCustomer({ kind: "general" }), []);
   const customerType = pricingCustomer.kind === "existing" ? pricingCustomer.customer.type ?? "UMUM" : "UMUM";
-  const { data: categoryRules = EMPTY_PRICING_RULES } = useCustomerCategoryPricingRules({ activeOnly: true });
-  const catalogCartItems = useCartCatalogPrices(cart.items);
-  const { data: roundingSettings = DEFAULT_PRICE_ROUNDING_SETTINGS } = usePriceRoundingSettings();
-  const { data: specialPricingEnabled = false } = useSpecialPricingSettings();
+  const { data: onlineCategoryRules = EMPTY_PRICING_RULES } = useCustomerCategoryPricingRules({ activeOnly: true });
+  const { data: cachedOfflineCatalog } = useQuery({
+    queryKey: ["offline-catalog-pricing", offlineIdentity?.cashierId, offlineIdentity?.storeId, authorizationFingerprint, isOfflineSession],
+    enabled: isOfflineSession && Boolean(offlineIdentity),
+    networkMode: "always",
+    retry: false,
+    gcTime: 0,
+    queryFn: async ({ signal }) => {
+      if (!offlineIdentity) throw new Error("Identitas kasir belum tersedia.");
+      const { getOfflineCheckoutCatalog } = await import("@/lib/offline/offline-pricing");
+      signal.throwIfAborted();
+      return getOfflineCheckoutCatalog(offlineIdentity);
+    },
+  });
+  const offlineCatalog = isOfflineSession && offlineIdentity ? cachedOfflineCatalog : undefined;
+  const offlinePricing = offlineCatalog?.pricing;
+  const categoryRules = isOfflineSession ? offlinePricing?.rules ?? EMPTY_PRICING_RULES : onlineCategoryRules;
+  const onlineCatalogCartItems = useCartCatalogPrices(cart.items, canReadOfflineCatalog && !isOfflineSession);
+  const catalogCartItems = useMemo(() => {
+    if (!canReadOfflineCatalog) return cart.items;
+    return isOfflineSession ? refreshCartCatalogPrices(cart.items, offlineCatalog?.products ?? []) : onlineCatalogCartItems;
+  }, [canReadOfflineCatalog, isOfflineSession, cart.items, offlineCatalog, onlineCatalogCartItems]);
+  const offlineCartComplete = Boolean(offlineCatalog && catalogCartItems.every(item =>
+    item.lineType !== "PRODUCT" || offlineCatalog.products.some(product => product.id === item.productId)));
+  const { data: onlineRoundingSettings = DEFAULT_PRICE_ROUNDING_SETTINGS } = usePriceRoundingSettings();
+  const roundingSettings = isOfflineSession ? offlinePricing?.rounding ?? DEFAULT_PRICE_ROUNDING_SETTINGS : onlineRoundingSettings;
+  const { data: onlineSpecialPricingEnabled = false } = useSpecialPricingSettings();
+  const specialPricingEnabled = isOfflineSession ? offlinePricing?.specialPricingEnabled ?? false : onlineSpecialPricingEnabled;
   const pricedCartItems = useMemo(
     () => priceCartItemsForCheckout({ items: catalogCartItems, customerType, pricingRules: categoryRules, manualPrices: {}, role, roundingSettings, specialPricingEnabled }),
     [catalogCartItems, customerType, categoryRules, role, roundingSettings, specialPricingEnabled],
@@ -264,7 +296,7 @@ export default function POSClientPage({
   const syncCartUnitOptions = cart.syncUnitOptions;
 
   useEffect(() => {
-    if (!hasLoadedCartStorage) return;
+    if (!hasLoadedCartStorage || !offlineIdentity) return;
     let current = true;
 
     const resolveCachedUnitOptions = async () => {
@@ -273,6 +305,7 @@ export default function POSClientPage({
         const { getCachedCatalogProducts } = await import(
           "@/lib/offline/offline-db"
         );
+        if (!current) return;
         cachedProducts = await getCachedCatalogProducts<Product>(undefined, undefined, false, offlineIdentity);
       } catch {
         // The current product page still provides options while offline cache is unavailable.
@@ -281,7 +314,7 @@ export default function POSClientPage({
       if (!current) return;
       const catalogProducts = [
         ...cachedProducts,
-        ...(productsQuery.data?.data ?? []),
+        ...(catalogPage?.data ?? []),
       ];
       const optionGroups = catalogProducts
         .map((product) => mapProductToCartItem(product).unitOptions)
@@ -297,7 +330,7 @@ export default function POSClientPage({
     hasLoadedCartStorage,
     syncCartUnitOptions,
     offlineIdentity,
-    productsQuery.data?.data,
+    catalogPage?.data,
   ]);
   const checkoutMode = useMemo(
     () => getCartCheckoutMode(cart.items),
@@ -394,7 +427,7 @@ export default function POSClientPage({
 
   useEffect(() => {
     setPage(1);
-  }, [search, selectedCategory]);
+  }, [search, catalogGroup, catalogSubcategoryId]);
 
   useEffect(() => {
     if (
@@ -787,11 +820,10 @@ export default function POSClientPage({
           </header>
 
           {/* Category Filter */}
+          {activeTab === "products" && offlineIdentity && <CatalogClassificationFilter idPrefix="pos" group={catalogGroup} subcategoryId={catalogSubcategoryId} includeUnclassified={false} presentation="pills"
+            offlineIdentity={offlineIdentity} onChange={(group, subcategoryId) => { setCatalogGroup(group); setCatalogSubcategoryId(subcategoryId); setPage(1); }} />}
           {activeTab === "products" && (
-            <HorizontalScroll
-              className="px-3 md:px-6 py-2 md:py-3 bg-white border-b border-surface-100 flex items-center gap-2 flex-nowrap"
-              showScrollIndicators={true}
-            >
+            <div className="px-3 md:px-6 py-2 md:py-3 bg-white border-b border-surface-100">
               <button
                 type="button"
                 onClick={toggleHideOutOfStock}
@@ -820,46 +852,7 @@ export default function POSClientPage({
                 )}
                 <span>Stok tersedia</span>
               </button>
-              <span
-                aria-hidden="true"
-                className="h-5 w-px bg-surface-200 mx-1 flex-shrink-0"
-              />
-              <button
-                onClick={() => setSelectedCategory("")}
-                className={`
-                px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0
-                transition-all duration-200
-                ${selectedCategory === ""
-                    ? "bg-brand-600 text-white shadow-sm"
-                    : "bg-surface-100 text-surface-600 hover:bg-surface-200"
-                  }
-              `}
-              >
-                Semua
-              </button>
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() =>
-                    setSelectedCategory(selectedCategory === cat.id ? "" : cat.id)
-                  }
-                  className={`
-                  px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0
-                  transition-all duration-200 flex items-center gap-1.5
-                  ${selectedCategory === cat.id
-                      ? "bg-brand-600 text-white shadow-sm"
-                      : "bg-surface-100 text-surface-600 hover:bg-surface-200"
-                    }
-                `}
-                >
-                  <CategoryIcon value={cat.icon} className="h-3.5 w-3.5" />
-                  <span>{cat.name}</span>
-                  <span className="text-xs opacity-70">
-                    ({cat._count.products})
-                  </span>
-                </button>
-              ))}
-            </HorizontalScroll>
+            </div>
           )}
 
           </PosTopPanel>
@@ -1001,6 +994,7 @@ export default function POSClientPage({
             setShowPayment(false);
           }}
           items={catalogCartItems}
+          offlinePricing={isOfflineSession && offlineCartComplete ? offlinePricing : undefined}
           subtotal={pricedCartSubtotal}
           initialCustomerSelection={pricingCustomer}
           onCustomerSelectionChange={setPricingCustomer}

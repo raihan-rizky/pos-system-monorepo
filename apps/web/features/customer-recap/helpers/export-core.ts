@@ -19,7 +19,7 @@ export interface CustomerRecapExportCustomer {
   orderCount: number;
   totalSpent: number;
   averageOrderValue: number;
-  totalDebt: number;
+  totalDebt?: number;
   lastVisitAt: string | null;
   favoriteProducts: string;
 }
@@ -37,7 +37,7 @@ export interface CustomerRecapExportTypeSummary {
   transactionCount: number;
   totalSpent: number;
   averageOrderValue: number;
-  debtOutstanding: number;
+  debtOutstanding?: number;
 }
 
 export interface CustomerRecapExportGroup {

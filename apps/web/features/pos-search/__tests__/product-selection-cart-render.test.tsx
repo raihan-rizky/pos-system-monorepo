@@ -23,7 +23,7 @@ function renderPricedCart(item: ProductCartItem) {
   });
   return renderToStaticMarkup(<CartSidebar
     items={items} subtotal={43000} totalItems={1}
-    onUpdateQuantity={() => {}} onRemoveItem={() => {}}
+    onUpdateQuantity={() => {}} onRemoveItem={() => {}} onChangeUnit={() => {}}
     onClearCart={() => {}} onCheckout={() => {}}
     specialPricingEnabled
   />);
@@ -62,7 +62,10 @@ describe("product selection with API decimal prices", () => {
       defaultVariant: { id: "paper-pak", unit: "Pak", price: 43000, stock: 110, sku: "PAPER" },
     };
     const item = cartItem(product, "paper-box");
-    expectReferencePrices(renderPricedCart(item));
+    const html = renderPricedCart(item);
+    expectReferencePrices(html);
+    expect(html).toContain('aria-label="Satuan dipilih: Dus"');
+    expect(html).toContain("Ubah satuan");
     expect(item.productId).toBe("paper-box");
     expect(item.unitOptions).toEqual(expect.arrayContaining([
       expect.objectContaining({ productId: "paper-pak", hargaAgen: 37000, hargaDinas: 47000 }),

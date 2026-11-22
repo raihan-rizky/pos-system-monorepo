@@ -66,7 +66,7 @@ export async function GET(
     const { id } = await params;
     const product = await db.product.findFirst({
       where: { id, storeId: user.storeId || "store-main", isActive: true },
-      include: { category: true, brand: true, stockGroup: true },
+      include: { category: true, brand: true, stockGroup: true, catalogSubcategory: { select: { id: true, group: true, name: true, legacyCategoryId: true } } },
     });
     if (!product) return NextResponse.json({ message: "Produk tidak ditemukan" }, { status: 404 });
     const baseCosts = await loadProductBaseCosts(db, [product]);

@@ -3,6 +3,15 @@ import type { Product } from '@/hooks/useProducts';
 import { groupProductsByNameAndCategory, selectDefaultVariant } from '../services/product-grouping-service';
 
 describe('ProductGroupingService', () => {
+  it('preserves the classification of each unit and the selected default', () => {
+    const [group] = groupProductsByNameAndCategory([
+      { id: 'pcs', name: 'Kertas', unit: 'pcs', stock: 1, category: { id: 'paper' }, catalogSubcategoryId: 'atk', catalogSubcategory: { id: 'atk', group: 'ATK', name: 'Kertas', legacyCategoryId: 'paper' } },
+      { id: 'rim', name: 'Kertas', unit: 'rim', stock: 20, category: { id: 'paper' }, catalogSubcategoryId: 'print', catalogSubcategory: { id: 'print', group: 'PERCETAKAN', name: 'PRINT', legacyCategoryId: null } },
+    ] as Product[]);
+    expect(group.catalogSubcategoryId).toBe('print');
+    expect(group.variants.map(v => v.catalogSubcategoryId)).toEqual(['atk', 'print']);
+    expect(group.variants[1].catalogSubcategory?.group).toBe('PERCETAKAN');
+  });
   it('shares the product description across every unit', () => {
     const [group] = groupProductsByNameAndCategory([
       { id: 'pcs', name: 'Kertas', unit: 'pcs', stock: 1, description: 'Satu lembar', category: { id: 'paper' } },

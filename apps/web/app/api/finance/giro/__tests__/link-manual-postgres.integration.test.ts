@@ -6,11 +6,12 @@ import { PrismaClient } from '@pos/db';
 
 const connection = process.env.GIRO_TEST_DATABASE_URL;
 const schema = `giro_link_test_${randomUUID().replaceAll('-', '')}`;
-const mocks = vi.hoisted(() => ({ db: null as PrismaClient | null, storeId: 'store-1', logError: vi.fn() }));
+const mocks = vi.hoisted(() => ({ db: null as PrismaClient | null, storeId: 'store-1', allowTransaction: true, logError: vi.fn() }));
 vi.mock('@pos/db', async importOriginal => ({ ...(await importOriginal()), get db() { return mocks.db; } }));
-vi.mock('@/lib/rbac/guard', () => ({ requireRole: async () => ({ id: 'user-1', storeId: mocks.storeId }), requirePermission: async () => ({ id: 'user-1', storeId: mocks.storeId }), handleAuthError: () => null }));
+vi.mock('@/lib/rbac/guard', () => ({ requireRole: async () => ({ id: 'user-1', storeId: mocks.storeId }), requirePermission: async () => ({ id: 'user-1', storeId: mocks.storeId }), authorizeInTransaction: async () => mocks.allowTransaction, canAuthenticatedUserAccessPage: async () => true, handleAuthError: () => null }));
 vi.mock('@/lib/logger', () => ({ getLogger: () => ({ error: mocks.logError }) }));
 import { POST as link } from '../[goodsPurchaseId]/link-manual/route';
+import { POST as reconcile } from '../[goodsPurchaseId]/reconcile/route';
 import { GET } from '../route';
 import { POST as pay } from '../../supplier-payables/[id]/payments/route';
 
@@ -35,7 +36,6 @@ describe.skipIf(!connection)('manual giro linking on isolated local PostgreSQL',
     await client.$executeRawUnsafe(`CREATE TABLE "pos_goods_purchases" (
       "id" text PRIMARY KEY, "storeId" text NOT NULL, "number" text NOT NULL, "supplierNameSnapshot" text NOT NULL,
       "totalAmount" numeric(12,2) NOT NULL, "shoppingRequestId" text NOT NULL, "paymentDueDate" date, "status" text NOT NULL, "paymentMethod" text, "statusBeforeCancellation" text)`);
-    await client.$executeRawUnsafe('ALTER TABLE "pos_goods_purchases" ADD COLUMN "statusBeforeCancellation" text');
     await client.$executeRawUnsafe(`CREATE TABLE "pos_goods_purchase_payments" (
       "id" text PRIMARY KEY, "goodsPurchaseId" text NOT NULL REFERENCES "pos_goods_purchases"("id"),
       "method" text NOT NULL, "amount" numeric(12,2) NOT NULL, "dueDate" date, "note" text
@@ -56,7 +56,18 @@ describe.skipIf(!connection)('manual giro linking on isolated local PostgreSQL',
     await client.$executeRawUnsafe(`CREATE TABLE "pos_supplier_payable_payments" (
       "id" text PRIMARY KEY, "payableId" text NOT NULL REFERENCES "pos_supplier_payables"("id") ON DELETE RESTRICT,
       "amount" numeric(12,2) NOT NULL, "paidAt" date NOT NULL, "createdById" text NOT NULL,
-      "createdAt" timestamp NOT NULL DEFAULT now(), "requestScope" text UNIQUE, "requestExpectedBalance" numeric(12,2))`);
+      "createdAt" timestamp NOT NULL DEFAULT now(), "requestScope" text UNIQUE, "requestExpectedBalance" numeric(12,2),
+      "origin" text NOT NULL DEFAULT 'MANUAL', "automaticKey" text UNIQUE, "requestPayableId" text, "requestAmount" numeric(12,2), "requestPaidAt" date, "requestResource" text)`);
+    await client.$executeRawUnsafe('ALTER TABLE "pos_supplier_payables" ADD UNIQUE ("id", "storeId")');
+    await client.$executeRawUnsafe('ALTER TABLE "pos_supplier_payable_payments" ADD UNIQUE ("id", "payableId")');
+    await client.$executeRawUnsafe(`CREATE TABLE "pos_manual_transfer_allocations" (
+      "id" text PRIMARY KEY, "storeId" text NOT NULL, "payableId" text NOT NULL, "paymentId" text NOT NULL,
+      CONSTRAINT "pos_manual_transfer_alloc_payable_fkey" FOREIGN KEY ("payableId", "storeId")
+        REFERENCES "pos_supplier_payables"("id", "storeId") ON DELETE RESTRICT ON UPDATE RESTRICT,
+      CONSTRAINT "pos_manual_transfer_alloc_payment_fkey" FOREIGN KEY ("paymentId", "payableId")
+        REFERENCES "pos_supplier_payable_payments"("id", "payableId") ON DELETE RESTRICT ON UPDATE RESTRICT)`);
+    const versionMigration = readFileSync(path.resolve(process.cwd(), '../../packages/db/prisma/migrations/20261117050000_payable_ledger_version/migration.sql'), 'utf8');
+    for (const statement of versionMigration.split('-- statement-break').map(value => value.trim()).filter(Boolean)) await client.$executeRawUnsafe(statement);
     const migration = readFileSync(path.resolve(process.cwd(), '../../packages/db/prisma/migrations/20261102100000_manual_giro_link_audit/migration.sql'), 'utf8');
     const create = migration.match(/CREATE TABLE[\s\S]*?\n\);/)?.[0];
     const index = migration.match(/CREATE INDEX[^;]+;/)?.[0];
@@ -92,10 +103,16 @@ describe.skipIf(!connection)('manual giro linking on isolated local PostgreSQL',
       VALUES (${giro},'store-1',${purchase},NOW(),'Pemasok',100000,'2026-10-10'::date,'2026-11-20'::date,'creator-giro')`;
     await client.$executeRaw`INSERT INTO "pos_supplier_payables" ("id","storeId","supplierName","amount","debtDate","createdById")
       VALUES (${manual},'store-1','Pemasok',100000,'2026-10-01'::date,'creator-manual')`;
-    await client.$executeRaw`INSERT INTO "pos_supplier_payable_payments" ("id","payableId","amount","paidAt","createdById","requestScope","requestExpectedBalance") VALUES
-      (${g},${giro},30000,'2026-10-20'::date,'creator-g',${JSON.stringify(['store-1', giroKey])},100000),
-      (${m},${manual},30000,'2026-10-20'::date,'creator-m',null,null),
-      (${extra},${manual},10000,'2026-10-05'::date,'creator-extra',${JSON.stringify(['store-1', manualKey])},100000)`;
+    await client.$transaction(async tx => {
+      await tx.$executeRaw`SELECT set_config('pos.payable_system_payment', '1', true)`;
+      await tx.$executeRaw`INSERT INTO "pos_supplier_payable_payments" ("id","payableId","amount","paidAt","createdById","requestScope","requestExpectedBalance","requestPayableId","requestAmount","requestPaidAt") VALUES
+      (${g},${giro},30000,'2026-10-20'::date,'user-1',null,100000,${giro},30000,'2026-10-20'::date),
+      (${m},${manual},30000,'2026-10-20'::date,'creator-m',null,null,null,null,null),
+      (${extra},${manual},10000,'2026-10-05'::date,'user-1',null,100000,${manual},10000,'2026-10-05'::date)`;
+    });
+    // Simulate requests recorded before the version migration.
+    await client.$executeRaw`UPDATE "pos_supplier_payable_payments" SET "requestScope" = ${JSON.stringify(['store-1', giroKey])} WHERE "id" = ${g}`;
+    await client.$executeRaw`UPDATE "pos_supplier_payable_payments" SET "requestScope" = ${JSON.stringify(['store-1', manualKey])} WHERE "id" = ${extra}`;
     const body = {
       payableId: manual, expectedGiroPayableId: giro, historiesConfirmed: true,
       expectedGiro: { amount: 100000, debtDate: '2026-10-10', payableDebtDate: '2026-10-10', dueDate: '2026-11-20', supplierName: 'Pemasok', payableNote: null },
@@ -116,7 +133,7 @@ describe.skipIf(!connection)('manual giro linking on isolated local PostgreSQL',
       SELECT "id","payableId","createdById","requestScope","requestExpectedBalance"::text AS "requestExpectedBalance"
       FROM "pos_supplier_payable_payments" WHERE "id" IN (${f.g},${f.m},${f.extra}) ORDER BY "id"`;
     expect(rows).toHaveLength(2);
-    expect(rows.find(row => row.id === f.extra)).toMatchObject({ payableId: f.giro, createdById: 'creator-extra', requestExpectedBalance: '100000.00', requestScope: JSON.stringify(['store-1', f.manualKey]) });
+    expect(rows.find(row => row.id === f.extra)).toMatchObject({ payableId: f.giro, createdById: 'user-1', requestExpectedBalance: '100000.00', requestScope: JSON.stringify(['store-1', f.manualKey]) });
     const [debt] = await client.$queryRaw<{ debtDate: string; amount: string }[]>`SELECT "debtDate"::text, "amount"::text FROM "pos_supplier_payables" WHERE "id" = ${f.giro}`;
     expect(debt).toEqual({ debtDate: '2026-10-01', amount: '100000.00' });
     const [audit] = await client.$queryRaw<{ manualPayable: { id: string }; giroPayable: { id: string }; manualPayments: { id: string }[]; giroPayments: { id: string }[]; duplicatePayments: unknown }[]>`
@@ -129,7 +146,28 @@ describe.skipIf(!connection)('manual giro linking on isolated local PostgreSQL',
     expect((await link(request(f.body), f.context)).status).toBe(200);
     expect((await link(request({ ...f.body, matchingPaymentsConfirmedDistinct: true }), f.context)).status).toBe(409);
     expect((await pay(request({ amount: 30000, paidAt: '2026-10-20', expectedBalance: '100000' }, f.giroKey), { params: Promise.resolve({ id: f.giro }) })).status).toBe(201);
-    expect((await pay(request({ amount: 10000, paidAt: '2026-10-05', expectedBalance: '100000' }, f.manualKey), { params: Promise.resolve({ id: f.manual }) })).status).not.toBe(201);
+    await client.$executeRaw`UPDATE "pos_supplier_payable_payments" SET "amount" = 12000, "paidAt" = '2026-10-06'::date WHERE "id" = ${f.extra}`;
+    expect((await pay(request({ amount: 10000, paidAt: '2026-10-05', expectedBalance: '100000' }, f.manualKey), { params: Promise.resolve({ id: f.manual }) })).status).toBe(201);
+    expect((await pay(request({ amount: 12000, paidAt: '2026-10-06', expectedBalance: '100000' }, f.manualKey), { params: Promise.resolve({ id: f.manual }) })).status).toBe(409);
+  });
+
+  it('rejects linking if permission changes while waiting for the debt lock', async () => {
+    const f = await fixture('auth-lock');
+    let release!: () => void, ready!: () => void;
+    const hold = new Promise<void>(resolve => { release = resolve; });
+    const locked = new Promise<void>(resolve => { ready = resolve; });
+    const blocker = client.$transaction(async tx => { await tx.$queryRaw`SELECT "id" FROM "pos_supplier_payables" WHERE "id" = ${f.manual} FOR UPDATE`; ready(); await hold; });
+    await locked;
+    const pending = link(request(f.body), f.context);
+    try {
+      expect(await Promise.race([pending.then(() => true), new Promise<boolean>(resolve => setTimeout(() => resolve(false), 150))])).toBe(false);
+      mocks.allowTransaction = false;
+    } finally { release(); await blocker; }
+    try {
+      expect((await pending).status).toBe(403);
+      const [count] = await client.$queryRaw<{ count: bigint }[]>`SELECT COUNT(*) AS count FROM "pos_supplier_payable_manual_links" WHERE "manualPayableId" = ${f.manual}`;
+      expect(Number(count.count)).toBe(0);
+    } finally { mocks.allowTransaction = true; }
   });
 
   it('keeps equal-looking payments when explicitly confirmed distinct', async () => {
@@ -138,6 +176,40 @@ describe.skipIf(!connection)('manual giro linking on isolated local PostgreSQL',
     expect((await link(request(body), f.context)).status).toBe(201);
     const [sum] = await client.$queryRaw<{ total: string }[]>`SELECT SUM("amount")::text AS total FROM "pos_supplier_payable_payments" WHERE "payableId" = ${f.giro}`;
     expect(sum.total).toBe('70000.00');
+  });
+
+  it('keeps an allocated manual payment and asks the user to unlink it before merging', async () => {
+    const f = await fixture('allocated');
+    await client.$executeRaw`INSERT INTO "pos_manual_transfer_allocations" ("id", "storeId", "payableId", "paymentId") VALUES ('allocation', 'store-1', ${f.manual}, ${f.m})`;
+    const response = await link(request(f.body), f.context);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: 'Conflict', message: expect.stringContaining('alokasi transfer') });
+    const [payment] = await client.$queryRaw<{ payableId: string }[]>`SELECT "payableId" FROM "pos_supplier_payable_payments" WHERE "id" = ${f.m}`;
+    expect(payment.payableId).toBe(f.manual);
+  });
+
+  it('does not erase a projected automatic settlement when merging a manual debt into giro', async () => {
+    const f = await fixture('projected-auto-merge');
+    await client.$executeRaw`UPDATE "pos_supplier_payables" SET "dueDate" = '2026-11-02'::date WHERE "id" = ${f.manual}`;
+    const body = { ...f.body, expectedManual: { ...f.body.expectedManual, dueDate: '2026-11-02' } };
+    const response = await link(request(body), f.context);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ message: expect.stringContaining('pelunasan otomatis') });
+    const [debt] = await client.$queryRaw<{ goodsPurchaseId: string | null }[]>`SELECT "goodsPurchaseId" FROM "pos_supplier_payables" WHERE "id" = ${f.manual}`;
+    expect(debt.goodsPurchaseId).toBeNull();
+  });
+
+  it('does not erase a projected automatic settlement when reviewing giro history', async () => {
+    const f = await fixture('projected-auto-review');
+    await client.$executeRaw`DELETE FROM "pos_supplier_payable_payments" WHERE "payableId" = ${f.giro}`;
+    await client.$executeRaw`DELETE FROM "pos_supplier_payables" WHERE "id" = ${f.giro}`;
+    await client.$executeRaw`UPDATE "pos_supplier_payables" SET "dueDate" = '2026-11-02'::date WHERE "id" = ${f.manual}`;
+    const body = { historyComplete: true, payableId: f.manual, payments: [], expectedPayments: f.body.expectedManualPayments };
+    const response = await reconcile(request(body), f.context);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ message: expect.stringContaining('pelunasan otomatis') });
+    const [debt] = await client.$queryRaw<{ goodsPurchaseId: string | null }[]>`SELECT "goodsPurchaseId" FROM "pos_supplier_payables" WHERE "id" = ${f.manual}`;
+    expect(debt.goodsPurchaseId).toBeNull();
   });
 
   it('serializes multiple links to one giro and accepts refreshed snapshots and exact retries', async () => {
@@ -246,6 +318,7 @@ describe.skipIf(!connection)('manual giro linking on isolated local PostgreSQL',
       await tx.$queryRaw`SELECT "id" FROM "pos_supplier_payables" WHERE "id" = ${f[target]} FOR UPDATE`;
       acquired();
       await proceed;
+      await tx.$executeRaw`SELECT set_config('pos.payable_system_payment', '1', true)`;
       await tx.$executeRaw`INSERT INTO "pos_supplier_payable_payments" ("id","payableId","amount","paidAt","createdById")
         VALUES (${`concurrent-payment-${target}`},${f[target]},1000,'2026-10-21'::date,'user-1')`;
     }, { timeout: 15_000 });
@@ -277,6 +350,51 @@ describe.skipIf(!connection)('manual giro linking on isolated local PostgreSQL',
     expect(waiting).toBeGreaterThanOrEqual(count);
   }
 
+  it('serializes a payment and a link without a purchase/expense lock cycle', async () => {
+    const f = await fixture('purchase-expense-order');
+    await client.$executeRaw`INSERT INTO "pos_goods_purchase_payments" ("id", "goodsPurchaseId", "method", "amount", "dueDate") VALUES ('order-schedule', ${f.purchase}, 'GIRO', 100000, '2026-11-20'::date)`;
+    let release!: () => void, acquired!: () => void;
+    const hold = new Promise<void>(resolve => { release = resolve; });
+    const ready = new Promise<void>(resolve => { acquired = resolve; });
+    const blocker = client.$transaction(async tx => { await tx.$queryRaw`SELECT "id" FROM "pos_goods_purchase_payments" WHERE "id" = 'order-schedule' FOR UPDATE`; acquired(); await hold; }, { timeout: 15_000 });
+    await ready;
+    const payment = pay(request({ amount: 1000, paidAt: '2026-10-22', expectedBalance: '70000', expectedLedgerVersion: '4' }, randomUUID()), { params: Promise.resolve({ id: f.giro }) });
+    let pendingLink!: Promise<Response>;
+    try {
+      await waitForBlocked(1, 'SELECT "id" FROM "pos_goods_purchase_payments"');
+      pendingLink = link(request(f.body), f.context);
+      await waitForBlocked(1, 'SELECT "id" FROM "pos_goods_purchases"');
+    } finally { release(); await blocker; }
+    const both = Promise.all([payment, pendingLink]);
+    const finishedWithoutDeadlock = await Promise.race([both.then(() => true), new Promise<boolean>(resolve => setTimeout(() => resolve(false), 650))]);
+    const [paid, linked] = await both;
+    expect(finishedWithoutDeadlock).toBe(true);
+    expect(paid.status).toBe(201);
+    expect(linked.status).toBe(409);
+    expect(await linked.json()).toMatchObject({ code: 'HistoryChanged' });
+  }, 25_000);
+
+  it('does not block a payment that upgrades its purchase lock to update the initial transfer snapshot', async () => {
+    const f = await fixture('purchase-upgrade');
+    let release!: () => void, acquired!: () => void;
+    const hold = new Promise<void>(resolve => { release = resolve; });
+    const ready = new Promise<void>(resolve => { acquired = resolve; });
+    const paymentTransaction = client.$transaction(async tx => {
+      await tx.$queryRaw`SELECT "id" FROM "pos_goods_purchases" WHERE "id" = ${f.purchase} FOR UPDATE`;
+      acquired(); await hold;
+      await tx.$executeRaw`UPDATE "pos_goods_purchases" SET "totalAmount" = "totalAmount" WHERE "id" = ${f.purchase}`;
+    }, { timeout: 15_000 });
+    await ready;
+    const pendingLink = link(request(f.body), f.context);
+    try { await waitForBlocked(1, 'SELECT "id" FROM "pos_goods_purchases"'); }
+    finally { release(); }
+    const both = Promise.all([paymentTransaction, pendingLink]);
+    const finishedWithoutDeadlock = await Promise.race([both.then(() => true, () => false), new Promise<boolean>(resolve => setTimeout(() => resolve(false), 650))]);
+    const [, linked] = await both;
+    expect(finishedWithoutDeadlock).toBe(true);
+    expect(linked.status).toBe(201);
+  }, 25_000);
+
   it('rejects stale payment requests that wait until the link commits', async () => {
     const f = await fixture('concurrent-after');
     await client.$executeRawUnsafe(`CREATE FUNCTION block_link_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_advisory_xact_lock(974321); RETURN NEW; END $$`);
@@ -297,7 +415,7 @@ describe.skipIf(!connection)('manual giro linking on isolated local PostgreSQL',
     try {
       await waitForBlocked(1, 'pos_supplier_payable_manual_links');
       oldManual = pay(request({ amount: 1000, paidAt: '2026-10-22' }), { params: Promise.resolve({ id: f.manual }) });
-      staleGiro = pay(request({ amount: 1000, paidAt: '2026-10-22', expectedBalance: '70000' }, randomUUID()), { params: Promise.resolve({ id: f.giro }) });
+      staleGiro = pay(request({ amount: 1000, paidAt: '2026-10-22', expectedBalance: '70000', expectedLedgerVersion: '4' }, randomUUID()), { params: Promise.resolve({ id: f.giro }) });
       await waitForBlocked(2, 'pos_supplier_payables');
     } finally {
       release();

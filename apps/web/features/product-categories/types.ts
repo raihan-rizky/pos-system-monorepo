@@ -46,10 +46,19 @@ export interface DeletePreview {
     activeProducts: number;
     inactiveProducts: number;
     rules: PricingRuleImpact[];
-    stores: { id: string; name: string; products: number; rules: number }[];
+    linkedClassification?: {
+      id: string;
+      name: string;
+      group: string;
+      units: number;
+      activeUnits: number;
+      inactiveUnits: number;
+      stores: { id: string; name: string; units: number }[];
+    } | null;
+    stores: { id: string; name: string; products: number; rules: number; classifiedUnits?: number }[];
   }[];
   totals: { categories: number; products: number; activeProducts: number; inactiveProducts: number; rules: number; stores: number };
-  stores: { id: string; name: string; products: number; rules: number }[];
+  stores: { id: string; name: string; products: number; rules: number; classifiedUnits?: number }[];
 }
 
 export interface MovePreview {

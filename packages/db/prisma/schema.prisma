@@ -20,13 +20,19 @@ model User {
   storeId                             String?
   createdAt                           DateTime                        @default(now())
   updatedAt                           DateTime                        @updatedAt
+  manualTransferAttempts              ManualTransferAttempt[]
+  manualPayableAttempts               ManualPayableAttempt[]
+  manualPayableRequests               ManualPayableRequest[]
   batchOperations                     BatchOperation[]                @relation("created_batch_operations")
   undoneBatchOperations               BatchOperation[]                @relation("undone_batch_operations")
   shifts                              CashierShift[]
   createdCategoryCustomerPricingRules CategoryCustomerPricingRule[]   @relation("created_category_customer_pricing_rules")
   updatedCategoryCustomerPricingRules CategoryCustomerPricingRule[]   @relation("updated_category_customer_pricing_rules")
+  createdSubcategoryCustomerPricingRules SubcategoryCustomerPricingRule[] @relation("created_subcategory_customer_pricing_rules")
+  updatedSubcategoryCustomerPricingRules SubcategoryCustomerPricingRule[] @relation("updated_subcategory_customer_pricing_rules")
   recordedExpenses                    Expense[]                       @relation("recorded_expenses")
   recordedManualIncome                ManualIncome[]                  @relation("recorded_manual_income")
+  savedDailyIncomeComparisons         DailyIncomeComparison[]        @relation("daily_income_comparison_actor")
   productImportJobs                   ProductImportJob[]              @relation("created_product_import_jobs")
   productionActivityLogs              ProductionActivityLog[]         @relation("production_activity_actor")
   invoiceDateChangeLogs               InvoiceDateChangeLog[]          @relation("invoice_date_change_actor")
@@ -66,10 +72,15 @@ model Store {
   logoUrl                      String?
   createdAt                    DateTime                        @default(now())
   updatedAt                    DateTime                        @updatedAt
+  manualTransferAttempts       ManualTransferAttempt[]
+  manualPayableAttempts        ManualPayableAttempt[]
+  manualPayableRequests        ManualPayableRequest[]
+  managedProofObjects          ManagedProofObject[]
   brands                       Brand[]
   batchOperations              BatchOperation[]
   shifts                       CashierShift[]
   customerCategoryPricingRules CategoryCustomerPricingRule[]
+  subcategoryCustomerPricingRules SubcategoryCustomerPricingRule[]
   customers                    Customer[]
   customerReceivables           CustomerReceivable[]
   backdatedPurchases            BackdatedPurchase[]
@@ -104,6 +115,7 @@ model Store {
   goodsPurchases               GoodsPurchase[]
   expenses                     Expense[]
   manualIncome                 ManualIncome[]
+  dailyIncomeComparisons       DailyIncomeComparison[]
   expenseCategories            CustomExpenseCategory[]
   suratJalan                   SuratJalan[]
   transactions                 Transaction[]
@@ -111,6 +123,47 @@ model Store {
   notifications                Notification[]
 
   @@map("pos_stores")
+}
+
+model ManagedProofCleanupControl {
+  singleton Boolean @id @default(true)
+  enabled   Boolean @default(false)
+
+  @@map("pos_managed_proof_cleanup_control")
+}
+
+model ManagedProofObject {
+  id            String                  @id
+  storeId       String
+  accountId     String
+  bucket        String
+  objectKey     String
+  state         String
+  attempts      Int                     @default(0)
+  nextAttemptAt DateTime                @default(now()) @db.Timestamptz(6)
+  leaseId       String?
+  leaseUntil    DateTime?               @db.Timestamptz(6)
+  createdAt     DateTime                @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime                @default(now()) @db.Timestamptz(6)
+  deletedAt     DateTime?               @db.Timestamptz(6)
+  store         Store                   @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  references    ManagedProofReference[]
+
+  @@unique([accountId, bucket, objectKey])
+  @@index([state, nextAttemptAt, leaseUntil], map: "pos_managed_proof_cleanup_pending_idx")
+  @@map("pos_managed_proof_objects")
+}
+
+model ManagedProofReference {
+  objectId   String
+  sourceType String
+  sourceId   String
+  slot       String
+  createdAt  DateTime           @default(now()) @db.Timestamptz(6)
+  object     ManagedProofObject @relation(fields: [objectId], references: [id], onDelete: Restrict)
+
+  @@id([objectId, sourceType, sourceId, slot])
+  @@map("pos_managed_proof_references")
 }
 
 model Category {
@@ -121,10 +174,27 @@ model Category {
   order                        Int                           @default(0)
   salesGroup                   ProductSalesGroup             @default(OTHER)
   customerCategoryPricingRules CategoryCustomerPricingRule[]
+  catalogSubcategory           ProductSubcategory?
   priceRoundingSettings        StoreSettings[]               @relation("PriceRoundingExcludedCategories")
   products                     Product[]
 
   @@map("pos_categories")
+}
+
+model ProductSubcategory {
+  id               String              @id @default(cuid())
+  group            ProductCatalogGroup
+  name             String
+  legacyCategoryId String?             @unique
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @default(now()) @updatedAt
+  legacyCategory   Category?           @relation(fields: [legacyCategoryId], references: [id], onDelete: SetNull)
+  products         Product[]
+  pricingRules     SubcategoryCustomerPricingRule[]
+
+  @@unique([group, name])
+  @@index([group])
+  @@map("pos_product_subcategories")
 }
 
 model Brand {
@@ -135,6 +205,7 @@ model Brand {
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
   customerCategoryPricingRules CategoryCustomerPricingRule[]
+  subcategoryCustomerPricingRules SubcategoryCustomerPricingRule[]
   products                     Product[]
   store                        Store                         @relation(fields: [storeId], references: [id])
 
@@ -239,10 +310,12 @@ model SupplierPayable {
   storeId      String
   goodsPurchaseId String?               @unique
   giroHistoryVerifiedAt DateTime?       @db.Timestamptz(6)
+  ledgerVersion BigInt                  @default(0)
   supplierName String
   amount       Decimal                  @db.Decimal(12, 2)
   debtDate     DateTime                 @db.Date
   dueDate      DateTime?                @db.Date
+  reportCategory ManualExpenseReportCategory?
   note         String?
   createdById  String
   createdAt    DateTime                 @default(now())
@@ -251,6 +324,7 @@ model SupplierPayable {
   payments     SupplierPayablePayment[]
   manualLinks  SupplierPayableManualLink[]
   creditApplications ExpenseSupplierCreditApplication[]
+  transferAllocations ManualTransferAllocation[]
 
   @@unique([id, storeId])
   @@index([storeId, debtDate])
@@ -277,17 +351,40 @@ model SupplierPayableManualLink {
   @@map("pos_supplier_payable_manual_links")
 }
 
+model PayablePaymentAttempt {
+  scope       String   @id
+  storeId     String
+  userId      String
+  payableId   String
+  resource    String
+  version     String
+  fingerprint String
+  cancelled   Boolean  @default(false)
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("pos_payable_payment_attempts")
+}
+
 model SupplierPayablePayment {
   id          String          @id
   payableId   String
   amount      Decimal         @db.Decimal(12, 2)
   paidAt      DateTime        @db.Date
+  origin      ManualPayablePaymentOrigin @default(MANUAL)
+  automaticKey String?        @unique
   createdById String
   createdAt   DateTime        @default(now())
   requestScope String?        @unique
   requestExpectedBalance Decimal? @db.Decimal(12, 2)
+  requestLedgerVersion String?
+  requestPayableId String?
+  requestAmount Decimal? @db.Decimal(12, 2)
+  requestPaidAt DateTime? @db.Date
+  requestResource String?
   payable     SupplierPayable @relation(fields: [payableId], references: [id], onDelete: Restrict)
+  transferAllocation ManualTransferAllocation?
 
+  @@unique([id, payableId], map: "pos_payable_payments_id_payable_key")
   @@index([payableId, paidAt])
   @@map("pos_supplier_payable_payments")
 }
@@ -346,6 +443,7 @@ model Product {
   minStock                     Int                             @default(5)
   unit                         String                          @default("pcs")
   categoryId                   String
+  catalogSubcategoryId         String?
   brandId                      String?
   storeId                      String
   isActive                     Boolean                         @default(true)
@@ -372,6 +470,7 @@ model Product {
   stockGroupActivities         ProductStockGroupActivity[]
   brand                        Brand?                          @relation(fields: [brandId], references: [id])
   category                     Category                        @relation(fields: [categoryId], references: [id])
+  catalogSubcategory           ProductSubcategory?             @relation(fields: [catalogSubcategoryId], references: [id], onDelete: Restrict)
   stockGroup                   ProductStockGroup?              @relation(fields: [stockGroupId], references: [id])
   store                        Store                           @relation(fields: [storeId], references: [id])
   suratJalanItems              SuratJalanItem[]
@@ -379,6 +478,7 @@ model Product {
   serviceMaterialItems         TransactionItem[]               @relation("transaction_raw_material")
 
   @@index([categoryId])
+  @@index([catalogSubcategoryId])
   @@index([brandId])
   @@index([storeId])
   @@index([stockGroupId])
@@ -638,6 +738,7 @@ model CustomerReceivable {
   amountPaid       Decimal                     @default(0) @db.Decimal(12, 2)
   debtDate         DateTime                    @db.Date
   dueDate          DateTime                    @db.Date
+  reportCategory   ManualReceiptReportCategory?
   note             String?
   createdById      String
   clientMutationId String                      @unique
@@ -661,6 +762,7 @@ model CustomerReceivablePayment {
   createdById      String
   clientMutationId String             @unique
   createdAt        DateTime           @default(now())
+  paidAt           DateTime?          @db.Date
   receivable       CustomerReceivable @relation(fields: [receivableId], references: [id], onDelete: Restrict)
 
   @@index([receivableId, createdAt])
@@ -1493,6 +1595,35 @@ model CategoryCustomerPricingRule {
   @@map("pos_category_customer_pricing_rules")
 }
 
+model SubcategoryCustomerPricingRule {
+  id              String                      @id @default(cuid())
+  storeId         String
+  subcategoryId   String
+  customerType    CustomerType?
+  customerTypes   CustomerType[]              @default([])
+  unit            String?
+  units           String[]                    @default([])
+  brandId         String?
+  mode            CategoryCustomerPricingMode
+  value           Decimal                     @db.Decimal(12, 2)
+  discountPercent Decimal                     @default(0) @db.Decimal(5, 2)
+  isActive        Boolean                     @default(true)
+  createdBy       String?
+  updatedBy       String?
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+  store           Store                       @relation(fields: [storeId], references: [id])
+  subcategory     ProductSubcategory          @relation(fields: [subcategoryId], references: [id], onDelete: Restrict)
+  brand           Brand?                      @relation(fields: [brandId], references: [id])
+  createdByUser   User?                       @relation("created_subcategory_customer_pricing_rules", fields: [createdBy], references: [id])
+  updatedByUser   User?                       @relation("updated_subcategory_customer_pricing_rules", fields: [updatedBy], references: [id])
+
+  @@index([storeId, isActive])
+  @@index([subcategoryId])
+  @@index([brandId])
+  @@map("pos_subcategory_customer_pricing_rules")
+}
+
 model BatchOperation {
   id                       String                    @id @default(cuid())
   type                     BatchOperationType
@@ -1989,6 +2120,28 @@ enum ManualIncomeCategory {
   STEMPEL
 }
 
+enum ManualReceiptReportCategory {
+  CETAK
+  PLAT
+  STEMPEL
+  SPANDUK
+  ATK
+  PRINT
+}
+
+enum ManualExpenseReportCategory {
+  CETAK_PLAT
+  SPANDUK
+  ATK
+  SALARY
+}
+
+enum ManualPayablePaymentOrigin {
+  MANUAL
+  AUTO
+  CORRECTED_AUTO
+}
+
 model ManualIncome {
   id           String               @id @default(cuid())
   storeId      String
@@ -2020,6 +2173,35 @@ model ManualIncomePayment {
   @@map("pos_manual_income_payments")
 }
 
+model DailyIncomeComparison {
+  id           String                        @id @default(cuid())
+  storeId      String
+  date         DateTime                      @db.Date
+  revision     Int                           @default(1)
+  savedById    String?
+  savedByName  String
+  savedAt      DateTime                      @default(now())
+  updatedAt    DateTime                      @updatedAt
+  posSnapshot  Json
+  store        Store                         @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  savedBy      User?                         @relation("daily_income_comparison_actor", fields: [savedById], references: [id], onDelete: SetNull)
+  amounts      DailyIncomeComparisonAmount[]
+
+  @@unique([storeId, date])
+  @@map("pos_daily_income_comparisons")
+}
+
+model DailyIncomeComparisonAmount {
+  id           String                @id @default(cuid())
+  comparisonId String
+  method       PaymentMethod
+  amount       Decimal               @db.Decimal(12, 2)
+  comparison   DailyIncomeComparison @relation(fields: [comparisonId], references: [id], onDelete: Cascade)
+
+  @@unique([comparisonId, method])
+  @@map("pos_daily_income_comparison_amounts")
+}
+
 model Expense {
   id                     String           @id @default(cuid())
   storeId                String
@@ -2028,6 +2210,11 @@ model Expense {
   category               ExpenseCategory
   customCategoryId       String?
   manualPurchasePaymentMethod String?
+  manualTransferFingerprint String?
+  manualTransferProofDeleteKey String?
+  manualTransferProofDeleteExpectedVersion DateTime?
+  manualTransferProofDeleteVersion DateTime?
+  reportCategory         ManualExpenseReportCategory?
   description            String?
   amount                 Decimal          @db.Decimal(12, 2)
   changeAmount           Decimal          @default(0) @db.Decimal(12, 2)
@@ -2050,7 +2237,9 @@ model Expense {
   backdatedPurchaseDue   BackdatedPurchase? @relation("backdated_purchase_due_expense", fields: [backdatedPurchaseDueId], references: [id], onDelete: Restrict)
   backdatedPurchasePayment BackdatedPurchasePayment? @relation("backdated_purchase_payment_expense", fields: [backdatedPurchasePaymentId], references: [id], onDelete: Restrict)
   customCategory         CustomExpenseCategory? @relation(fields: [customCategoryId, storeId], references: [id, storeId], onDelete: Restrict)
+  manualTransferAllocations ManualTransferAllocation[]
 
+  @@unique([id, storeId], map: "pos_expenses_id_store_key")
   @@index([storeId, occurredAt(sort: Desc)])
   @@index([storeId, deletedAt, occurredAt(sort: Desc)])
   @@index([occurredAt])
@@ -2061,6 +2250,66 @@ model Expense {
   @@index([deletedAt])
   @@index([transactionId])
   @@map("pos_expenses")
+}
+
+model ManualTransferAllocation {
+  id        String   @id @default(cuid())
+  storeId   String
+  expenseId String
+  payableId String
+  paymentId String   @unique
+  amount    Decimal  @db.Decimal(12, 2)
+  createdById String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  expense   Expense @relation(fields: [expenseId, storeId], references: [id, storeId], onDelete: Restrict, onUpdate: Restrict, map: "pos_manual_transfer_alloc_expense_fkey")
+  payable   SupplierPayable @relation(fields: [payableId, storeId], references: [id, storeId], onDelete: Restrict, onUpdate: Restrict, map: "pos_manual_transfer_alloc_payable_fkey")
+  payment   SupplierPayablePayment @relation(fields: [paymentId, payableId], references: [id, payableId], onDelete: Restrict, onUpdate: Restrict, map: "pos_manual_transfer_alloc_payment_fkey")
+
+  @@unique([paymentId, payableId], map: "pos_manual_transfer_alloc_payment_payable_key")
+  @@index([storeId, expenseId], map: "pos_manual_transfer_alloc_store_expense_idx")
+  @@map("pos_manual_transfer_allocations")
+}
+
+model ManualTransferAttempt {
+  id          String   @id
+  storeId     String
+  userId      String
+  body        String
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+  store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, userId, createdAt], map: "pos_manual_transfer_attempt_store_user_idx")
+  @@map("pos_manual_transfer_attempts")
+}
+
+model ManualPayableAttempt {
+  storeId     String
+  userId      String
+  version     String
+  key         String?
+  body        String?
+  completedAt DateTime?
+  store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([storeId, userId])
+  @@map("pos_manual_payable_attempts")
+}
+
+model ManualPayableRequest {
+  scope       String @id
+  fingerprint String
+  payableId   String
+  storeId     String
+  userId      String
+  store       Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, userId])
+  @@map("pos_manual_payable_requests")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -2176,6 +2425,11 @@ enum PaymentMethod {
   QRIS
   TRANSFER
   TEMPO
+}
+
+enum ProductCatalogGroup {
+  ATK
+  PERCETAKAN
 }
 
 enum ProductSalesGroup {

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PATCH, DELETE } from "../route";
 
-const mocks = vi.hoisted(() => ({ role: vi.fn(), authError: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn(), category: vi.fn(), brand: vi.fn(), transaction: vi.fn(), lock: vi.fn() }));
-const tx = vi.hoisted(() => ({ categoryCustomerPricingRule: { findFirst: mocks.findFirst, findMany: mocks.findMany, update: mocks.update }, category: { findUnique: mocks.category }, brand: { findUnique: mocks.brand }, $queryRaw: mocks.lock }));
+const mocks = vi.hoisted(() => ({ role: vi.fn(), authError: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn(), subFind: vi.fn(), subFindMany: vi.fn(), subUpdate: vi.fn(), category: vi.fn(), subcategory: vi.fn(), brand: vi.fn(), transaction: vi.fn(), lock: vi.fn() }));
+const tx = vi.hoisted(() => ({ categoryCustomerPricingRule: { findFirst: mocks.findFirst, findMany: mocks.findMany, update: mocks.update }, subcategoryCustomerPricingRule: { findFirst: mocks.subFind, findMany: mocks.subFindMany, update: mocks.subUpdate }, productSubcategory: { findUnique: mocks.subcategory }, category: { findUnique: mocks.category }, brand: { findUnique: mocks.brand }, $queryRaw: mocks.lock }));
 vi.mock("@pos/db", () => ({ db: { ...tx, $transaction: mocks.transaction } }));
 vi.mock("@/lib/rbac/guard", () => ({ requireRole: mocks.role, requirePermission: mocks.role, handleAuthError: mocks.authError }));
 
@@ -17,6 +17,8 @@ describe("pricing rule updates", () => {
     mocks.authError.mockReturnValue(null);
     mocks.findFirst.mockResolvedValue(existing);
     mocks.findMany.mockResolvedValue([]);
+    mocks.subFind.mockResolvedValue(null);
+    mocks.subFindMany.mockResolvedValue([]);
     mocks.category.mockResolvedValue({ id: "cat" });
     mocks.transaction.mockImplementation((callback) => callback(tx));
     mocks.lock.mockResolvedValue([]);
@@ -96,5 +98,18 @@ describe("pricing rule updates", () => {
     expect(mocks.lock).toHaveBeenCalledTimes(1);
     expect(mocks.lock.mock.invocationCallOrder[0]).toBeLessThan(mocks.findFirst.mock.invocationCallOrder[0]);
     expect(mocks.update).toHaveBeenCalledWith({ where: { id: "rule" }, data: { isActive: false, updatedBy: "owner" } });
+  });
+  it("updates and disables a subcategory rule in its own table", async () => {
+    mocks.findFirst.mockResolvedValue(null);
+    const scoped = { ...existing, categoryId: undefined, subcategoryId: "sub", subcategory: { id: "sub", group: "ATK", name: "Kertas" } };
+    mocks.subFind.mockResolvedValue(scoped);
+    mocks.subUpdate.mockImplementation(({ data }) => Promise.resolve({ ...scoped, ...data }));
+    const updated = await PATCH(request({ value: 2000 }), params);
+    expect(updated.status).toBe(200);
+    expect(await updated.json()).toMatchObject({ scope: "SUBCATEGORY", categoryId: "sub", value: 2000 });
+    const disabled = await DELETE(request({}), params);
+    expect(disabled.status).toBe(204);
+    expect(mocks.subUpdate).toHaveBeenCalledWith({ where: { id: "rule" }, data: { isActive: false, updatedBy: "owner" } });
+    expect(mocks.update).not.toHaveBeenCalled();
   });
 });

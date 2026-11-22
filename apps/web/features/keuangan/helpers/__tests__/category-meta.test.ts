@@ -20,4 +20,9 @@ describe('kategori pengeluaran khusus', () => {
     expect(bucketExpensesByCategory(rows)).toEqual([{ category: 'custom:parking', total: 90 }, { category: 'OTHER', total: 50 }]);
     expect(bucketExpensesByDay(rows)).toEqual([{ date: '2026-10-01', total: 140, byCategory: { 'custom:parking': 90, OTHER: 50 } }]);
   });
+  it('memberi label dan warna berbeda untuk setiap kategori laporan manual', () => {
+    const categories = ['report:CETAK_PLAT', 'report:SPANDUK', 'report:ATK', 'report:SALARY', 'report:UNASSIGNED'] as const;
+    expect(categories.map(category => expenseCategoryLabel(category))).toEqual(['Cetak / Plat', 'Spanduk', 'ATK', 'Gaji / Mingguan', 'Belum ditentukan']);
+    expect(new Set(categories.map(category => expenseCategoryColor(category))).size).toBe(categories.length);
+  });
 });

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GET } from "../route";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
+const canPerformMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const customerFindManyMock = vi.hoisted(() => vi.fn());
 const transactionFindManyMock = vi.hoisted(() => vi.fn());
@@ -10,6 +11,7 @@ const customerReceivableFindManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
+  canAuthenticatedUserPerform: canPerformMock,
   handleAuthError: handleAuthErrorMock,
 }));
 
@@ -25,6 +27,7 @@ vi.mock("@pos/db", () => ({
 describe("GET /api/customers/recap", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    canPerformMock.mockResolvedValue(true);
     customerReceivableFindManyMock.mockResolvedValue([]);
     requirePermissionMock.mockResolvedValue({
       id: "owner-1",
@@ -125,6 +128,30 @@ describe("GET /api/customers/recap", () => {
     expect(response.status).toBe(200);
     expect(body.data.summary).toMatchObject({ debtCollectedInPeriod: 35000, totalDebtOutstanding: 100000 });
     expect(customerReceivableFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ storeId: "store-main" }) }));
+  });
+  it("queries corrected payment dates and legacy WIB creation dates", async () => {
+    customerReceivableFindManyMock.mockResolvedValueOnce([{ customerId: "customer-1", payments: [{ amount: 10000, createdAt: new Date("2026-06-02T00:00:00Z"), paidAt: new Date("2026-05-02T00:00:00Z") }] }]);
+    const response = await GET(new Request("http://localhost/api/customers/recap?dateFrom=2026-05-01&dateTo=2026-05-02"));
+    expect((await response.json()).data.summary.debtCollectedInPeriod).toBe(35000);
+    const query = customerReceivableFindManyMock.mock.calls[0][0];
+    expect(query.where.payments.some.OR).toEqual([
+      { paidAt: { gte: new Date("2026-05-01T00:00:00Z"), lte: new Date("2026-05-02T00:00:00Z") } },
+      { paidAt: null, createdAt: { gte: new Date("2026-04-30T17:00:00Z"), lt: new Date("2026-05-02T17:00:00Z") } },
+    ]);
+    expect(query.select.payments.where).toEqual(query.where.payments.some);
+  });
+
+  it("keeps non-debt recap data while hiding piutang from unauthorized roles", async () => {
+    canPerformMock.mockResolvedValue(false);
+    const response = await GET(new Request("http://localhost/api/customers/recap?dateFrom=2026-05-01&dateTo=2026-05-02"));
+    const { data } = await response.json();
+    expect(response.status).toBe(200);
+    expect(data.summary.newCustomers).toBe(1);
+    expect(data.summary).not.toHaveProperty("totalDebtOutstanding");
+    expect(data.summary).not.toHaveProperty("debtCollectedInPeriod");
+    expect(data.byType[0]).not.toHaveProperty("debtAmount");
+    expect(debtPaymentLogFindManyMock).not.toHaveBeenCalled();
+    expect(customerReceivableFindManyMock).not.toHaveBeenCalled();
   });
 
 });

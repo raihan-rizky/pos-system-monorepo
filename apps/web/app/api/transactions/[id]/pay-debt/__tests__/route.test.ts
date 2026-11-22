@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "../route";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
+const pageAccessMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const transactionFindFirstMock = vi.hoisted(() => vi.fn());
 const txTransactionFindFirstMock = vi.hoisted(() => vi.fn());
@@ -18,7 +19,9 @@ const notificationCreateManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
+  canAuthenticatedUserAccessPage: pageAccessMock,
   handleAuthError: handleAuthErrorMock,
+  AuthError: class AuthError extends Error { constructor(public statusCode: number, message: string) { super(message); this.name = "AuthError"; } },
 }));
 
 vi.mock("@pos/db", () => ({
@@ -42,6 +45,7 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
       name: "Cashier One",
       storeId: "store-main",
     });
+    pageAccessMock.mockResolvedValue(true);
     handleAuthErrorMock.mockReturnValue(null);
 
     const dpRow = {
@@ -95,6 +99,21 @@ describe("POST /api/transactions/[id]/pay-debt", () => {
     receiptChangeCreateMock.mockResolvedValue({ id: "change-1" });
     ownerFindManyMock.mockResolvedValue([{ id: "owner-1" }]);
     notificationCreateManyMock.mockResolvedValue({ count: 1 });
+  });
+
+  it("denies invoice payment without Pelanggan page access", async () => {
+    pageAccessMock.mockResolvedValue(false);
+    handleAuthErrorMock.mockImplementation((error: unknown) => error instanceof Error && error.name === "AuthError" ? new Response(null, { status: 403 }) : null);
+    const response = await POST(
+      new Request("http://localhost/api/transactions/tx-dp-1/pay-debt", {
+        method: "POST",
+        body: JSON.stringify({ amount: 50000, paymentMethod: "CASH" }),
+      }),
+      { params: Promise.resolve({ id: "tx-dp-1" }) },
+    );
+    expect(response.status).toBe(403);
+    expect(transactionFindFirstMock).not.toHaveBeenCalled();
+    expect(dbTransactionMock).not.toHaveBeenCalled();
   });
 
   it("keeps a DP transaction open when payment is below remaining debt", async () => {

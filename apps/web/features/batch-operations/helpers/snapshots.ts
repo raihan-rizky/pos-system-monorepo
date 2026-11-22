@@ -23,7 +23,7 @@ export interface ProductSnapshot {
   supplierIds?: string[];
 }
 
-type ProductWithSupplierLinks = Product & {
+type ProductWithSupplierLinks = Pick<Product, Exclude<keyof ProductSnapshot, "supplierIds">> & {
   supplierIds?: string[];
   productSuppliers?: Array<{ supplierId: string }>;
 };

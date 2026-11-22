@@ -18,6 +18,7 @@ vi.mock("@/lib/rbac/guard", () => ({
   handleAuthError: (error: Error) => error.message === "denied"
     ? Response.json({ message: "Tidak memiliki izin" }, { status: 403 })
     : null,
+  canAuthenticatedUserPerform: async () => true,
 }));
 
 vi.mock("@/features/transactions-stock/services/transaction-reversal-service", () => ({

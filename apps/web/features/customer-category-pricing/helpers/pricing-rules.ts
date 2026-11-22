@@ -10,6 +10,7 @@ export type PricingPreference = (typeof PRICING_PREFERENCES)[number];
 
 export interface CategoryPricingRule {
   id: string;
+  scope?: "CATEGORY" | "SUBCATEGORY";
   categoryId: string;
   categoryName?: string | null;
   customerType: PricingCustomerType;
@@ -28,6 +29,8 @@ export interface CategoryPricingRule {
 export interface PriceableProduct {
   categoryId: string;
   categoryName?: string | null;
+  catalogSubcategoryId?: string | null;
+  catalogSubcategoryLegacyCategoryId?: string | null;
   price: number;
   costPrice?: number | null;
   baseCostPrice?: number | null;
@@ -325,17 +328,26 @@ export function priceProductForCustomerType(
   const memberPrice = priceProductForMemberType(product, customerType);
   if (memberPrice) return memberPrice;
   if (!specialPricingEnabled) return { unitPrice: roundCurrency(product.price), appliedPricing: null };
-  const specialPrice = applyCategoryPricingRule(
-    product,
-    customerType,
-    findMatchingCategoryPricingRule(rules, {
-      customerType,
-      categoryId: product.categoryId,
-      unit: product.unit,
-      brandId: product.brandId,
-    }),
+  const match = (categoryId: string, scope: "CATEGORY" | "SUBCATEGORY") => findMatchingCategoryPricingRule(
+    rules.filter((rule) => (rule.scope ?? "CATEGORY") === scope),
+    { customerType, categoryId, unit: product.unit, brandId: product.brandId },
   );
-  return specialPrice;
+  const subcategoryRule = product.catalogSubcategoryId
+    ? match(product.catalogSubcategoryId, "SUBCATEGORY")
+    : null;
+  const legacyId = product.catalogSubcategoryId
+    ? product.catalogSubcategoryLegacyCategoryId
+    : product.categoryId;
+  const rule = subcategoryRule ?? (legacyId ? match(legacyId, "CATEGORY") : null);
+  const scopedProduct = rule ? { ...product, categoryId: rule.categoryId } : product;
+  const specialPrice = applyCategoryPricingRule(
+    scopedProduct,
+    customerType,
+    rule,
+  );
+  return specialPrice.appliedPricing
+    ? { ...specialPrice, appliedPricing: { ...specialPrice.appliedPricing, categoryId: product.categoryId } }
+    : specialPrice;
 }
 
 export function countProductsAtOrBelowFlatDiscount(

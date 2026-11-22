@@ -5,6 +5,7 @@ import { ChevronDown, Plus, User } from "lucide-react";
 import type { Customer } from "@/hooks/useCustomers";
 import { useCustomers } from "@/hooks/useCustomers";
 import { useDebounce } from "@/hooks/useDebounce";
+import { CUSTOMER_TYPES, type CustomerType } from "@/lib/customers";
 import { formatRupiah } from "@/lib/utils";
 import {
   GENERAL_CUSTOMER_NAME,
@@ -237,6 +238,7 @@ export function CustomerCheckoutSelect({
                   kind: "new",
                   name: search.trim(),
                   phone: "",
+                  type: "UMUM",
                 });
               }}
               className="flex min-h-11 w-full items-center gap-3 border-t border-surface-100 px-3 py-2.5 text-left text-brand-700 transition-colors duration-150 hover:bg-brand-50 cursor-pointer"
@@ -288,6 +290,31 @@ export function CustomerCheckoutSelect({
                 placeholder="08xx / +628xx"
                 className="w-full rounded-lg border border-brand-200 bg-white px-3 py-2 text-sm text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400 disabled:bg-surface-50"
               />
+            </div>
+            <div className="sm:col-span-2">
+              <label
+                htmlFor="checkout-customer-type"
+                className="mb-1 block text-xs font-semibold text-brand-800"
+              >
+                Jenis pelanggan
+              </label>
+              <select
+                id="checkout-customer-type"
+                name="type"
+                value={value.type ?? "UMUM"}
+                onChange={(event) => {
+                  onClearError?.();
+                  onChange({ ...value, type: event.target.value as CustomerType });
+                }}
+                disabled={disabled}
+                className="w-full rounded-lg border border-brand-200 bg-white px-3 py-2 text-sm text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400 disabled:bg-surface-50"
+              >
+                {CUSTOMER_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {TYPE_LABELS[type]}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
