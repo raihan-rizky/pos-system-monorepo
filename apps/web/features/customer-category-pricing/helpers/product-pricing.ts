@@ -23,6 +23,8 @@ export function priceCatalogVariantForCustomer(
   return roundSellingPriceLine(priceProductForCustomerType({
     categoryId: product.category.id,
     categoryName: product.category.name,
+    catalogSubcategoryId: selected.catalogSubcategoryId,
+    catalogSubcategoryLegacyCategoryId: selected.catalogSubcategory?.legacyCategoryId ?? null,
     price: Number(selected.price),
     costPrice: selected.costPrice == null ? null : Number(selected.costPrice),
     unit: selected.unit,

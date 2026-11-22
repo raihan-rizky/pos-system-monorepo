@@ -26,6 +26,7 @@ function formatCurrency(amount: number): string {
 }
 
 export function RecapByTypeChart({ rows }: RecapByTypeChartProps) {
+  const showReceivables = rows.some((row) => row.debtAmount !== undefined);
   const data = rows.map((row) => ({
     ...row,
     label: CUSTOMER_TYPE_LABELS[row.type],
@@ -39,11 +40,11 @@ export function RecapByTypeChart({ rows }: RecapByTypeChartProps) {
             Tipe Pelanggan
           </p>
           <h3 className="mt-1 text-sm font-black text-slate-900">
-            Omzet dan piutang per tipe
+            {showReceivables ? "Omzet dan piutang per tipe" : "Omzet per tipe"}
           </h3>
         </div>
         <ChartAiInsightButton
-          chartTitle="Omzet & Piutang per Tipe Pelanggan"
+          chartTitle={showReceivables ? "Omzet & Piutang per Tipe Pelanggan" : "Omzet per Tipe Pelanggan"}
           chartContext={JSON.stringify(data)}
         />
       </div>
@@ -61,13 +62,13 @@ export function RecapByTypeChart({ rows }: RecapByTypeChartProps) {
               radius={[0, 6, 6, 0]}
               isAnimationActive={false}
             />
-            <Bar
+            {showReceivables ? <Bar
               dataKey="debtAmount"
               name="Piutang"
               fill="#f59e0b"
               radius={[0, 6, 6, 0]}
               isAnimationActive={false}
-            />
+            /> : null}
           </BarChart>
         </ResponsiveContainer>
       </div>

@@ -14,6 +14,11 @@ const product = {
 const rules = [{ id: "special", categoryId: "paper", customerType: "ALL" as const, customerTypes: ["UMUM", "AGEN"] as const, unit: "rim", brandId: "a", mode: "COST_PLUS_FLAT" as const, value: 4000, isActive: true }];
 
 describe("catalog price projection", () => {
+  it("prices each variant according to its own subcategory", () => {
+    const variant = { ...product.variants![0], catalogSubcategoryId: "print", catalogSubcategory: { id: "print", group: "PERCETAKAN" as const, name: "PRINT", legacyCategoryId: null } };
+    const scoped = [{ id: "print-rule", scope: "SUBCATEGORY" as const, categoryId: "print", customerType: "ALL" as const, mode: "PERCENT_DISCOUNT" as const, value: 20, isActive: true }];
+    expect(priceCatalogVariantForCustomer(product, variant, "UMUM", scoped, { enabled: false, increment: 500, threshold: 50 }).unitPrice).toBe(8000);
+  });
   it("prices each unit using its own scope while retaining the original catalog price", () => {
     const projected = priceCatalogProductForCustomer({ ...product, brandId: "a" }, "UMUM", rules.map(r => ({ ...r, customerTypes: [...r.customerTypes] })));
     expect(projected.displayPrice).toBe(5000);

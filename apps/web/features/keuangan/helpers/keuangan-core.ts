@@ -11,7 +11,7 @@ export const EXPENSE_CATEGORIES = [
 ] as const;
 
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
-export type ExpenseCategoryKey = ExpenseCategory | `custom:${string}`;
+export type ExpenseCategoryKey = ExpenseCategory | `custom:${string}` | `report:${import("./manual-report-categories").ManualExpenseReportCategory | "UNASSIGNED"}`;
 
 type DecimalLike = number | string;
 

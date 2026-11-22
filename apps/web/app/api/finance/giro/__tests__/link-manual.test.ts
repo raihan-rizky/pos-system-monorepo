@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ permission: vi.fn(), authError: vi.fn(), query: vi.fn(), execute: vi.fn(), transaction: vi.fn() }));
+const mocks = vi.hoisted(() => ({ permission: vi.fn(), page: vi.fn(), authError: vi.fn(), query: vi.fn(), execute: vi.fn(), transaction: vi.fn() }));
 vi.mock('@pos/db', () => ({ db: { $transaction: mocks.transaction } }));
-vi.mock('@/lib/rbac/guard', () => ({ requirePermission: mocks.permission, handleAuthError: mocks.authError }));
+vi.mock('@/lib/rbac/guard', () => ({ requirePermission: mocks.permission, canAuthenticatedUserAccessPage: mocks.page, authorizeInTransaction: async (_tx: unknown, actor: { id: string; storeId: string; role?: string }, requirements: { resources: { resource: string; action: string }[]; page?: string }) => {
+  try { if (requirements.page && !await mocks.page()) return false; for (const grant of requirements.resources) { const current = await mocks.permission(grant.resource, grant.action); if (current.id !== actor.id || current.storeId !== actor.storeId || current.role !== actor.role) return false; } return true; } catch { return false; }
+}, handleAuthError: mocks.authError }));
 vi.mock('@/lib/logger', () => ({ getLogger: () => ({ error: vi.fn() }) }));
 
 import { POST } from '../[goodsPurchaseId]/link-manual/route';
@@ -26,11 +28,12 @@ const payments = [
   { id: 'g-1', payableId: 'giro-1', amount: '30000', paidAt: '2026-10-20', requestScope: null },
   { id: 'm-1', payableId: 'manual-1', amount: '30000', paidAt: '2026-10-20', requestScope: null },
 ];
-function mockHistory(overrides: { purchase?: object; debts?: object[]; references?: object[]; payments?: object[]; paymentReferences?: object[] } = {}) {
+function mockHistory(overrides: { purchase?: object; debts?: object[]; references?: object[]; allocations?: object[]; payments?: object[]; paymentReferences?: object[] } = {}) {
   mocks.query.mockResolvedValueOnce([overrides.purchase ?? purchase]);
   mocks.query.mockResolvedValueOnce([]); // audit replay
   mocks.query.mockResolvedValueOnce(overrides.debts ?? [giro, manual]);
   mocks.query.mockResolvedValueOnce(overrides.references ?? []); // unknown foreign keys
+  mocks.query.mockResolvedValueOnce(overrides.allocations ?? []); // existing transfer allocations
   mocks.query.mockResolvedValueOnce([]); // manual debt referenced by an existing audit
   mocks.query.mockResolvedValueOnce(overrides.payments ?? payments);
   mocks.query.mockResolvedValueOnce(overrides.paymentReferences ?? []); // foreign keys to payments
@@ -40,14 +43,35 @@ describe('linking a manual payable to an existing giro', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mocks.permission.mockResolvedValue({ id: 'user-1', storeId: 'store-1' });
+    mocks.page.mockResolvedValue(true);
     mocks.authError.mockReturnValue(null);
-    mocks.transaction.mockImplementation(async callback => callback({ $queryRaw: mocks.query, $executeRaw: mocks.execute }));
+    mocks.transaction.mockImplementation(async callback => callback({ $queryRaw: (parts: TemplateStringsArray, ...values: unknown[]) => {
+      if (parts.join(' ').trimStart().startsWith('SELECT "id" FROM "pos_goods_purchases"')) return Promise.resolve([{ id: 'purchase-1' }]);
+      return mocks.query(parts, ...values);
+    }, $executeRaw: mocks.execute }));
     mocks.execute.mockResolvedValue(1);
   });
 
   it('requires confirmation before accessing the database', async () => {
     const response = await POST(request({ ...body, historiesConfirmed: false }), context);
     expect(response.status).toBe(422);
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+  it('requires manual debt and payment correction rights before merging their history', async () => {
+    const denied = new Error('denied-manual');
+    mocks.permission.mockImplementation(async (target: string) => {
+      if (target === 'expense.payable.manual.payment') throw denied;
+      return { id: 'user-1', storeId: 'store-1' };
+    });
+    mocks.authError.mockImplementation(error => error === denied ? new Response(null, { status: 403 }) : null);
+    expect((await POST(request(), context)).status).toBe(403);
+    expect(mocks.permission).toHaveBeenCalledWith('expense.payable', 'read');
+    expect(mocks.permission).toHaveBeenCalledWith('expense.payable.manual', 'update');
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+  it('rejects manual linking without access to Keuangan', async () => {
+    mocks.page.mockResolvedValue(false);
+    expect((await POST(request(), context)).status).toBe(403);
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
@@ -112,6 +136,26 @@ describe('linking a manual payable to an existing giro', () => {
     expect(response.status).toBe(409);
     expect((await response.json()).code).toBe('Conflict');
     expect(mocks.execute).toHaveBeenCalledTimes(4);
+  });
+
+  it('refuses to merge a debt whose payments are linked to a manual transfer', async () => {
+    mockHistory({ allocations: [{ exists: 1 }] });
+    const response = await POST(request(), context);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: 'Conflict', message: expect.stringContaining('alokasi transfer') });
+    expect(mocks.execute.mock.calls.map(call => call[0].join(' ')).some(sql => sql.includes('INSERT INTO'))).toBe(false);
+  });
+
+  it('recognizes only the exact allocation foreign keys while keeping unknown references protected', async () => {
+    mockHistory();
+    expect((await POST(request(), context)).status).toBe(201);
+    const queries = mocks.query.mock.calls.map(call => call[0].join(' '));
+    const debtCheck = queries.find(sql => sql.includes("c.confrelid = '\"pos_supplier_payables\"'::regclass"));
+    const paymentCheck = queries.find(sql => sql.includes("c.confrelid = '\"pos_supplier_payable_payments\"'::regclass"));
+    expect(debtCheck).toContain('pos_manual_transfer_alloc_payable_fkey');
+    expect(paymentCheck).toContain('pos_manual_transfer_alloc_payment_fkey');
+    expect(debtCheck).toContain("c.confdeltype = 'r'");
+    expect(paymentCheck).toContain("c.confupdtype = 'r'");
   });
 
   it('refuses to delete a duplicate payment with unknown dependent data', async () => {

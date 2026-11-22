@@ -15,6 +15,7 @@ export async function warmOfflineCheckoutModules() {
       loadCloseShiftModal(),
       import("@/lib/offline/checkout-outbox"),
       import("@/lib/offline/offline-db"),
+      import("@/lib/offline/offline-pricing"),
       import("@/features/pos-search/pos-search"),
       import("@/features/pos-search/pos-stock-filter"),
     ]);

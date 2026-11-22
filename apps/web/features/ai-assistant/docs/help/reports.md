@@ -6,7 +6,7 @@ Buka **Operasi > Dashboard** (`/dashboard`) untuk ringkasan performa toko. Dashb
 
 ## Keuangan
 
-Buka **Keuangan > Keuangan** (`/keuangan`) untuk arus kas bulanan. Halaman ini menampilkan Net Cash Flow, grafik pemasukan/pengeluaran harian, pemasukan dari transaksi, serta daftar pengeluaran per kategori. Gunakan **Tambahkan Hutang** untuk mencatat hutang pemasok dan pembayaran awal opsional; pembayaran berikutnya dapat dicatat sebagian atau lunas. Pembayaran hutang manual dicatat terpisah dari pengeluaran. Pada **Giro Pembelian**, periksa riwayat giro lama lalu catat pembayaran aktual; pembayaran giro mengurangi kas pada tanggal dibayar. Jika riwayat belum diketahui, ringkasan yang terdampak belum lengkap. Tambah, ubah, dan hapus pengeluaran mengikuti permission resource `expense`.
+Buka **Keuangan > Keuangan** (`/keuangan`) untuk arus kas bulanan. Pemasukan mengikuti tanggal penerimaan yang sama dengan tampilan Sales. Gunakan **Tambahkan Hutang** untuk mencatat hutang pemasok dan pembayaran awal bila ada. Pembayaran manual masuk pengeluaran pada tanggal pembayaran aktual. Saat jatuh tempo dalam WIB, sisa hutang tampil sebagai pelunasan bertanda **Otomatis** pada tanggal tersebut. Hutang tanpa jatuh tempo tetap terbuka sampai dibayar. Pengeluaran giro mengikuti bulan jatuh tempo terbaru, sedangkan kas pada Excel bulanan memakai tanggal pembayaran aktual. Periksa riwayat giro lama agar ringkasan yang terdampak lengkap. Aksi pengeluaran, hutang, dan giro mengikuti izin masing-masing.
 
 ## Laporan Keuangan
 

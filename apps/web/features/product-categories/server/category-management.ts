@@ -63,7 +63,7 @@ function verifyToken(token: string, actor: Actor, snapshot: unknown) {
 }
 
 const categorySelect = { id: true, name: true, icon: true, color: true, order: true, salesGroup: true } as const;
-const productSelect = { id: true, name: true, categoryId: true, storeId: true, stockGroupId: true, material: true, size: true, isActive: true, updatedAt: true, store: { select: { id: true, name: true } } } as const;
+const productSelect = { id: true, name: true, categoryId: true, catalogSubcategoryId: true, storeId: true, stockGroupId: true, material: true, size: true, isActive: true, updatedAt: true, store: { select: { id: true, name: true } } } as const;
 const groupSelect = { id: true, storeId: true, groupKey: true, updatedAt: true } as const;
 const ruleInclude = { store: { select: { id: true, name: true } }, brand: { select: { name: true } } } as const;
 type RuleRow = Prisma.CategoryCustomerPricingRuleGetPayload<{ include: typeof ruleInclude }>;
@@ -134,7 +134,7 @@ function storeImpact(products: { storeId: string; store: { name: string } }[], r
   const stores = new Map<string, DeletePreview["stores"][number]>();
   for (const [items, field] of [[products, "products"], [rules, "rules"]] as const) {
     for (const item of items) {
-      const store = stores.get(item.storeId) ?? { id: item.storeId, name: item.store.name, products: 0, rules: 0 };
+      const store: DeletePreview["stores"][number] = stores.get(item.storeId) ?? { id: item.storeId, name: item.store.name, products: 0, rules: 0 };
       store[field]++;
       stores.set(store.id, store);
     }
@@ -183,8 +183,18 @@ async function deleteCategories(tx: Prisma.TransactionClient, input: Extract<z.i
   if (categories.length !== allIds.length) conflict();
   const products = await tx.product.findMany({ where: { categoryId: { in: sourceIds } }, select: productSelect, orderBy: { id: "asc" } });
   const rules = await tx.categoryCustomerPricingRule.findMany({ where: { categoryId: { in: allIds } }, include: ruleInclude, orderBy: { id: "asc" } });
+  const linkedSubcategories = await tx.productSubcategory.findMany({
+    where: { legacyCategoryId: { in: sourceIds } },
+    select: { id: true, name: true, group: true, legacyCategoryId: true, updatedAt: true },
+    orderBy: { id: "asc" },
+  });
+  const linkedProducts = linkedSubcategories.length ? await tx.product.findMany({
+    where: { catalogSubcategoryId: { in: linkedSubcategories.map(subcategory => subcategory.id) } },
+    select: { id: true, categoryId: true, catalogSubcategoryId: true, storeId: true, isActive: true, updatedAt: true, store: { select: { id: true, name: true } } },
+    orderBy: { id: "asc" },
+  }) : [];
   const sourceRules = rules.filter(rule => sourceIds.includes(rule.categoryId));
-  if (actor.role !== "OWNER" && (sourceRules.length > 0 || products.some(product => product.storeId !== (actor.storeId || "store-main")))) {
+  if (actor.role !== "OWNER" && (sourceRules.length > 0 || [...products, ...linkedProducts].some(product => product.storeId !== (actor.storeId || "store-main")))) {
     throw new CategoryManagementError(403, "Minta Owner menjalankan penghapusan ini karena memengaruhi aturan harga pelanggan atau produk di toko lain.");
   }
   const expanded = await expandStockGroups(tx, products);
@@ -199,15 +209,34 @@ async function deleteCategories(tx: Prisma.TransactionClient, input: Extract<z.i
     if (destination) groupDestinations.set(group.id, destination);
   }
   const groupPlans = await planGroupKeys(tx, expanded.groups, expanded.products, groupDestinations);
+  const storesWithClassification = (items: ProductRow[], categoryRules: RuleRow[], classified: typeof linkedProducts) => {
+    const stores = new Map<string, DeletePreview["stores"][number]>(storeImpact(items, categoryRules).map(store => [store.id, { ...store }]));
+    for (const item of classified) {
+      const store = stores.get(item.storeId) ?? { id: item.storeId, name: item.store.name, products: 0, rules: 0 };
+      store.classifiedUnits = (store.classifiedUnits ?? 0) + 1;
+      stores.set(store.id, store);
+    }
+    return [...stores.values()].sort((a, b) => a.id.localeCompare(b.id));
+  };
   const rows = sourceIds.map(source => {
     const category = categories.find(row => row.id === source)!;
     const sourceProducts = products.filter(product => product.categoryId === source);
     const activeProducts = sourceProducts.filter(product => product.isActive).length;
     const categoryRules = sourceRules.filter(rule => rule.categoryId === source);
-    return { id: source, name: category.name, targetCategoryId: destinations[source], targetCategoryName: categories.find(row => row.id === destinations[source])?.name ?? null, products: sourceProducts.length, activeProducts, inactiveProducts: sourceProducts.length - activeProducts, rules: categoryRules.map(ruleImpact), stores: storeImpact(sourceProducts, categoryRules) };
+    const linked = linkedSubcategories.find(subcategory => subcategory.legacyCategoryId === source);
+    const classified = linked ? linkedProducts.filter(product => product.catalogSubcategoryId === linked.id) : [];
+    const classificationStores = new Map<string, { id: string; name: string; units: number }>();
+    for (const product of classified) {
+      const store = classificationStores.get(product.storeId) ?? { id: product.storeId, name: product.store.name, units: 0 };
+      store.units++;
+      classificationStores.set(store.id, store);
+    }
+    const activeUnits = classified.filter(product => product.isActive).length;
+    const linkedClassification = linked ? { id: linked.id, name: linked.name, group: linked.group, units: classified.length, activeUnits, inactiveUnits: classified.length - activeUnits, stores: [...classificationStores.values()].sort((a, b) => a.id.localeCompare(b.id)) } : null;
+    return { id: source, name: category.name, targetCategoryId: destinations[source], targetCategoryName: categories.find(row => row.id === destinations[source])?.name ?? null, products: sourceProducts.length, activeProducts, inactiveProducts: sourceProducts.length - activeProducts, rules: categoryRules.map(ruleImpact), linkedClassification, stores: storesWithClassification(sourceProducts, categoryRules, classified) };
   });
-  const stores = storeImpact(products, sourceRules);
-  const snapshot = { kind: "delete", sourceIds, destinations, categories, products, groups: expanded.groups, members: expanded.products, rules };
+  const stores = storesWithClassification(products, sourceRules, linkedProducts);
+  const snapshot = { kind: "delete", sourceIds, destinations, categories, products, groups: expanded.groups, members: expanded.products, rules, linkedSubcategories, linkedProducts };
   if (input.action === "preview-delete") {
     const activeProducts = products.filter(product => product.isActive).length;
     return { kind: "delete", ...previewToken(actor, snapshot), categories: rows, totals: { categories: rows.length, products: products.length, activeProducts, inactiveProducts: products.length - activeProducts, rules: sourceRules.length, stores: stores.length }, stores };

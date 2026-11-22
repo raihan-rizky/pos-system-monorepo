@@ -17,6 +17,7 @@ const transactionCountMock = vi.hoisted(() => vi.fn());
 const transactionFindManyMock = vi.hoisted(() => vi.fn());
 const transactionCreateMock = vi.hoisted(() => vi.fn());
 const pricingRuleFindManyMock = vi.hoisted(() => vi.fn());
+const subcategoryPricingRuleFindManyMock = vi.hoisted(() => vi.fn());
 const queryRawMock = vi.hoisted(() => vi.fn());
 const inventoryLogCreateManyMock = vi.hoisted(() => vi.fn());
 const customerUpdateMock = vi.hoisted(() => vi.fn());
@@ -80,6 +81,9 @@ vi.mock("@pos/db", () => ({
     categoryCustomerPricingRule: {
       findMany: pricingRuleFindManyMock,
     },
+    subcategoryCustomerPricingRule: {
+      findMany: subcategoryPricingRuleFindManyMock,
+    },
     inventoryLog: {
       createMany: inventoryLogCreateManyMock,
     },
@@ -124,6 +128,7 @@ describe("POST /api/transactions printing service items", () => {
       },
     ]);
     pricingRuleFindManyMock.mockResolvedValue([]);
+    subcategoryPricingRuleFindManyMock.mockResolvedValue([]);
     printingServiceFindManyMock.mockResolvedValue([
       {
         id: "service-1",

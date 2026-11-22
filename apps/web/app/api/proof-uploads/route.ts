@@ -128,6 +128,12 @@ export async function DELETE(request: Request) {
       return jsonError("Tautan bukti wajib diisi.", 422);
     }
 
+    let objectPath = "";
+    try { objectPath = decodeURIComponent(new URL(body.url).pathname).replace(/^\/+/, ""); } catch { /* Storage validation handles malformed URLs. */ }
+    if (objectPath.startsWith("proofs/manual-transfers/") || objectPath.startsWith("proofs/expenses/")) {
+      return jsonError("Bukti pengeluaran yang tersimpan harus dihapus dari rinciannya.", 403);
+    }
+
     const result = await deleteProofFromR2(body.url);
     log.info("R2 proof deleted", {
       userId: user.id,

@@ -15,6 +15,7 @@ export function refreshCartCatalogPrices(items: CartItem[], products: Product[])
         hargaDinas: product.hargaDinas == null ? null : Number(product.hargaDinas),
         brandId: product.brandId, brandName: product.brand?.name ?? null,
         categoryId: product.category.id, categoryName: product.category.name,
+        catalogSubcategoryId: product.catalogSubcategoryId, catalogSubcategoryLegacyCategoryId: product.catalogSubcategory?.legacyCategoryId ?? null,
       } : option;
     });
     const product = byId.get(item.productId);
@@ -30,6 +31,8 @@ export function refreshCartCatalogPrices(items: CartItem[], products: Product[])
       hargaDinas: product.hargaDinas == null ? null : Number(product.hargaDinas),
       categoryId: product.category.id,
       categoryName: product.category.name,
+      catalogSubcategoryId: product.catalogSubcategoryId,
+      catalogSubcategoryLegacyCategoryId: product.catalogSubcategory?.legacyCategoryId ?? null,
       brandId: product.brandId,
       brandName: product.brand?.name ?? null,
       unitOptions,

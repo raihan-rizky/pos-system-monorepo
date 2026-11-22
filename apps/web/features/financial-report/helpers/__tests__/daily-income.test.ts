@@ -22,6 +22,18 @@ describe("daily receipt ranges", () => {
   });
 });
 
+describe("daily receivable access", () => {
+  it("requires transaction and customer receivable read permissions", async () => {
+    const dailyIncomeModule = await import("../daily-income") as Record<string, unknown>;
+    const hasDailyReceivableAccess = dailyIncomeModule.hasDailyReceivableAccess as ((canRead: (target: string) => boolean) => boolean) | undefined;
+    expect(hasDailyReceivableAccess).toBeTypeOf("function");
+    expect(hasDailyReceivableAccess?.(target => ["transaction", "customer.receivable"].includes(target))).toBe(true);
+    expect(hasDailyReceivableAccess?.(target => ["transaction", "customer"].includes(target))).toBe(false);
+    expect(hasDailyReceivableAccess?.(target => target === "transaction")).toBe(false);
+    expect(hasDailyReceivableAccess?.(target => target === "customer.receivable")).toBe(false);
+  });
+});
+
 describe("income categories", () => {
   it("uses canonical printing markers rather than product names", () => {
     expect(incomeClassification(transaction()).category).toBe("ATK");
@@ -37,50 +49,39 @@ describe("income categories", () => {
 });
 
 describe("daily cash received", () => {
-  it("reconciles manual receivable repayments and supplier refunds with the daily total and breakdowns", () => {
-    const input = {
-      date,
-      transactions: [transaction({ invoiceDate: time })],
-      manualIncome: [{ id: "manual", occurredAt: time, category: "ATK", amount: 20.15 }],
-      manualReceivables: [{ id: "receivable", amount: 40, payments: [
-        payment("yesterday", "CASH", 30, new Date("2026-11-04T16:59:59Z")),
-        payment("today", "TRANSFER", 20, time),
-      ] }],
+  it("reconciles the same day in the daily report and monthly cash calculation", async () => {
+    const { buildIncomePeriod } = await import("../income-period");
+    const { buildIncomeCalculation } = await import("@/features/keuangan/helpers/income-calculation");
+    const invoice = transaction({ invoiceDate: new Date("2026-11-04T03:00:00Z"), total: 100, amountPaid: 100,
+      payments: [payment("dp", "CASH", 40)],
+      debtPaymentLogs: [{ id: "settlement", paymentMethod: "TRANSFER", amount: 60, createdAt: time }],
+    });
+    const input = { fromDate: "2026-11-04", toDate: date, transactions: [invoice], manualIncome: [],
       supplierRefunds: [{ date, total: 12.35 }],
     };
-    const report = buildDailyIncome(input);
-    expect(report.total).toBe(152.5);
-    expect(report.subcategories).toEqual(expect.arrayContaining([
-      { category: "Lainnya", subcategory: "Pelunasan piutang manual", amount: 20 },
-      { category: "Lainnya", subcategory: "Pengembalian dana pemasok", amount: 12.35 },
-    ]));
-    expect(report.paymentMethods).toEqual(expect.arrayContaining([
-      { method: "TRANSFER", amount: 20 },
-      { method: "Belum dicatat", amount: 32.5 },
-    ]));
+    const period = buildIncomePeriod(input);
+    expect(period.days.map(day => day.total)).toEqual([40, 72.35]);
+    expect(period.days[1].subcategories).toContainEqual({ category: "Lainnya", subcategory: "Pengembalian dana pemasok", amount: 12.35 });
+    expect(buildIncomeCalculation(period)).toMatchObject({ total: 112.35, supplierRefund: 12.35 });
   });
-  it.each(["2026-11-04T03:00:00Z", "2026-11-05T17:00:00Z"])("moves initial DP out of today when the invoice date is changed to %s", invoiceDate => {
+  it.each(["2026-11-04T03:00:00Z", "2026-11-05T17:00:00Z"])("moves the initial DP when invoice date changes to %s", invoiceDate => {
     const tx = transaction({ createdAt: time, invoiceDate: new Date(invoiceDate), status: "DP", total: 50_000, amountPaid: 25_000, payments: [payment("dp", "CASH", 25_000)] });
     const report = buildDailyIncome({ date, transactions: [tx], manualIncome: [] });
     expect(report.total).toBe(0);
-    expect(report.categories).toEqual([]);
-    expect(report.subcategories).toEqual([]);
+    expect(report.outstandingDp).toBe(invoiceDate.startsWith("2026-11-04") ? 25_000 : 0);
     expect(report.paymentMethods).toEqual([]);
   });
-  it("attributes initial payments to the saved invoice day and settlements to their actual payment day", () => {
-    const invoiceDate = new Date("2026-11-04T03:00:00Z");
-    const tx = transaction({ createdAt: time, invoiceDate, total: 50_000, amountPaid: 50_000,
+  it("attributes initial payments to invoice date and settlements to payment date", () => {
+    const tx = transaction({ createdAt: time, invoiceDate: new Date("2026-11-04T03:00:00Z"), total: 50_000, amountPaid: 50_000,
       payments: [payment("initial", "CASH", 25_000)],
       debtPaymentLogs: [{ id: "settlement", paymentMethod: "TRANSFER", amount: 25_000, createdAt: time }],
     });
     const today = buildDailyIncome({ date, transactions: [tx], manualIncome: [] });
     expect(today.total).toBe(25_000);
     expect(today.paymentMethods).toEqual([{ method: "TRANSFER", amount: 25_000 }]);
-    const yesterday = buildDailyIncome({ date: "2026-11-04", transactions: [tx], manualIncome: [] });
-    expect(yesterday.total).toBe(25_000);
-    expect(yesterday.paymentMethods).toEqual([{ method: "CASH", amount: 25_000 }]);
+    expect(buildDailyIncome({ date: "2026-11-04", transactions: [tx], manualIncome: [] }).total).toBe(25_000);
   });
-  it("moves legacy initial payments with the invoice date and excludes future-dated DP from the current balance", () => {
+  it("uses invoice date for legacy payments and outstanding DP", () => {
     const tx = transaction({ createdAt: time, invoiceDate: new Date("2026-11-05T17:00:00Z"), status: "DP", total: 50_000, amountPaid: 25_000, payments: [] });
     expect(buildDailyIncome({ date, transactions: [tx], manualIncome: [] })).toMatchObject({ total: 0, outstandingDp: 0 });
     expect(buildDailyIncome({ date: "2026-11-06", transactions: [tx], manualIncome: [] })).toMatchObject({ total: 25_000, outstandingDp: 25_000 });

@@ -189,7 +189,7 @@ describe("panel giro di Keuangan", () => {
   it("menyediakan penautan di panel saat ada hutang manual yang dapat diperiksa", () => {
     state.manualPayables = [{ id: "manual-1", supplierName: "Toko Satu", amount: 100000, debtDate: "2026-10-01", dueDate: null, paid: 0, payments: [] }];
     try {
-      const html = renderToStaticMarkup(<SupplierPayablesPanel canCreate canUpdate />);
+      const html = renderToStaticMarkup(<SupplierPayablesPanel canCreate canUpdate canEdit canEditPayment />);
       expect(html).toContain("Hubungkan hutang manual");
     } finally { state.manualPayables = []; }
   });
@@ -556,8 +556,16 @@ describe("panel giro di Keuangan", () => {
   }, 60_000);
 
   it("menampilkan pesan kegagalan dari server", async () => {
-    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: "Nominal melebihi sisa hutang." }), { status: 422 }));
-    await expect(saveGiro("payment", state.items[2] as never, { amount: "80000", paidAt: "2026-10-20", payableId: "d3", payments: [], historyComplete: false }, fetcher, storage(), scope, lock)).rejects.toThrow("Nominal melebihi sisa hutang.");
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ message: "Nominal melebihi sisa hutang.", code: "ValidationError" }), { status: 422 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ message: "Saldo berubah.", code: "BalanceChanged" }), { status: 409 }));
+    const saved = storage();
+    await expect(saveGiro("payment", state.items[2] as never, { amount: "80000", paidAt: "2026-10-20", payableId: "d3", payments: [], historyComplete: false, expectedLedgerVersion: "0", resource: "GIRO" }, fetcher, saved, scope, lock)).rejects.toThrow("Nominal melebihi sisa hutang.");
+    expect(fetcher.mock.calls.map(call => call[0])).toEqual([
+      "/api/finance/supplier-payables/d3/payments?reserve=1",
+      "/api/finance/supplier-payables/d3/payments?resolve=1",
+    ]);
+    expect(saved.getItem(`giro-payment:${JSON.stringify([scope.storeId, scope.userId, scope.payableId])}`)).toBeNull();
   });
 
   it("menyediakan status memuat dan percobaan ulang bila daftar gagal dimuat", () => {

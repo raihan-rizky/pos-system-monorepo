@@ -77,7 +77,7 @@ describe("buildReportRows", () => {
       invoice: "INV-001",
       person: "Ari",
       products: "Banner, Tinta",
-      categories: "Cetak, ATK",
+      categories: "ATK / Cetak, ATK / ATK",
       status: "Pemasukan",
       amount: 250_000,
       method: "CASH",
@@ -93,7 +93,7 @@ describe("buildReportRows", () => {
       ],
     };
     const rows = buildReportRows([sameCategorySale], []);
-    expect(rows[0]?.categories).toBe("Cetak");
+    expect(rows[0]?.categories).toBe("ATK / Cetak");
   });
 
   it("falls back person name from salesName -> salesperson.name -> customerName", () => {
@@ -296,12 +296,12 @@ describe("buildReportCategorySummary", () => {
     ]);
 
     expect(rows).toEqual([
-      { categoryName: "Cetak", transactionCount: 2, revenue: 200_000 },
-      { categoryName: "ATK", transactionCount: 1, revenue: 100_000 },
+      { categoryName: "ATK / Cetak", transactionCount: 2, revenue: 200_000 },
+      { categoryName: "ATK / ATK", transactionCount: 1, revenue: 100_000 },
     ]);
   });
 
-  it("falls back missing product category to Tanpa kategori", () => {
+  it("leaves an unknown category unclassified when the invoice has no marker", () => {
     const rows = buildReportCategorySummary([
       {
         id: "tx1",
@@ -317,7 +317,7 @@ describe("buildReportCategorySummary", () => {
     ]);
 
     expect(rows).toEqual([
-      { categoryName: "Tanpa kategori", transactionCount: 1, revenue: 25_000 },
+      { categoryName: "Belum ditentukan / Belum ditentukan", transactionCount: 1, revenue: 25_000 },
     ]);
   });
 });

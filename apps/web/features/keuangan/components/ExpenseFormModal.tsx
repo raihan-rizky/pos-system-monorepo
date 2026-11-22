@@ -12,7 +12,7 @@ import {
 import { CATEGORY_LABELS_ID, customExpenseCategoryId, customExpenseCategoryKey, expenseCategoryColor, type CustomExpenseCategory } from "@/features/keuangan/helpers/category-meta";
 import { expenseCategoriesQueryKey, useCustomExpenseCategories } from "@/features/keuangan/hooks/useKeuangan";
 import { formatRupiah } from "@/lib/utils";
-import { ProofImageUploader, deleteUploadedProof } from "@/features/proof-upload/components/ProofImageUploader";
+import { ProofImageUploader } from "@/features/proof-upload/components/ProofImageUploader";
 
 
 
@@ -369,9 +369,11 @@ export function ExpenseFormModal({
           value={form.attachmentUrl || ""}
           onChange={(url) => update("attachmentUrl", url || null)}
           disabled={submitting}
+          retainStoredFile
+          detachOnly={mode !== "edit" || !initial?.id || initial.attachmentUrl !== form.attachmentUrl}
           onDelete={async (url) => {
             if (mode !== "edit" || !initial?.id || initial.attachmentUrl !== url) {
-              return deleteUploadedProof(url);
+              return;
             }
             const response = await fetch(`/api/finance/expenses/${initial.id}/attachment`, { method: "DELETE" });
             const body = await response.json().catch(() => null) as { message?: string } | null;

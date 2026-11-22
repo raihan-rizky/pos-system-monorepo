@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ permission: vi.fn(), income: vi.fn(), expenses: vi.fn() }));
 vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.permission, handleAuthError: () => null }));
-vi.mock("@/features/financial-report/services/daily-income", () => ({ loadMonthlyIncome: mocks.income }));
+vi.mock("@/features/financial-report/services/daily-income", () => ({ loadIncomePeriod: mocks.income }));
 vi.mock("@/features/keuangan/services/recognized-finance", () => ({ loadRecognizedExpenses: mocks.expenses }));
 vi.mock("@/lib/logger", () => ({ getLogger: () => ({ error: vi.fn() }) }));
 import { GET } from "../route";
@@ -11,10 +11,11 @@ describe("ringkasan arus kas berdasarkan pengeluaran yang diakui", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.permission.mockResolvedValue({ id: "owner", storeId: "store-1" });
-    mocks.income.mockResolvedValue({
-      total: 130_000, daily: [{ date: "2026-11-10", total: 130_000, manualReceivable: 30_000 }],
-      components: { sales: 80_000, manualIncome: 20_000, manualReceivable: 30_000 },
-    });
+    mocks.income.mockResolvedValue({ days: [{ date: "2026-11-10", total: 130_000 }], contributions: [
+      { id: "sale", date: "2026-11-10", source: "transaction", amount: 80_000 },
+      { id: "manual", date: "2026-11-10", source: "manual", amount: 20_000 },
+      { id: "receivable:payment", date: "2026-11-10", source: "manual-receivable", amount: 30_000 },
+    ] });
     mocks.expenses.mockResolvedValue({
       monthlyTotal: 30_000, incomplete: false,
       daily: [{ date: "2026-11-10", total: 30_000 }],
@@ -39,10 +40,11 @@ describe("ringkasan arus kas berdasarkan pengeluaran yang diakui", () => {
   });
 
   it("menghitung pembayaran yang sudah keluar dan refund berdasarkan tanggal masing-masing", async () => {
-    const base = await mocks.income();
-    mocks.income.mockResolvedValueOnce({ ...base, total: 930_000, supplierRefund: 800_000, daily: [...base.daily,
-      { date: "2026-11-20", total: 800_000 },
-    ] });
+    const income = await mocks.income();
+    mocks.income.mockResolvedValueOnce({
+      ...income, days: [...income.days, { date: "2026-11-20", total: 800_000 }],
+      contributions: [...income.contributions, { id: "refund", source: "supplier-refund", date: "2026-11-20", amount: 800_000 }],
+    });
     mocks.expenses.mockResolvedValueOnce({
       monthlyTotal: 830_000, incomplete: false,
       daily: [{ date: "2026-11-10", total: 830_000 }],

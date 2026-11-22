@@ -17,7 +17,7 @@ export class PrintingReceiptStorageError extends Error {
 const include = {
   transaction: { include: {
     cashier: { select: { name: true } }, salesperson: { select: { name: true } },
-    payments: { select: { amount: true, method: true } },
+    payments: { select: { id: true, amount: true, method: true } },
     debtPaymentLogs: { select: { id: true, amount: true, paymentMethod: true, createdAt: true }, orderBy: { createdAt: "desc" as const } },
     items: { include: { product: { select: { unit: true, imageUrl: true, category: { select: { name: true } } } }, printingService: { select: { unit: true } } } },
   } },

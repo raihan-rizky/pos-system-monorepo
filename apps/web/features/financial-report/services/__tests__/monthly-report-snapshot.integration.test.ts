@@ -14,6 +14,7 @@ const schema = `report_snapshot_${randomUUID().replaceAll('-', '')}`;
 const runtime = vi.hoisted(() => ({ db: null as unknown }));
 vi.mock('@pos/db', async importOriginal => ({ ...(await importOriginal()), get db() { return runtime.db; } }));
 import { getMonthlyFinancialReport } from '../monthly-report';
+import * as manualPayablePeriod from '../manual-payable-period';
 
 function deferred() {
   let resolve!: () => void;
@@ -58,6 +59,8 @@ describe.skipIf(!connection)('snapshot laporan pada PostgreSQL terisolasi', () =
     writer = new PrismaClient({ datasourceUrl: url.toString() });
     await reader.$executeRawUnsafe('CREATE FUNCTION pos_current_inventory_valuation(text) RETURNS numeric LANGUAGE sql AS $$ SELECT 0::numeric $$');
     await reader.$executeRawUnsafe('CREATE FUNCTION pos_inventory_valuation_at(text, timestamptz) RETURNS numeric LANGUAGE sql AS $$ SELECT 0::numeric $$');
+    // These cases contain no inventory; the schema-only test database has no migration functions.
+    await reader.$executeRawUnsafe('CREATE FUNCTION pos_inventory_cost_entities(text) RETURNS TABLE(entity_key text, value numeric, unvalued_count integer) LANGUAGE sql AS $$ SELECT NULL::text, 0::numeric, 0::integer WHERE false $$');
 
     await writer.store.create({ data: { id: 'store-test', name: 'Toko uji' } });
     await writer.user.create({ data: { id: 'user-test', username: 'uji', name: 'Pengguna', storeId: 'store-test' } });
@@ -119,6 +122,31 @@ describe.skipIf(!connection)('snapshot laporan pada PostgreSQL terisolasi', () =
     const after = await getMonthlyFinancialReport('store-test', 2026, 11, now);
     expect(after.giroPayments).toEqual([expect.objectContaining({ amount: 30000, date: '2026-11-15' })]);
     expect(after.supplierDebtBalance).toBe(70000);
+  }, 30_000);
+
+  it('membaca pengeluaran dan alokasi hutang dari snapshot yang sama saat transfer disimpan bersamaan', async () => {
+    await writer.store.create({ data: { id: 'store-snapshot', name: 'Toko snapshot' } });
+    await writer.supplierPayable.create({ data: { id: 'manual-snapshot', storeId: 'store-snapshot', supplierName: 'Pemasok manual', amount: 100,
+      debtDate: new Date('2026-11-01T00:00:00Z'), reportCategory: 'ATK', createdById: 'user-test' } });
+    const read = (manualPayablePeriod as typeof manualPayablePeriod & { withManualPayableSnapshot?: (client: PrismaClient, storeId: string, from: string, to: string,
+      query: (tx: Prisma.TransactionClient) => Promise<number>) => Promise<{ data: number; payables: { payments: unknown[]; transfers: unknown[] } }> }).withManualPayableSnapshot;
+    expect(read).toBeTypeOf('function');
+    if (!read) return;
+    const snapshot = await read(reader, 'store-snapshot', '2026-11-05', '2026-11-05', async tx => {
+      const count = await tx.expense.count({ where: { id: 'transfer-snapshot' } });
+      await writer.$transaction(async other => {
+        await other.supplierPayablePayment.create({ data: { id: 'payment-snapshot', payableId: 'manual-snapshot', amount: 100,
+          paidAt: new Date('2026-11-05T00:00:00Z'), createdById: 'user-test' } });
+        await other.expense.create({ data: { id: 'transfer-snapshot', storeId: 'store-snapshot', recordedById: 'user-test', applicantName: 'Pengguna',
+          category: 'SUPPLIES', amount: 100, occurredAt: new Date('2026-11-05T03:00:00Z'), manualPurchasePaymentMethod: 'TRANSFER', reportCategory: 'ATK' } });
+        await other.manualTransferAllocation.create({ data: { id: 'allocation-snapshot', storeId: 'store-snapshot', expenseId: 'transfer-snapshot', payableId: 'manual-snapshot',
+          paymentId: 'payment-snapshot', amount: 100, createdById: 'user-test' } });
+      });
+      return count;
+    });
+    expect(snapshot.data).toBe(0);
+    expect(snapshot.payables.payments).toEqual([]);
+    expect(snapshot.payables.transfers).toEqual([]);
   }, 30_000);
 
   it('membaca ledger giro dan transfer terdahulu per tanggal tanpa menghitung expense turunan dua kali', async () => {

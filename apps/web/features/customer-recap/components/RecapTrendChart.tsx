@@ -27,14 +27,14 @@ interface RecapTrendChartProps {
 interface ChartDatum {
   bucketKey: string;
   label: string;
-  barValue: number;
-  paidBarValue: number;
-  unpaidBarValue: number;
-  lineValue: number;
+  barValue: number | undefined;
+  paidBarValue: number | undefined;
+  unpaidBarValue: number | undefined;
+  lineValue: number | undefined;
   barLabel: string;
   barColor: string;
-  dpTransactionCount: number;
-  dpPaidOffCount: number;
+  dpTransactionCount: number | undefined;
+  dpPaidOffCount: number | undefined;
 }
 
 function formatCurrency(amount: number): string {
@@ -57,10 +57,11 @@ function formatDays(days: number): string {
 
 export const RecapTrendChart: React.FC<RecapTrendChartProps> = ({ trend, mode }) => {
   const isPageMode = mode === "page";
+  if (!isPageMode && trend.points.some(point => !("runningDebtRemaining" in point) || point.runningDebtRemaining === undefined)) return null;
   const data: ChartDatum[] = trend.points.map((point) => {
     const detailPoint = point as DetailTrend["points"][number];
     const debtPaidOffAmount = isPageMode ? 0 : detailPoint.debtPaidOffAmount;
-    const hasPaidOffDebt = !isPageMode && debtPaidOffAmount > 0;
+    const hasPaidOffDebt = !isPageMode && debtPaidOffAmount !== undefined && debtPaidOffAmount > 0;
 
     return {
       bucketKey: point.bucketKey,

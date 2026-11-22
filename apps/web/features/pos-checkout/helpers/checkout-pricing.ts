@@ -24,6 +24,7 @@ export function mapCheckoutPricingRule(
 ): CategoryPricingRule {
   return {
     id: rule.id,
+    scope: rule.scope,
     categoryId: rule.categoryId,
     categoryName: rule.category.name,
     customerType: rule.customerType,
@@ -59,6 +60,8 @@ export function priceCartItemsForCheckout(input: {
       {
         categoryId: item.categoryId,
         categoryName: item.categoryName,
+        catalogSubcategoryId: item.catalogSubcategoryId,
+        catalogSubcategoryLegacyCategoryId: item.catalogSubcategoryLegacyCategoryId,
         price: item.catalogPrice ?? item.price,
         costPrice: item.costPrice,
         hargaDinas: item.hargaDinas,
@@ -105,6 +108,7 @@ export function priceCartItemsForCheckout(input: {
       unitOptions: item.unitOptions?.map(option => {
         const optionPrice = priceProductForCustomerType({
           categoryId: option.categoryId, categoryName: option.categoryName,
+          catalogSubcategoryId: option.catalogSubcategoryId, catalogSubcategoryLegacyCategoryId: option.catalogSubcategoryLegacyCategoryId,
           price: option.catalogPrice, unit: option.unit,
           costPrice: option.costPrice,
           brandId: option.brandId, brandName: option.brandName,

@@ -11,6 +11,7 @@ const customerFindFirstMock = vi.hoisted(() => vi.fn());
 const salespersonFindFirstMock = vi.hoisted(() => vi.fn());
 const productFindManyMock = vi.hoisted(() => vi.fn());
 const pricingRuleFindManyMock = vi.hoisted(() => vi.fn());
+const subcategoryRuleFindManyMock = vi.hoisted(() => vi.fn());
 const transactionFindManyMock = vi.hoisted(() => vi.fn());
 const transactionCreateMock = vi.hoisted(() => vi.fn());
 const productPriceLogCreateManyMock = vi.hoisted(() => vi.fn());
@@ -48,6 +49,7 @@ vi.mock("@pos/db", () => ({
     salesperson: { findFirst: salespersonFindFirstMock },
     product: { findMany: productFindManyMock },
     categoryCustomerPricingRule: { findMany: pricingRuleFindManyMock },
+    subcategoryCustomerPricingRule: { findMany: subcategoryRuleFindManyMock },
     transaction: {
       findMany: transactionFindManyMock,
       create: transactionCreateMock,
@@ -59,6 +61,15 @@ vi.mock("@pos/db", () => ({
 }));
 
 describe("POST /api/transactions/draft", () => {
+  it("rejects a stale classification and recalculates using the destination rule", async () => {
+    const product = (await productFindManyMock())[0];
+    productFindManyMock.mockResolvedValue([{ ...product, catalogSubcategoryId: "sub", catalogSubcategory: { legacyCategoryId: null } }]);
+    subcategoryRuleFindManyMock.mockResolvedValue([{ id: "sub-rule", subcategoryId: "sub", subcategory: { group: "ATK", name: "Kertas" }, customerType: null, customerTypes: [], unit: null, units: [], brandId: null, brand: null, mode: "FLAT_DISCOUNT", value: 1000, discountPercent: 0, isActive: true, updatedAt: new Date() }]);
+    const request = (id: string, price: number) => new Request("http://localhost/api/transactions/draft", { method: "POST", body: JSON.stringify({ items: [{ productId: "p1", name: "Kertas", categoryId: "cat-paper", catalogSubcategoryId: id, price, quantity: 1 }] }) });
+    expect((await POST(request("old", 50000))).status).toBe(409);
+    expect((await POST(request("sub", 49000))).status).toBe(201);
+    expect(transactionCreateMock.mock.calls[0][0].data.items.create[0]).toMatchObject({ unitPrice: 49000, pricingRuleId: "sub-rule" });
+  });
   it.each([4050, 0])("stores excluded customer manual price %s and its source in a draft", async manual => {
     roundingSettingsMock.mockResolvedValue({ enabled: true, increment: 500, threshold: 50, excludedCategoryIds: ["cat-paper"] });
     customerFindFirstMock.mockResolvedValue({ id: "c1", type: "INDUSTRI" });
@@ -287,6 +298,7 @@ describe("POST /api/transactions/draft", () => {
   });
 
   beforeEach(() => {
+    subcategoryRuleFindManyMock.mockResolvedValue([]);
     vi.clearAllMocks();
     specialPricingSettingsMock.mockResolvedValue({ specialPricingEnabled: true });
     roundingSettingsMock.mockResolvedValue({ enabled: false, increment: 500, threshold: 50 });
@@ -803,6 +815,7 @@ describe("POST /api/transactions/draft", () => {
     expect(res.status).toBe(201);
     expect(pricingRuleFindManyMock).toHaveBeenCalledWith({
       where: { storeId: "store-main", isActive: true },
+      orderBy: { id: "asc" },
       include: {
         category: { select: { name: true } },
         brand: { select: { name: true } },

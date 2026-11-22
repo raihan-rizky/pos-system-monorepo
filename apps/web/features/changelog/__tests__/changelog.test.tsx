@@ -29,7 +29,7 @@ describe("manual changelog", () => {
     expect(html).toContain("Pulihkan transaksi");
     expect(html).toContain("Tinjau dampak");
   });
-it("announces and illustrates daily receipt subtotals in the monthly RC sheet", () => {
+  it("announces and illustrates daily receipt subtotals in the monthly RC sheet", () => {
     const update = CHANGELOG.find(change => change.id === "total-harian-rc-bulan-20261121");
     expect(update).toMatchObject({
       date: "2026-11-21",
@@ -53,9 +53,38 @@ it("announces and illustrates daily receipt subtotals in the monthly RC sheet", 
     for (const color of ["#DFF3ED", "#14564F", "#15816F"]) expect(html).toContain(color);
     expect(renderToStaticMarkup(<ChangeIllustration visual={"daily-subtotal" as ChangeEntry["visual"]} compact />))
       .toContain("Subtotal harian di RC Bulan");
-    const dialog = renderToStaticMarkup(<WhatsNewDialog entries={update ? [update] : []} onClose={() => {}} canAccess={() => true} />);
-    expect(dialog).toContain("Subtotal harian di RC Bulan");
+    expect(renderToStaticMarkup(<WhatsNewDialog entries={update ? [update] : []} onClose={() => {}} canAccess={() => true} />))
+      .toContain("Subtotal harian di RC Bulan");
   });
+
+  it("announces the POS catalog pills and active cart unit", () => {
+    const update = CHANGELOG.find(change => change.id === "pos-catalog-pill-unit-awareness-20261117");
+    expect(update).toMatchObject({
+      date: "2026-11-17",
+      revision: 1,
+      kind: "improvement",
+      impact: "minor",
+      area: "Kasir",
+      href: "/pos",
+      visual: "pos-catalog",
+    });
+    expect(update?.highlight.title.length).toBeLessThanOrEqual(40);
+    expect(update?.highlight.summary.length).toBeLessThanOrEqual(85);
+    expect(update?.steps).toHaveLength(3);
+    expect(JSON.stringify(update)).toContain("SPANDUK");
+    expect(JSON.stringify(update)).toContain("Satuan dipilih");
+    expect(renderToStaticMarkup(<WhatsNewDialog entries={update ? [update] : []} onClose={() => {}} canAccess={() => true} />))
+      .toContain("Filter POS lebih jelas");
+  });
+
+  it("illustrates category pills, printing subcategories, and the active unit label", () => {
+    const html = renderToStaticMarkup(<ChangeIllustration visual={"pos-catalog" as ChangeEntry["visual"]} />);
+    for (const label of ["Kategori produk", "ATK", "PERCETAKAN", "CETAK", "SPANDUK", "PLAT", "PRINT", "STEMPEL", "Satuan dipilih", "Rim"]) {
+      expect(html).toContain(label);
+    }
+    expect(html).toContain('data-selected="true"');
+  });
+
   it("illustrates RBAC using page, data, and action permissions", () => {
     const html = renderToStaticMarkup(<ChangeIllustration visual={"rbac" as ChangeEntry["visual"]} />);
     expect(html).toContain("Ilustrasi fitur");
@@ -70,6 +99,67 @@ it("announces and illustrates daily receipt subtotals in the monthly RC sheet", 
     expect(manual?.steps).toHaveLength(3);
     expect(JSON.stringify(manual)).toContain("Tambah Piutang");
     expect(JSON.stringify(manual)).toContain("Bayar Piutang");
+  });
+  it("announces the collapsible Piutang Manual section as a minor improvement", () => {
+    const receivables = CHANGELOG.find(change => change.id === "piutang-manual-toggle-20261115");
+    expect(receivables).toMatchObject({
+      date: "2026-11-15",
+      revision: 1,
+      title: "Lipat daftar Piutang Manual saat perlu.",
+      kind: "improvement",
+      impact: "minor",
+      area: "Pelanggan",
+      href: "/customers",
+      visual: "manual-receivables",
+    });
+    expect(receivables?.steps).toHaveLength(3);
+    expect(JSON.stringify(receivables)).toContain("browser yang sama");
+  });
+  it("announces choosing a new customer's type during checkout", () => {
+    const checkout = CHANGELOG.find(change => change.id === "jenis-pelanggan-checkout-20261114");
+    expect(checkout).toMatchObject({
+      date: "2026-11-14",
+      revision: 1,
+      title: "Pilih jenis pelanggan baru saat checkout.",
+      kind: "feature",
+      impact: "major",
+      area: "Kasir",
+      href: "/pos",
+      visual: "checkout-customer-type",
+    });
+    expect(checkout?.steps).toHaveLength(3);
+    expect(JSON.stringify(checkout)).toContain("UMUM");
+    expect(JSON.stringify(checkout)).toContain("PEMERINTAH");
+  });
+  it("illustrates collapsible receivables and checkout customer types", () => {
+    const receivables = renderToStaticMarkup(<ChangeIllustration visual={"manual-receivables" as ChangeEntry["visual"]} />);
+    const checkout = renderToStaticMarkup(<ChangeIllustration visual={"checkout-customer-type" as ChangeEntry["visual"]} />);
+    expect(receivables).toContain("Piutang Manual");
+    expect(receivables).toContain("Bagian terbuka");
+    expect(receivables).toContain("Bagian tertutup");
+    expect(checkout).toContain("Jenis pelanggan");
+    expect(checkout).toContain("UMUM");
+    expect(checkout).toContain("PEMERINTAH");
+  });
+  it("renders the new feature visuals in the weekly popup", () => {
+    const entries = CHANGELOG.filter(change => ["piutang-manual-toggle-20261115", "jenis-pelanggan-checkout-20261114"].includes(change.id));
+    const html = renderToStaticMarkup(<WhatsNewDialog entries={entries} onClose={() => {}} canAccess={() => true} />);
+    expect(html).toContain("Tutup Piutang Manual saat perlu");
+    expect(html).toContain("Jenis pelanggan saat checkout");
+  });
+  it("announces the Dashboard and report Piutang KPI with three usage steps", () => {
+    const receivable = CHANGELOG.find(change => change.id === "kpi-piutang-dashboard-laporan");
+    expect(receivable).toMatchObject({
+      date: "2026-11-11",
+      revision: 1,
+      title: "Pantau Piutang di tiga tampilan laporan.",
+      href: "/financial-report",
+      kind: "improvement",
+      area: "Laporan Keuangan",
+    });
+    expect(receivable?.steps).toHaveLength(3);
+    expect(JSON.stringify(receivable)).toContain("sisa Tempo dan Piutang Manual");
+    expect(JSON.stringify(receivable)).toContain("Outstanding DP");
   });
   it("uses seven WIB calendar days including today and excludes future and invalid dates", () => {
     const changes = [entry("old", "2026-10-11"), entry("boundary", "2026-10-12"), entry("today", "2026-10-18"), entry("future", "2026-10-19"), entry("invalid", "2026-02-30")];

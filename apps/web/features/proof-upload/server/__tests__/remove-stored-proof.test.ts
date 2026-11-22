@@ -17,6 +17,19 @@ describe("removeStoredProofAsset", () => {
     ).resolves.toEqual({ storage: "r2", objectKey: "proofs/a.webp" });
   });
 
+  it("retains a shared transfer object while allowing the reference to be removed", async () => {
+    const deleteR2 = vi.fn().mockResolvedValue({ objectKey: "proofs/manual-transfers/store-a/a.webp" });
+    const url = "https://pub-example.r2.dev/proofs/manual-transfers/store-a/a.webp";
+    await expect(removeStoredProofAsset(url, deleteR2)).resolves.toEqual({ storage: "retained" });
+    expect(deleteR2).not.toHaveBeenCalled();
+  });
+
+  it("protects older expense proof objects from unrelated deletion flows", async () => {
+    const deleteR2 = vi.fn().mockResolvedValue({ objectKey: "proofs/expenses/store-a/a.webp" });
+    await expect(removeStoredProofAsset("https://pub-example.r2.dev/proofs/expenses/store-a/a.webp", deleteR2)).resolves.toEqual({ storage: "retained" });
+    expect(deleteR2).not.toHaveBeenCalled();
+  });
+
   it("rejects unknown proof hosts", async () => {
     const invalid = new Error("invalid");
     invalid.name = "InvalidProofObjectError";

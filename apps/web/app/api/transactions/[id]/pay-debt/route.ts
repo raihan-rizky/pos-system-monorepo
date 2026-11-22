@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, Prisma } from "@pos/db";
 import { z } from "zod";
-import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import { AuthError, canAuthenticatedUserAccessPage, requirePermission, handleAuthError } from "@/lib/rbac/guard";
 import { isActiveDebt } from "@/features/customer-debt/helpers/payment-terms";
 
 import { getLogger } from "@/lib/logger";
@@ -37,7 +37,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requirePermission("transaction", "update");
+    const user = await requirePermission("customer.receivable", "read");
+    await requirePermission("customer.receivable.payment", "create");
+    if (!await canAuthenticatedUserAccessPage(user, "/customers")) throw new AuthError(403, "Akses halaman Pelanggan diperlukan.");
     const storeId = user.storeId || "store-main";
     const { id } = await params;
     const body = await request.json();
@@ -207,6 +209,7 @@ export async function POST(
           amountPaid: fresh.amountPaid,
           total: fresh.total,
           customerId: fresh.customerId,
+          note: fresh.note,
           ...(fresh.status === "COMPLETED" ? { paymentMethod: "TEMPO" } : {}),
         },
         data: {

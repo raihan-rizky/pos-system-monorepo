@@ -1,10 +1,11 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { DELETE } from "../route";
-const mocks = vi.hoisted(() => ({ permission: vi.fn(), customer: vi.fn(), count: vi.fn(), unlink: vi.fn(), remove: vi.fn(), lock: vi.fn(), transaction: vi.fn() }));
+const mocks = vi.hoisted(() => ({ permission: vi.fn(), identity: vi.fn(), customer: vi.fn(), count: vi.fn(), unlink: vi.fn(), remove: vi.fn(), lock: vi.fn(), transaction: vi.fn() }));
 vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.permission, handleAuthError: () => null }));
+vi.mock("@/features/customer-debt/server/customer-identity-authorization", () => ({ requireCustomerDebtIdentityPermission: mocks.identity }));
 vi.mock("@pos/db", () => ({ db: { customer: { findFirst: mocks.customer, delete: mocks.remove }, transaction: { updateMany: mocks.unlink }, $transaction: mocks.transaction } }));
 beforeEach(() => {
-  vi.clearAllMocks(); mocks.permission.mockResolvedValue({ id: "user-1", storeId: "store-1" }); mocks.customer.mockResolvedValue({ id: "customer-1" }); mocks.count.mockResolvedValue(1);
+  vi.clearAllMocks(); mocks.permission.mockResolvedValue({ id: "user-1", storeId: "store-1" }); mocks.identity.mockResolvedValue(undefined); mocks.customer.mockResolvedValue({ id: "customer-1", name: "Ari" }); mocks.count.mockResolvedValue(1);
   mocks.transaction.mockImplementation(callback => callback({ $queryRaw: mocks.lock, customer: { findFirst: mocks.customer, delete: mocks.remove }, customerReceivable: { count: mocks.count }, transaction: { updateMany: mocks.unlink } }));
 });
 it("protects even settled manual debt history when deleting a customer", async () => {
@@ -17,6 +18,7 @@ it("keeps ordinary customer deletion available when there is no manual ledger", 
   const response = await DELETE(new Request("http://localhost/api/customers/customer-1", { method: "DELETE" }), { params: Promise.resolve({ id: "customer-1" }) });
   expect(response.status).toBe(204);
   expect(mocks.remove).toHaveBeenCalledWith({ where: { id: "customer-1" } });
+  expect(mocks.identity).toHaveBeenCalledWith(expect.anything(), "store-1", expect.objectContaining({ id: "user-1" }), { id: "customer-1", name: "Ari" }, null);
 });
 it("does not mutate anything when the customer is outside the current store", async () => {
   mocks.customer.mockResolvedValueOnce(null);

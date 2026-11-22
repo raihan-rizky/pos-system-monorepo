@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@pos/db";
-import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError, canAuthenticatedUserPerform } from "@/lib/rbac/guard";
 import { getLogger } from "@/lib/logger";
 
 const log = getLogger("api:customers:id:dp-transactions");
@@ -13,6 +13,8 @@ export async function GET(
 ) {
   try {
     const user = await requirePermission("customer", "read");
+    await requirePermission("customer.receivable", "read");
+    const canReadTransactions = await canAuthenticatedUserPerform(user, "transaction", "read");
     const storeId = user.storeId || "store-main";
     const { id } = await params;
 
@@ -60,17 +62,20 @@ export async function GET(
         paymentMethod: true,
         status: true,
         createdAt: true,
-        items: {
+        items: canReadTransactions ? {
           select: {
             productName: true,
             quantity: true,
             subtotal: true,
           },
-        },
+        } : false,
       },
     });
 
-    return NextResponse.json(transactions);
+    return NextResponse.json(transactions.map((transaction) => ({
+      ...transaction,
+      items: canReadTransactions && "items" in transaction ? transaction.items : [],
+    })));
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

@@ -72,9 +72,9 @@ export interface AssistantToolsRepository {
   getProductSearch(input: { storeId: string; query: string; limit: number }): Promise<unknown>;
   getProductStock(input: { storeId: string; query: string }): Promise<unknown>;
   getProductPrice(input: { storeId: string; query: string }): Promise<unknown>;
-  getCustomerSearch(input: { storeId: string; query: string; limit: number }): Promise<unknown>;
-  getCustomerDebtSummary(input: { storeId: string; query: string }): Promise<unknown>;
-  getCustomerRecapSummary(input: { storeId: string; query: string }): Promise<unknown>;
+  getCustomerSearch(input: { storeId: string; query: string; limit: number; canViewReceivables: boolean }): Promise<unknown>;
+  getCustomerDebtSummary(input: { storeId: string; query: string; canViewReceivables: boolean }): Promise<unknown>;
+  getCustomerRecapSummary(input: { storeId: string; query: string; canViewReceivables: boolean }): Promise<unknown>;
   getSupplierSearch(input: { query: string; limit: number }): Promise<unknown>;
   getTopProducts(input: { storeId: string; date: string }): Promise<unknown>;
   getPendingTransactions(input: { storeId: string; limit: number }): Promise<unknown>;
@@ -426,7 +426,9 @@ function reportPreset(period: AssistantReportPeriod): FinancialReportPreset {
 
 export function createAssistantToolRegistry(
   repository: AssistantToolsRepository = defaultToolsRepository,
+  options: { canViewReceivables?: boolean } = {},
 ): AssistantToolDefinition[] {
+  const canViewReceivables = options.canViewReceivables ?? false;
   const allStoreRoles: UserRole[] = ["OWNER", "ADMIN", "INVENTORY", "CASHIER", "SALES"];
   const productRoles: UserRole[] = ["OWNER", "ADMIN", "INVENTORY", "CASHIER"];
   const customerRoles: UserRole[] = ["OWNER", "ADMIN", "SALES"];
@@ -824,7 +826,7 @@ export function createAssistantToolRegistry(
       sourceLabel: "Alat customer",
       execute: (input, context) => {
         const { query, limit } = input as { query: string; limit: number };
-        return repository.getCustomerSearch({ storeId: context.storeId!, query, limit });
+        return repository.getCustomerSearch({ storeId: context.storeId!, query, limit, canViewReceivables });
       },
       shapeOutput: (raw) => {
         const v = raw as { items?: unknown[]; total?: number; generatedAt?: string };
@@ -839,7 +841,7 @@ export function createAssistantToolRegistry(
       name: "get_customer_debt_summary",
       description: "Return outstanding debt for one specific customer. USE for: piutang [pelanggan X], utang [nama], tagihan belum lunas. DO NOT USE for all-customer debt rankings or totals (not supported).",
       allowedRoles: customerRoles,
-      requiredCapabilities: [{ resource: "customer", action: "read" }],
+      requiredCapabilities: [{ resource: "customer.receivable", action: "read" }],
       requiresStore: true,
       inputSchema: z.object({ query: z.string().min(1) }).strict(),
       outputSchema: z.object({
@@ -854,7 +856,7 @@ export function createAssistantToolRegistry(
       sourceLabel: "Alat customer",
       execute: (input, context) => {
         const { query } = input as { query: string };
-        return repository.getCustomerDebtSummary({ storeId: context.storeId!, query });
+        return repository.getCustomerDebtSummary({ storeId: context.storeId!, query, canViewReceivables });
       },
       shapeOutput: (raw) => {
         const v = raw as { match?: unknown; candidates?: unknown[]; generatedAt?: string };
@@ -910,7 +912,7 @@ export function createAssistantToolRegistry(
       sourceLabel: "Alat customer",
       execute: (input, context) => {
         const { query } = input as { query: string };
-        return repository.getCustomerRecapSummary({ storeId: context.storeId!, query });
+        return repository.getCustomerRecapSummary({ storeId: context.storeId!, query, canViewReceivables });
       },
       shapeOutput: (raw) => {
         const v = raw as { match?: unknown; candidates?: unknown[]; generatedAt?: string };
@@ -1061,8 +1063,40 @@ export function isToolPermittedForRole(
     );
 }
 
+function projectCustomerToolResult(raw: unknown, canViewReceivables: boolean, canViewProfiles: boolean): unknown {
+  if (!raw || typeof raw !== "object") return raw;
+  const result = raw as Record<string, unknown>;
+  const project = (value: unknown) => {
+    if (!value || typeof value !== "object") return value;
+    const customer = value as Record<string, unknown>;
+    if (!canViewProfiles) return { id: customer.id, name: customer.name, ...(canViewReceivables ? { totalDebt: customer.totalDebt } : {}) };
+    if (canViewReceivables) return customer;
+    const visible = { ...customer };
+    delete visible.totalDebt;
+    delete visible.debtPaid;
+    return visible;
+  };
+  return {
+    ...result,
+    ...(Array.isArray(result.items) ? { items: result.items.map(project) } : {}),
+    ...(Object.hasOwn(result, "match") ? { match: project(result.match) } : {}),
+    ...(Array.isArray(result.candidates) ? { candidates: result.candidates.map(project) } : {}),
+  };
+}
+
 export function getToolsForRole(role: UserRole, repository?: AssistantToolsRepository, permissions?: RolePermissions) {
-  return createAssistantToolRegistry(repository).filter((tool) => isToolPermittedForRole(tool, role, permissions));
+  const canViewReceivables = canRolePerformAction(role, "customer.receivable", "read", permissions);
+  const canViewProfiles = canRolePerformAction(role, "customer", "read", permissions);
+  return createAssistantToolRegistry(repository, { canViewReceivables })
+    .filter((tool) => isToolPermittedForRole(tool, role, permissions))
+    .map((tool) => {
+      if (!["get_customer_search", "get_customer_debt_summary", "get_customer_recap_summary"].includes(tool.name)) return tool;
+      return {
+        ...tool,
+        execute: async (input: unknown, context: ToolContext) => projectCustomerToolResult(await tool.execute(input, context), canViewReceivables, canViewProfiles),
+        shapeOutput: (raw: unknown) => projectCustomerToolResult(tool.shapeOutput(raw), canViewReceivables, canViewProfiles),
+      };
+    });
 }
 
 export function getOpenAiToolsForRole(role: UserRole, repository?: AssistantToolsRepository, permissions?: RolePermissions) {

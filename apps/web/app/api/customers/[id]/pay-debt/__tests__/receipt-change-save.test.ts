@@ -9,6 +9,8 @@ const state = vi.hoisted(() => ({
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: async () => ({ id: "sales-1", name: "Rani", role: state.role, storeId: "store-main" }),
   handleAuthError: () => null,
+  canAuthenticatedUserAccessPage: async () => true,
+  canAuthenticatedUserPerform: async (user: { role: string }) => user.role === "OWNER",
 }));
 vi.mock("@pos/db", () => {
   const tx = {

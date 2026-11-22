@@ -4,13 +4,42 @@ import HelpContent, { HELP_ROLE_CONTENT } from '../components/HelpContent';
 import { HELP_VISUAL_PAGE_CONFIG } from '../components/help-visual-registry';
 
 describe('HelpContent', () => {
+  it('explains the POS pill filters and active unit label', () => {
+    const text = JSON.stringify(HELP_ROLE_CONTENT.CASHIER);
+
+    expect(text).toContain('dua baris pill');
+    expect(text).toContain('CETAK');
+    expect(text).toContain('SPANDUK');
+    expect(text).toContain('Satuan dipilih');
+    expect(text).not.toContain('dropdown subkategori');
+  });
+
   it.each(['OWNER', 'ADMIN', 'CASHIER'])('explains manual receivable creation and payment for %s', role => {
     const text = JSON.stringify(HELP_ROLE_CONTENT[role]);
-    for (const phrase of ['Piutang manual', 'Tambah Piutang', 'tanggal utang', 'jatuh tempo', 'customer.update', 'satu metode', 'Riwayat pembayaran']) expect(text).toContain(phrase);
+    for (const phrase of ['Piutang manual', 'Tambah Piutang', 'tanggal utang', 'jatuh tempo', 'customer.receivable.read', 'customer.receivable.create', 'customer.receivable.payment.create', 'customer.read', 'satu metode', 'Riwayat pembayaran']) expect(text).toContain(phrase);
     expect(text).toContain('Semua piutang');
     expect(text).not.toContain('filter Lunas atau Semua');
     expect(text).toContain('tidak dapat dihapus');
     expect(text).toContain('termasuk yang sudah lunas');
+  });
+  it('documents the Piutang KPI scope, dates, and separation from DP', () => {
+    const owner = HELP_ROLE_CONTENT.OWNER.find(item => item.id === 'owner-reports')!;
+    const sales = HELP_ROLE_CONTENT.SALES.find(item => item.id === 'sales-daily-income')!;
+    const ownerText = JSON.stringify(owner);
+    const salesText = JSON.stringify(sales);
+
+    expect(ownerText).toContain('Piutang merangkum sisa transaksi Tempo, Piutang Nota, dan Piutang Manual');
+    expect(ownerText).toContain('Dashboard memakai saldo sampai hari ini');
+    expect(ownerText).toContain('Laporan Lengkap memakai tanggal akhir rentang');
+    expect(ownerText).toContain('Lihat piutang (customer.receivable:read)');
+    expect(ownerText).toContain('filter Jenis transaksi');
+    expect(ownerText).toContain('klik baris nota untuk membuka popup nota');
+    expect(salesText).toContain('Piutang merangkum sisa transaksi Tempo, Piutang Nota, dan Piutang Manual');
+    expect(salesText).toContain('tanggal pilihan');
+    expect(salesText).toContain('Lihat piutang (customer.receivable:read)');
+    for (const text of [ownerText, salesText]) {
+      expect(text).toContain('Sisa transaksi berstatus DP. Tidak termasuk Tempo, Piutang Nota, atau Piutang Manual.');
+    }
   });
   it('explains editable draft numbers and prefilled WIB dates', () => {
     const text = JSON.stringify(HELP_ROLE_CONTENT);
@@ -277,7 +306,8 @@ describe('HelpContent', () => {
     expect(ownerHtml).not.toContain('Unggah Bukti (prnt.sc)');
     expect(cashierHtml).not.toContain('Unggah Gambar ke prnt.sc');
     expect(ownerHtml).toContain('dikompresi');
-    expect(ownerHtml).toContain('Hapus foto');
+    expect(ownerHtml).toContain('Lepaskan foto');
+    expect(ownerHtml).toContain('File foto pengeluaran tetap tersimpan');
     expect(ownerHtml).toContain('proof_upload');
   });
 

@@ -3,25 +3,61 @@ import { GET, POST } from "../route";
 import { POST as PAY } from "../[id]/payments/route";
 import { ReceivableError } from "@/features/customer-debt/helpers/manual-receivables";
 
-const mocks = vi.hoisted(() => ({ permission: vi.fn(), authError: vi.fn(), customer: vi.fn(), findMany: vi.fn(), count: vi.fn(), transaction: vi.fn(), create: vi.fn(), pay: vi.fn() }));
-vi.mock("@/lib/rbac/guard", () => ({ requirePermission: mocks.permission, handleAuthError: mocks.authError }));
+const mocks = vi.hoisted(() => ({ permission: vi.fn(), transactionPermission: vi.fn(), authError: vi.fn(), pageAccess: vi.fn(), customer: vi.fn(), findMany: vi.fn(), count: vi.fn(), transaction: vi.fn(), create: vi.fn(), pay: vi.fn() }));
+vi.mock("@/lib/rbac/guard", () => ({
+  requirePermission: mocks.permission,
+  authorizeInTransaction: mocks.transactionPermission,
+  handleAuthError: mocks.authError,
+  canAuthenticatedUserAccessPage: mocks.pageAccess,
+  AuthError: class AuthError extends Error { constructor(public statusCode: number, message: string) { super(message); this.name = "AuthError"; } },
+}));
 vi.mock("@pos/db", () => ({ db: { customer: { findFirst: mocks.customer }, customerReceivable: { findMany: mocks.findMany, count: mocks.count, fields: { amount: "AMOUNT_FIELD" } }, $transaction: mocks.transaction } }));
 vi.mock("@/features/customer-debt/helpers/manual-receivables", async (original) => ({ ...await original<object>(), createReceivable: mocks.create, payReceivable: mocks.pay }));
 vi.mock("@/lib/logger", () => ({ getLogger: () => ({ error: vi.fn() }) }));
 
-const body = { customerId: "customer-1", amount: 100000, debtDate: "2026-09-01", dueDate: "2026-10-01", clientMutationId: "9e70ff2c-9401-4edb-91a6-d0637ed226ad" };
+const body = { customerId: "customer-1", amount: 100000, debtDate: "2026-09-01", dueDate: "2026-10-01", clientMutationId: "9e70ff2c-9401-4edb-91a6-d0637ed226ad", reportCategory: "ATK" as const };
 function request(payload: unknown) { return new Request("http://localhost/api/customer-receivables", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); }
 describe("customer receivables API", () => {
   beforeEach(() => {
     vi.clearAllMocks(); mocks.permission.mockResolvedValue({ id: "user-1", storeId: "store-1" }); mocks.authError.mockReturnValue(null);
+    mocks.transactionPermission.mockResolvedValue(true);
+    mocks.pageAccess.mockResolvedValue(true);
     mocks.customer.mockResolvedValue({ id: "customer-1" }); mocks.findMany.mockResolvedValue([]); mocks.count.mockResolvedValue(0);
     mocks.transaction.mockImplementation((callback) => callback("transaction-client")); mocks.create.mockResolvedValue({ id: "debt-1" }); mocks.pay.mockResolvedValue({ id: "debt-1", amountPaid: "50000" });
+  });
+  it("returns the stored report category and corrected payment date", async () => {
+    mocks.findMany.mockResolvedValueOnce([{
+      id: "debt-1", customerId: "customer-1", customer: { id: "customer-1", name: "Pelanggan" },
+      amount: 100, amountPaid: 60, debtDate: new Date("2026-10-01T00:00:00Z"), dueDate: new Date("2026-11-30T00:00:00Z"),
+      note: null, createdAt: new Date("2026-10-01T03:00:00Z"), reportCategory: "PLAT",
+      payments: [{ id: "payment-1", amount: 60, method: "CASH", note: null, createdAt: new Date("2026-11-05T03:00:00Z"), paidAt: new Date("2026-11-02T00:00:00Z") }],
+    }]);
+    const response = await GET(new Request("http://localhost/api/customer-receivables"));
+    expect(await response.json()).toMatchObject({ data: [{ reportCategory: "PLAT", payments: [{ paidAt: "2026-11-02T00:00:00.000Z" }] }] });
+    expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({ select: expect.objectContaining({
+      reportCategory: true, payments: expect.objectContaining({ select: expect.objectContaining({ paidAt: true }) }),
+    }) }));
+  });
+
+  it("requires a valid category before creating a manual receivable", async () => {
+    const response = await POST(request({ ...body, reportCategory: undefined }));
+    expect(response.status).toBe(422);
+    expect(mocks.transaction).not.toHaveBeenCalled();
   });
   it("creates manual debt in an atomic transaction with customer update permission", async () => {
     const response = await POST(request(body));
     expect(response.status).toBe(201);
-    expect(mocks.permission).toHaveBeenCalledWith("customer", "update");
+    expect(mocks.permission).toHaveBeenCalledWith("customer.receivable", "read");
+    expect(mocks.permission).toHaveBeenCalledWith("customer.receivable", "create");
     expect(mocks.create).toHaveBeenCalledWith("transaction-client", body, { id: "user-1", storeId: "store-1" });
+  });
+  it("denies manual debt creation without Pelanggan page access", async () => {
+    mocks.pageAccess.mockResolvedValue(false);
+    mocks.authError.mockImplementation((error: unknown) => error instanceof Error && error.name === "AuthError" ? new Response(null, { status: 403 }) : null);
+    const response = await POST(request(body));
+    expect(response.status).toBe(403);
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
   });
   it("rejects impossible dates before opening a transaction", async () => {
     expect((await POST(request({ ...body, dueDate: "2026-02-30" }))).status).toBe(422);
@@ -33,7 +69,7 @@ describe("customer receivables API", () => {
   it("lists open manual debts only within the current store and with bounded pages", async () => {
     const response = await GET(new Request("http://localhost/api/customer-receivables?page=2&status=open&search=Budi"));
     expect(response.status).toBe(200);
-    expect(mocks.permission).toHaveBeenCalledWith("customer", "read");
+    expect(mocks.permission).toHaveBeenCalledWith("customer.receivable", "read");
     expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { storeId: "store-1", amountPaid: { lt: "AMOUNT_FIELD" }, OR: [{ customer: { name: { contains: "Budi", mode: "insensitive" } } }, { note: { contains: "Budi", mode: "insensitive" } }] }, skip: 20, take: 20 }));
     expect(await response.json()).toMatchObject({ data: [], pagination: { page: 2, total: 0, totalPages: 0 } });
   });
@@ -41,6 +77,15 @@ describe("customer receivables API", () => {
     mocks.customer.mockResolvedValueOnce(null);
     expect((await GET(new Request("http://localhost/api/customer-receivables?customerId=foreign"))).status).toBe(404);
     expect(mocks.findMany).not.toHaveBeenCalled();
+  });
+  it("rejects reading, creating and paying receivables when the user has no store", async () => {
+    mocks.permission.mockResolvedValue({ id: "user-1", storeId: null });
+    const payment = { amount: 50000, method: "CASH", clientMutationId: body.clientMutationId };
+    expect((await GET(new Request("http://localhost/api/customer-receivables"))).status).toBe(403);
+    expect((await POST(request(body))).status).toBe(403);
+    expect((await PAY(request(payment), { params: Promise.resolve({ id: "debt-1" }) })).status).toBe(403);
+    expect(mocks.findMany).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
   });
   it("rejects an invalid page or status without querying private data", async () => {
     expect((await GET(new Request("http://localhost/api/customer-receivables?page=0"))).status).toBe(422);
@@ -52,6 +97,23 @@ describe("customer receivables API", () => {
     const response = await PAY(request(payment), { params: Promise.resolve({ id: "debt-1" }) });
     expect(response.status).toBe(200);
     expect(mocks.pay).toHaveBeenCalledWith("transaction-client", "debt-1", payment, { id: "user-1", storeId: "store-1" });
+  });
+  it("rechecks payment permissions inside the write transaction", async () => {
+    mocks.transactionPermission.mockResolvedValue(false);
+    const payment = { amount: 50000, method: "CASH", clientMutationId: body.clientMutationId };
+
+    const response = await PAY(request(payment), { params: Promise.resolve({ id: "debt-1" }) });
+
+    expect(response.status).toBe(403);
+    expect(mocks.pay).not.toHaveBeenCalled();
+  });
+  it("denies manual debt payment without Pelanggan page access", async () => {
+    mocks.pageAccess.mockResolvedValue(false);
+    mocks.authError.mockImplementation((error: unknown) => error instanceof Error && error.name === "AuthError" ? new Response(null, { status: 403 }) : null);
+    const response = await PAY(request({ amount: 50000, method: "CASH", clientMutationId: body.clientMutationId }), { params: Promise.resolve({ id: "debt-1" }) });
+    expect(response.status).toBe(403);
+    expect(mocks.pay).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
   });
   it("returns auth denial without writing or listing data", async () => {
     mocks.permission.mockRejectedValue(new Error("Forbidden")); mocks.authError.mockReturnValue(new Response(null, { status: 403 }));
@@ -84,6 +146,29 @@ describe("customer receivables API", () => {
     const response = await POST(request({ ...body, storeId: "other-store", createdById: "other-user", amountPaid: 99000, note: "  Utang lama  " }));
     expect(response.status).toBe(201);
     expect(mocks.create).toHaveBeenCalledWith("transaction-client", { ...body, note: "Utang lama" }, { id: "user-1", storeId: "store-1" });
+  });
+
+  it("requires customer read permission before creating a manual receivable", async () => {
+    mocks.permission.mockImplementation(async (resource: string, action: string) => {
+      if (resource === "customer" && action === "read") throw Object.assign(new Error("Forbidden"), { name: "AuthError" });
+      return { id: "user-1", storeId: "store-1" };
+    });
+    mocks.authError.mockImplementation((error: unknown) => error instanceof Error && error.name === "AuthError" ? new Response(null, { status: 403 }) : null);
+
+    const response = await POST(request(body));
+
+    expect(response.status).toBe(403);
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rechecks creation permissions inside the transaction", async () => {
+    mocks.transactionPermission.mockResolvedValue(false);
+
+    const response = await POST(request(body));
+
+    expect(response.status).toBe(403);
+    expect(mocks.create).not.toHaveBeenCalled();
   });
 
   it.each([0, -1, 0.001, 10000000000])("rejects invalid payment amount %s before opening a transaction", async amount => {

@@ -63,6 +63,10 @@ markdown-files/
 !markdown-files/
 markdown-files/*
 !markdown-files/riwayat-metode-pembayaran-2026-11-01.md
+!markdown-files/jenis-pelanggan-checkout-2026-11-14.md
+!markdown-files/arus-kas-jatuh-tempo-design-2026-11-16.md
+!markdown-files/arus-kas-jatuh-tempo-plan-2026-11-16.md
+!markdown-files/arus-kas-rekonsiliasi-2026-11-16.md
 
 # AI settings and configurations
 .serena/

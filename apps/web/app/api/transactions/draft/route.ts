@@ -3,6 +3,7 @@ import { resolveTransactionCustomPrice } from "@/features/pos-checkout/helpers/t
 import { resolveCustomerManualPrice } from "@/features/pos-checkout/helpers/customer-manual-price";
 import { getPriceRoundingSettings } from "@/features/product-price-rounding/server/rounding-settings";
 import { getSpecialPricingEnabled } from "@/features/customer-category-pricing/server/special-pricing-settings";
+import { loadCustomerPricingRules } from "@/features/customer-category-pricing/server/pricing-rule-loader";
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
 import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
 import { getInvoiceNow } from "@/features/invoice-date/services/internet-clock";
@@ -45,6 +46,7 @@ const draftItemSchema = z.object({
   material: z.string().optional().nullable(),
   price: z.number().min(0),
   categoryId: z.string().optional(),
+  catalogSubcategoryId: z.string().nullable().optional(),
   transactionPrice: z.number().positive().optional().nullable(),
   customerManualPrice: z.number().finite().min(0).max(9_999_999_999.99).optional().nullable(),
   quantity: z.number().min(1),
@@ -222,6 +224,8 @@ export async function POST(request: Request) {
             material: true,
             unit: true,
             categoryId: true,
+            catalogSubcategoryId: true,
+            catalogSubcategory: { select: { legacyCategoryId: true } },
             category: { select: { name: true } },
             brandId: true,
             brand: { select: { name: true } },
@@ -234,13 +238,7 @@ export async function POST(request: Request) {
           },
           select: { draftNumber: true },
         }),
-        db.categoryCustomerPricingRule.findMany({
-          where: { storeId, isActive: true },
-          include: {
-            category: { select: { name: true } },
-            brand: { select: { name: true } },
-          },
-        }),
+        loadCustomerPricingRules(db, storeId),
       ]);
 
     if (customerId && !customerCheck) {
@@ -272,26 +270,12 @@ export async function POST(request: Request) {
       customerId && customerCheck && customerCheck !== true
         ? (customerCheck.type as CustomerType)
         : "UMUM";
-    const pricingRules = rawPricingRules.map((rule) => ({
-      id: rule.id,
-      categoryId: rule.categoryId,
-      categoryName: rule.category.name,
-      customerType: (rule.customerType ?? "ALL") as CategoryPricingRule["customerType"],
-      customerTypes: rule.customerTypes,
-      unit: rule.unit,
-      units: rule.units,
-      brandId: rule.brandId,
-      brandName: rule.brand?.name ?? null,
-      mode: rule.mode,
-      value: Number(rule.value),
-      discountPercent: Number(rule.discountPercent ?? 0),
-      isActive: rule.isActive,
-      updatedAt: rule.updatedAt,
-    })) satisfies CategoryPricingRule[];
+    const pricingRules = rawPricingRules;
 
     const roundingSettings = await getPriceRoundingSettings();
     const specialPricingEnabled = await getSpecialPricingEnabled();
-    const categoryChanged = items.some(item => item.categoryId != null && item.categoryId !== productById.get(item.productId)?.categoryId);
+    const categoryChanged = items.some(item => (item.categoryId != null && item.categoryId !== productById.get(item.productId)?.categoryId) ||
+      (item.catalogSubcategoryId !== undefined && item.catalogSubcategoryId !== (productById.get(item.productId)?.catalogSubcategoryId ?? null)));
     const roundingPolicyChanged = Boolean(priceRoundingSettings && (
       priceRoundingSettings.enabled !== roundingSettings.enabled ||
       priceRoundingSettings.increment !== roundingSettings.increment ||
@@ -322,6 +306,8 @@ export async function POST(request: Request) {
         {
           categoryId: product.categoryId,
           categoryName: product.category.name,
+          catalogSubcategoryId: product.catalogSubcategoryId,
+          catalogSubcategoryLegacyCategoryId: product.catalogSubcategory?.legacyCategoryId ?? null,
           price: Number(product.price),
           costPrice: product.costPrice == null ? null : Number(product.costPrice),
           ...baseCosts.get(product.id),
@@ -366,6 +352,11 @@ export async function POST(request: Request) {
         appliedPricing,
       };
     });
+
+    if (items.some((item, index) => item.catalogSubcategoryId !== undefined && item.transactionPrice == null && item.customerManualPrice == null &&
+      Math.round(item.price * 100) !== Math.round(serverItems[index].price * 100))) {
+      return NextResponse.json({ message: "Harga produk sudah berubah. Muat ulang harga sebelum menyimpan faktur sementara." }, { status: 409 });
+    }
 
     const subtotal = serverItems.reduce(
       (sum, item) => sum + discountedLineSubtotal(item.price, item.quantity, item.discount),

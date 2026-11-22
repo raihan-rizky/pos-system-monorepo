@@ -7,6 +7,7 @@ import { Download, Pencil, Printer } from "lucide-react";
 import { useRole } from "@/components/providers/RoleProvider";
 import { invalidateTransactionViews } from "@/features/transaction-history/helpers/invalidate";
 import { downloadPrintingReceiptPdf, printPrintingReceiptPdf } from "../export-pdf";
+import { isPrintingReceiptDraft } from "../pdf-eligibility";
 import { getPrintingReceiptScopeKey } from "../permissions";
 import { getPrintingReceiptPreviewRecord } from "../receipt-api";
 import type { PrintingReceipt } from "../types";
@@ -30,6 +31,7 @@ export function PrintingReceiptModal({ open, onClose, onReceiptUpdated, receipt,
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isDraft = isPrintingReceiptDraft(receipt, transaction);
   const [editing, setEditing] = useState<{ receipt: PrintingReceipt; scope: string } | null>(null);
   const [returnFocus, setReturnFocus] = useState(false);
   const mounted = useRef(true);
@@ -37,6 +39,7 @@ export function PrintingReceiptModal({ open, onClose, onReceiptUpdated, receipt,
   const scope = getPrintingReceiptScopeKey({ userId, storeId, authorizationFingerprint });
   const canEdit = Boolean(receipt.transactionId && canPerform("printing_receipt.processed", "update") &&
     EDITABLE_PROCESSED_STATUSES.has(receipt.transaction?.status ?? transaction?.status ?? ""));
+  const canAddProcessedPayment = canPerform("customer.receivable", "read") && canPerform("customer.receivable.payment", "create");
   const latest = useRef({ open, canEdit, scope });
   latest.current = { open, canEdit, scope };
   const activeEdit = open && canEdit && editing?.scope === scope ? editing.receipt : null;
@@ -94,11 +97,11 @@ export function PrintingReceiptModal({ open, onClose, onReceiptUpdated, receipt,
   return <>
     <Modal open={open && !activeEdit} onClose={onClose} title={`Nota ${receipt.subcategory} · ${receipt.number}`} size="full">
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3">
-        <p className="text-sm text-surface-600">{receipt.transactionId ? "Nota transaksi tersimpan. Pembayaran terbaru tercermin pada jumlah dan sisa." : "Pratinjau draft. Nota ini belum menjadi transaksi."}</p>
+        <p className="text-sm text-surface-600">{isDraft ? "Pratinjau draft. Proses pembayaran terlebih dahulu untuk mencetak atau mengunduh PDF." : "Nota transaksi tersimpan. Pembayaran terbaru tercermin pada jumlah dan sisa."}</p>
         <div className="flex flex-wrap gap-2">
           {canEdit && <Button variant="danger" size="sm" loading={busy} autoFocus={returnFocus} onClick={() => void openEdit()}><Pencil size={16} />Edit nota</Button>}
-          <Button variant="secondary" size="sm" loading={busy} onClick={() => void exportReceipt(false)}><Download size={16} />Unduh PDF</Button>
-          <Button size="sm" loading={busy} onClick={() => void exportReceipt(true)}><Printer size={16} />Cetak</Button>
+          <Button variant="secondary" size="sm" loading={busy} disabled={isDraft} onClick={() => void exportReceipt(false)}><Download size={16} />Unduh PDF</Button>
+          <Button size="sm" loading={busy} disabled={isDraft} onClick={() => void exportReceipt(true)}><Printer size={16} />Cetak</Button>
         </div>
       </div>
       {error && <p role="alert" className="mb-3 rounded-lg bg-danger-50 p-3 text-sm text-danger-700">{error}</p>}
@@ -106,6 +109,6 @@ export function PrintingReceiptModal({ open, onClose, onReceiptUpdated, receipt,
         <PrintingReceiptView receipt={receipt} transaction={transaction} />
       </div>
     </Modal>
-    {activeEdit && <ProcessedPrintingReceiptEditor key={activeEdit.id} receipt={activeEdit} onClose={closeEdit} onSaved={savedEdit} />}
+    {activeEdit && <ProcessedPrintingReceiptEditor key={activeEdit.id} receipt={activeEdit} onClose={closeEdit} onSaved={savedEdit} canAddPayment={canAddProcessedPayment} />}
   </>;
 }

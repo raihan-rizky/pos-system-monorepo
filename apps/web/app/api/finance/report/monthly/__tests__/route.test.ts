@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET } from '../route';
 const mocks = vi.hoisted(() => ({ permission: vi.fn(), authError: vi.fn(), report: vi.fn() }));
 vi.mock('@/lib/rbac/guard', () => ({ requirePermission: mocks.permission, handleAuthError: mocks.authError }));
+vi.mock('@/features/financial-report/services/export-access', () => ({ getFinancialExportAccess: async () => ({ user: await mocks.permission('financial-report.export', 'read'), canReadManualIncome: true, canReadTransactions: true, canReadExpenses: true, canReadCustomers: true, canReadReceivables: true, canReadPurchases: true, canReadInventory: true }) }));
 vi.mock('@/features/financial-report/services/monthly-report', () => ({ getMonthlyFinancialReport: mocks.report }));
 vi.mock('@/lib/logger', () => ({ getLogger: () => ({ error: vi.fn() }) }));
 describe('endpoint bulanan', () => {

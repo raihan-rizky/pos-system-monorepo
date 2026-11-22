@@ -33,4 +33,8 @@ describe("menu koreksi pengeluaran otomatis", () => {
       expect(getExpenseCorrectionActions({ source: { type } }, () => true)).toEqual([]);
     }
   });
+
+  it("tidak menjadikan pelunasan hutang manual sebagai pembelian yang bisa dikoreksi", () => {
+    expect(getExpenseCorrectionActions({ source: { type: "MANUAL_PAYABLE" } }, () => true)).toEqual([]);
+  });
 });

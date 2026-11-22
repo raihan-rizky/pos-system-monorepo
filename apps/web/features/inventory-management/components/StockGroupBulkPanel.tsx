@@ -13,7 +13,8 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@pos/ui";
-import { useProducts, type Product, type ProductVariant } from "@/hooks/useProducts";
+import { useProducts, type Product, type ProductVariant, type UseProductsOptions } from "@/hooks/useProducts";
+import { CatalogClassificationFilter } from "@/features/product-classification/components/CatalogClassificationFilter";
 import { ProductStockThumbnail } from "./ProductStockThumbnail";
 import {
   previewStockGroupBulk,
@@ -162,6 +163,8 @@ export const StockGroupBulkPanel: React.FC<StockGroupBulkPanelProps> = ({
   onError,
 }) => {
   const [search, setSearch] = useState("");
+  const [catalogGroup, setCatalogGroup] = useState<NonNullable<UseProductsOptions["catalogGroup"]> | "">("");
+  const [catalogSubcategoryId, setCatalogSubcategoryId] = useState("");
   const [rows, setRows] = useState<SelectedProductRow[]>([]);
   const [preview, setPreview] = useState<ProductFirstStockGroupBulkPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -169,7 +172,7 @@ export const StockGroupBulkPanel: React.FC<StockGroupBulkPanelProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
 
-  const productsQuery = useProducts(search, undefined, { limit: 20 });
+  const productsQuery = useProducts(search, undefined, { limit: 20, catalogGroup: catalogGroup || undefined, catalogSubcategoryId: catalogSubcategoryId || undefined });
   const candidates = useMemo(
     () => flattenProductCandidates(productsQuery.data),
     [productsQuery.data],
@@ -309,6 +312,8 @@ export const StockGroupBulkPanel: React.FC<StockGroupBulkPanelProps> = ({
 
       <div className="grid gap-4 lg:grid-cols-[minmax(360px,440px)_1fr]">
         <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <CatalogClassificationFilter idPrefix="inventory-bulk" group={catalogGroup} subcategoryId={catalogSubcategoryId}
+            onChange={(group, subcategoryId) => { setCatalogGroup(group); setCatalogSubcategoryId(subcategoryId); }} />
           <label className="block text-xs font-bold text-slate-600">
             Cari produk
             <div className="relative mt-1">
@@ -322,7 +327,7 @@ export const StockGroupBulkPanel: React.FC<StockGroupBulkPanelProps> = ({
             </div>
           </label>
 
-          {search.trim() && (
+          {(search.trim() || catalogGroup) && (
             <div className="max-h-56 overflow-auto rounded-xl border border-slate-200 bg-white">
               {productsQuery.isFetching ? (
                 <div className="flex items-center gap-2 px-3 py-3 text-sm text-slate-500">

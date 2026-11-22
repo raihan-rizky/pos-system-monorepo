@@ -8,21 +8,21 @@ import type {
 } from "@/features/keuangan/helpers/keuangan-core";
 import type { CustomExpenseCategory } from "@/features/keuangan/helpers/category-meta";
 import type { ExpensePaymentSource } from "@/features/keuangan/helpers/expense-correction-contract";
+import type { IncomeCalculation } from "@/features/keuangan/helpers/income-calculation";
 
 export type IncomeSummary = {
   month: string;
   monthlyTotal: number;
   transactionCount: number;
-  daily: RecognizedIncomeDay[];
-  cashDaily?: { date: string; total: number; manualReceivable: number }[];
+  daily: IncomeCalculation["daily"];
+  cashDaily?: IncomeCalculation["daily"];
   cashTotal?: number;
   incomeComponents?: IncomeComponents | null;
   supplierRefund?: number;
 };
 
-type RecognizedIncomeDay = { date: string; total: number; count?: number; manualCount?: number; manualReceivable?: number; supplierRefund?: number };
 export type IncomeComponents = { sales: number; manualIncome: number; manualReceivable: number };
-export type ExpenseComponents = { manual: number; transfer: number; giroPayment: number; giroDue: number; overpayment: number };
+export type ExpenseComponents = { manual: number; transfer: number; giroPayment: number; giroDue: number; overpayment: number; manualPayable?: number };
 
 export type ExpenseSummary = {
   month: string;
@@ -43,7 +43,7 @@ export type ExpenseSummary = {
 
 export type CashFlowSummary = {
   month: string;
-  income: { total: number; daily: RecognizedIncomeDay[]; components: IncomeComponents | null; supplierRefund?: number; transactionCount?: number };
+  income: IncomeCalculation;
   expense: { total: number | null; incomplete: boolean; daily: { date: string; total: number }[]; components: ExpenseComponents; byCategory: CategoryBucket[]; entryCount: number; correctionOutflow?: number };
 };
 
@@ -51,22 +51,28 @@ export type ExpenseListItem = {
   id: string;
   applicantName: string;
   category: ExpenseCategoryKey;
+  reportCategory?: import('../helpers/manual-report-categories').ManualExpenseReportCategory | null;
+  reportCategoryAmounts?: Partial<Record<ExpenseCategoryKey, number>>;
   description: string | null;
   amount: number;
   changeAmount: number;
   netAmount: number;
   occurredAt: string;
   createdAt: string;
+  updatedAt: string;
   transactionId: string | null;
   attachmentUrl: string | null;
   hasMissingCostSnapshot: boolean;
   source:
-    | { type: "MANUAL" | "MANUAL_TRANSFER_PURCHASE" | "CANCELLED_PURCHASE_PAYMENT" }
+    | { type: "MANUAL" }
+    | { type: "MANUAL_TRANSFER_PURCHASE" }
+    | { type: "MANUAL_PAYABLE" }
+    | { type: "CANCELLED_PURCHASE_PAYMENT" }
     | { type: "SHOPPING_REQUEST"; id: string; number: string; goodsPurchaseId?: string }
     | { type: "BACKDATED_PURCHASE"; id: string; number: string }
     | { type: "GOODS_PURCHASE"; id: string; number: string };
   recordedBy: { id: string; name: string };
-  recognitionKind?: "manual" | "transfer" | "giro_payment" | "giro_due" | "overpayment" | "correctionOutflow";
+  recognitionKind?: "manual" | "transfer" | "giro_payment" | "giro_due" | "overpayment" | "manual_payable" | "correctionOutflow";
   paymentSource?: ExpensePaymentSource;
   paidAt?: string;
   paidMethod?: "GIRO" | "TRANSFER";

@@ -315,41 +315,45 @@ export async function mockApis(page: Page) {
     if (path === "/api/upload") return json(route, { url: "/images/icon.png" });
     if (path === "/api/push/subscriptions") return emptyOk(route);
 
+    const summaryIncome = {
+      total: 45_000_000,
+      transactionCount: 22,
+      manualEntryCount: 1,
+      components: { sales: 40_000_000, manualIncome: 2_000_000, manualReceivable: 3_000_000 },
+      daily: [
+        { date: "2026-05-19", total: 20_000_000, count: 8, manualCount: 0, manualReceivable: 0 },
+        { date: "2026-05-20", total: 25_000_000, count: 14, manualCount: 1, manualReceivable: 3_000_000 },
+      ],
+    };
     if (path === "/api/finance/cash-flow/summary" && method === "GET") {
       return json(route, {
         month: "2026-05",
-        income: { total: 45_000_000, transactionCount: 22, components: { sales: 45_000_000, manualIncome: 0, manualReceivable: 0 }, daily: [
-          { date: "2026-05-19", total: 20_000_000, count: 8 },
-          { date: "2026-05-20", total: 25_000_000, count: 14 },
-        ] },
-        expense: { total: 850_000, incomplete: false, entryCount: 2,
-          components: { manual: 850_000, transfer: 0, giroPayment: 0, giroDue: 0, overpayment: 0 },
-          byCategory: [{ category: "SUPPLIES", total: 500_000 }, { category: "BEVERAGES", total: 350_000 }], daily: [
+        income: summaryIncome,
+        expense: { total: 850_000, incomplete: false, daily: [
           { date: "2026-05-20", total: 850_000 },
-        ] },
+          ], components: { manual: 500_000, transfer: 350_000, giroPayment: 0, giroDue: 0, overpayment: 0 },
+          byCategory: [{ category: "SUPPLIES", total: 500_000 }, { category: "BEVERAGES", total: 350_000 }], entryCount: 2 },
       });
     }
     if (path === "/api/finance/income/summary") {
       return json(route, {
         month: "2026-05",
-        monthlyTotal: 45_000_000,
-        transactionCount: 22,
-        daily: [
-          { date: "2026-05-19", total: 20_000_000, count: 8 },
-          { date: "2026-05-20", total: 25_000_000, count: 14 },
-        ],
-        cashDaily: [
-          { date: "2026-05-19", total: 20_000_000 },
-          { date: "2026-05-20", total: 25_000_000 },
-        ],
-        cashTotal: 45_000_000,
+        monthlyTotal: summaryIncome.total,
+        transactionCount: summaryIncome.transactionCount,
+        manualEntryCount: summaryIncome.manualEntryCount,
+        daily: summaryIncome.daily,
+        cashDaily: summaryIncome.daily,
+        cashTotal: summaryIncome.total,
+        incomeComponents: summaryIncome.components,
       });
     }
     if (path === "/api/finance/expenses/summary" && method === "GET") {
       return json(route, {
         month: "2026-05",
         monthlyTotal: 850_000,
+          incomplete: false,
         entryCount: 2,
+          components: { manual: 500_000, transfer: 350_000, giroPayment: 0, giroDue: 0, overpayment: 0 },
         byCategory: [
           { category: "SUPPLIES", total: 500_000 },
           { category: "BEVERAGES", total: 350_000 },
@@ -463,7 +467,10 @@ export async function mockApis(page: Page) {
           { productId: "prod-1", productName: "Kertas A4", quantity: 20, revenue: 1_000_000, grossProfit: 400_000 },
         ],
         categories: [
-          { categoryName: "Alat Tulis", quantity: 30, revenue: 2_500_000, grossProfit: 800_000, transactionCount: 8 },
+          { categoryName: "ATK", quantity: 30, revenue: 2_500_000, grossProfit: 800_000, transactionCount: 8 },
+        ],
+        subcategories: [
+          { categoryName: "ATK", subcategoryName: "Alat Tulis", quantity: 30, revenue: 2_500_000, grossProfit: 800_000, transactionCount: 8 },
         ],
         salespersons: [
           { name: "Budi", transactionCount: 6, revenue: 2_000_000, collected: 1_900_000, grossProfit: 700_000 },
@@ -489,7 +496,7 @@ export async function mockApis(page: Page) {
             invoice: "INV-20260520-0001",
             person: "Budi",
             products: "Kertas A4",
-            categories: "Alat Tulis",
+            categories: "ATK / Alat Tulis",
             status: "Pemasukan",
             amount: 100_000,
             method: "CASH",
@@ -512,7 +519,7 @@ export async function mockApis(page: Page) {
           byMethod: { CASH: 100_000, TRANSFER: 0, QRIS: 0, DEBIT: 0, CREDIT: 0 },
         },
         categories: [
-          { categoryName: "Alat Tulis", transactionCount: 1, revenue: 100_000 },
+          { categoryName: "ATK / Alat Tulis", transactionCount: 1, revenue: 100_000 },
         ],
       });
     }

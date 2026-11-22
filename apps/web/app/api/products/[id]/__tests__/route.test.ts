@@ -1,6 +1,6 @@
 import { withPricingTransaction } from "../../__tests__/legacy-pricing-transaction";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DELETE, PUT } from "../route";
+import { DELETE, GET, PUT } from "../route";
 
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
@@ -56,6 +56,16 @@ vi.mock("@pos/db", () => ({
   },
   Prisma: {},
 }));
+
+it("loads the current classification when refreshing one product", async () => {
+  requirePermissionMock.mockResolvedValue({ storeId: "store-main" });
+  handleAuthErrorMock.mockReturnValue(null);
+  productFindFirstMock.mockResolvedValue({ id: "p", storeId: "store-main", stockGroupId: null, unit: "pcs", costPrice: 1, stock: 1, catalogSubcategoryId: "bot", catalogSubcategory: { id: "bot", group: "ATK", name: "BOT", legacyCategoryId: "old-bot" } });
+  const response = await GET(new Request("http://localhost/api/products/p"), { params: Promise.resolve({ id: "p" }) });
+  expect(response.status).toBe(200);
+  expect(productFindFirstMock.mock.calls.at(-1)?.[0].include).toMatchObject({ catalogSubcategory: { select: { id: true, group: true, name: true, legacyCategoryId: true } } });
+  expect((await response.json()).data.catalogSubcategory.legacyCategoryId).toBe("old-bot");
+});
 
 describe("PUT /api/products/[id]", () => {
   beforeEach(() => {

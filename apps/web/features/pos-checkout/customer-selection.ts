@@ -1,6 +1,7 @@
 import type { CreateCustomerInput } from "@/hooks/useCustomers";
 
 export const GENERAL_CUSTOMER_NAME = "Pelanggan Umum";
+type CustomerType = NonNullable<CreateCustomerInput["type"]>;
 
 export type CheckoutCustomerSelection =
   | { kind: "general" }
@@ -16,6 +17,7 @@ export type CheckoutCustomerSelection =
       kind: "new";
       name: string;
       phone?: string;
+      type?: CustomerType;
     };
 
 export interface ResolvedCheckoutCustomer {
@@ -57,15 +59,16 @@ export async function resolveCheckoutCustomer(
   }
 
   const phone = selection.phone?.trim();
+  const type = selection.type ?? "UMUM";
   const customer = await createCustomer({
     name,
     phone: phone || undefined,
-    type: "UMUM",
+    type,
   });
 
   return {
     customerName: customer.name,
     customerId: customer.id,
-    customerType: "UMUM",
+    customerType: type,
   };
 }

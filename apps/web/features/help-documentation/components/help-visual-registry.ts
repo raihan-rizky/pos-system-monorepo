@@ -127,6 +127,7 @@ export const HELP_VISUAL_PAGE_CONFIG: Record<HelpVisualPage, HelpVisualPageConfi
         title: "Layar Kasir",
         targets: [
           { key: "pos-primary", label: "Halaman Kasir" },
+          { key: "pos-catalog-filter", label: "Filter Kategori dan Subkategori" },
           { key: "pos-products", label: "Grid Produk" },
           { key: "pos-cart", label: "Keranjang" },
           { key: "pos-pay-button", label: "Tombol Bayar" },

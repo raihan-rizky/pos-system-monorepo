@@ -17,13 +17,13 @@ const PERIODS: { value: ReportPeriod; label: string }[] = [
 ];
 const controlClass = "mt-1.5 w-full rounded-lg border border-surface-300 bg-white px-3 py-2.5 text-sm text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-surface-100";
 
-export function ReportExportMenu(): ReactNode {
+export function ReportExportMenu({ previewSales = false, previewExportAccess = false, reportRange }: { previewSales?: boolean; previewExportAccess?: boolean; reportRange?: { from: string; to: string } } = {}): ReactNode {
   const { canPerform } = useRole();
-  if (!canPerform("financial-report.export", "read")) return null;
-  return <ReportExportControls />;
+  if (previewSales ? !previewExportAccess : !canPerform("financial-report.export", "read")) return null;
+  return <ReportExportControls previewSales={previewSales} reportRange={reportRange} />;
 }
 
-function ReportExportControls(): ReactNode {
+function ReportExportControls({ previewSales, reportRange }: { previewSales: boolean; reportRange?: { from: string; to: string } }): ReactNode {
   const id = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
@@ -39,7 +39,7 @@ function ReportExportControls(): ReactNode {
   const [format, setFormat] = useState<ReportExportFormat>("xlsx");
   const [month, setMonth] = useState(today.month);
   const [year, setYear] = useState(String(today.year));
-  const [period, setPeriod] = useState<ReportPeriod>("monthly");
+  const [period, setPeriod] = useState<ReportPeriod | "custom">(reportRange ? "custom" : "monthly");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const selectedYear = Number(year);
@@ -66,8 +66,8 @@ function ReportExportControls(): ReactNode {
     setBusy(true);
     setError(null);
     try {
-      if (mode === "monthly") await exportMonthlyFinancialReport(selectedYear, month);
-      else await exportFinancialReportFile(period, format);
+      if (mode === "monthly") await exportMonthlyFinancialReport(selectedYear, month, previewSales);
+      else await exportFinancialReportFile(period, format, previewSales, period === "custom" ? reportRange : undefined);
       dialogRef.current?.close();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Laporan belum bisa diunduh. Silakan coba lagi.");
@@ -151,6 +151,7 @@ function ReportExportControls(): ReactNode {
                     <p>Buka PANDUAN untuk alur visual, contoh perhitungan, dan tautan ke bagian laporan.</p>
                     <p>Riwayat inventaris sebelum pencatatan tersedia dibiarkan kosong. Catat hutang pemasok di halaman Keuangan.</p>
                     <p>Penerimaan dan pengeluaran memakai basis kas. Data bulan berjalan sampai hari ini (WIB).</p>
+                    <p>Ekspor bulanan memerlukan akses Riwayat, Produk, transaksi, pelanggan, pengeluaran, pemasok, utang, dan giro. Jika belum tersedia, minta pengelola hak akses melengkapinya.</p>
                   </div>
                 </>
               ) : (
@@ -163,11 +164,12 @@ function ReportExportControls(): ReactNode {
                   </div>
                   <div>
                     <label htmlFor={`${id}-period`} className="text-sm font-medium">Periode jurnal</label>
-                    <select id={`${id}-period`} value={period} onChange={event => { setPeriod(event.target.value as ReportPeriod); setError(null); }} className={controlClass}>
+                <select id={`${id}-period`} value={period} onChange={event => { setPeriod(event.target.value as ReportPeriod | "custom"); setError(null); }} className={controlClass}>
+                  {reportRange && <option value="custom">Periode pada layar · {reportRange.from} – {reportRange.to}</option>}
                       {PERIODS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                     </select>
                   </div>
-                  <p className="text-xs leading-relaxed text-surface-600 sm:col-span-2">Rincian transaksi dengan periode relatif sampai hari ini, dalam format Excel atau PDF.</p>
+                <p className="text-xs leading-relaxed text-surface-600 sm:col-span-2">Rincian transaksi dan pemasukan manual dalam format Excel atau PDF.</p>
                 </div>
               )}
             </fieldset>

@@ -65,6 +65,28 @@ describe("resolveCheckoutCustomer", () => {
     });
   });
 
+  it("saves a new customer's selected type and returns it for checkout pricing", async () => {
+    const createCustomer = vi.fn().mockResolvedValue({
+      id: "customer-agent",
+      name: "Agen Budi",
+    });
+
+    await expect(
+      resolveCheckoutCustomer(
+        { kind: "new", name: "Agen Budi", type: "AGEN" },
+        createCustomer,
+      ),
+    ).resolves.toEqual({
+      customerName: "Agen Budi",
+      customerId: "customer-agent",
+      customerType: "AGEN",
+    });
+    expect(createCustomer).toHaveBeenCalledWith({
+      name: "Agen Budi",
+      type: "AGEN",
+    });
+  });
+
   it("blocks checkout when manual customer name is blank", async () => {
     const createCustomer = vi.fn();
 

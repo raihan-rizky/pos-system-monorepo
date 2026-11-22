@@ -24,6 +24,7 @@ interface RoleContextType {
   authorizationFingerprint: string | null;
   isOfflineSession: boolean;
   isSessionRecovering: boolean;
+  canReadOfflineCatalog: boolean;
   canAccess: (path: string) => boolean;
   canPerform: (resource: string, action: Action) => boolean;
 }
@@ -36,6 +37,7 @@ const RoleContext = createContext<RoleContextType>({
   authorizationFingerprint: null,
   isOfflineSession: false,
   isSessionRecovering: false,
+  canReadOfflineCatalog: false,
   canAccess: () => false,
   canPerform: () => false,
 });
@@ -337,10 +339,11 @@ export function RoleProvider({
       authorizationFingerprint,
       isOfflineSession: offline,
       isSessionRecovering: sessionRecovering,
+      canReadOfflineCatalog: Boolean(role && verified && canRolePerformAction(role, "product", "read", permissions)),
       canAccess,
       canPerform,
     }),
-    [role, userId, userName, storeId, authorizationFingerprint, denied, offline, sessionRecovering, canAccess, canPerform],
+    [role, userId, userName, storeId, authorizationFingerprint, permissions, verified, denied, offline, sessionRecovering, canAccess, canPerform],
   );
 
   const blocked = Boolean(role) && !verified && pathname !== "/login" && pathname !== "/login/";

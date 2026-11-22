@@ -1,6 +1,18 @@
 import { test, expect, authenticate, mockApis } from "./fixtures/app";
 import { seenStorageKey } from "../features/changelog/helpers/changelog";
 
+test("finance fixture menjelaskan komponen dan jumlah harian yang konsisten", async ({ page }) => {
+  await mockApis(page);
+  const response = await page.goto("/api/finance/cash-flow/summary?month=2026-05");
+  const body = await response!.json();
+  expect(body.income.components).toEqual({ sales: 40_000_000, manualIncome: 2_000_000, manualReceivable: 3_000_000 });
+  expect(body.income.daily.reduce((sum: number, day: { total: number }) => sum + day.total, 0)).toBe(body.income.total);
+  expect(body.income.daily.reduce((sum: number, day: { manualReceivable: number }) => sum + day.manualReceivable, 0)).toBe(3_000_000);
+  expect(body.expense.components).toEqual({ manual: 500_000, transfer: 350_000, giroPayment: 0, giroDue: 0, overpayment: 0 });
+  expect(body.expense.byCategory.reduce((sum: number, category: { total: number }) => sum + category.total, 0)).toBe(body.expense.total);
+  expect(body.expense.entryCount).toBe(2);
+});
+
 test("fixture login menyimpan status pembaruan untuk ID pengguna yang dipakai", async ({ page }) => {
   const userId = "e2e-owner";
   await authenticate(page, "OWNER", userId);

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { db, type Prisma } from "@pos/db";
-import { requirePermission, handleAuthError } from "@/lib/rbac/guard";
+import { requirePermission, handleAuthError, canAuthenticatedUserPerform } from "@/lib/rbac/guard";
+import { requireReceivableChangePermission } from "@/features/customer-debt/server/receivable-permission";
+import { ReceivableAuthorizationError } from "@/features/customer-debt/helpers/receivable-authorization";
 import { z } from "zod";
 import { containsTransactionNoteAnnotations, mergeTransactionUserNote } from "@/app/(main)/history/helpers/transaction-note";
 
@@ -270,6 +272,10 @@ export async function PATCH(
     }
 
     if (status === "VOIDED" && status !== existingTransaction.status) {
+      const receivableAccess = {
+        canView: await canAuthenticatedUserPerform(user, "customer.receivable", "read"),
+        canEdit: await canAuthenticatedUserPerform(user, "customer.receivable", "update"),
+      };
       const transactionUpdates = { ...updateData };
       delete transactionUpdates.status;
       const outcome = await db.$transaction(async (tx) => {
@@ -280,6 +286,7 @@ export async function PATCH(
           transactionId: id,
           action: "VOID",
           actor: { id: user.id, name: user.name ?? null, role: user.role },
+          receivableAccess,
           ...(note !== undefined ? {
             beforeApply: async (lockedStatus: string) => {
               statusBeforeReversal = lockedStatus;
@@ -377,12 +384,20 @@ export async function PATCH(
       },
     });
 
-    const updated = user.role === "SALES" || note !== undefined
+    const updated = user.role === "SALES" || note !== undefined || status !== undefined || paymentMethod !== undefined || customerName !== undefined
       ? await db.$transaction(async (tx) => {
+          const owner = await tx.transaction.findFirstOrThrow({ where: { id, storeId }, select: { customerId: true } });
+          if (owner.customerId) await tx.$queryRaw`SELECT "id" FROM "pos_customers" WHERE "id" = ${owner.customerId} AND "storeId" = ${storeId} FOR UPDATE`;
           await tx.$queryRaw`SELECT "id" FROM "pos_transactions" WHERE "id" = ${id} AND "storeId" = ${storeId} FOR UPDATE`;
           const current = await tx.transaction.findFirstOrThrow({
             where: { id, storeId },
-            select: { status: true, note: true, printingSubcategory: true, printingReceipt: { select: { id: true } }, suratJalan: { select: { id: true }, take: 1 } },
+            select: { customerId: true, customerName: true, total: true, amountPaid: true, paymentMethod: true, status: true, note: true, printingSubcategory: true, printingReceipt: { select: { id: true } }, suratJalan: { select: { id: true }, take: 1 } },
+          });
+          if (current.customerId !== owner.customerId || current.status !== existingTransaction.status) throw new TransactionNoteConflictError();
+          const before = { ...current, total: Number(current.total), amountPaid: Number(current.amountPaid) };
+          await requireReceivableChangePermission(before, {
+            ...before, status: status ?? current.status, paymentMethod: paymentMethod ?? current.paymentMethod,
+            customerName: customerName === undefined ? current.customerName : customerName || null,
           });
           if (note !== undefined) {
             if (current.note !== expectedNote || !canEditTransactionNote(current)) throw new TransactionNoteConflictError();
@@ -407,6 +422,7 @@ export async function PATCH(
     if (error instanceof TransactionReversalConflictError || error instanceof TransactionNoteConflictError) {
       return NextResponse.json({ message: error.message }, { status: 409 });
     }
+    if (error instanceof ReceivableAuthorizationError) return NextResponse.json({ message: error.message }, { status: 403 });
 
     log.error("Failed to update transaction:", error);
     if (error?.code === "P2025") {
@@ -433,12 +449,17 @@ export async function DELETE(
     const storeId = user.storeId || "store-main";
     ({ id } = await params);
     const warnings: Array<{ code: string; message: string }> = [];
+    const receivableAccess = {
+      canView: await canAuthenticatedUserPerform(user, "customer.receivable", "read"),
+      canEdit: await canAuthenticatedUserPerform(user, "customer.receivable", "update"),
+    };
     const outcome = await db.$transaction(
       (tx) => reverseTransaction(tx, {
         storeId,
         transactionId: id,
         action: "DELETE",
         actor: { id: user.id, name: user.name ?? null, role: user.role },
+        receivableAccess,
         onWarning: (warning) => warnings.push(warning),
       }),
       { timeout: 30_000 },
@@ -457,6 +478,7 @@ export async function DELETE(
     if (error instanceof TransactionReversalConflictError) {
       return NextResponse.json({ message: error.message }, { status: 409 });
     }
+    if (error instanceof ReceivableAuthorizationError) return NextResponse.json({ message: error.message }, { status: 403 });
 
     log.error("Failed to delete transaction:", error);
     if (error?.code === "P2025") {

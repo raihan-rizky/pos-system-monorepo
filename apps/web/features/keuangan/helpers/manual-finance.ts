@@ -10,7 +10,7 @@ export const MANUAL_INCOME_PAYMENT_LABELS: Record<ManualIncomePaymentMethod, str
 };
 export type ManualIncomePayment = { method: ManualIncomePaymentMethod; amount: number };
 export type ManualIncomePayload = { description: string; category: ManualIncomeCategory; amount: number; occurredAt: string; payments?: ManualIncomePayment[] };
-export type ManualTransferPayload = { applicantName: string; description: string; amount: number; occurredAt: string; attachmentUrl?: string | null };
+export type ManualTransferPayload = { applicantName: string; description: string; amount: number; occurredAt: string; reportCategory: ManualExpenseReportCategory; attachmentUrl?: string | null };
 type Result<T> = { success: true; data: T } | { success: false; errors: Record<string, string[]> };
 
 export function manualFinanceDateBounds(now = new Date()) {
@@ -70,5 +70,7 @@ export function validateManualTransfer(input: unknown, now = new Date()): Result
   const applicantName = typeof data.applicantName === 'string' ? data.applicantName.trim() : '';
   if (!applicantName || applicantName.length > 100) errors.applicantName = ['Isi nama penerima antara 1 sampai 100 karakter.'];
   if (data.attachmentUrl != null && (typeof data.attachmentUrl !== 'string' || data.attachmentUrl.length > 2048)) errors.attachmentUrl = ['Lampiran tidak valid.'];
-  return Object.keys(errors).length ? { success: false, errors } : { success: true, data: { description, amount, occurredAt, applicantName, ...(data.attachmentUrl !== undefined ? { attachmentUrl: data.attachmentUrl as string | null } : {}) } };
+  if (!isManualExpenseReportCategory(data.reportCategory)) errors.reportCategory = ['Pilih kategori laporan.'];
+  return Object.keys(errors).length ? { success: false, errors } : { success: true, data: { description, amount, occurredAt, applicantName, reportCategory: data.reportCategory as ManualExpenseReportCategory, ...(data.attachmentUrl !== undefined ? { attachmentUrl: data.attachmentUrl as string | null } : {}) } };
 }
+import { isManualExpenseReportCategory, type ManualExpenseReportCategory } from './manual-report-categories';

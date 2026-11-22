@@ -1,6 +1,6 @@
 export type IncomeGroup = 'CETAK' | 'PLAT' | 'STEMPEL' | 'SPANDUK' | 'ATK' | 'PRINT' | 'UNMAPPED';
 export type ExpenseGroup = 'CETAK_PLAT' | 'SPANDUK' | 'ATK' | 'OTHER' | 'SALARY';
-export type MonthlyIncome = { id: string; date: string; reference: string; description: string; amounts: Record<IncomeGroup, number> };
+export type MonthlyIncome = { id: string; date: string; reference: string; description: string; amounts: Record<IncomeGroup, number>; breakdown?: Array<{ category: string; subcategory: string; amount: number }> };
 export type MonthlyExpense = { id: string; date: string; description: string; categoryName?: string | null; amount: number; group: ExpenseGroup; purchase?: { reference: string; method: string | null; dueDate: string | null; supplier: string } };
 export type MonthlyGiroPayment = { id: string; date: string; amount: number; reference: string; supplier: string; group: ExpenseGroup };
 export type MonthlyPurchasePayment = MonthlyGiroPayment & { method: 'TRANSFER' | 'GIRO' };

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { executeCategoryAction } from "../category-management";
+import { priceProductForCustomerType, type CategoryPricingRule } from "@/features/customer-category-pricing/helpers/pricing-rules";
 
 const fixture = vi.hoisted(() => ({ state: {} as Record<string, any[]>, calls: [] as string[], failDelete: false, options: {} }));
 vi.mock("@pos/db", () => {
@@ -14,13 +15,25 @@ vi.mock("@pos/db", () => {
     fixture.options = options;
     const working = structuredClone(fixture.state);
     const model = (key: string) => ({
-      findMany: vi.fn(async ({ where }: any = {}) => working[key].filter(row => matches(row, where)).sort((a, b) => a.id.localeCompare(b.id))),
+      findMany: vi.fn(async ({ where, select }: any = {}) => working[key]
+        .filter(row => matches(row, where))
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map(row => select ? Object.fromEntries(Object.keys(select).map(field => [field, row[field]])) : row)),
       create: vi.fn(async ({ data }: any) => { const row = { id: `new-${working[key].length}`, ...data, _count: { products: 0 } }; working[key].push(row); return row; }),
       update: vi.fn(async ({ where, data }: any) => { const row = working[key].find(row => matches(row, where)); Object.assign(row!, data); return row; }),
       updateMany: vi.fn(async ({ where, data }: any) => { fixture.calls.push(`${key}.updateMany`); const rows = working[key].filter(row => matches(row, where)); rows.forEach(row => Object.assign(row, data)); return { count: rows.length }; }),
-      deleteMany: vi.fn(async ({ where }: any) => { fixture.calls.push(`${key}.deleteMany`); if (key === "category" && fixture.failDelete) throw new Error("database failure"); const rows = working[key].filter(row => matches(row, where)); working[key] = working[key].filter(row => !matches(row, where)); return { count: rows.length }; }),
+      deleteMany: vi.fn(async ({ where }: any) => {
+        fixture.calls.push(`${key}.deleteMany`);
+        if (key === "category" && fixture.failDelete) throw new Error("database failure");
+        const rows = working[key].filter(row => matches(row, where));
+        working[key] = working[key].filter(row => !matches(row, where));
+        if (key === "category") for (const subcategory of working.subcategory) {
+          if (rows.some(row => row.id === subcategory.legacyCategoryId)) subcategory.legacyCategoryId = null;
+        }
+        return { count: rows.length };
+      }),
     });
-    const result = await fn({ category: model("category"), product: model("product"), categoryCustomerPricingRule: model("rule") });
+    const result = await fn({ category: model("category"), product: model("product"), productSubcategory: model("subcategory"), categoryCustomerPricingRule: model("rule") });
     fixture.state = working;
     return result;
   } } };
@@ -44,6 +57,7 @@ beforeEach(() => {
       { id: "p2", categoryId: "old", storeId: "s2", isActive: false, updatedAt: "2026-10-18T00:00:00Z", store: { id: "s2", name: "Toko Dua" } },
     ],
     rule: [{ id: "r1", categoryId: "old", storeId: "s1", customerType: null, customerTypes: ["AGEN"], unit: "pcs", brandId: null, brand: null, mode: "FIXED_PRICE", value: "1000", isActive: false, updatedAt: "2026-10-18T00:00:00Z", store: { id: "s1", name: "Toko Satu" } }],
+    subcategory: [],
   };
 });
 
@@ -108,6 +122,60 @@ describe("category batches", () => {
 });
 
 describe("deletion impact and confirmation", () => {
+  it("includes classified units in other legacy categories and stores in the deletion impact", async () => {
+    fixture.state.subcategory.push({ id: "sub-old", group: "ATK", name: "Buku", legacyCategoryId: "old", updatedAt: "2026-11-13T00:00:00Z" });
+    fixture.state.product[0].catalogSubcategoryId = "sub-old";
+    fixture.state.product.push({ id: "p3", categoryId: "next", catalogSubcategoryId: "sub-old", storeId: "s2", isActive: false, updatedAt: "2026-11-13T00:00:00Z", store: { id: "s2", name: "Toko Dua" } });
+    const preview = await executeCategoryAction(deletion, owner) as any;
+    expect(preview.categories[0].linkedClassification).toMatchObject({ name: "Buku", units: 2, activeUnits: 1, inactiveUnits: 1 });
+    expect(preview.categories[0].linkedClassification.stores).toEqual([
+      { id: "s1", name: "Toko Satu", units: 1 }, { id: "s2", name: "Toko Dua", units: 1 },
+    ]);
+    expect(preview.stores.find((store: any) => store.id === "s2").classifiedUnits).toBe(1);
+  });
+  it("requires Owner when a linked classified unit belongs to another store", async () => {
+    fixture.state.rule = [];
+    fixture.state.subcategory.push({ id: "sub-old", group: "ATK", name: "Buku", legacyCategoryId: "old", updatedAt: "2026-11-13T00:00:00Z" });
+    fixture.state.product = [{ id: "p3", categoryId: "next", catalogSubcategoryId: "sub-old", storeId: "s2", isActive: true, updatedAt: "2026-11-13T00:00:00Z", store: { id: "s2", name: "Toko Dua" } }];
+    await expect(executeCategoryAction(deletion, admin)).rejects.toMatchObject({ status: 403 });
+  });
+  it("rejects a stale preview if a unit becomes linked to the deleted category", async () => {
+    fixture.state.subcategory.push({ id: "sub-old", group: "ATK", name: "Buku", legacyCategoryId: "old", updatedAt: "2026-11-13T00:00:00Z" });
+    const input = await deleteInput();
+    fixture.state.product[0].catalogSubcategoryId = "sub-old";
+    await expect(executeCategoryAction(input, owner)).rejects.toMatchObject({ status: 409 });
+    expect(fixture.calls).toEqual([]);
+  });
+  it("rejects a stale preview if a moved product receives another classification", async () => {
+    fixture.state.subcategory.push({ id: "sub-other", group: "ATK", name: "Lain", legacyCategoryId: "next", updatedAt: "2026-11-13T00:00:00Z" });
+    const input = await deleteInput();
+    fixture.state.product[0].catalogSubcategoryId = "sub-other";
+    await expect(executeCategoryAction(input, owner)).rejects.toMatchObject({ status: 409 });
+    expect(fixture.calls).toEqual([]);
+  });
+  it("keeps the unit's new classification while unlinking its deleted legacy category", async () => {
+    fixture.state.subcategory.push({ id: "sub-old", group: "ATK", name: "Buku", legacyCategoryId: "old", updatedAt: "2026-11-13T00:00:00Z" });
+    fixture.state.product[0].catalogSubcategoryId = "sub-old";
+    await executeCategoryAction(await deleteInput(), owner);
+    expect(fixture.state.product[0]).toMatchObject({ categoryId: "next", catalogSubcategoryId: "sub-old" });
+    expect(fixture.state.subcategory[0].legacyCategoryId).toBeNull();
+  });
+  it("reveals linked units before removing the legacy rule that priced them", async () => {
+    fixture.state.subcategory.push({ id: "sub-old", group: "ATK", name: "Buku", legacyCategoryId: "old", updatedAt: "2026-11-13T00:00:00Z" });
+    fixture.state.product[0].catalogSubcategoryId = "sub-old";
+    Object.assign(fixture.state.rule[0], { mode: "FLAT_DISCOUNT", value: "2000", isActive: true });
+    const effectivePrice = () => {
+      const product = fixture.state.product[0];
+      const rules: CategoryPricingRule[] = fixture.state.rule.map(row => ({ id: row.id, categoryId: row.categoryId, customerType: "AGEN", mode: row.mode, value: Number(row.value), isActive: row.isActive }));
+      return priceProductForCustomerType({ categoryId: product.categoryId, catalogSubcategoryId: product.catalogSubcategoryId, catalogSubcategoryLegacyCategoryId: fixture.state.subcategory[0].legacyCategoryId, price: 10000 }, "AGEN", rules).unitPrice;
+    };
+    const preview = await executeCategoryAction(deletion, owner) as any;
+    expect(preview.categories[0].linkedClassification.units).toBe(1);
+    expect(preview.categories[0].rules[0]).toMatchObject({ id: "r1", isActive: true });
+    expect(effectivePrice()).toBe(8000);
+    await executeCategoryAction({ ...deletion, action: "delete", token: preview.token, acknowledged: true, confirmation: "HAPUS 1 KATEGORI" }, owner);
+    expect(effectivePrice()).toBe(10000);
+  });
   it("counts inactive products/rules and all affected stores with rule details", async () => {
     const preview = await executeCategoryAction(deletion, owner) as any;
     expect(preview).toMatchObject({ kind: "delete", totals: { categories: 1, products: 2, activeProducts: 1, inactiveProducts: 1, rules: 1, stores: 2 } });
@@ -214,6 +282,18 @@ describe("deletion impact and confirmation", () => {
 
 describe("selected product transfer", () => {
   const move = { action: "preview-move", productIds: ["p1"], targetCategoryId: "next" };
+  it("keeps a product's new classification when its legacy category moves", async () => {
+    fixture.state.product[0].catalogSubcategoryId = "sub-other";
+    const preview = await executeCategoryAction(move, admin) as any;
+    await executeCategoryAction({ ...move, action: "move", token: preview.token, acknowledged: true }, admin);
+    expect(fixture.state.product[0]).toMatchObject({ categoryId: "next", catalogSubcategoryId: "sub-other" });
+  });
+  it("rejects a move preview when the product's classification changes", async () => {
+    const preview = await executeCategoryAction(move, admin) as any;
+    fixture.state.product[0].catalogSubcategoryId = "sub-other";
+    await expect(executeCategoryAction({ ...move, action: "move", token: preview.token, acknowledged: true }, admin)).rejects.toMatchObject({ status: 409 });
+    expect(fixture.calls).toEqual([]);
+  });
   it("previews origins, and only moves explicit products within current store", async () => {
     const preview = await executeCategoryAction(move, admin) as any;
     expect(preview).toMatchObject({ kind: "move", targetCategoryName: "Tujuan", totals: { products: 1, unchanged: 0 }, origins: [{ id: "old", name: "Lama", products: 1 }] });

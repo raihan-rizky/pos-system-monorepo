@@ -1,53 +1,72 @@
-import { db } from "@pos/db";
+import { db, type Prisma } from "@pos/db";
 import { loadExpenseCorrectionCash } from "@/features/keuangan/repositories/expense-correction-cash-repository";
-import { buildDailyIncome, buildDailyIncomeRange, buildIncomePeriod } from "../helpers/daily-income";
-import { buildMonthlyPeriod } from "../helpers/monthly-report-core";
+import { buildDailyIncomeRange, jakartaToday } from "../helpers/daily-income";
+import { buildIncomePeriod, type IncomePeriod } from "../helpers/income-period";
+import { loadManualReceivablePeriod } from "./manual-receivable-period";
 
-async function loadIncomeInputs(storeId: string, month: string, start: Date, end: Date, now: Date, includeOutstandingDp: boolean) {
+async function loadSupplierRefunds(tx: Pick<Prisma.TransactionClient, "$queryRaw">, storeId: string, fromDate: string, toDate: string, now: Date) {
+  const months: string[] = [];
+  const firstMonth = new Date(`${fromDate.slice(0, 7)}-01T00:00:00Z`);
+  const lastMonth = new Date(`${toDate.slice(0, 7)}-01T00:00:00Z`);
+  for (const cursor = firstMonth; cursor <= lastMonth; cursor.setUTCMonth(cursor.getUTCMonth() + 1)) {
+    months.push(cursor.toISOString().slice(0, 7));
+  }
+  const cash = await Promise.all(months.map(month => loadExpenseCorrectionCash(tx, storeId, month, now)));
+  return cash.flatMap(period => period.refunds);
+}
+
+export async function loadIncomePeriod(storeId: string, fromDate: string, toDate: string, {
+  initialPaymentDate = "invoice", includeSupplierRefunds = true,
+}: { initialPaymentDate?: "invoice" | "received"; includeSupplierRefunds?: boolean } = {}): Promise<IncomePeriod> {
+  const from = buildDailyIncomeRange(fromDate, new Date(`${fromDate}T12:00:00+07:00`));
+  const to = buildDailyIncomeRange(toDate, new Date(`${toDate}T12:00:00+07:00`));
+  if (to.start.getTime() < from.start.getTime()) throw new RangeError("Rentang tanggal tidak valid.");
+  const now = new Date();
+  const today = jakartaToday(now);
+  if (fromDate > today) return { days: [], contributions: [], outstandingDp: [] };
+  const effectiveTo = toDate > today ? today : toDate;
+  const start = from.start;
+  const end = buildDailyIncomeRange(effectiveTo, now).end;
   const bounds = { gte: start, lt: end };
-  const paymentSelect = { id: true, method: true, amount: true, createdAt: true } as const;
-  const paymentOrder = [{ createdAt: "asc" }, { id: "asc" }] as const;
-  const [transactions, manualIncome, manualReceivables, correctionCash] = await db.$transaction(tx => Promise.all([
+  const initialPaymentFilter = initialPaymentDate === "invoice" ? [
+    { invoiceDate: bounds },
+    { status: "DP" as const, paymentMethod: { not: "TEMPO" as const }, invoiceDate: { lt: end } },
+  ] : [
+    { payments: { some: { createdAt: bounds } } },
+    { createdAt: bounds, paymentMethod: { not: "TEMPO" as const }, payments: { none: {} } },
+    { status: "DP" as const, paymentMethod: { not: "TEMPO" as const }, createdAt: { lt: end } },
+  ];
+  const [transactions, manualIncome, manualReceivables, supplierRefunds] = await db.$transaction(tx => Promise.all([
     tx.transaction.findMany({
       where: {
         storeId, status: { in: ["COMPLETED", "DP"] },
         OR: [
-          { invoiceDate: bounds },
+          ...initialPaymentFilter,
           { debtPaymentLogs: { some: { storeId, createdAt: bounds } } },
-          ...(includeOutstandingDp ? [{ status: "DP" as const, paymentMethod: { not: "TEMPO" as const }, invoiceDate: { lt: end } }] : []),
+          { createdAt: bounds, offlineClientMutationId: { not: null } },
         ],
       },
       select: {
-        id: true, createdAt: true, invoiceDate: true, status: true, total: true, amountPaid: true, change: true, paymentMethod: true,
+        id: true, createdAt: true, invoiceDate: true, offlineSyncMetadata: true, status: true, total: true, amountPaid: true, change: true, paymentMethod: true,
         transactionCategory: true, printingSubcategory: true, printingReceipt: { select: { subcategory: true } },
-        items: { select: { subtotal: true, printingServiceId: true, product: { select: { category: { select: { name: true } } } } } },
+        items: { select: { subtotal: true, printingServiceId: true, product: { select: { category: { select: { name: true } }, catalogSubcategory: { select: { group: true, name: true } } } } } },
         // Complete ledgers are needed to allocate refunds before filtering by day.
-        payments: { select: paymentSelect, orderBy: [...paymentOrder] },
-        debtPaymentLogs: { where: { storeId }, select: { id: true, paymentMethod: true, amount: true, createdAt: true }, orderBy: [...paymentOrder] },
+        payments: { select: { id: true, method: true, amount: true, createdAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+        debtPaymentLogs: { where: { storeId }, select: { id: true, paymentMethod: true, amount: true, createdAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       },
     }),
     tx.manualIncome.findMany({
       where: { storeId, deletedAt: null, occurredAt: bounds },
       select: { id: true, occurredAt: true, category: true, amount: true, payments: { select: { method: true, amount: true } } },
     }),
-    tx.customerReceivable.findMany({
-      where: { storeId, payments: { some: { createdAt: bounds } } },
-      select: { id: true, amount: true, payments: { select: paymentSelect, orderBy: [...paymentOrder] } },
-    }),
-    loadExpenseCorrectionCash(tx, storeId, month, now),
+    loadManualReceivablePeriod(tx, storeId, fromDate, effectiveTo),
+    includeSupplierRefunds ? loadSupplierRefunds(tx, storeId, fromDate, effectiveTo, now) : [],
   ]), { isolationLevel: "RepeatableRead", timeout: 30_000 });
-  return { transactions, manualIncome, manualReceivables, supplierRefunds: correctionCash.refunds };
+  return buildIncomePeriod({ fromDate, toDate: effectiveTo, transactions, manualIncome, manualReceivables, supplierRefunds, initialPaymentDate });
 }
 
-export async function loadDailyIncome(storeId: string, date: string, now = new Date()) {
-  const { start, end } = buildDailyIncomeRange(date, now);
-  const input = await loadIncomeInputs(storeId, date.slice(0, 7), start, end, now, true);
-  return buildDailyIncome({ date, ...input });
-}
-
-export async function loadMonthlyIncome(storeId: string, month: string, now = new Date()) {
-  const [year, monthNumber] = month.split("-").map(Number);
-  const { start, end } = buildMonthlyPeriod(year, monthNumber, now);
-  const input = await loadIncomeInputs(storeId, month, start, end, now, false);
-  return buildIncomePeriod(input, start, end);
+export async function loadDailyIncome(storeId: string, date: string) {
+  buildDailyIncomeRange(date);
+  const result = await loadIncomePeriod(storeId, date, date);
+  return result.days[0];
 }

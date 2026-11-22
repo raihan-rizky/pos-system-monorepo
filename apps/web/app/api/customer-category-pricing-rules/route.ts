@@ -16,6 +16,7 @@ import {
 import { getLogger } from "@/lib/logger";
 import { pricingRuleSchema, storedCustomerTargets, serializePricingRule, pricingRuleInclude, lockPricingRules, hasOverlappingPricingRule, overlapMessage } from "@/features/customer-category-pricing/helpers/rule-persistence";
 import { pricingRuleTransactionOptions } from "@/features/customer-category-pricing/helpers/rule-persistence";
+import { hasOverlappingSubcategoryPricingRule, serializeSubcategoryPricingRule, subcategoryPricingRuleInclude } from "@/features/customer-category-pricing/helpers/rule-persistence";
 
 const log = getLogger("api:customer-category-pricing-rules");
 
@@ -69,8 +70,18 @@ export async function GET(request: Request) {
       },
       orderBy: [{ isActive: "desc" }, { updatedAt: "desc" }],
     });
-
-    return apiCollection(rules.map(serializePricingRule));
+    const scopedRules = await db.subcategoryCustomerPricingRule.findMany({
+      where: {
+        storeId,
+        ...(activeOnly ? { isActive: true } : {}),
+        ...(customerType ? { customerTypes: customerType === "ALL" ? { isEmpty: true } : { has: customerType as CustomerType } } : {}),
+        ...(categoryId ? { subcategoryId: categoryId } : {}),
+        ...(brandId ? { brandId } : {}),
+      },
+      include: subcategoryPricingRuleInclude,
+      orderBy: [{ isActive: "desc" }, { updatedAt: "desc" }],
+    });
+    return apiCollection([...rules.map(serializePricingRule), ...scopedRules.map(serializeSubcategoryPricingRule)]);
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;
@@ -87,6 +98,7 @@ export async function POST(request: Request) {
     const user = await requireRole("OWNER");
     const storeId = user.storeId || "store-main";
     const body = await request.json();
+    if (body.scope !== undefined && body.scope !== "CATEGORY" && body.scope !== "SUBCATEGORY") return apiError("Cakupan aturan tidak valid", 422, { code: "ValidationError" });
     const parsed = pricingRuleSchema.safeParse(body);
     if (!parsed.success) return apiValidationError(parsed.error);
 
@@ -97,7 +109,11 @@ export async function POST(request: Request) {
     const normalizedUnit = units.length === 1 ? units[0] : null;
     const brandId = data.brandId || null;
 
-    if (!(await assertCategoryExists(data.categoryId))) {
+    const isSubcategory = body.scope === "SUBCATEGORY";
+    const categoryExists = isSubcategory
+      ? Boolean(await db.productSubcategory.findUnique({ where: { id: data.categoryId }, select: { id: true } }))
+      : await assertCategoryExists(data.categoryId);
+    if (!categoryExists) {
       return apiError("Kategori tidak ditemukan", 404, { code: "NotFound" });
     }
     if (!(await assertBrandExists(storeId, brandId))) {
@@ -108,8 +124,16 @@ export async function POST(request: Request) {
       await lockPricingRules(tx, storeId);
       const targets = storedCustomerTargets(data);
       const isActive = data.isActive ?? true;
-      if (isActive && await hasOverlappingPricingRule(tx, { storeId, categoryId: data.categoryId, ...targets, unit: normalizedUnit, units, brandId })) {
+      const scope = { storeId, categoryId: data.categoryId, ...targets, unit: normalizedUnit, units, brandId };
+      if (isActive && await (isSubcategory ? hasOverlappingSubcategoryPricingRule(tx, scope) : hasOverlappingPricingRule(tx, scope))) {
         return apiError(overlapMessage, 409, { code: "Conflict" });
+      }
+      if (isSubcategory) {
+        const created = await tx.subcategoryCustomerPricingRule.create({
+          data: { storeId, subcategoryId: data.categoryId, ...targets, unit: normalizedUnit, units, brandId, mode: data.mode, value: data.value, discountPercent: data.mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT" ? data.discountPercent : 0, isActive, createdBy: user.id, updatedBy: user.id },
+          include: subcategoryPricingRuleInclude,
+        });
+        return NextResponse.json(serializeSubcategoryPricingRule(created), { status: 201 });
       }
       const created = await tx.categoryCustomerPricingRule.create({
         data: { storeId, categoryId: data.categoryId, ...targets, unit: normalizedUnit, units, brandId, mode: data.mode, value: data.value, discountPercent: data.mode === "UNIT_COST_PLUS_PERCENT_DISCOUNT" ? data.discountPercent : 0, isActive, createdBy: user.id, updatedBy: user.id },

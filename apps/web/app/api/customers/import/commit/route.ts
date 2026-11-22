@@ -9,6 +9,7 @@ import {
 import { toDbCustomerType } from "@/lib/customers";
 import { apiError, apiValidationError } from "@/lib/api/responses";
 import { getLogger } from "@/lib/logger";
+import { requireCustomerDebtIdentityPermission } from "@/features/customer-debt/server/customer-identity-authorization";
 
 const log = getLogger("api:customers:import:commit");
 
@@ -47,6 +48,10 @@ export async function POST(request: Request) {
         code: "ValidationError",
         errors: { rows: ["At least one row is required"] },
       });
+    }
+
+    if (rows.some((row) => decisions[String(row.rowNumber)] === "update")) {
+      await requirePermission("customer", "update");
     }
 
     const activeRows = rows.filter((row) => {
@@ -133,6 +138,10 @@ export async function POST(request: Request) {
           };
 
           if (existing) {
+            await tx.$queryRaw`SELECT "id" FROM "pos_customers" WHERE "id" = ${existing.id} AND "storeId" = ${storeId} FOR UPDATE`;
+            const current = await tx.customer.findFirst({ where: { id: existing.id, storeId }, select: { id: true, name: true } });
+            if (!current) throw new Error("CUSTOMER_CHANGED");
+            await requireCustomerDebtIdentityPermission(tx, storeId, user, current, payload.name);
             await tx.customer.update({
               where: { id: existing.id },
               data: payload,

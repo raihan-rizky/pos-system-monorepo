@@ -5,6 +5,7 @@ import { getPriceRoundingSettings } from "@/features/product-price-rounding/serv
 import { getSpecialPricingEnabled } from "@/features/customer-category-pricing/server/special-pricing-settings";
 import { discountedLineSubtotal } from "@/features/pos-checkout/helpers/item-discount";
 import { PRINTING_SUBCATEGORIES } from "@/features/printing-receipts/types";
+import { applyPrintingReceiptCheckoutNames } from "@/features/printing-receipts/checkout";
 import { loadProductBaseCosts } from "@/features/customer-category-pricing/helpers/base-cost";
 import { calculateTransactionTax } from "@/features/transaction-tax/helpers/tax-calculation";
 import { getInvoiceNow } from "@/features/invoice-date/services/internet-clock";
@@ -16,6 +17,7 @@ import { canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
 import type { Role } from "@/lib/rbac/permissions";
 import { z } from "zod";
+import { loadCustomerPricingRules } from "@/features/customer-category-pricing/server/pricing-rule-loader";
 import { apiList, buildPaginationMeta, parsePagination } from "@/lib/api/responses";
 
 import { getLogger } from "@/lib/logger";
@@ -53,6 +55,7 @@ import {
   getPrintingReceiptCheckoutLines,
   MAX_PRINTING_RECEIPT_AMOUNT,
   parsePrintingReceiptDocument,
+  parsePrintingSubcategory,
   PrintingReceiptValidationError,
 } from "@/features/printing-receipts/domain";
 import {
@@ -78,6 +81,7 @@ const productTransactionItemSchema = z.object({
   material: z.string().optional().nullable(),
   price: z.number().min(0).optional(),
   categoryId: z.string().optional(),
+  catalogSubcategoryId: z.string().nullable().optional(),
   transactionPrice: z.number().positive().max(9_999_999_999.99).optional().nullable(),
   customerManualPrice: z.number().finite().min(0).max(9_999_999_999.99).optional().nullable(),
   quantity: z.number().int().min(1),
@@ -229,6 +233,7 @@ export async function GET(request: Request) {
     if (search) {
       andConditions.push({
         OR: [
+          { id: search },
           { invoiceNumber: { contains: search, mode: "insensitive" } },
           { printingReceipt: { is: { number: { contains: search, mode: "insensitive" } } } },
           { customerName: { contains: search, mode: "insensitive" } },
@@ -537,6 +542,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Kasir atau toko berubah. Masuk kembali sebagai kasir asal untuk memproses transaksi." }, { status: 403 });
     }
     let printingReceipt: Awaited<ReturnType<typeof db.printingReceipt.findFirst>> = null;
+    let printingReceiptDocument: ReturnType<typeof parsePrintingReceiptDocument> | null = null;
+    let hasPrintingReceiptCheckout = false;
     let receiptInvoiceDate: string | null = null;
     if (body.printingReceiptId !== undefined || body.printingReceiptRevision !== undefined) {
       const context = z.object({
@@ -565,6 +572,7 @@ export async function POST(request: Request) {
         throw new PrintingReceiptCheckoutConflict("Nota sudah berubah. Muat ulang sebelum memproses pembayaran.");
       }
       const document = parsePrintingReceiptDocument(printingReceipt.document);
+      printingReceiptDocument = document;
       receiptInvoiceDate = document.date;
       body.items = getPrintingReceiptCheckoutLines(document).map((line) => ({
         lineType: "PRINTING_SERVICE", printingServiceId: null,
@@ -572,8 +580,20 @@ export async function POST(request: Request) {
         needsMaterial: Boolean(line.stockLink), rawMaterialProductId: line.stockLink?.productId ?? null,
         rawMaterialQuantity: line.stockLink?.quantity ?? null, rawMaterialUnit: line.stockLink?.unit ?? null,
       }));
-      body.customerName = document.customerName;
-      body.customerId = document.customerId;
+      if (body.printingReceiptCheckout !== undefined) {
+        const selection = z.object({
+          customerName: z.string().trim().min(1).max(200),
+          customerId: z.string().trim().min(1).max(128).nullable(),
+        }).strict().safeParse(body.printingReceiptCheckout);
+        if (!selection.success) throw new PrintingReceiptValidationError("Pilihan pelanggan pada nota tidak valid. Pilih ulang pelanggan.");
+        hasPrintingReceiptCheckout = true;
+        body.customerName = selection.data.customerName;
+        body.customerId = selection.data.customerId;
+        if (typeof body.invoiceDate === "string") receiptInvoiceDate = body.invoiceDate;
+      } else {
+        body.customerName = document.customerName;
+        body.customerId = document.customerId;
+      }
       body.isJobOrder = true;
       body.note = body.note || document.note;
       if (document.completionDate) {
@@ -771,7 +791,7 @@ export async function POST(request: Request) {
       salespersonId
         ? db.salesperson.findFirst({
             where: { id: salespersonId, storeId },
-            select: { id: true },
+            select: { id: true, name: true },
           })
         : Promise.resolve(true), // no salesperson to validate
       db.product.findMany({
@@ -794,6 +814,8 @@ export async function POST(request: Request) {
           size: true,
           material: true,
           categoryId: true,
+          catalogSubcategoryId: true,
+          catalogSubcategory: { select: { legacyCategoryId: true } },
           category: { select: { name: true } },
           brand: { select: { name: true } },
         },
@@ -827,6 +849,13 @@ export async function POST(request: Request) {
     if (salespersonId && !salespersonCheck) {
       return NextResponse.json({ message: "Salesperson not found" }, { status: 404 });
     }
+    const selectedSalesName = salespersonId && salespersonCheck && salespersonCheck !== true ? salespersonCheck.name : null;
+    const recordedSalesName = printingReceipt ? selectedSalesName ?? (hasPrintingReceiptCheckout ? null : salesName) : salesName;
+    const checkoutDocument = printingReceipt && printingReceiptDocument
+      ? parsePrintingReceiptDocument(applyPrintingReceiptCheckoutNames({ ...printingReceiptDocument, date: receiptInvoiceDate ?? printingReceiptDocument.date }, parsePrintingSubcategory(printingReceipt.subcategory), {
+          customerName: customerName ?? "", customerId: customerId || null, salesName: selectedSalesName,
+        }))
+      : null;
 
     const baseCosts = await loadProductBaseCosts(db, products);
     const productById = new Map(products.map((product) => [product.id, product]));
@@ -853,28 +882,7 @@ export async function POST(request: Request) {
       customerId && customerCheck && customerCheck !== true
         ? (customerCheck.type as CustomerType)
         : "UMUM";
-    const pricingRules = (await db.categoryCustomerPricingRule.findMany({
-      where: { storeId, isActive: true },
-      include: {
-        category: { select: { name: true } },
-        brand: { select: { name: true } },
-      },
-    })).map((rule) => ({
-      id: rule.id,
-      categoryId: rule.categoryId,
-      categoryName: rule.category.name,
-      customerType: (rule.customerType ?? "ALL") as CategoryPricingRule["customerType"],
-      customerTypes: rule.customerTypes,
-      unit: rule.unit,
-      units: rule.units,
-      brandId: rule.brandId,
-      brandName: rule.brand?.name ?? null,
-      mode: rule.mode,
-      value: Number(rule.value),
-      discountPercent: Number(rule.discountPercent ?? 0),
-      isActive: rule.isActive,
-      updatedAt: rule.updatedAt,
-    })) satisfies CategoryPricingRule[];
+    const pricingRules = await loadCustomerPricingRules(db, storeId);
 
     const roundingSettings = await getPriceRoundingSettings();
     const specialPricingEnabled = await getSpecialPricingEnabled();
@@ -899,8 +907,10 @@ export async function POST(request: Request) {
     ));
     const categoryChanged = items.some(item => item.lineType === "PRODUCT" && item.categoryId != null &&
       item.categoryId !== productById.get(item.productId)?.categoryId);
-    if ((roundingPolicyChanged || categoryChanged) && !parsed.data.offlineReplay) {
-      return NextResponse.json({ message: categoryChanged
+    const classificationChanged = items.some(item => item.lineType === "PRODUCT" && item.catalogSubcategoryId !== undefined &&
+      item.catalogSubcategoryId !== (productById.get(item.productId)?.catalogSubcategoryId ?? null));
+    if ((roundingPolicyChanged || categoryChanged || classificationChanged) && !parsed.data.offlineReplay) {
+      return NextResponse.json({ message: categoryChanged || classificationChanged
         ? "Kategori produk sudah berubah. Muat ulang harga sebelum melanjutkan transaksi."
         : "Pengaturan pembulatan harga sudah berubah. Muat ulang harga sebelum melanjutkan transaksi." }, { status: 409 });
     }
@@ -952,6 +962,8 @@ export async function POST(request: Request) {
             {
               categoryId: product.categoryId,
               categoryName: product.category.name,
+              catalogSubcategoryId: product.catalogSubcategoryId,
+              catalogSubcategoryLegacyCategoryId: product.catalogSubcategory?.legacyCategoryId ?? null,
               price: Number(product.price),
               costPrice: product.costPrice == null ? null : Number(product.costPrice),
               ...baseCosts.get(product.id),
@@ -969,7 +981,7 @@ export async function POST(request: Request) {
           const roundedAutomatic = roundSellingPriceLine(priced, roundingSettings, product.categoryId);
           const legacyResolved = resolveCustomPricedLine({
             pricedLine: priced,
-            submittedPrice: (parsed.data.offlineReplay && (roundingPolicyChanged ||
+            submittedPrice: item.catalogSubcategoryId !== undefined || (parsed.data.offlineReplay && (roundingPolicyChanged || classificationChanged ||
               (item.categoryId != null && item.categoryId !== product.categoryId))) || item.price === roundedAutomatic.unitPrice
               ? undefined : item.price,
             role: user.role,
@@ -998,6 +1010,12 @@ export async function POST(request: Request) {
         discount: item.discount,
       };
     });
+
+    const staleAutomaticPrice = !parsed.data.offlineReplay && items.some((item, index) =>
+      item.lineType === "PRODUCT" && item.catalogSubcategoryId !== undefined && item.price != null &&
+      item.transactionPrice == null && item.customerManualPrice == null &&
+      Math.round(item.price * 100) !== Math.round(serverItems[index].price * 100));
+    if (staleAutomaticPrice) return NextResponse.json({ message: "Harga produk sudah berubah. Muat ulang harga sebelum melanjutkan transaksi." }, { status: 409 });
 
     // Calculate totals
     const subtotal = serverItems.reduce(
@@ -1147,7 +1165,7 @@ export async function POST(request: Request) {
               status: finalStatus,
               note: note || null,
               customerName: customerName || null,
-              salesName: salesName || null,
+              salesName: recordedSalesName || null,
               salespersonId: salespersonId || null,
               isJobOrder,
               productionStatus: isJobOrder ? "PRINTING" : null,
@@ -1259,7 +1277,16 @@ export async function POST(request: Request) {
 
           if (printingReceipt) {
             await assertPrintingReceiptStockUnits(tx, { storeId, items: serverItems });
-            await tx.printingReceipt.update({ where: { id: printingReceipt.id }, data: { transactionId: txn.id } });
+            const updatedDocument = checkoutDocument!;
+            const namesChanged = updatedDocument.customerName !== printingReceiptDocument!.customerName ||
+              updatedDocument.customerId !== printingReceiptDocument!.customerId ||
+              updatedDocument.date !== printingReceiptDocument!.date ||
+              updatedDocument.receiver !== printingReceiptDocument!.receiver ||
+              updatedDocument.signatory !== printingReceiptDocument!.signatory;
+            await tx.printingReceipt.update({ where: { id: printingReceipt.id }, data: {
+              transactionId: txn.id,
+              ...(namesChanged ? { document: updatedDocument as unknown as Prisma.InputJsonObject } : {}),
+            } });
           }
 
           // Batched stock decrement: a single UPDATE ... FROM (VALUES ...)

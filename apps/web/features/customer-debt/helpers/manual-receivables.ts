@@ -1,5 +1,6 @@
 import type { Prisma } from "@pos/db";
 import { z } from "zod";
+import { MANUAL_RECEIPT_REPORT_CATEGORIES } from "@/features/keuangan/helpers/manual-report-categories";
 
 const money = z.number().finite().positive("Nominal harus lebih dari 0.").max(9999999999.99, "Nominal terlalu besar.").multipleOf(0.01, "Gunakan maksimal dua angka desimal.");
 const date = z.iso.date("Tanggal tidak valid.");
@@ -11,6 +12,7 @@ export function todayInJakarta(): string {
 
 export const createReceivableSchema = z.object({
   customerId: z.string().min(1), amount: money, debtDate: date, dueDate: date, note,
+  reportCategory: z.enum(MANUAL_RECEIPT_REPORT_CATEGORIES, { error: "Pilih kategori laporan." }),
   clientMutationId: z.uuid("Permintaan tidak valid. Silakan muat ulang formulir."),
 }).refine((value) => value.dueDate >= value.debtDate, { path: ["dueDate"], message: "Tanggal jatuh tempo tidak boleh sebelum tanggal utang." })
   .refine((value) => value.debtDate <= todayInJakarta(), { path: ["debtDate"], message: "Tanggal utang tidak boleh melewati hari ini." });
@@ -43,7 +45,7 @@ export async function createReceivable(tx: Tx, input: z.infer<typeof createRecei
   if (!customer) throw new ReceivableError("Pelanggan tidak ditemukan.", 404);
   const previous = await tx.customerReceivable.findUnique({ where: { clientMutationId: input.clientMutationId }, include: receivableInclude });
   if (previous) {
-    if (previous.storeId !== actor.storeId || previous.customerId !== input.customerId || Number(previous.amount) !== input.amount || previous.debtDate.toISOString().slice(0, 10) !== input.debtDate || previous.dueDate.toISOString().slice(0, 10) !== input.dueDate || (previous.note ?? "") !== (input.note ?? "")) {
+    if (previous.storeId !== actor.storeId || previous.customerId !== input.customerId || Number(previous.amount) !== input.amount || previous.debtDate.toISOString().slice(0, 10) !== input.debtDate || previous.dueDate.toISOString().slice(0, 10) !== input.dueDate || previous.reportCategory !== input.reportCategory || (previous.note ?? "") !== (input.note ?? "")) {
       throw new ReceivableError("Permintaan sudah digunakan untuk piutang lain. Muat ulang formulir.", 409);
     }
     return previous;
@@ -62,6 +64,7 @@ export async function payReceivable(tx: Tx, id: string, input: z.infer<typeof re
   await lockCustomer(tx, identity.customerId, actor.storeId);
   const receivable = await tx.customerReceivable.findFirst({ where: { id, storeId: actor.storeId }, include: receivableInclude });
   if (!receivable) throw new ReceivableError("Piutang tidak ditemukan.", 404);
+  if (receivable.customerId !== identity.customerId) throw new ReceivableError("Pelanggan piutang berubah. Muat ulang dan coba lagi.", 409);
   const previous = await tx.customerReceivablePayment.findUnique({ where: { clientMutationId: input.clientMutationId } });
   if (previous) {
     if (previous.receivableId !== id || Number(previous.amount) !== input.amount || previous.method !== input.method || (previous.note ?? "") !== (input.note ?? "")) throw new ReceivableError("Permintaan sudah digunakan untuk pembayaran lain. Muat ulang formulir.", 409);

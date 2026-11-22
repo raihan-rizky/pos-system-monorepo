@@ -41,14 +41,17 @@ import { usePriceRoundingSettings } from "@/features/product-price-rounding/hook
 import { useSpecialPricingSettings } from "@/features/customer-category-pricing/hooks/useSpecialPricingSettings";
 import { DEFAULT_PRICE_ROUNDING_SETTINGS, type PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 import { PriceRoundingBadge } from "@/features/product-price-rounding/components/PriceRoundingBadge";
+import type { OfflineCatalogPricing } from "@/lib/offline/offline-pricing";
 
 
 
 interface PaymentModalProps {
+  offlinePricing?: OfflineCatalogPricing;
   allowItemDiscounts?: boolean;
   receiptInvoiceDate?: string;
   initialCustomerSelection?: CheckoutCustomerSelection;
   onCustomerSelectionChange?: (selection: CheckoutCustomerSelection) => void;
+  preserveCustomerSelectionOnClose?: boolean;
   open: boolean;
   onClose: () => void;
   items: CartItem[];
@@ -144,8 +147,10 @@ export function PaymentModal({
   onUpdateTransactionPrice,
   initialCustomerSelection,
   onCustomerSelectionChange,
+  preserveCustomerSelectionOnClose = false,
   allowItemDiscounts = true,
   receiptInvoiceDate,
+  offlinePricing,
 }: PaymentModalProps) {
   const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<string[]>(["CASH"]);
   const [discountMode, setDiscountMode] = useState<"RP" | "PERCENT">("RP");
@@ -184,9 +189,11 @@ export function PaymentModal({
   const createCustomer = useCreateCustomer();
   const handleClose = () => {
     if (isProcessing || isSavingDraft || createCustomer.isPending) return;
-    const generalSelection: CheckoutCustomerSelection = { kind: "general" };
-    setCustomerSelection(generalSelection);
-    onCustomerSelectionChange?.(generalSelection);
+    if (!preserveCustomerSelectionOnClose) {
+      const generalSelection: CheckoutCustomerSelection = { kind: "general" };
+      setCustomerSelection(generalSelection);
+      onCustomerSelectionChange?.(generalSelection);
+    }
     onClose();
   };
   const pricingRulesQuery = useCustomerCategoryPricingRules({ activeOnly: true });
@@ -204,30 +211,42 @@ export function PaymentModal({
     serverClock.isLoading,
     { preserveOnReopen: true },
   );
-  const invoiceDate = receiptInvoiceDate ?? selectedInvoiceDate;
+  const [receiptDate, setReceiptDate] = useState(receiptInvoiceDate ?? "");
+  const isReceiptPayment = receiptInvoiceDate !== undefined;
+  const invoiceDate = isReceiptPayment ? receiptDate : selectedInvoiceDate;
+
+  useEffect(() => {
+    setReceiptDate(receiptInvoiceDate ?? "");
+  }, [receiptInvoiceDate]);
   
   const { role, isOfflineSession } = useRole();
   const canChangeInvoiceDate = !isOfflineSession && (role === "OWNER" || role === "ADMIN");
+  const invalidReceiptDate = canChangeInvoiceDate && isReceiptPayment && !invoiceDate;
   const selectedCustomerType: CustomerType =
     customerSelection.kind === "existing"
       ? customerSelection.customer.type ?? "UMUM"
-      : "UMUM";
+      : customerSelection.kind === "new"
+        ? customerSelection.type ?? "UMUM"
+        : "UMUM";
   const specialPricingSettings = useSpecialPricingSettings();
-  const specialPricingEnabled = specialPricingSettings.data ?? false;
-  const canUseSpecialPricingPolicy = !items.some(item => item.lineType === "PRODUCT") || specialPricingSettings.data !== undefined;
+  const specialPricingEnabled = (isOfflineSession ? offlinePricing?.specialPricingEnabled : specialPricingSettings.data) ?? false;
+  const activePricingRules = isOfflineSession ? offlinePricing?.rules : pricingRulesQuery.data;
+  const canUseSpecialPricingPolicy = !items.some(item => item.lineType === "PRODUCT") ||
+    (isOfflineSession ? offlinePricing !== undefined : specialPricingSettings.data !== undefined && (!specialPricingEnabled || activePricingRules !== undefined));
   const canEditCustomPrices = !isOfflineSession && specialPricingEnabled && canEditCustomPriceForCustomer(
     role,
     selectedCustomerType,
   );
-  const currentCatalogItems = useCartCatalogPrices(items, open);
+  const refreshedCatalogItems = useCartCatalogPrices(items, open && !isOfflineSession);
+  const currentCatalogItems = isOfflineSession ? items : refreshedCatalogItems;
   const roundingQuery = usePriceRoundingSettings();
-  const roundingSettings = roundingQuery.data ?? DEFAULT_PRICE_ROUNDING_SETTINGS;
+  const roundingSettings = (isOfflineSession ? offlinePricing?.rounding : roundingQuery.data) ?? DEFAULT_PRICE_ROUNDING_SETTINGS;
   const canUseRoundingPolicy = !items.some(item => item.lineType === "PRODUCT") ||
-    Boolean(roundingQuery.data && !roundingQuery.isPlaceholderData);
+    (isOfflineSession ? Boolean(offlinePricing?.rounding) : Boolean(roundingQuery.data && !roundingQuery.isPlaceholderData));
   const basePricedItems = priceCartItemsForCheckout({
     items: currentCatalogItems,
     customerType: selectedCustomerType,
-    pricingRules: pricingRulesQuery.data ?? [],
+    pricingRules: activePricingRules ?? [],
     manualPrices,
     role,
     roundingSettings,
@@ -299,7 +318,7 @@ export function PaymentModal({
     customerSelection.kind === "existing" ||
     (customerSelection.kind === "new" && Boolean(customerSelection.name.trim()));
   const hasInvalidSellingPrice = pricedItems.some(item => item.lineType === "PRODUCT" && item.priceError);
-  const canPay = canUseRoundingPolicy && canUseSpecialPricingPolicy && !hasInvalidSellingPrice && pricedItems.length > 0 && !invalidTax && !itemDiscountEditor && canSubmitPayment({
+  const canPay = canUseRoundingPolicy && canUseSpecialPricingPolicy && !hasInvalidSellingPrice && pricedItems.length > 0 && !invalidReceiptDate && !invalidTax && !itemDiscountEditor && canSubmitPayment({
     mode: isTempo ? "TEMPO" : isDP ? "DP" : "PAID",
     amountPaid,
     total,
@@ -310,10 +329,19 @@ export function PaymentModal({
   const resolveCustomerForSubmit = async () => {
     try {
       setCustomerError(null);
-      return await resolveCheckoutCustomer(
+      const customer = await resolveCheckoutCustomer(
         customerSelection,
         createCustomer.mutateAsync,
       );
+      if (customerSelection.kind === "new" && customer.customerId) {
+        const savedSelection: CheckoutCustomerSelection = {
+          kind: "existing",
+          customer: { id: customer.customerId, name: customer.customerName, type: customer.customerType },
+        };
+        setCustomerSelection(savedSelection);
+        onCustomerSelectionChange?.(savedSelection);
+      }
+      return customer;
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Gagal menyimpan pelanggan";
@@ -424,12 +452,12 @@ export function PaymentModal({
   return (
     <Modal open={open} onClose={handleClose} title="Pembayaran" size="lg">
       <div className="space-y-5 px-1 py-1">
-        {!canUseRoundingPolicy && (
+        {!isOfflineSession && !canUseRoundingPolicy && (
           <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             {roundingQuery.isError ? "Pengaturan pembulatan harga gagal dimuat. Muat ulang sebelum melanjutkan pembayaran." : "Memuat pengaturan pembulatan harga sebelum pembayaran…"}
           </div>
         )}
-        {!canUseSpecialPricingPolicy && (
+        {!isOfflineSession && !canUseSpecialPricingPolicy && (
           <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             {specialPricingSettings.isError ? "Pengaturan Harga Khusus gagal dimuat. Muat ulang sebelum melanjutkan pembayaran." : "Memuat pengaturan Harga Khusus sebelum pembayaran…"}
           </div>
@@ -450,10 +478,14 @@ export function PaymentModal({
           )}
         </div>
         <div className="bg-surface-50 rounded-xl p-4 space-y-2 max-h-[280px] overflow-y-auto">
-          {specialPricingEnabled && pricingRulesQuery.isError && (
+          {isOfflineSession && !offlinePricing && items.some(item => item.lineType === "PRODUCT") && (
+            <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+              Katalog atau aturan harga offline belum lengkap untuk keranjang ini. Siapkan ulang katalog saat terhubung ke internet, atau hapus produk yang tidak tersedia.
+            </div>
+          )}
+          {!isOfflineSession && specialPricingEnabled && pricingRulesQuery.isError && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-              Aturan Harga Khusus gagal dimuat. Harga Agen/Dinas dipakai jika
-              tersedia, lalu Harga Normal.
+              Aturan Harga Khusus belum dapat dimuat. Pembayaran menunggu aturan harga tersedia.
             </div>
           )}
           {affectedItems.length > 0 && (
@@ -734,14 +766,15 @@ export function PaymentModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label htmlFor="payment-invoice-date" className="text-sm font-medium text-surface-700 mb-1.5 block">
-                  {receiptInvoiceDate ? "Tanggal Nota" : "Tanggal Invoice (Opsional)"}
+                  {isReceiptPayment ? "Tanggal Nota" : "Tanggal Invoice (Opsional)"}
                 </label>
                 <input
                   type="date"
                   id="payment-invoice-date"
-                  disabled={Boolean(receiptInvoiceDate)}
+                  required={isReceiptPayment}
+                  disabled={isProcessing || isSavingDraft || (isReceiptPayment && !canChangeInvoiceDate)}
                   value={invoiceDate}
-                  onChange={(e) => setInvoiceDate(e.target.value)}
+                  onChange={(e) => isReceiptPayment ? setReceiptDate(e.target.value) : setInvoiceDate(e.target.value)}
                   className="w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 text-sm text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400"
                 />
               </div>
@@ -759,9 +792,10 @@ export function PaymentModal({
               </div>
             </div>
             <p className="text-xs text-surface-500">
-              {receiptInvoiceDate ? "Tanggal mengikuti nota. Ubah pada lembar nota sebelum pembayaran. " : ""}
+              {isReceiptPayment ? "Tanggal pilihan disimpan ke nota dan dipakai untuk invoice saat pembayaran. " : ""}
               Jika jam dikosongkan, sistem memakai jam checkout saat invoice dibuat.
             </p>
+            {invalidReceiptDate && <p role="alert" className="text-xs text-danger-700">Pilih tanggal nota sebelum pembayaran.</p>}
             {invoiceDate && invoiceDate !== toJakartaInputParts(serverClock.now ?? new Date()).date && (
               <div>
                 <label className="text-sm font-medium text-surface-700 mb-1.5 block">

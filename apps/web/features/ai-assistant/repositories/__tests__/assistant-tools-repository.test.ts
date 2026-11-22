@@ -195,7 +195,7 @@ describe("assistant tools repository", () => {
       { id: "c1", name: "Budi", phone: "0812", company: "Budi Co", type: "UMUM", totalDebt: { toNumber: () => 100000 }, totalSpent: { toNumber: () => 500000 }, totalOrders: 5, lastVisitAt: new Date("2026-06-01") },
     ]);
 
-    const result = await getCustomerSearch({ storeId: "store-1", query: "Budi", limit: 10 });
+    const result = await getCustomerSearch({ storeId: "store-1", query: "Budi", limit: 10, canViewReceivables: true });
 
     expect(customerFindManyMock).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ storeId: "store-1" }),
@@ -204,14 +204,33 @@ describe("assistant tools repository", () => {
     expect(result.items[0]).toMatchObject({ name: "Budi", totalDebt: 100000 });
   });
 
+  it("does not select or return receivable fields without receivable-view access", async () => {
+    customerFindManyMock.mockResolvedValue([
+      { id: "c1", name: "Budi", phone: "0812", company: "Budi Co", type: "UMUM", totalDebt: { toNumber: () => 100000 }, totalSpent: { toNumber: () => 500000 }, totalOrders: 5, lastVisitAt: null },
+    ]);
+
+    const result = await getCustomerSearch({ storeId: "store-1", query: "Budi", limit: 10 });
+
+    expect(customerFindManyMock.mock.calls[0][0].select).not.toHaveProperty("totalDebt");
+    expect(result.items[0]).not.toHaveProperty("totalDebt");
+  });
+
   it("returns customer debt summary for unique customer match", async () => {
     customerFindManyMock.mockResolvedValue([
       { id: "c1", name: "Budi", phone: "0812", company: null, type: "UMUM", totalDebt: { toNumber: () => 100000 }, totalSpent: { toNumber: () => 500000 }, totalOrders: 5, lastVisitAt: null },
     ]);
 
-    const result = await getCustomerDebtSummary({ storeId: "store-1", query: "Budi" });
+    const result = await getCustomerDebtSummary({ storeId: "store-1", query: "Budi", canViewReceivables: true });
 
     expect(result.match).toMatchObject({ name: "Budi", totalDebt: 100000 });
+  });
+
+  it("does not run a debt summary repository query without receivable-view access", async () => {
+    const result = await getCustomerDebtSummary({ storeId: "store-1", query: "Budi" });
+
+    expect(customerFindManyMock).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ match: null, candidates: [] });
+    expect(JSON.stringify(result)).not.toContain("totalDebt");
   });
 
   it("returns customer recap summary for last 30 days", async () => {
@@ -221,10 +240,24 @@ describe("assistant tools repository", () => {
     transactionFindManyMock.mockResolvedValue([{ id: "t1", total: { toNumber: () => 75000 }, createdAt: new Date("2026-06-20"), status: "COMPLETED" }]);
     debtPaymentLogFindManyMock.mockResolvedValue([{ amount: { toNumber: () => 25000 }, createdAt: new Date("2026-06-21") }]);
 
-    const result = await getCustomerRecapSummary({ storeId: "store-1", query: "Budi", now: new Date("2026-06-26T10:00:00Z") });
+    const result = await getCustomerRecapSummary({ storeId: "store-1", query: "Budi", now: new Date("2026-06-26T10:00:00Z"), canViewReceivables: true });
 
     expect(transactionFindManyMock).toHaveBeenCalled();
     expect(result.match).toMatchObject({ name: "Budi", transactionCount: 1, revenue: 75000, debtPaid: 25000 });
+  });
+
+  it("omits debt totals from recap and skips payment history without receivable-view access", async () => {
+    customerFindManyMock.mockResolvedValueOnce([
+      { id: "c1", name: "Budi", phone: "0812", company: null, type: "UMUM", totalDebt: { toNumber: () => 100000 }, totalSpent: { toNumber: () => 500000 }, totalOrders: 5, lastVisitAt: null },
+    ]);
+    transactionFindManyMock.mockResolvedValue([{ id: "t1", total: { toNumber: () => 75000 }, createdAt: new Date("2026-06-20"), status: "COMPLETED" }]);
+
+    const result = await getCustomerRecapSummary({ storeId: "store-1", query: "Budi", now: new Date("2026-06-26T10:00:00Z") });
+
+    expect(transactionFindManyMock).toHaveBeenCalled();
+    expect(debtPaymentLogFindManyMock).not.toHaveBeenCalled();
+    expect(result.match).not.toHaveProperty("totalDebt");
+    expect(result.match).not.toHaveProperty("debtPaid");
   });
 
   it("loads every financial-report section for a holistic analysis", async () => {
@@ -248,7 +281,7 @@ describe("assistant tools repository", () => {
         quantity: 2,
         subtotal: { toNumber: () => 100_000 },
         unitCost: { toNumber: () => 30_000 },
-        product: { category: { name: "ATK" } },
+        product: { category: { name: "ATK" }, catalogSubcategory: { group: "PERCETAKAN", name: "PRINT" } },
       }],
     }]);
     transactionFindManyMock.mockResolvedValueOnce([{ id: "tx-1", status: "COMPLETED", paymentMethod: "CASH", total: 100000, amountPaid: 100000, change: 0, createdAt: new Date("2026-06-20T02:00:00Z"), salesName: "Ari", payments: [{ method: "CASH", amount: 100000, createdAt: new Date("2026-06-20T02:00:00Z") }], debtPaymentLogs: [] }]);
@@ -286,6 +319,7 @@ describe("assistant tools repository", () => {
       where: expect.objectContaining({ storeId: "store-1", invoiceDate: expect.any(Object) }),
     }));
     expect(transactionFindManyMock).toHaveBeenCalledTimes(2);
+    expect(transactionFindManyMock.mock.calls[0][0].select.items.select.product.select.catalogSubcategory).toEqual({ select: { group: true, name: true } });
     expect(expenseAggregateMock).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
         storeId: "store-1",
@@ -313,7 +347,8 @@ describe("assistant tools repository", () => {
     expect(result).toMatchObject({
       paymentMethods: [expect.objectContaining({ method: "CASH" })],
       topProducts: [expect.objectContaining({ productName: "Kertas" })],
-      categories: [expect.objectContaining({ categoryName: "ATK" })],
+      categories: [expect.objectContaining({ categoryName: "Percetakan" })],
+      subcategories: [expect.objectContaining({ categoryName: "Percetakan", subcategoryName: "PRINT", revenue: 100_000 })],
       salespersons: [expect.objectContaining({ name: "Ari" })],
       lossStok: [expect.objectContaining({ reason: "WASTE" })],
       shifts: [expect.objectContaining({ cashierName: "Rina" })],

@@ -31,4 +31,19 @@ describe("CustomerRecapPanel KPI cards", () => {
     state.summary.averagePaymentDays = 0;
     expect(render()).toContain("0 hari");
   });
+
+  it("keeps purchase details without showing redacted piutang metrics", () => {
+    const original = { ...state.summary };
+    Reflect.deleteProperty(state.summary, "debtUnpaidInPeriod");
+    Reflect.deleteProperty(state.summary, "debtPaidOffInPeriod");
+    Reflect.deleteProperty(state.summary, "averagePaymentDays");
+    try {
+      const html = render();
+      expect(html).toContain("Produk Teratas");
+      expect(html).not.toContain("Ringkasan Piutang");
+      expect(html).not.toContain("NaN");
+    } finally {
+      Object.assign(state.summary, original);
+    }
+  });
 });

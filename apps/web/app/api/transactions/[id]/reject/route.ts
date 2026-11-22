@@ -14,32 +14,33 @@ export async function POST(
 ) {
   try {
     const user = await requirePermission("transaction.approve", "delete");
+    const storeId = user.storeId || "store-main";
     
     const { id } = await params;
 
     // Fetch the pending transaction
-    const transaction = await db.transaction.findUnique({
-      where: { id },
+    const transaction = await db.transaction.findFirst({
+      where: { id, storeId },
     });
 
     if (!transaction) {
       return NextResponse.json({ message: "Transaksi tidak ditemukan" }, { status: 404 });
     }
 
-    const isSalesRequestedInvoice =
-      Boolean(transaction.requestedById) && !transaction.cashierId;
-    if (transaction.status !== "PENDING_APPROVAL" && !isSalesRequestedInvoice) {
-      return NextResponse.json({ message: "Transaksi bukan PENDING_APPROVAL" }, { status: 409 });
+    if (transaction.status !== "PENDING_APPROVAL") {
+      return NextResponse.json({ message: "Transaksi sudah diproses. Gunakan Void pada Riwayat sesuai izin akun." }, { status: 409 });
     }
 
     // Set status to VOIDED
-    const updatedTransaction = await db.transaction.update({
-      where: { id },
+    const result = await db.transaction.updateMany({
+      where: { id, storeId, status: "PENDING_APPROVAL" },
       data: {
         status: "VOIDED",
         cashierId: user.id,
       },
     });
+    if (result.count !== 1) return NextResponse.json({ message: "Transaksi sudah berubah. Muat ulang sebelum mencoba lagi." }, { status: 409 });
+    const updatedTransaction = await db.transaction.findFirst({ where: { id, storeId } });
 
     return NextResponse.json(updatedTransaction, { status: 200 });
   } catch (error) {

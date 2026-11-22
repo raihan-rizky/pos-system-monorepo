@@ -65,6 +65,7 @@ export type PricingFormErrors = Partial<
 >;
 export interface PricingPreviewProduct {
   id: string;
+  categoryId?: string;
   name: string;
   unit: string;
   price: number;

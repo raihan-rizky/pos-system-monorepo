@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { HELP_ROLE_CONTENT } from "../components/HelpContent";
 import { FAQ_WORKFLOWS } from "@/features/ai-assistant/workflows/workflow-catalog";
 import { matchAssistantWorkflow } from "@/features/ai-assistant/workflows/assistant-workflow-matcher";
@@ -12,6 +13,51 @@ const requiredGuidance = [
 ];
 
 describe("category management help and workflow guidance", () => {
+  it.each(["OWNER", "ADMIN"])("explains per-unit classification and preserves legacy categories for %s", role => {
+    const guide = HELP_ROLE_CONTENT[role].find(entry => entry.id === (role === "OWNER" ? "owner-categories" : "admin-categories"));
+    const text = JSON.stringify(guide!.steps);
+    for (const phrase of [
+      "Produk > Kategori", "Kelola kategori lama", "Kategori lama", "Belum diatur", "satuan yang dipilih",
+      "tertutup dan tidak aktif", "ATK", "PERCETAKAN", "PRINT", "STEMPEL", "PLAT", "CETAK", "SPANDUK",
+      "Tinjau pemindahan", "Dampak harga pelanggan", "Pindahkan satuan", "stok bersama",
+    ]) expect(text.toLowerCase()).toContain(phrase.toLowerCase());
+    expect(text).toContain("kategori lama tetap tersimpan");
+  });
+
+  it("guides an editor through classification without claiming the old category is replaced", () => {
+    const guide = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 55)!;
+    const text = JSON.stringify(guide.steps);
+    expect(guide.route).toBe("/products?tab=categories");
+    for (const phrase of ["Produk > Kategori", "Kategori lama", "Belum diatur", "satuan yang dipilih", "Tinjau pemindahan", "Pindahkan satuan", "Dampak harga pelanggan", "CETAK", "SPANDUK"]) {
+      expect(text.toLowerCase()).toContain(phrase.toLowerCase());
+    }
+    expect(text).toContain("kategori lama tetap tersimpan");
+    expect(text).not.toContain("HAPUS N KATEGORI");
+  });
+
+  it("explains that new-product classification is optional and applies to all new units", () => {
+    const guide = FAQ_WORKFLOWS.find(workflow => workflow.faqNumber === 1)!;
+    const text = JSON.stringify(guide.steps).toLowerCase();
+    expect(text).toContain("kategori utama");
+    expect(text).toContain("subkategori");
+    expect(text).toContain("semua satuan produk baru");
+    expect(text).toContain("diatur nanti");
+    expect(text).toContain("kategori lama wajib");
+    expect(text).toContain("pilih kategori utama lalu subkategori");
+  });
+
+  it("finds classification guidance for a product editor", () => {
+    const result = matchAssistantWorkflow({ message: "atur subkategori produk", role: "ADMIN", permissions: buildDefaultRolePermissions() });
+    expect(result).toMatchObject({ kind: "matched", workflow: { faqNumber: 55 } });
+  });
+
+  it("keeps the assistant FAQ source aligned with the per-unit guidance", () => {
+    const faq = readFileSync(new URL("../../ai-assistant/docs/help/faq.md", import.meta.url), "utf8");
+    for (const phrase of ["Produk > Kategori", "kategori lama tetap tersimpan", "Tinjau pemindahan", "Pindahkan satuan", "CETAK", "SPANDUK"]) {
+      expect(faq).toContain(phrase);
+    }
+  });
+
   it.each(["OWNER", "ADMIN"])("explains the complete category workflow for %s", role => {
     const guide = HELP_ROLE_CONTENT[role].find(entry => entry.id === (role === "OWNER" ? "owner-categories" : "admin-categories"));
     expect(guide).toBeDefined();

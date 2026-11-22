@@ -51,6 +51,15 @@ const allPaperRimBrandRule: CustomerCategoryPricingRule = {
 };
 
 describe("priceCartItemsForCheckout", () => {
+  it("uses each unit's current subcategory rule instead of its legacy category", () => {
+    const scoped = { ...allPaperRimBrandRule, id: "print-rule", scope: "SUBCATEGORY", categoryId: "print", value: 20 } as CustomerCategoryPricingRule;
+    const [priced] = priceCartItemsForCheckout({
+      items: [{ ...paperRim, catalogSubcategoryId: "print", catalogSubcategoryLegacyCategoryId: null } as CartItem],
+      customerType: "UMUM", pricingRules: [allPaperRimBrandRule, scoped], manualPrices: {}, role: "SALES",
+      roundingSettings: { enabled: false, increment: 500, threshold: 50 },
+    });
+    expect(priced.price).toBe(8000);
+  });
   it("keeps both percentages when repricing the cart and its unit options", () => {
     const [priced] = priceCartItemsForCheckout({
       items: [{ ...paperRim, unitOptions: [{ ...paperRim }] }], customerType: "UMUM",

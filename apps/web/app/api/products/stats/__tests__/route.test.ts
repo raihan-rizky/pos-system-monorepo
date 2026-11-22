@@ -40,6 +40,21 @@ describe("GET product statistics", () => {
     expect(await response.json()).toMatchObject({ inventoryValue: 72000 });
   });
 
+  it("limits statistics to the selected category and subcategory", async () => {
+    mocks.query.mockResolvedValue([{ total_products: 1n, low_stock: 0n, negative_stock: 0n, inventory_value: "100" }]);
+    await GET(new Request("http://localhost/api/products/stats?catalogGroup=PERCETAKAN&catalogSubcategoryId=print"));
+    const query = mocks.query.mock.calls[0][0];
+    expect(query.sql).toContain('"catalogSubcategoryId"');
+    expect(query.sql).toContain('pos_product_subcategories');
+    expect(query.values).toEqual(expect.arrayContaining(["PERCETAKAN", "print"]));
+  });
+
+  it("limits statistics to unclassified units when requested", async () => {
+    mocks.query.mockResolvedValue([{ total_products: 1n, low_stock: 0n, negative_stock: 0n, inventory_value: "100" }]);
+    await GET(new Request("http://localhost/api/products/stats?catalogGroup=UNCLASSIFIED"));
+    expect(mocks.query.mock.calls[0][0].sql).toContain('"catalogSubcategoryId" IS NULL');
+  });
+
   it("observes committed inventory changes only for the authorized store", async () => {
     mocks.query.mockResolvedValue([{ total_products: 1n, low_stock: 0n, negative_stock: 0n, inventory_value: '100' }]);
     const response = await GET(new Request('http://localhost/api/products/stats?storeId=store-2'));

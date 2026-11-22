@@ -195,7 +195,7 @@ describe("DELETE /api/proof-uploads", () => {
   });
 
   it("requires proof delete permission and deletes the R2 object", async () => {
-    const url = "https://pub-example.r2.dev/proofs/expenses/store-main/abc.webp";
+    const url = "https://pub-example.r2.dev/proofs/transactions/store-main/abc.webp";
     const response = await DELETE(
       new Request("http://localhost/api/proof-uploads", {
         method: "DELETE",
@@ -207,6 +207,18 @@ describe("DELETE /api/proof-uploads", () => {
     expect(response.status).toBe(200);
     expect(requirePermissionMock).toHaveBeenCalledWith("proof_upload", "delete");
     expect(deleteProofFromR2Mock).toHaveBeenCalledWith(url);
+  });
+
+  it.each([
+    "https://pub-example.r2.dev/proofs/manual-transfers/store-other/abc.webp",
+    "https://pub-example.r2.dev/proofs/%6danual-transfers/store-main/abc.webp",
+    "https://pub-example.r2.dev/proofs/expenses/store-other/legacy.webp",
+  ])("does not delete a transfer proof through the generic endpoint: %s", async url => {
+    const response = await DELETE(new Request("http://localhost/api/proof-uploads", {
+      method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ url }),
+    }));
+    expect(response.status).toBe(403);
+    expect(deleteProofFromR2Mock).not.toHaveBeenCalled();
   });
 
   it("rejects URLs outside the configured proof namespace", async () => {

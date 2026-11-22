@@ -74,7 +74,7 @@ export const RBAC_PERMISSION_MODULES: RbacPermissionModule[] = [
     label: "Laporan Keuangan",
     description: "Laporan omzet, ekspor laporan, dan pemasukan manual.",
     pageTargets: ["/financial-report"],
-    resourceTargets: ["financial-report", "financial-report.daily-income", "financial-report.daily-outstanding-dp", "financial-report.daily-category", "financial-report.daily-subcategory", "financial-report.daily-payment-method", "income", "income.manual", "financial-report.export"],
+    resourceTargets: ["financial-report", "financial-report.daily-income", "financial-report.daily-outstanding-dp", "financial-report.daily-category", "financial-report.daily-subcategory", "financial-report.daily-payment-method", "financial-report.daily-comparison", "income", "income.manual", "financial-report.export"],
     sensitivity: "sensitive",
   },
   {
@@ -128,7 +128,7 @@ export const RBAC_PERMISSION_MODULES: RbacPermissionModule[] = [
     label: "Pelanggan",
     description: "Data pelanggan dan piutang.",
     pageTargets: ["/customers"],
-    resourceTargets: ["customer"],
+    resourceTargets: ["customer", "customer.receivable", "customer.receivable.payment", "customer.receivable.manual", "customer.receivable.manual.payment"],
     sensitivity: "normal",
   },
   {
@@ -221,7 +221,7 @@ export const RBAC_PERMISSION_MODULES: RbacPermissionModule[] = [
     label: "Keuangan Harian",
     description: "Pengeluaran dan transfer manual, utang supplier, serta pencairan giro.",
     pageTargets: ["/keuangan"],
-    resourceTargets: ["expense", "expense.manual_transfer", "expense.payable", "expense.giro"],
+    resourceTargets: ["expense", "expense.manual_transfer", "expense.payable", "expense.giro", "expense.payable.manual", "expense.payable.manual.payment", "expense.manual_transfer.edit", "expense.manual_transfer.allocation"],
     sensitivity: "sensitive",
   },
   {

@@ -41,6 +41,8 @@ export interface ProductCartItem {
   brandName?: string | null;
   categoryId: string;
   categoryName: string;
+  catalogSubcategoryId?: string | null;
+  catalogSubcategoryLegacyCategoryId?: string | null;
   size?: string;
   material?: string;
   appliedPricing?: {
@@ -80,6 +82,8 @@ export type CartUnitOption = Pick<
   | "brandName"
   | "categoryId"
   | "categoryName"
+  | "catalogSubcategoryId"
+  | "catalogSubcategoryLegacyCategoryId"
   | "size"
   | "material"
   | "appliedPricing"
@@ -309,7 +313,7 @@ export function useCart(owner: CartOwner | null) {
   }, [key]);
 
   const addItem = useCallback(
-    (product: { id: string; name: string; description?: string | null; price: number; costPrice?: number | null; baseCostPrice?: number | null; baseCostUnit?: string | null; hargaDinas?: number | null; hargaAgen?: number | null; unit: string; stock: number; unitMultiplierToBase?: number | null; stockGroup?: { id?: string | null; baseUnit?: string | null } | null; brandId?: string | null; brandName?: string | null; categoryId: string; categoryName: string; size?: string; material?: string; unitOptions?: CartUnitOption[] }) => {
+    (product: { id: string; name: string; description?: string | null; price: number; costPrice?: number | null; baseCostPrice?: number | null; baseCostUnit?: string | null; hargaDinas?: number | null; hargaAgen?: number | null; unit: string; stock: number; unitMultiplierToBase?: number | null; stockGroup?: { id?: string | null; baseUnit?: string | null } | null; brandId?: string | null; brandName?: string | null; categoryId: string; categoryName: string; catalogSubcategoryId?: string | null; catalogSubcategoryLegacyCategoryId?: string | null; size?: string; material?: string; unitOptions?: CartUnitOption[] }) => {
       setItems((prev) => {
         const existing = prev.find(
           (item) =>
@@ -325,6 +329,8 @@ export function useCart(owner: CartOwner | null) {
                   ...item,
                   quantity: item.quantity + 1,
                   description: product.description,
+                  catalogSubcategoryId: product.catalogSubcategoryId,
+                  catalogSubcategoryLegacyCategoryId: product.catalogSubcategoryLegacyCategoryId,
                   unitOptions: product.unitOptions ?? item.unitOptions,
                   stockGroup: product.stockGroup ?? item.stockGroup,
                 }
@@ -356,6 +362,8 @@ export function useCart(owner: CartOwner | null) {
             brandName: product.brandName ?? null,
             categoryId: product.categoryId,
             categoryName: product.categoryName,
+            catalogSubcategoryId: product.catalogSubcategoryId,
+            catalogSubcategoryLegacyCategoryId: product.catalogSubcategoryLegacyCategoryId,
             size: product.size,
             material: product.material,
             appliedPricing: null,

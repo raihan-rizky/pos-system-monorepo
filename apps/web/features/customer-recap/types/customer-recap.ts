@@ -18,8 +18,8 @@ export interface CustomerRecapData {
     newCustomers: number;
     returningCustomers: number;
     churnedCustomers: number;
-    totalDebtOutstanding: number;
-    debtCollectedInPeriod: number;
+    totalDebtOutstanding?: number;
+    debtCollectedInPeriod?: number;
     avgOrderValue: number;
     orderFrequency: number;
     repeatPurchaseRate: number;
@@ -28,7 +28,7 @@ export interface CustomerRecapData {
     type: CustomerRecapCustomerType;
     customerCount: number;
     revenue: number;
-    debtAmount: number;
+    debtAmount?: number;
   }>;
   topSpenders: Array<{
     id: string;
@@ -61,11 +61,11 @@ export interface CustomerDetailRecapData {
     totalSpent: number;
     totalOrders: number;
     avgOrderValue: number;
-    debtRemaining: number;
-    debtPaidInPeriod: number;
-    debtUnpaidInPeriod: number;
-    debtPaidOffInPeriod: number;
-    averagePaymentDays: number | null;
+    debtRemaining?: number;
+    debtPaidInPeriod?: number;
+    debtUnpaidInPeriod?: number;
+    debtPaidOffInPeriod?: number;
+    averagePaymentDays?: number | null;
   };
   trend: {
     granularity: "daily" | "weekly" | "monthly";
@@ -74,12 +74,12 @@ export interface CustomerDetailRecapData {
       label: string;
       spent: number;
       orderCount: number;
-      runningDebtRemaining: number;
-      averagePaymentDays: number;
-      debtPaidOffAmount: number;
-      debtUnpaidAmount: number;
-      dpTransactionCount: number;
-      dpPaidOffCount: number;
+      runningDebtRemaining?: number;
+      averagePaymentDays?: number;
+      debtPaidOffAmount?: number;
+      debtUnpaidAmount?: number;
+      dpTransactionCount?: number;
+      dpPaidOffCount?: number;
     }>;
   };
   topProducts: Array<{

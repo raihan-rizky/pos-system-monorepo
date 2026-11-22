@@ -13,6 +13,7 @@ vi.mock("@/features/keuangan/services/recognized-finance", () => ({ loadRecogniz
 
 vi.mock("@/lib/rbac/guard", () => ({
   requireRole: requirePermissionMock, requirePermission: requirePermissionMock,
+  canAuthenticatedUserAccessPage: async () => true,
   handleAuthError: handleAuthErrorMock,
 }));
 

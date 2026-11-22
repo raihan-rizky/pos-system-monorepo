@@ -3,6 +3,11 @@ import type { Product } from '@/hooks/useProducts';
 import { mapProductToCartItem } from '../services/cart-mapping';
 
 describe('CartMappingService', () => {
+  it('carries the selected variant classification independently into the cart', () => {
+    const product = { ...variantProduct, variants: variantProduct.variants?.map(v => ({ ...v, catalogSubcategoryId: v.id === 'acco-dus' ? 'print' : 'bot', catalogSubcategory: { id: v.id === 'acco-dus' ? 'print' : 'bot', group: 'ATK' as const, name: 'Contoh', legacyCategoryId: v.id === 'acco-dus' ? null : 'legacy' } })) };
+    expect(mapProductToCartItem(product, 'acco-dus')).toMatchObject({ catalogSubcategoryId: 'print', catalogSubcategoryLegacyCategoryId: null });
+    expect(mapProductToCartItem(product, 'acco-pak')).toMatchObject({ catalogSubcategoryId: 'bot', catalogSubcategoryLegacyCategoryId: 'legacy' });
+  });
   it('carries descriptions into quick edit without borrowing another variant description', () => {
     expect(mapProductToCartItem({ ...simpleProduct, description: 'Pena tinta biru' }))
       .toMatchObject({ description: 'Pena tinta biru' });

@@ -1,5 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { reverseTransaction, TransactionReversalConflictError } from "../transaction-reversal-service";
+import { reverseTransaction as reverseTransactionWithAccess, TransactionReversalConflictError } from "../transaction-reversal-service";
+
+// These service tests model an Owner with full receivable access; RBAC denial is covered at the API boundary.
+const reverseTransaction = (
+  tx: Parameters<typeof reverseTransactionWithAccess>[0],
+  input: Parameters<typeof reverseTransactionWithAccess>[1],
+) => reverseTransactionWithAccess(tx, {
+  ...input,
+  receivableAccess: input.receivableAccess ?? { canView: true, canEdit: true },
+});
 
 const transaction = {
   id: "tx-1",

@@ -147,6 +147,20 @@ describe("ProofImageUploader", () => {
     expect(html).not.toContain("Hapus foto");
   });
 
+  it("offers to detach an unsaved proof without claiming to delete it", () => {
+    const html = renderToStaticMarkup(<ProofImageUploader context="manual-transfer" label="Bukti transfer"
+      value="https://pub-example.r2.dev/proofs/manual-transfers/store-1/a.webp" onChange={vi.fn()} detachOnly />);
+    expect(html).toContain("Lepaskan foto");
+    expect(html).not.toContain("Hapus foto");
+  });
+  it("labels removal of a saved proof as detaching the reference", () => {
+    access.canDelete = true;
+    const html = renderToStaticMarkup(<ProofImageUploader context="manual-transfer-edit" label="Bukti transfer"
+      value="https://pub-example.r2.dev/proofs/manual-transfers/store-1/a.webp" onChange={vi.fn()} onDelete={vi.fn()} retainStoredFile />);
+    expect(html).toContain("Lepaskan foto");
+    expect(html).not.toContain("Hapus foto");
+  });
+
   it("clears prnt.sc locally but calls the protected endpoint for R2", async () => {
     const request = vi.fn().mockResolvedValue({
       ok: true,

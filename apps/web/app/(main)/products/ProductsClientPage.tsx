@@ -68,10 +68,10 @@ import { useSpecialPricingSettings } from "@/features/customer-category-pricing/
 import { DEFAULT_PRICE_ROUNDING_SETTINGS, type PriceRoundingSettings } from "@/features/product-price-rounding/rounding";
 import { CUSTOMER_TYPES, isSpecialCategoryPricing, type CategoryPricingRule, type CustomerType } from "@/features/customer-category-pricing/helpers/pricing-rules";
 import { SpecialPriceBadge } from "@/features/customer-category-pricing/components/SpecialPriceBadge";
+import { CatalogClassificationFilter } from "@/features/product-classification/components/CatalogClassificationFilter";
+import type { UseProductsOptions } from "@/hooks/useProducts";
+import { ProductCategoriesWorkspace } from "./ProductCategoriesWorkspace";
 
-const CategoryManagementTab = lazy(() =>
-  import("@/features/product-categories/components/CategoryManagementTab").then(module => ({ default: module.CategoryManagementTab })),
-);
 const MoveProductsDialog = lazy(() =>
   import("@/features/product-categories/components/MoveProductsDialog").then(module => ({ default: module.MoveProductsDialog })),
 );
@@ -258,23 +258,21 @@ export default function ProductsClientPage() {
     useState<BulkDeleteProductsResult | null>(null);
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [catalogGroup, setCatalogGroup] = useState<NonNullable<UseProductsOptions["catalogGroup"]> | "">("");
+  const [catalogSubcategoryId, setCatalogSubcategoryId] = useState("");
   const [unit, setUnit] = useState("");
   // Default to grid on mobile, table on desktop. We'll manage this via state, but default "grid" is safer for initial mobile load.
   const [view, setView] = useState<"table" | "grid">("grid");
 
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const initialTab = (tabParam && PRODUCT_TABS.includes(tabParam as PageTab)
-    ? tabParam
-    : "products") as PageTab;
-  const [activeTab, setActiveTab] = useState<PageTab>(initialTab);
+  const requestedTab = tabParam === "classification" ? "categories" : tabParam as PageTab | null;
+  const linkedTab = requestedTab && PRODUCT_TABS.includes(requestedTab) ? requestedTab : null;
+  const [activeTab, setActiveTab] = useState<PageTab>(linkedTab ?? "products");
 
   useEffect(() => {
-    const tab = searchParams.get("tab");
-    if (tab && PRODUCT_TABS.includes(tab as PageTab)) {
-      setActiveTab(tab as PageTab);
-    }
-  }, [searchParams]);
+    if (linkedTab) setActiveTab(linkedTab);
+  }, [linkedTab, searchParams]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -325,6 +323,8 @@ export default function ProductsClientPage() {
   >("name");
 
   const productsQuery = useProductsPage(search, categoryId, {
+    catalogGroup: catalogGroup || undefined,
+    catalogSubcategoryId: catalogSubcategoryId || undefined,
     unit,
     page,
     limit: PRODUCTS_PER_PAGE,
@@ -338,7 +338,7 @@ export default function ProductsClientPage() {
   const isLoading = productsQuery.isLoading;
   const isPageFetching = productsQuery.isFetching;
 
-  const statsQuery = useProductStats(search, categoryId);
+  const statsQuery = useProductStats(search, categoryId, { catalogGroup: catalogGroup || undefined, catalogSubcategoryId: catalogSubcategoryId || undefined });
   const { data: categoriesData } = useCategories();
   const unitsQuery = useProductUnits();
   const units = unitsQuery.data ?? [];
@@ -376,7 +376,7 @@ export default function ProductsClientPage() {
   // Reset to page 1 whenever search, category, or stock filter changes
   useEffect(() => {
     setPage(1);
-  }, [search, categoryId, unit, stockFilter, groupedOnly]);
+  }, [search, categoryId, catalogGroup, catalogSubcategoryId, unit, stockFilter, groupedOnly]);
 
   // Clamp page when result set shrinks (e.g. category change reduces total pages)
   useEffect(() => {
@@ -815,6 +815,8 @@ export default function ProductsClientPage() {
           ].map((tab) => (
             <button
               key={tab.id}
+              type="button"
+              aria-pressed={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 shrink-0 whitespace-nowrap ${
                 activeTab === tab.id
@@ -848,11 +850,12 @@ export default function ProductsClientPage() {
               }
             >
               {activeTab === "categories" && (
-                <CategoryManagementTab
+                <ProductCategoriesWorkspace
+                  key={tabParam}
                   canCreate={canCreateProducts}
                   canUpdate={canUpdateProducts}
                   canDelete={canDeleteProducts}
-                  onDeleted={(ids) => { if (ids.includes(categoryId)) setCategoryId(""); }}
+                  onLegacyCategoriesDeleted={(ids) => { if (ids.includes(categoryId)) setCategoryId(""); }}
                 />
               )}
               {activeTab === "group-activity" && (
@@ -1059,11 +1062,14 @@ export default function ProductsClientPage() {
             </div>
 
             {/* Category Scroller */}
+            <CatalogClassificationFilter idPrefix="products" group={catalogGroup} subcategoryId={catalogSubcategoryId}
+              onChange={(group, subcategoryId) => { setCatalogGroup(group); setCatalogSubcategoryId(subcategoryId); }} />
             <div className="border-b border-slate-100/80 bg-slate-50/30">
               <HorizontalScroll
                 ariaLabel="Filter produk berdasarkan kategori"
                 className="px-5 md:px-6 py-4 gap-3 snap-x snap-mandatory"
               >
+                <span className="shrink-0 self-center text-xs font-semibold text-slate-500">Kategori lama:</span>
                 <button
                   type="button"
                   onClick={() => setCategoryId("")}
@@ -1170,11 +1176,13 @@ export default function ProductsClientPage() {
                   <p className="text-slate-500 text-center max-w-xs mt-1">
                     Coba ubah pencarian atau filter untuk menemukan produk.
                   </p>
-                  {(search || categoryId !== "" || unit || stockFilter !== "all" || groupedOnly) && (
+                  {(search || categoryId !== "" || catalogGroup || catalogSubcategoryId || unit || stockFilter !== "all" || groupedOnly) && (
                     <button
                       onClick={() => {
                         setSearch("");
                         setCategoryId("");
+                        setCatalogGroup("");
+                        setCatalogSubcategoryId("");
                         setUnit("");
                         setStockFilter("all");
                         setGroupedOnly(false);

@@ -1,0 +1,2 @@
+# Keep Prisma migration checksums consistent across operating systems.
+/packages/db/prisma/migrations/**/*.sql text eol=lf

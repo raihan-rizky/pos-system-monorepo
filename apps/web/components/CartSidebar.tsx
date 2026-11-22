@@ -166,6 +166,22 @@ export function CartSidebar({
                   <p className="text-xs text-surface-500 mt-0.5">
                     {formatRupiah(item.price)} /{item.unit}
                   </p>
+                  {item.lineType === "PRODUCT" && (
+                    <div className="mt-2">
+                      <div
+                        role="status"
+                        aria-label={`Satuan dipilih: ${item.unit}`}
+                        className="inline-flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1.5 text-brand-800"
+                      >
+                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-brand-700">
+                          Satuan dipilih
+                        </span>
+                        <span className="rounded-md bg-white px-2 py-0.5 text-xs font-extrabold shadow-sm ring-1 ring-brand-100">
+                          {item.unit}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                   {item.lineType === "PRODUCT" && onChangeUnit && item.stockGroup?.id && (() => {
                     const options = orderUnits(
                       (item.unitOptions ?? [])
@@ -175,11 +191,18 @@ export function CartSidebar({
                     );
                     if (options.length < 2) return null;
                     return (
-                      <div className="mt-2">
+                      <div className="mt-1.5">
+                        <label
+                          htmlFor={`cart-unit-${item.cartLineId}`}
+                          className="mb-1 block text-[10px] font-semibold text-surface-500"
+                        >
+                          Ubah satuan
+                        </label>
                         <select
+                          id={`cart-unit-${item.cartLineId}`}
                           aria-label={`Satuan ${item.name}`}
                           value={item.productId}
-                          className="min-h-11 max-w-full rounded-md border border-surface-200 bg-white px-2 py-2 text-xs text-surface-700 outline-none focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-500/30"
+                          className="min-h-11 w-full max-w-full rounded-lg border border-surface-200 bg-white px-2.5 py-2 text-xs font-medium text-surface-700 outline-none transition-colors focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-500/30"
                           onChange={(event) => {
                             const target = options.find(
                               (option) => option.productId === event.target.value,

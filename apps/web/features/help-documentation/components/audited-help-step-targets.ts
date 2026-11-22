@@ -22,7 +22,8 @@ export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepT
     ["settings", "settings-rbac-summary"], ["settings", "settings-rbac-matrix"],
     ["settings", "settings-permission-checkbox"], ["settings", "settings-review-save"],
   ],
-  "owner-reports": [["finance", "finance-primary"], ["finance", "finance-date-filter"], ["finance", "finance-export"]],
+  "owner-reports": [["finance", "finance-primary"], ["finance", "finance-date-filter"], ["finance", "finance-summary"], ["finance", "finance-export"]],
+  "cashier-daily-income-comparison": [["finance", "finance-date-filter"], ["finance", "finance-summary"], ["finance", "finance-summary"]],
   "sales-daily-income": [["finance", "finance-primary"], ["finance", "finance-date-filter"], ["finance", "finance-primary"]],
   "owner-performance": [["salespersons", "salespersons-primary"], ["salespersons", "salespersons-summary"], ["salespersons", "salespersons-detail"]],
   "owner-approval-stock": [["inventory", "inventory-primary"], ["inventory", "inventory-stock-log-tab"], ["inventory", "inventory-approval-actions"], ["inventory", "inventory-approval-actions"]],
@@ -74,7 +75,7 @@ export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepT
 
   "cashier-shift": [["shift", "shift-primary"], ["shift", "shift-open"], ["shift", "shift-close"]],
   "cashier-shift-settings": [["pos", "pos-primary"], ["pos", "pos-payment-modal"], ["pos", "pos-primary"]],
-  "cashier-pos": [["pos", "pos-primary"], ["pos", "pos-products"], ["pos", "pos-cart"], ["pos", "pos-payment-modal"]],
+  "cashier-pos": [["pos", "pos-primary"], ["pos", "pos-catalog-filter"], ["pos", "pos-cart"], ["pos", "pos-payment-modal"]],
   "cashier-pos-quick-edit": same("pos", "pos-cart", 4),
   "cashier-credit": [["customers", "customers-debt-tab"], ["customers", "customers-pay-debt"], ["history", "history-print-button"]],
   "cashier-history-payment-amounts": [["history", "history-primary"], ["history", "history-table"], ["history", "history-table"]],

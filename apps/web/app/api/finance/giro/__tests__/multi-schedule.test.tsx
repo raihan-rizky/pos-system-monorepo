@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ query: vi.fn(), transaction: vi.fn(), items: [] as unknown[] }));
 vi.mock("@pos/db", () => ({ db: { $queryRaw: mocks.query, $transaction: mocks.transaction } }));
-vi.mock("@/lib/rbac/guard", () => ({ requirePermission: async () => ({ id: "owner-1", storeId: "store-1" }), handleAuthError: () => null }));
+vi.mock("@/lib/rbac/guard", () => ({ requirePermission: async () => ({ id: "owner-1", storeId: "store-1" }), canAuthenticatedUserAccessPage: async () => true, handleAuthError: () => null }));
 vi.mock("@/lib/logger", () => ({ getLogger: () => ({ error: vi.fn() }) }));
 vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({ userId: "owner-1", storeId: "store-1" }) }));
 vi.mock("@tanstack/react-query", () => ({

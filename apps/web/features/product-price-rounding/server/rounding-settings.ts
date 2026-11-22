@@ -1,11 +1,11 @@
-import { db } from "@pos/db";
+import { db, type Prisma } from "@pos/db";
 import { DEFAULT_PRICE_ROUNDING_SETTINGS, validatePriceRoundingSettings, type PriceRoundingSettings } from "../rounding";
 import { InvalidPriceRoundingCategoriesError } from "./errors";
 
 const SETTINGS_ID = "store-main";
 
-export async function getPriceRoundingSettings(): Promise<PriceRoundingSettings> {
-  const settings = await db.storeSettings.findUnique({
+export async function getPriceRoundingSettings(client: Pick<Prisma.TransactionClient, "storeSettings"> = db): Promise<PriceRoundingSettings> {
+  const settings = await client.storeSettings.findUnique({
     where: { id: SETTINGS_ID },
     select: {
       priceRoundingEnabled: true,

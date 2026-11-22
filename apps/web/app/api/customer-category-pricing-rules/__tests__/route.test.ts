@@ -7,12 +7,17 @@ const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const ruleFindManyMock = vi.hoisted(() => vi.fn());
 const ruleFindFirstMock = vi.hoisted(() => vi.fn());
 const ruleCreateMock = vi.hoisted(() => vi.fn());
+const subcategoryRulesMock = vi.hoisted(() => vi.fn());
+const subcategoryCreateMock = vi.hoisted(() => vi.fn());
+const subcategoryFindMock = vi.hoisted(() => vi.fn());
 const categoryFindUniqueMock = vi.hoisted(() => vi.fn());
 const brandFindUniqueMock = vi.hoisted(() => vi.fn());
 const transactionMock = vi.hoisted(() => vi.fn());
 const lockMock = vi.hoisted(() => vi.fn());
 const testDb = vi.hoisted(() => ({
   categoryCustomerPricingRule: { findMany: ruleFindManyMock, findFirst: ruleFindFirstMock, create: ruleCreateMock },
+  subcategoryCustomerPricingRule: { findMany: subcategoryRulesMock, create: subcategoryCreateMock },
+  productSubcategory: { findUnique: subcategoryFindMock },
   category: { findUnique: categoryFindUniqueMock },
   brand: { findUnique: brandFindUniqueMock },
   $queryRaw: lockMock,
@@ -32,6 +37,8 @@ vi.mock("@pos/db", () => ({
       findFirst: ruleFindFirstMock,
       create: ruleCreateMock,
     },
+    subcategoryCustomerPricingRule: { findMany: subcategoryRulesMock, create: subcategoryCreateMock },
+    productSubcategory: { findUnique: subcategoryFindMock },
     category: {
       findUnique: categoryFindUniqueMock,
     },
@@ -93,6 +100,11 @@ describe("/api/customer-category-pricing-rules", () => {
     });
     handleAuthErrorMock.mockReturnValue(null);
     ruleFindManyMock.mockResolvedValue([]);
+    subcategoryRulesMock.mockResolvedValue([]);
+    subcategoryFindMock.mockResolvedValue({ id: "sub-1", group: "PERCETAKAN", name: "PRINT" });
+    subcategoryCreateMock.mockImplementation(async ({ data }) => ({
+      id: "sub-rule", ...data, subcategory: { id: data.subcategoryId, group: "PERCETAKAN", name: "PRINT" }, brand: null,
+    }));
     ruleFindFirstMock.mockResolvedValue(null);
     ruleCreateMock.mockImplementation(async ({ data }) => ({
       id: "rule-1",
@@ -193,6 +205,16 @@ describe("/api/customer-category-pricing-rules", () => {
         }),
       }),
     );
+  });
+
+  it("stores destination rules separately and returns a parent-qualified scope", async () => {
+    const response = await POST(new Request("http://localhost/api/customer-category-pricing-rules", {
+      method: "POST", body: JSON.stringify({ scope: "SUBCATEGORY", categoryId: "sub-1", customerTypes: ["UMUM"], mode: "FLAT_DISCOUNT", value: 500 }),
+    }));
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ scope: "SUBCATEGORY", categoryId: "sub-1", category: { name: "PERCETAKAN / PRINT" } });
+    expect(subcategoryCreateMock).toHaveBeenCalled();
+    expect(ruleCreateMock).not.toHaveBeenCalled();
   });
 
   it("requires OWNER to create rules", async () => {

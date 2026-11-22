@@ -1,6 +1,7 @@
 import {
   CATEGORY_LABELS_ID,
 } from "@/features/keuangan/helpers/category-meta";
+import { allocateIncomeSubcategories, incomeClassification, incomeItemClassification, type IncomeItem } from "./income-categories";
 import type { ExpenseCategory } from "@/features/keuangan/helpers/keuangan-core";
 
 export type ReportPeriod = "daily" | "weekly" | "monthly" | "30d";
@@ -64,10 +65,14 @@ export type ReportSaleInput = {
   customerName: string | null;
   paymentMethod: string;
   total: Decimalish;
+  transactionCategory?: string | null;
+  printingSubcategory?: string | null;
+  printingReceipt?: { subcategory?: string | null } | null;
   items: Array<{
     productName: string;
     subtotal?: Decimalish | null;
-    product?: { category?: { name?: string | null } | null } | null;
+    printingServiceId?: string | null;
+    product?: IncomeItem["product"];
   }>;
 };
 
@@ -110,9 +115,9 @@ function joinUnique(values: Array<string | null | undefined>): string {
 
 function saleToRow(sale: ReportSaleInput): ReportRow {
   const products = joinUnique(sale.items.map((i) => i.productName));
-  const categories = joinUnique(
-    sale.items.map((i) => i.product?.category?.name ?? null),
-  );
+  const input = { ...sale, items: sale.items.map(item => ({ ...item, subtotal: item.subtotal ?? 0 })) };
+  const classifications = input.items.length ? input.items.map(item => incomeItemClassification(input, item)) : [incomeClassification(input)];
+  const categories = joinUnique(classifications.map(part => `${part.category} / ${part.subcategory}`));
   const person =
     sale.salesName?.trim() ||
     sale.salesperson?.name?.trim() ||
@@ -230,15 +235,16 @@ export function buildReportCategorySummary(
   >();
 
   for (const sale of sales) {
-    for (const item of sale.items) {
-      const categoryName = item.product?.category?.name?.trim() || "Tanpa kategori";
+    const input = { ...sale, items: sale.items.map(item => ({ ...item, subtotal: item.subtotal ?? 0 })) };
+    for (const allocation of allocateIncomeSubcategories(toNumber(sale.total), input)) {
+      const categoryName = `${allocation.category} / ${allocation.subcategory}`;
       const bucket = map.get(categoryName) ?? {
         categoryName,
         transactionIds: new Set<string>(),
         revenue: 0,
       };
       bucket.transactionIds.add(sale.id);
-      bucket.revenue += toNumber(item.subtotal);
+      bucket.revenue = (Math.round(bucket.revenue * 100) + Math.round(allocation.amount * 100)) / 100;
       map.set(categoryName, bucket);
     }
   }

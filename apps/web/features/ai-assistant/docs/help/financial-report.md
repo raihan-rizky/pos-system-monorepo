@@ -3,7 +3,7 @@
 ## Pemasukan dan belanja manual dari Keuangan
 
 - **Tambah Pemasukan** di `/keuangan` mencatat pendapatan tanpa membuat transaksi penjualan. Isian: tanggal, keterangan / sumber, nominal, dan kategori RC (**ATK, Cetak, Spanduk, Print, Stempel**). Excel bulanan menempatkan seluruh nominal pada kategori yang dipilih di **RC {BULAN}**.
-- **Tambah Belanja Transfer** mencatat tanggal transfer, penerima / supplier, keterangan, nominal, dan bukti opsional tanpa mengubah stok. Catatan masuk **PENGELUARAN BELANJA → VIA TRANSFER** dan RP, dengan satu kontribusi pada total pengeluaran.
+- **Tambah Belanja Transfer** mencatat tanggal, penerima, keterangan, nominal, kategori laporan, dan bukti opsional tanpa mengubah stok. Hubungkan pembayaran beberapa hutang jika transfernya sama; tiap bagian memakai kategori hutangnya dan sisa memakai kategori transfer. Nilainya dihitung satu kali.
 - Setelah menyimpan, mengubah, atau menghapus catatan sesuai izin, **unduh ulang Excel** untuk mendapatkan rincian dan total terbaru. File yang telah diunduh tidak diperbarui otomatis.
 
 ## Lokasi dan Fungsi
@@ -12,6 +12,8 @@ Buka sidebar **Keuangan > Laporan Keuangan** (`/financial-report`) untuk melihat
 
 ### Pemasukan Harian untuk Sales
 Sales dengan izin halaman dan izin harian dapat memilih satu tanggal WIB, termasuk tanggal sebelumnya. Tampilan ini hanya memuat uang yang diterima, kategori **ATK** dan **Percetakan**, subkategori, serta metode pembayaran. Laba, HPP, pengeluaran, peringkat produk atau sales, shift, dan ekspor laporan lengkap tidak dikirim ke tampilan Sales. Owner mengatur `financial-report.daily-income`, `financial-report.daily-category`, `financial-report.daily-subcategory`, dan `financial-report.daily-payment-method` secara terpisah.
+
+Nominal yang tersedia dapat dibuka ke Riwayat berdasarkan tanggal penerimaan, termasuk pelunasan nota lama. Filter Harian, Mingguan, dan Bulanan mengikuti tanggal pilihan. Outstanding DP memakai sisa terkini dari nota yang dibuat hingga tanggal pilihan, bukan saldo historis; detail pemasukan manual memerlukan izin pemasukan.
 
 ### Rentang Waktu (Periode)
 Anda dapat memilih rentang analisis menggunakan preset berikut:
@@ -57,6 +59,8 @@ Klik **Unduh Excel** untuk mendapatkan **LAP KEU**, **BERSIH**, **nama bulan**, 
 **Modal awal** memakai nilai inventaris akhir bulan sebelumnya, dan **stok akhir** memakai nilai inventaris akhir periode. Stok bersama diurai dari satuan terbesar ke terkecil memakai HPP tiap satuan dan dihitung sekali. HPP kosong dikonversi otomatis dari satuan terkecil yang memiliki HPP; seluruh HPP kosong atau riwayat HPP belum tersedia ditandai belum lengkap. Stok negatif tidak mengurangi total. Riwayat sebelum pencatatan tersedia tetap kosong, bukan nol. Hutang berasal dari catatan di halaman Keuangan dan berkurang sesuai tanggal pembayaran. Jumlah harta = modal awal + piutang − hutang − stok akhir.
 
 Sheet **RP bulan** hanya memuat pengeluaran manual. **PENGELUARAN BELANJA** memuat transfer pembelian berdasarkan tanggal pengeluaran, transfer belanja terdahulu berdasarkan tanggal pembayaran, dan giro berdasarkan bulan jatuh tempo. Nilai penuh giro ditampilkan meskipun belum dibayar. **PIUTANG & HUTANG** memuat sisa giro dan hutang manual pada akhir periode; hutang manual yang dihubungkan ke giro tidak dihitung dua kali. Rekap kas menghitung pembayaran aktual giro pada tanggal pembayaran, bukan nilai yang dijadwalkan. Jika riwayat giro belum diketahui, nilai yang bergantung padanya belum lengkap. Piutang mencakup saldo invoice dan piutang manual pada akhir periode. Penerimaan yang belum dikenali kategorinya ditampilkan sebagai **Perlu pemetaan** dan tetap dihitung pada total. Biaya belum lengkap serta keterbatasan riwayat perubahan nominal diberi catatan dalam file.
+
+Pembayaran piutang manual masuk kategori RC yang dipilih pada tanggal pembayarannya. Pembayaran hutang manual masuk kategori pengeluaran pada tanggal pembayaran; sisa dengan jatuh tempo otomatis lunas pada tanggal jatuh tempo. Pembayaran manual yang sudah dicatat tetap memakai tanggal aktual. Catatan lama tanpa kategori tetap termasuk total sampai pengguna mengubah kategorinya. Hak ubah rincian, pembayaran, dan alokasi dapat diatur terpisah oleh Owner.
 
 Jika gagal, dialog menampilkan pesan dan tombol **Coba lagi** tanpa menghapus pilihan periode. Pengunduhan berikutnya dapat dilakukan setelah proses sebelumnya selesai.
 
