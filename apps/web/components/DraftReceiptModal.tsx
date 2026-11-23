@@ -13,6 +13,7 @@ import { decodeDivisionFromNote } from "@/features/nota-penawaran/helpers/divisi
 import { DraftNumberField } from "@/features/transactions-draft/components/DraftNumberField";
 import { useRole } from "@/components/providers/RoleProvider";
 import "./draft-receipt-print.css";
+import { getTransactionTaxRate } from "@/features/transaction-tax/helpers/tax-calculation";
 import { useReceiptTax } from "@/features/transaction-tax/hooks/useReceiptTax";
 import { TransactionCustomPriceSummary } from "@/features/pos-checkout/components/TransactionCustomPriceSummary";
 import { TaxField } from "@/features/transaction-tax/components/TaxField";
@@ -150,6 +151,7 @@ export function DraftReceiptModal({
   const grandTotal = Number(transaction.total);
   const netAmount = Math.max(0, Number(transaction.subtotal ?? grandTotal - Number(transaction.tax ?? 0)) - Number(transaction.discount ?? 0));
   const dpp = Math.round(netAmount * 11 / 12);
+  const showTaxSummary = getTransactionTaxRate(transaction) > 0;
 
   const formatIndonesianDate = (dateStr: string): string => {
     const date = new Date(dateStr);
@@ -404,9 +406,11 @@ export function DraftReceiptModal({
                   </td>
                 </tr>
                 {[
-                  ["DPP Nilai Lain", dpp],
-                  ["PPN", Number(transaction.tax ?? 0)],
-                  ["Total", grandTotal],
+                    ...(showTaxSummary ? [
+                      ["DPP Nilai Lain", dpp],
+                      ["PPN", Number(transaction.tax ?? 0)],
+                    ] : []),
+                    ["Total", grandTotal],
                 ].map(([label, amount]) => (
                   <tr className="total-row" key={label}>
                     <td colSpan={5} style={{ textAlign: "left", fontWeight: "bold", fontSize: 12, padding: "6px 8px" }}>{label}</td>

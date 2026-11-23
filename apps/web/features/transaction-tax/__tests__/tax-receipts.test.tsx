@@ -88,11 +88,14 @@ describe("tax receipt output", () => {
     expect(buildDraftPdfData(discounted, store)).toMatchObject({ netAmountFormatted: "600.000", dppFormatted: "550.000", taxFormatted: "66.000", grandTotal: 666000, terbilangText: "Enam Ratus Enam Puluh Enam Ribu Rupiah" });
   });
 
-  it("keeps quotation currency rows when the saved PPN rate is zero", () => {
+  it("hides quotation tax rows when the saved PPN rate is zero", () => {
     const zero = { ...transaction, taxRate: 0, tax: 0, total: 706000 } as Transaction;
     const html = renderToStaticMarkup(<DraftReceiptModal open onClose={vi.fn()} transaction={zero} />);
-    expect(html).toContain("DPP Nilai Lain");
-    expect(html).toContain("647.167");
+    const totalRows = html.match(/<tr class="total-row">[\s\S]*?<\/tr>/g)?.join("") ?? "";
+    expect(totalRows).not.toContain("DPP Nilai Lain");
+    expect(totalRows).not.toContain(">PPN</td>");
+    expect(totalRows).toContain(">Total</td>");
+    expect(totalRows).toContain("706.000");
     expect(buildDraftPdfData(zero, store)).toMatchObject({ taxFormatted: "0", grandTotal: 706000 });
   });
 });
