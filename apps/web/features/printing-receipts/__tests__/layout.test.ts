@@ -62,6 +62,56 @@ describe("printing receipt layout", () => {
       expect(getPrintingReceiptLayout(category)).toMatchObject({ width: 148, height: 210, rowsPerPage: 13 });
     }
   });
+  it.each([["SPANDUK", 7], ["PRINT", 14]] as const)("centers every dynamic %s value in the preview fields", (subcategory, count) => {
+    const record = receipt(subcategory, count);
+    const fields = buildPrintingReceiptPages(record).flatMap(page => getPrintingReceiptPageFields(record, page))
+      .filter(field => field.key !== "number-label");
+    const uncentered = fields.filter(field => field.lineField !== "name" && field.align !== "center").map(field => field.key);
+    const unleftedNames = fields.filter(field => field.lineField === "name" && field.align !== "left").map(field => field.key);
+
+    expect(fields.length).toBeGreaterThan(0);
+    expect(uncentered).toEqual([]);
+    expect(unleftedNames).toEqual([]);
+    expect(fields.some(field => "topAligned" in field)).toBe(false);
+  });
+  it.each(["SPANDUK", "PRINT"] as const)("places the %s payment methods below the identity area and before the table", subcategory => {
+    const record = receipt(subcategory, 1);
+    const page = buildPrintingReceiptPages(record)[0];
+    const fields = getPrintingReceiptPageFields(record, page, {
+      total: 60_000, amountPaid: 60_000,
+      paymentMethod: "CASH", payments: [{ method: "CASH" }, { method: "QRIS" }],
+    });
+    const payment = fields.find(field => field.key === "paymentMethod")!;
+
+    expect(payment.value).toBe("Metode pembayaran: Tunai, QRIS");
+    expect(payment.align).toBe("center");
+    expect(payment.y + payment.height).toBeLessThanOrEqual(page.header.y);
+    if (subcategory === "SPANDUK") {
+      for (const key of ["number", "customerPhone"] as const) {
+        const identity = fields.find(field => field.key === key)!;
+        const overlapsHorizontally = payment.x < identity.x + identity.width && identity.x < payment.x + payment.width;
+        expect(overlapsHorizontally).toBe(false);
+      }
+    }
+  });
+  it("keeps a common Spanduk material name intact in its narrow column", () => {
+    const record = receipt("SPANDUK", 1);
+    record.document.lines[0].material = "Flexi 280 gsm";
+
+    expect(buildPrintingReceiptPages(record)[0].lines[0].materialLines[0].trimEnd()).toBe("Flexi");
+  });
+  it.each(["SPANDUK", "PRINT"] as const)("centers numbers within a wrapped %s row", subcategory => {
+    const record = receipt(subcategory, 1);
+    record.document.lines[0].name = "Nama barang yang panjang dan membungkus ".repeat(5).trim();
+    const page = buildPrintingReceiptPages(record)[0];
+    const row = page.lines[0];
+    expect(row.height).toBeGreaterThan(getPrintingReceiptLayout(subcategory).rowHeight);
+    const fields = getPrintingReceiptPageFields(record, page);
+    for (const key of ["quantity", "price", "total"]) {
+      const field = fields.find(candidate => candidate.key === `0-${key}`);
+      expect(field).toMatchObject({ y: row.y, height: row.height });
+    }
+  });
   it("keeps every extra row and places overall totals only on the last page", () => {
     for (const [category, count, perPage] of [["SPANDUK", 14, 6], ["PRINT", 28, 13]] as const) {
       const pages = buildPrintingReceiptPages(receipt(category, count));

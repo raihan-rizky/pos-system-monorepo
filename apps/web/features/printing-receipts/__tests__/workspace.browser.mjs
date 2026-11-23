@@ -173,7 +173,7 @@ try {
     await page.getByLabel("Bahan baris 1", { exact: true }).fill("Flexi");
     await page.getByLabel("Banyaknya baris 1", { exact: true }).fill("2");
     await page.getByLabel("Harga satuan baris 1", { exact: true }).fill("30000");
-    await page.getByLabel("Nama pelanggan", { exact: true }).fill("Pelanggan Contoh");
+    assert.equal(await page.locator('textarea[aria-label="Nama pelanggan"]').count(), 0);
     await page.getByLabel("Nomor nota", { exact: true }).focus();
     await page.keyboard.press("Enter");
     assert.equal(await page.getByLabel("Tanggal nota", { exact: true }).evaluate(element => document.activeElement === element), true);
@@ -183,7 +183,7 @@ try {
     await page.getByLabel("Jumlah pemakaian (m²)", { exact: true }).fill("4.5");
     await page.getByRole("button", { name: "Simpan hubungan", exact: true }).click();
     await page.getByLabel("Nama item baris 1", { exact: true }).fill("Simpan sebelum pindah");
-    await page.getByRole("tab", { name: "PRINT", exact: true }).click();
+    await page.getByRole("tab", { name: "PRINT/FC", exact: true }).click();
     assert.equal(records.get("created-1").document.lines[0].name, "Simpan sebelum pindah");
     assert.equal(records.get("created-1").document.title, "Banner Promosi Oktober");
     assert.deepEqual(records.get("created-1").document.lines[0].stockLink, { productId: "flexi", quantity: 4.5, unit: "m²" });
@@ -191,7 +191,7 @@ try {
     assert.equal(await page.getByLabel("Nama item baris 1", { exact: true }).inputValue(), "Simpan sebelum pindah");
     failSave = true;
     await page.getByLabel("Nama item baris 1", { exact: true }).fill("Edit gagal tetap ada");
-    await page.getByRole("tab", { name: "PRINT", exact: true }).click();
+    await page.getByRole("tab", { name: "PRINT/FC", exact: true }).click();
     await page.getByRole("alert").filter({ hasText: "Simpan uji gagal" }).waitFor();
     assert.equal(await page.getByRole("tab", { name: "SPANDUK", exact: true }).getAttribute("aria-selected"), "true");
     assert.equal(await page.getByLabel("Nama item baris 1", { exact: true }).inputValue(), "Edit gagal tetap ada");
@@ -282,10 +282,10 @@ try {
     await page.getByLabel("Nama item baris 1", { exact: true }).fill("Nota tampilan contoh");
     await page.getByLabel("Banyaknya baris 1", { exact: true }).fill("1");
     await page.getByLabel("Harga satuan baris 1", { exact: true }).fill("30000");
-    await page.getByLabel("Nama pelanggan", { exact: true }).fill("Pelanggan Contoh");
+    assert.equal(await page.locator('textarea[aria-label="Nama pelanggan"]').count(), 0);
     await page.getByText("Tersimpan", { exact: true }).waitFor();
     await page.screenshot({ path: path.join(output, `workspace-${width}.png`) });
-    if (width === 1280) await page.screenshot({ path: path.join(web, "public/images/changelog/nota-percetakan.png"), clip: { x: 0, y: 0, width, height: 640 } });
+    if (width === 1280 && process.argv.includes("--screenshot")) await page.screenshot({ path: path.join(web, "public/images/changelog/nota-percetakan.png"), clip: { x: 0, y: 0, width, height: 640 } });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
     assert.deepEqual(errors, []);
     process.stdout.write(`PASS ${width}px: create, inline Enter, explicit stock link, flush/switch, save failure/retry, checkout failure/retry/lock, fresh processed preview, action permissions, user identity reset, bounded viewport\n`);

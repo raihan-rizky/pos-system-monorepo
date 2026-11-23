@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "metode-pembayaran-nota-percetakan-20261123", date: "2026-11-23", revision: 1,
+    highlight: { title: "Metode bayar pada nota Percetakan", summary: "Lihat metode pembayaran dalam satu baris berwarna di pratinjau dan PDF." },
+    title: "Metode pembayaran tercantum pada nota Percetakan",
+    summary: "Nama metode pembayaran tampil sebaris, dengan warna berbeda untuk setiap metode. Nama barang atau file rata kiri dan angka berada di tengah baris.",
+    kind: "feature", impact: "major", area: "Kasir & Percetakan", href: "/pos", visual: "printing",
+    screenshot: { src: "/images/changelog/metode-pembayaran-nota-percetakan.png", alt: "Potongan nota A5 dengan metode QRIS dan Transfer sejajar dengan nomor telepon contoh." },
+    steps: [
+      { title: "Buka nota Percetakan", detail: "Di Kasir, pilih Percetakan dan buka nota yang akan diproses." },
+      { title: "Pilih pembayaran", detail: "Klik Bayar / DP, pilih pelanggan, sales, dan metode pembayaran, lalu konfirmasi." },
+      { title: "Lihat metode pada nota", detail: "Buka Cetak / PDF untuk melihat nama metode pada pratinjau dan PDF." },
+    ],
+  },
+  {
     id: "giro-pembelian-toggle-20261122", date: "2026-11-22", revision: 1,
     highlight: { title: "Ringkas daftar Giro Pembelian", summary: "Pilihan panel dipulihkan dari browser ini saat Keuangan dibuka." },
     title: "Ringkas tampilan Giro Pembelian",

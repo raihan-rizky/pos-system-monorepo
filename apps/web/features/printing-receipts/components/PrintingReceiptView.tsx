@@ -1,7 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useMemo, useRef, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
-import { getPrintingReceiptLayout, getPrintingReceiptWatermark, RECEIPT_MATERIAL_PADDING_Y, RECEIPT_TEXT_LINE_HEIGHT, RECEIPT_TEXT_PADDING_X, RECEIPT_TEXT_PADDING_Y, type PrintingReceiptPayment, type ReceiptSheetField } from "../layout";
+import { getPrintingReceiptLayout, getPrintingReceiptWatermark, RECEIPT_TEXT_LINE_HEIGHT, RECEIPT_TEXT_PADDING_X, type PrintingReceiptPayment, type ReceiptSheetField } from "../layout";
 import { buildPrintingReceiptPresentation } from "../presentation";
 import type { PrintingReceipt } from "../types";
 import { isPrintingReceiptLineBlank } from "../domain";
@@ -194,28 +194,32 @@ export function PrintingReceiptView({ receipt, transaction, editable = false, al
             onPointerCancel={event => endResize(event, false)} onLostPointerCapture={event => endResize(event, false)} onKeyDown={event => keyboardResize(event, boundary)} />;
         })}
         {page.fields.map(field => {
-          const writable = canEdit && !field.continuation && Boolean((field.receiptField && !receipt.transactionId) || field.documentField || field.lineField);
+          const writable = canEdit && field.editable !== false && !field.continuation && Boolean((field.receiptField && !receipt.transactionId) || field.documentField || field.lineField);
+          const fontSize = field.fittedFontSize * 4 / 2.83465;
+          const verticalPadding = field.multiline
+            ? Math.max(0, (field.height * 4 - field.textLines.length * fontSize * RECEIPT_TEXT_LINE_HEIGHT) / 2)
+            : undefined;
           const style: CSSProperties = { left: field.x * 4, top: field.y * 4, width: field.width * 4, height: field.height * 4,
-            lineHeight: RECEIPT_TEXT_LINE_HEIGHT, ...(field.topAligned ? { padding: `${RECEIPT_TEXT_PADDING_Y * 4}px ${RECEIPT_TEXT_PADDING_X * 4}px` } : {}),
-            fontSize: field.fittedFontSize * 4 / 2.83465, fontWeight: field.bold ? 700 : undefined, color: field.color, textAlign: field.align ?? "left", ...(field.whiteBackground && field.value ? { backgroundColor: "white" } : {}) };
-          if (writable && receipt.subcategory === "SPANDUK" && field.lineField === "material") {
-            // Match the quantity input's first-line baseline while allowing material to wrap below it.
-            style.paddingTop = RECEIPT_MATERIAL_PADDING_Y * 4;
-          }
-          const shared = { "aria-label": field.label, "data-receipt-field": field.key, "data-top-aligned": field.topAligned || undefined, title: field.label, style, className: "printing-receipt-field", onKeyDown: enterNextField };
+            lineHeight: RECEIPT_TEXT_LINE_HEIGHT, ...(verticalPadding !== undefined ? { padding: `${verticalPadding}px ${RECEIPT_TEXT_PADDING_X * 4}px` } : {}),
+            fontSize, fontWeight: field.bold ? 700 : undefined, color: field.color, textAlign: field.align ?? "left", ...(field.whiteBackground && field.value ? { backgroundColor: "white" } : {}) };
+          const shared = { "aria-label": field.label, "data-receipt-field": field.key, title: field.label, style, className: "printing-receipt-field", onKeyDown: enterNextField };
           if (writable && field.multiline) return <textarea {...shared} key={field.key} rows={1} value={field.value} onChange={event => changeField(field, event.target.value, event.currentTarget)} spellCheck={false} />;
           if (writable) return <input {...shared} key={field.key} type={field.inputType ?? "text"} value={field.value} min={field.inputType === "number" ? 0 : undefined}
             step={field.lineField === "quantity" ? 1 : field.inputType === "number" ? "0.01" : undefined} onChange={event => changeField(field, event.target.value, event.currentTarget)} autoComplete="off" />;
-          return <span {...shared} key={field.key} className="printing-receipt-field printing-receipt-value">{field.displayValue}</span>;
+          return <span {...shared} key={field.key} className="printing-receipt-field printing-receipt-value">
+            {field.coloredSegments?.length
+              ? field.coloredSegments.map((segment, index) => <span key={`${field.key}-segment-${index}`} style={{ color: segment.color }}>{segment.text}</span>)
+              : field.displayValue}
+          </span>;
         })}
         {watermark && <span className="printing-receipt-watermark" aria-label={`Status nota: ${watermark}`}>{watermark}</span>}
       </section>
     </div>)}
     {canEdit && nextLine && <fieldset data-receipt-next-line="true" className="printing-receipt-next-line">
       <legend>Item berikutnya</legend>
-      <p>Isi nama atau bahan untuk melanjutkan ke halaman nota berikutnya.</p>
+      <p>{receipt.subcategory === "SPANDUK" ? "Isi nama atau bahan untuk melanjutkan ke halaman nota berikutnya." : "Isi nama barang untuk melanjutkan ke halaman nota berikutnya."}</p>
       <div>
-        {(["name", "material"] as const).map(key => {
+        {(receipt.subcategory === "SPANDUK" ? (["name", "material"] as const) : (["name"] as const)).map(key => {
           const label = `${key === "name" ? "Nama item" : "Bahan"} baris ${nextLineIndex + 1}`;
           const field: ReceiptSheetField = { x: 0, y: 0, width: 0, height: 0, key: `${nextLine.id}-${key}`, label, value: nextLine[key], lineId: nextLine.id, lineField: key };
           return <label key={field.key}>{key === "name" ? "Nama item" : "Bahan"}
@@ -227,9 +231,9 @@ export function PrintingReceiptView({ receipt, transaction, editable = false, al
     </fieldset>}
     {presentation.appendixPages.map((page, index) => <div className="printing-receipt-page-frame" key={`appendix-${index}`} style={{ width: layout.width * 4 * zoom, height: layout.height * 4 * zoom }}>
       <section className="printing-receipt-sheet" aria-label={`Lampiran nota ${index + 1} dari ${presentation.appendixPages.length}`} style={{ width: layout.width * 4, height: layout.height * 4, transform: `scale(${zoom})` }}>
-        <h3 className="absolute m-0 whitespace-pre font-bold" style={{ left: 40, top: (12 - presentation.appendixTitleFontSize / 2.83465 * 0.83) * 4, fontSize: presentation.appendixTitleFontSize * 4 / 2.83465, lineHeight: 1.12 }}>{presentation.appendixTitleLines.join("\n")}</h3>
+        <h3 className="absolute m-0 whitespace-pre font-bold" style={{ left: 40, width: layout.width * 4 - 80, textAlign: "center", top: (12 - presentation.appendixTitleFontSize / 2.83465 * 0.83) * 4, fontSize: presentation.appendixTitleFontSize * 4 / 2.83465, lineHeight: 1.12 }}>{presentation.appendixTitleLines.join("\n")}</h3>
         <p className="absolute m-0" style={{ left: 40, top: (presentation.appendixSubtitleY - 8 / 2.83465 * 0.83) * 4, fontSize: 8 * 4 / 2.83465 }}>Rincian lengkap dan keterangan tambahan</p>
-        {page.lines.map((line, lineIndex) => <p key={lineIndex} className="absolute m-0 whitespace-pre" style={{ left: 40, top: (line.y - 2.6) * 4, fontWeight: line.bold ? 700 : 400, fontSize: 9 * 4 / 2.83465, lineHeight: 1.12 }}>{line.text}</p>)}
+        {page.lines.map((line, lineIndex) => <p key={lineIndex} className="absolute m-0 whitespace-pre" style={{ left: 40, width: layout.width * 4 - 80, textAlign: line.align ?? "left", top: (line.y - 2.6) * 4, fontWeight: line.bold ? 700 : 400, fontSize: 9 * 4 / 2.83465, lineHeight: 1.12 }}>{line.text}</p>)}
         <span className="absolute" style={{ right: 40, bottom: 20, fontSize: 8 * 4 / 2.83465 }}>Lampiran {index + 1}/{presentation.appendixPages.length}</span>
         {watermark && <span className="printing-receipt-watermark" aria-label={`Status lampiran nota: ${watermark}`}>{watermark}</span>}
       </section>

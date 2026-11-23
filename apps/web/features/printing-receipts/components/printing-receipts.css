@@ -30,8 +30,7 @@ input.printing-receipt-field:focus-visible, textarea.printing-receipt-field:focu
 .printing-receipt-field[type=number] { appearance: textfield; -moz-appearance: textfield; }
 .printing-receipt-field::-webkit-inner-spin-button, .printing-receipt-field::-webkit-outer-spin-button { appearance: none; margin: 0; }
 .printing-receipt-value { display: flex; align-items: center; white-space: pre; overflow: hidden; }
-.printing-receipt-value[data-top-aligned] { display: block; }
-textarea.printing-receipt-field[data-top-aligned] { white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden; }
+textarea.printing-receipt-field { white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden; }
 .printing-receipt-value[style*="text-align: right"] { justify-content: flex-end; }
 .printing-receipt-value[style*="text-align: center"] { justify-content: center; }
 .printing-receipt-viewport { min-width: 0; max-width: 100%; overflow: auto; overscroll-behavior: contain; background: #e9eaf0; scrollbar-gutter: stable; }

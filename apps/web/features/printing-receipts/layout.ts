@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import type { PrintingReceipt, PrintingReceiptLine, PrintingSubcategory } from "./types";
 import { getReceiptColumnBoundaries, getReceiptColumnWidths, hasValidReceiptColumnWidths } from "./column-layout";
+import { getPrintingReceiptPaymentMethodSegments, type PrintingReceiptTextSegment } from "./payment-method-display";
 export { getReceiptColumnWidths, resizeReceiptColumnBoundary } from "./column-layout";
 
 export const RECEIPT_TEXT_LINE_HEIGHT = 1.12;
@@ -12,12 +13,16 @@ const EPSILON = 0.00001;
 
 export interface ReceiptBox { x: number; y: number; width: number; height: number }
 export interface ReceiptField extends ReceiptBox { fontSize?: number; align?: "left" | "right" | "center"; color?: string; bold?: boolean }
-export interface PrintingReceiptPayment { total: number; amountPaid: number; status?: string }
+export interface PrintingReceiptPayment {
+  total: number; amountPaid: number; status?: string;
+  paymentMethod?: string | null;
+  payments?: { method: string }[] | null;
+}
 export interface PrintingReceiptLayout {
   width: number; height: number; rowsPerPage: number; artwork: string;
   tableTop: number; rowHeight: number;
   columns: Record<"quantity" | "name" | "material" | "price" | "total" | "index", ReceiptField>;
-  fields: Record<"number" | "date" | "customerName" | "customerPhone" | "note" | "completionDate" | "completionTime" | "receiver" | "setter" | "signatory" | "total" | "paid" | "remaining", ReceiptField>;
+  fields: Record<"number" | "date" | "customerName" | "customerPhone" | "note" | "completionDate" | "completionTime" | "receiver" | "setter" | "signatory" | "paymentMethod" | "total" | "paid" | "remaining", ReceiptField>;
   numberMask?: ReceiptBox;
 }
 
@@ -25,19 +30,17 @@ const box = (x: number, y: number, width: number, height: number, fontSize = 9, 
 const SPANDUK_LAYOUT: PrintingReceiptLayout = {
   width: 215, height: 110, rowsPerPage: 6, artwork: "/images/printing-receipts/nota-spanduk.png",
   tableTop: 35.1, rowHeight: 5.55,
-  columns: { index: box(21.6, 0, 6.3, 5.55, 9, "center"), name: box(28.5, 0, 108.2, 5.55), material: box(137.1, 0, 7.1, 5.55, 8, "center"), quantity: box(144.9, 0, 10.7, 5.55, 8, "center"), price: box(156.5, 0, 22.3, 5.55, 8, "right"), total: box(180, 0, 26.2, 5.55, 8, "right") },
+  columns: { index: box(21.6, 0, 6.3, 5.55, 9, "center"), name: box(28.5, 0, 108.2, 5.55), material: box(137.1, 0, 7.1, 5.55, 6, "center"), quantity: box(144.9, 0, 10.7, 5.55, 8, "center"), price: box(156.5, 0, 22.3, 5.55, 8, "right"), total: box(180, 0, 26.2, 5.55, 8, "right") },
   fields: {
     number: box(43, 24.5, 48, 4.3, 9), date: box(168.5, 8.8, 37.4, 4.2),
     customerName: box(164.2, 15.6, 41.8, 4.1), customerPhone: box(165.1, 22.4, 40.9, 4),
+    paymentMethod: box(91, 26.4, 45.5, 3.1, 7, "center"),
     note: box(23.7, 77.2, 65.1, 21.7, 8), completionTime: box(102.7, 91.8, 16.3, 2.8, 7),
     completionDate: box(102.7, 96.7, 16.3, 2.6, 6), receiver: box(125, 95.8, 26.5, 3.2, 8, "center"),
     setter: box(152.8, 90, 15.1, 7, 7, "center"), signatory: box(175, 95.8, 25, 3.2, 8, "center"),
     total: box(179.8, 68.5, 26.6, 5.1, 9, "right"), paid: box(179.8, 74.1, 26.6, 5.1, 9, "right"), remaining: box(179.8, 79.7, 26.6, 5.1, 9, "right"),
   },
 };
-export const RECEIPT_MATERIAL_PADDING_Y = Math.max(RECEIPT_TEXT_PADDING_Y,
-  (SPANDUK_LAYOUT.columns.quantity.height - (SPANDUK_LAYOUT.columns.material.fontSize ?? 8) / 2.83465 * RECEIPT_TEXT_LINE_HEIGHT) / 2);
-
 const A5_LAYOUT: PrintingReceiptLayout = {
   width: 148, height: 210, rowsPerPage: 13, artwork: "/images/printing-receipts/nota-percetakan.png",
   tableTop: 61.3, rowHeight: 7.89,
@@ -46,6 +49,7 @@ const A5_LAYOUT: PrintingReceiptLayout = {
   fields: {
     number: box(22.6, 41, 62, 4, 10), date: box(114.1, 11.9, 28.7, 4.6, 10),
     customerName: box(98.7, 21.5, 44.2, 11, 11), customerPhone: box(103.2, 33.9, 39.7, 4.5, 10),
+    paymentMethod: box(99.55, 38.8, 47, 5.5, 8, "center"),
     signatory: box(96.5, 189.3, 37.5, 6, 11, "center"),
     note: box(0, 0, 0, 0), completionDate: box(0, 0, 0, 0), completionTime: box(0, 0, 0, 0), receiver: box(0, 0, 0, 0), setter: box(0, 0, 0, 0),
     total: box(113.7, 164.1, 28.7, 8.1, 11, "right"), paid: box(0, 0, 0, 0), remaining: box(0, 0, 0, 0),
@@ -157,7 +161,7 @@ export function buildPrintingReceiptPages(receipt: PrintingReceipt, measurementP
   const nameFont = layout.columns.name.fontSize ?? 9;
   const rowHeight = (name: string[], material: string[]) => Math.ceil(Math.max(layout.rowHeight, a5
     ? textHeight(name, nameFont) + textHeight(material, materialFont) + (name.length && material.length ? MATERIAL_GAP : 0)
-    : Math.max(textHeight(name, nameFont), material.length ? textHeight(material, materialFont) + RECEIPT_MATERIAL_PADDING_Y - RECEIPT_TEXT_PADDING_Y : 0)) * 1e8) / 1e8;
+    : Math.max(textHeight(name, nameFont), textHeight(material, materialFont))) * 1e8) / 1e8;
   const pageRows: MeasuredReceiptRow[][] = [[]];
   let used = 0;
   const newPage = () => { pageRows.push([]); used = 0; };
@@ -172,9 +176,8 @@ export function buildPrintingReceiptPages(receipt: PrintingReceipt, measurementP
   for (const [index, line] of receipt.document.lines.entries()) {
     const name = wrapReceiptText(pdf, line.name, layout.columns.name);
     const material = wrapReceiptText(pdf, line.material, layout.columns.material, materialFont);
-    // Keep both A5 inputs available while editing, even before either value is entered.
+    // Reserve the A5 name input for existing rows that only have a material.
     if (a5 && !name.length) name.push("");
-    if (a5 && !material.length) material.push("");
     const height = rowHeight(name, material);
     // Saved trailing blanks are editable spare cells, not a reason to create another sheet.
     if (index > lastMeaningful && height > capacity - used + EPSILON) break;
@@ -193,9 +196,7 @@ export function buildPrintingReceiptPages(receipt: PrintingReceipt, measurementP
       const materialContinuation = materialOffset > 0 || (!material.length && continuation);
       while (nameOffset < name.length) {
         const candidate = [...nameFragment, name[nameOffset]];
-        // A final name fragment needs enough room for its empty material input.
-        const reservedMaterial = a5 && !line.material && nameOffset === name.length - 1 ? material : materialFragment;
-        if (rowHeight(candidate, reservedMaterial) > capacity + EPSILON) break;
+        if (rowHeight(candidate, materialFragment) > capacity + EPSILON) break;
         nameFragment.push(name[nameOffset++]);
       }
       // A5 stacks material after the complete name; SPANDUK uses an independent column.
@@ -240,6 +241,7 @@ export function getPrintingReceiptWatermark(receipt: PrintingReceipt, transactio
 export type ReceiptDocumentTextKey = Exclude<keyof PrintingReceipt["document"], "lines" | "customerId" | "title" | "columnWidths">;
 export interface ReceiptSheetField extends ReceiptField {
   key: string; value: string; label: string;
+  coloredSegments?: PrintingReceiptTextSegment[];
   documentField?: ReceiptDocumentTextKey;
   receiptField?: "number";
   lineId?: string;
@@ -248,48 +250,55 @@ export interface ReceiptSheetField extends ReceiptField {
   inputType?: "text" | "number" | "date" | "time";
   whiteBackground?: boolean;
   textLines?: string[];
-  topAligned?: boolean;
   continuation?: boolean;
+  editable?: boolean;
 }
 
 export function getPrintingReceiptPageFields(receipt: PrintingReceipt, page: ReturnType<typeof buildPrintingReceiptPages>[number], transaction?: PrintingReceiptPayment | null): ReceiptSheetField[] {
   const layout = getPrintingReceiptLayout(receipt.subcategory, receipt.document.columnWidths);
   const fields: ReceiptSheetField[] = [];
   const add = (field: ReceiptSheetField) => { if (field.width > 0 && field.height > 0) fields.push(field); };
-  add({ ...layout.fields.number, key: "number", receiptField: "number", label: "Nomor nota", value: receipt.number });
+  add({ ...layout.fields.number, align: "center", key: "number", receiptField: "number", label: "Nomor nota", value: receipt.number });
   const documentFields: [ReceiptDocumentTextKey, string, ReceiptSheetField["inputType"]?, boolean?][] = [
     ["date", "Tanggal nota", "date"], ["customerName", "Nama pelanggan", "text", true], ["customerPhone", "Telepon pelanggan"],
     ["note", "Keterangan", "text", true], ["completionTime", "Jam selesai", "time"], ["completionDate", "Hari selesai", "date"],
     ["receiver", "Penerima"], ["setter", "Petugas seting"], ["signatory", "Hormat kami"],
   ];
-  for (const [key, label, inputType, multiline] of documentFields) add({ ...layout.fields[key], key, value: receipt.document[key], label, documentField: key, inputType, multiline, whiteBackground: key === "date" || key === "customerName" || key === "customerPhone" });
+  for (const [key, label, inputType, multiline] of documentFields) add({ ...layout.fields[key], align: "center", key, value: receipt.document[key], label, documentField: key, inputType, multiline,
+    editable: key !== "customerName" && key !== "receiver" && key !== "signatory", whiteBackground: key === "date" || key === "customerName" || key === "customerPhone" });
+  const coloredSegments = getPrintingReceiptPaymentMethodSegments(transaction ?? receipt.transaction);
+  if (coloredSegments.length > 0) {
+    add({ ...layout.fields.paymentMethod, key: "paymentMethod", label: "Metode pembayaran", value: coloredSegments.map(segment => segment.text).join(""), coloredSegments });
+  }
   if (receipt.subcategory === "SPANDUK") add({ ...box(21, 24.5, 22, 4.3, 9), color: "#373396", bold: true, key: "number-label", label: "", value: "No. Nota:" });
   for (const { line, number, y, height, nameLines, materialLines, continuation, materialContinuation } of page.lines) {
     const a5 = receipt.subcategory !== "SPANDUK";
-    if (!a5 && !continuation) add({ ...layout.columns.index, y, topAligned: true, key: `${line.id}-index`, label: `Nomor baris ${number}`, value: String(number) });
+    if (!a5 && !continuation) add({ ...layout.columns.index, y, height, key: `${line.id}-index`, label: `Nomor baris ${number}`, value: String(number) });
     const nameHeight = a5 && materialLines.length ? textHeight(nameLines, layout.columns.name.fontSize ?? 10) : height;
+    const materialHeight = textHeight(materialLines, 7);
+    const materialGap = nameLines.length && materialLines.length ? MATERIAL_GAP : 0;
+    const nameY = a5 && materialLines.length ? y + Math.max(0, (height - nameHeight - materialHeight - materialGap) / 2) : y;
     for (const [key, label] of [["name", "Nama item"], ["material", "Bahan"], ["quantity", "Banyaknya"], ["price", "Harga satuan"]] as const) {
       const isText = key === "name" || key === "material";
       if (continuation && !isText) continue;
       const column = layout.columns[key];
       const textLines = key === "name" ? nameLines : materialLines;
       const fieldContinuation = key === "material" ? materialContinuation : continuation;
-      const materialY = y + nameHeight + (nameLines.length && materialLines.length ? MATERIAL_GAP : 0);
-      add({ ...column, y: a5 && key === "material" ? materialY : y,
-        height: !isText ? column.height : !a5 ? height : key === "name" ? nameHeight : textHeight(materialLines, 7),
+      add({ ...column, align: key === "name" ? "left" : "center", y: a5 && isText ? (key === "material" ? nameY + nameHeight + materialGap : nameY) : y,
+        height: !a5 || !isText ? height : key === "name" ? nameHeight : materialHeight,
         fontSize: a5 && key === "material" ? 7 : column.fontSize, key: `${line.id}-${key}${fieldContinuation ? `-fragment-${page.pageIndex}` : ""}`, label: `${label} baris ${number}`,
         lineId: line.id, lineField: key, value: fieldContinuation ? textLines.join("\n") : line[key] === null ? "" : String(line[key]), multiline: isText,
-        topAligned: true, continuation: fieldContinuation, ...(isText ? { textLines } : {}), inputType: key === "price" || key === "quantity" ? "number" : "text" });
+        continuation: fieldContinuation, editable: !(a5 && key === "material"), ...(isText ? { textLines } : {}), inputType: key === "price" || key === "quantity" ? "number" : "text" });
     }
-    if (!continuation) add({ ...layout.columns.total, y, topAligned: true, key: `${line.id}-total`, label: `Jumlah baris ${number}`, value: printingLineAmount(line) });
+    if (!continuation) add({ ...layout.columns.total, align: "center", y, height, key: `${line.id}-total`, label: `Jumlah baris ${number}`, value: printingLineAmount(line) });
   }
   if (page.showTotals) {
     const totals = getPrintingReceiptTotals(receipt, transaction);
     for (const [key, label] of [["total", "Jumlah nota"], ["paid", "DP terbayar"], ["remaining", "Sisa pembayaran"]] as const) {
-      add({ ...layout.fields[key], key: `totals-${key}`, label, value: formatReceiptNumber(totals[key]) });
+      add({ ...layout.fields[key], align: "center", key: `totals-${key}`, label, value: formatReceiptNumber(totals[key]) });
     }
   }
-  if (page.pageCount > 1) add({ ...box(6, 2, layout.width - 12, 3, 6, "right"), key: "page", label: "", value: `Halaman ${page.pageIndex + 1}/${page.pageCount}${page.showTotals ? "" : " - berlanjut"}` });
+  if (page.pageCount > 1) add({ ...box(6, 2, layout.width - 12, 3, 6, "center"), key: "page", label: "", value: `Halaman ${page.pageIndex + 1}/${page.pageCount}${page.showTotals ? "" : " - berlanjut"}` });
   return fields;
 }
 

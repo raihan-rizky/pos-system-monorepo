@@ -18,7 +18,7 @@ const bundle = await esbuild.build({
       const [receipt,setReceipt]=useState(null);
       const [editable,setEditable]=useState(true);
       window.setReceipt=setReceipt;window.setEditable=setEditable;window.currentReceipt=receipt;
-      window.exportPdf=async()=>{const pdf=await createPrintingReceiptPdf(receipt);return {bytes:Array.from(new Uint8Array(pdf.output('arraybuffer'))),pages:pdf.getNumberOfPages()};};
+      window.exportPdf=async()=>{const pdf=await createPrintingReceiptPdf({...receipt,transactionId:'processed-test'});return {bytes:Array.from(new Uint8Array(pdf.output('arraybuffer'))),pages:pdf.getNumberOfPages()};};
       return <main className="printing-receipt-viewport">{receipt&&<PrintingReceiptView receipt={receipt} editable={editable} onChange={setReceipt}/>}</main>;
     }
     createRoot(document.getElementById('root')).render(<Harness/>);
@@ -57,7 +57,7 @@ try {
           ? [...Array.from({length: count}, (_, index) => ({...item(index + 1), material: ""})), blank(count + 1)]
           : [{...item(1, Array.from({length: subcategory === "SPANDUK" ? 9 : 24}, () => "Cetak").join("\n")), material: ""}, ...Array.from({length: count - 1}, (_, index) => blank(index + 2))];
         const nextNumber = scenario === "full" ? count + 1 : 2;
-        for (const field of ["name", "material"]) {
+        for (const field of subcategory === "SPANDUK" ? ["name", "material"] : ["name"]) {
           const stagedRecord = receipt(subcategory, filled);
           await page.evaluate(record => { window.setEditable(true); window.setReceipt(record); }, stagedRecord);
           await expect(page.locator("[data-receipt-page]")).toHaveCount(1);
@@ -138,10 +138,10 @@ try {
       assert.equal(await fragments.evaluateAll(elements => elements.filter(element => element.tagName === "TEXTAREA").length), 1, "Hanya fragmen nama pertama yang dapat disunting");
       assert.equal(await page.getByLabel("Banyaknya baris 1", { exact: true }).count(), 1, "Nilai pendamping hanya tampil sekali");
       if (subcategory === "PRINT") {
-        const editableMaterial = page.locator('textarea[aria-label="Bahan baris 1"]');
-        await expect(editableMaterial).toHaveCount(1);
-        assert.ok(await editableMaterial.evaluate(element => [...document.querySelectorAll("[data-receipt-page]")].indexOf(element.closest("[data-receipt-page]"))) > 0,
-          "Bahan pertama tetap dapat disunting pada halaman setelah kelanjutan nama");
+        const material = page.getByLabel("Bahan baris 1", { exact: true });
+        await expect(page.locator('textarea[aria-label="Bahan baris 1"]')).toHaveCount(0);
+        assert.ok(await material.first().evaluate(element => [...document.querySelectorAll("[data-receipt-page]")].indexOf(element.closest("[data-receipt-page]"))) > 0,
+          "Bahan tersimpan tetap terlihat pada halaman setelah kelanjutan nama");
       }
       await page.evaluate(() => window.setEditable(false));
       const completeName = await fragments.allTextContents();
