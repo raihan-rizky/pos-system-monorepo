@@ -7,7 +7,7 @@ export interface PrintingReceiptPresentedField extends ReceiptSheetField {
   fittedFontSize: number;
   displayValue: string;
 }
-export interface PrintingReceiptAppendixPage { lines: { text: string; bold: boolean; y: number }[] }
+export interface PrintingReceiptAppendixPage { lines: { text: string; bold: boolean; y: number; align?: "left" | "center" }[] }
 
 /** One text layout drives the screen preview and PDF, including complete overflow values. */
 export function buildPrintingReceiptPresentation(receipt: PrintingReceipt, transaction?: PrintingReceiptPayment | null, measurementPdf?: jsPDF) {
@@ -20,6 +20,14 @@ export function buildPrintingReceiptPresentation(receipt: PrintingReceipt, trans
     if (field.textLines) return { ...field, textLines: field.textLines, fittedFontSize: field.fontSize ?? 9, displayValue: field.textLines.join("\n") };
     const value = getReceiptFieldDisplayValue(field);
     const width = Math.max(0.1, field.width - 1.4);
+    const segments = field.coloredSegments;
+    if (segments?.length) {
+      const fontSize = field.fontSize ?? 9;
+      pdf.setFontSize(fontSize);
+      const textWidth = segments.reduce((total, segment) => total + pdf.getTextWidth(segment.text), 0);
+      const fittedFontSize = textWidth > width ? fontSize * width / textWidth : fontSize;
+      return { ...field, textLines: [value], fittedFontSize, displayValue: value };
+    }
     const height = Math.max(1, field.height - 0.35);
     let fontSize = field.fontSize ?? 9;
     const minimum = Math.min(fontSize, 7, Math.max(5, height * 2.83465 / 1.12));
@@ -58,9 +66,9 @@ export function buildPrintingReceiptPresentation(receipt: PrintingReceipt, trans
   const appendixPages: PrintingReceiptAppendixPage[] = [];
   let appendix: PrintingReceiptAppendixPage | undefined;
   let y = appendixContentY;
-  const addLine = (text: string, bold: boolean) => {
+  const addLine = (text: string, bold: boolean, align: "left" | "center" = "left") => {
     if (!appendix || y > layout.height - 13) { appendix = { lines: [] }; appendixPages.push(appendix); y = appendixContentY; }
-    appendix.lines.push({ text, bold, y }); y += 4;
+    appendix.lines.push({ text, bold, y, align }); y += 4;
   };
   for (const entry of overflow.values()) {
     pdf.setFontSize(9); pdf.setFont("helvetica", "bold");
@@ -70,7 +78,7 @@ export function buildPrintingReceiptPresentation(receipt: PrintingReceipt, trans
     const lines = pdf.splitTextToSize(entry.value, layout.width - 20) as string[];
     for (const line of lines) {
       if (y > layout.height - 13) addLine(`${label} (lanjutan)`, true);
-      addLine(line, false);
+      addLine(line, false, "center");
     }
     y += 3;
   }

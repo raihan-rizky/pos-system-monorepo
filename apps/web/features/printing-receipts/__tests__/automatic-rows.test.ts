@@ -115,21 +115,22 @@ describe("automatic printing receipt rows", () => {
     expect(tall[0].lines[1].y).toBeGreaterThan(short[0].lines[1].y);
   });
 
-  it("keeps the empty A5 material input below the entire editable name", () => {
+  it("gives the A5 name the full row when no material is saved", () => {
     const { pages } = buildPrintingReceiptPresentation(receipt("PRINT", [item(1, "Nama panjang untuk bahan menyusul ".repeat(8)), item(2)]));
     const name = pages[0].fields.find(field => field.key === "1-name")!;
-    const material = pages[0].fields.find(field => field.key === "1-material")!;
+    const material = pages[0].fields.find(field => field.key === "1-material");
     const next = pages[0].fields.find(field => field.key === "2-name")!;
-    expect(material.y).toBeGreaterThanOrEqual(name.y + name.height);
-    expect(material.height).toBeGreaterThan(3);
-    expect(next.y).toBeGreaterThanOrEqual(material.y + material.height);
+    expect(material).toBeUndefined();
+    expect(name.height).toBeCloseTo(pages[0].lines[0].height);
+    expect(next.y).toBeGreaterThanOrEqual(name.y + name.height);
   });
 
-  it("retains both A5 text inputs when only material is entered", () => {
+  it("keeps the A5 name editable when the saved row only has material", () => {
     const { pages } = buildPrintingReceiptPresentation(receipt("PRINT", [{ ...item(1, ""), material: "Kertas ivory" }]));
     const name = pages[0].fields.find(field => field.key === "1-name")!;
     const material = pages[0].fields.find(field => field.key === "1-material")!;
     expect(name).toBeDefined();
+    expect(material.editable).toBe(false);
     expect(material.y).toBeGreaterThanOrEqual(name.y + name.height);
   });
 });

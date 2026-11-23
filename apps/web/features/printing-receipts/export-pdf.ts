@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import { getPrintingReceiptLayout, getPrintingReceiptWatermark, RECEIPT_TEXT_LINE_HEIGHT, RECEIPT_TEXT_PADDING_X, RECEIPT_TEXT_PADDING_Y, type PrintingReceiptPayment, type ReceiptHeader } from "./layout";
+import { getPrintingReceiptLayout, getPrintingReceiptWatermark, RECEIPT_TEXT_LINE_HEIGHT, RECEIPT_TEXT_PADDING_X, type PrintingReceiptPayment, type ReceiptHeader } from "./layout";
 import { buildPrintingReceiptPresentation, type PrintingReceiptPresentedField } from "./presentation";
 import { assertPrintingReceiptCanExport } from "./pdf-eligibility";
 import type { PrintingReceipt } from "./types";
@@ -26,13 +26,27 @@ function drawField(pdf: jsPDF, field: PrintingReceiptPresentedField) {
   }
   const fontSize = field.fittedFontSize;
   pdf.setFont("helvetica", field.bold ? "bold" : "normal");
-  pdf.setTextColor(field.color ?? "#242239");
   pdf.setFontSize(fontSize);
   const lines = field.textLines;
   const align = field.align ?? "left";
-  const x = align === "right" ? field.x + field.width - RECEIPT_TEXT_PADDING_X : align === "center" ? field.x + field.width / 2 : field.x + RECEIPT_TEXT_PADDING_X;
   const textHeight = lines.length * fontSize / 2.83465 * RECEIPT_TEXT_LINE_HEIGHT;
-  const y = field.y + (field.topAligned ? RECEIPT_TEXT_PADDING_Y : Math.max(0.4, (field.height - textHeight) / 2)) + fontSize / 2.83465 * 0.83;
+  const y = field.y + Math.max(0.4, (field.height - textHeight) / 2) + fontSize / 2.83465 * 0.83;
+  if (field.coloredSegments?.length) {
+    const totalWidth = field.coloredSegments.reduce((total, segment) => total + pdf.getTextWidth(segment.text), 0);
+    let x = align === "right"
+      ? field.x + field.width - RECEIPT_TEXT_PADDING_X - totalWidth
+      : align === "center"
+        ? field.x + (field.width - totalWidth) / 2
+        : field.x + RECEIPT_TEXT_PADDING_X;
+    for (const segment of field.coloredSegments) {
+      pdf.setTextColor(segment.color);
+      pdf.text(segment.text, x, y, { align: "left" });
+      x += pdf.getTextWidth(segment.text);
+    }
+    return;
+  }
+  pdf.setTextColor(field.color ?? "#242239");
+  const x = align === "right" ? field.x + field.width - RECEIPT_TEXT_PADDING_X : align === "center" ? field.x + field.width / 2 : field.x + RECEIPT_TEXT_PADDING_X;
   pdf.text(lines, x, y, { align, lineHeightFactor: RECEIPT_TEXT_LINE_HEIGHT });
 }
 
@@ -108,13 +122,14 @@ export async function createPrintingReceiptPdf(receipt: PrintingReceipt, transac
     pdf.addPage([layout.width, layout.height], orientation);
     drawWatermark(pdf, watermark, layout.width, layout.height);
     pdf.setTextColor(36, 34, 57); pdf.setFont("helvetica", "bold"); pdf.setFontSize(appendixTitleFontSize);
-    pdf.text(appendixTitleLines, 10, 12, { lineHeightFactor: 1.12 });
+    pdf.text(appendixTitleLines, layout.width / 2, 12, { align: "center", lineHeightFactor: 1.12 });
     pdf.setFont("helvetica", "normal"); pdf.setFontSize(8);
     pdf.text("Rincian lengkap dan keterangan tambahan", 10, appendixSubtitleY);
     pdf.text(`Lampiran ${index + 1}/${appendixPages.length}`, layout.width - 10, layout.height - 6, { align: "right" });
     for (const line of page.lines) {
       pdf.setFont("helvetica", line.bold ? "bold" : "normal"); pdf.setFontSize(9);
-      pdf.text(line.text, 10, line.y);
+      const align = line.align ?? "left";
+      pdf.text(line.text, align === "center" ? layout.width / 2 : 10, line.y, { align });
     }
   }
   return pdf;

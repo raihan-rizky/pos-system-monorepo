@@ -21,7 +21,7 @@ const bundle = await esbuild.build({
       window.setReceipt=setReceipt;window.setEditable=setEditable;window.setZoom=setZoom;window.setAllow=setAllow;window.currentReceipt=receipt;
       window.presentation=receipt&&buildPrintingReceiptPresentation(receipt);
       window.reloadReceipt=()=>setReceipt({...receipt,document:parsePrintingReceiptDocument(JSON.parse(JSON.stringify(receipt.document)))});
-      window.exportPdf=async()=>{const pdf=await createPrintingReceiptPdf(receipt);return {bytes:Array.from(new Uint8Array(pdf.output('arraybuffer'))),pages:pdf.getNumberOfPages(),text:pdf.output()};};
+      window.exportPdf=async()=>{const pdf=await createPrintingReceiptPdf({...receipt,transactionId:'processed-test'});return {bytes:Array.from(new Uint8Array(pdf.output('arraybuffer'))),pages:pdf.getNumberOfPages(),text:pdf.output()};};
       return <main className="printing-receipt-viewport">{receipt&&<PrintingReceiptView receipt={receipt} editable={editable} allowProcessedEdit={allow} zoom={zoom} onChange={value=>{window.changeCount=(window.changeCount||0)+1;setReceipt(value)}}/>}</main>;
     }
     createRoot(document.getElementById('root')).render(<Harness/>);
@@ -81,8 +81,12 @@ try {
       }));
       assert.deepEqual(geometry.header,geometry.table);
       assert.deepEqual(geometry.svg,geometry.table);
-      const material=page.locator('textarea[aria-label="Bahan baris 1"]');
-      await expect(material).toHaveValue(initial.document.lines[0].material);
+      const material=page.getByLabel("Bahan baris 1", { exact: true }).first();
+      if(category==="SPANDUK"){
+        await expect(material).toHaveValue(initial.document.lines[0].material);
+      }else{
+        assert.equal((await material.textContent()).replace(/\s/g,""),initial.document.lines[0].material.replace(/\s/g,""));
+      }
       await page.evaluate(()=>window.reloadReceipt());
       assert.deepEqual(await widths(),resized,"JSON save/reload preserves widths");
 
@@ -137,6 +141,7 @@ try {
       await page.mouse.move(liveBox.x+liveBox.width/2,liveBox.y+liveBox.height/2);
       await page.mouse.down();
       await page.evaluate(()=>window.setReceipt({...window.currentReceipt,document:{...window.currentReceipt.document,lines:window.currentReceipt.document.lines.map(line=>({...line,name:'Nama diperbarui saat geser'}))}}));
+      await page.waitForFunction(()=>window.currentReceipt.document.lines[0].name==='Nama diperbarui saat geser');
       await page.mouse.move(liveBox.x+liveBox.width/2-13,liveBox.y+liveBox.height/2);
       await page.mouse.up();
       assert.equal(await page.evaluate(()=>window.currentReceipt.document.lines[0].name),'Nama diperbarui saat geser');

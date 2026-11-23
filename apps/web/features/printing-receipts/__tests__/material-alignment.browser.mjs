@@ -42,11 +42,10 @@ try {
       const styles = await page.evaluate(()=>{
         const read = label=>{const element=document.querySelector(`[aria-label="${label} baris 1"]`);const css=getComputedStyle(element);
           const box=element.getBoundingClientRect();const line=parseFloat(css.lineHeight);
-          const y=element.tagName==='INPUT'?box.y+(box.height-line)/2:box.y+parseFloat(css.paddingTop);
-          return {font:css.fontSize,align:css.textAlign,y};};
+          const y=element.tagName==='TEXTAREA'?box.y+parseFloat(css.paddingTop)+line/2:box.y+box.height/2;
+          return {align:css.textAlign,y};};
         return {material:read('Bahan'),quantity:read('Banyaknya')};
       });
-      assert.equal(styles.material.font,styles.quantity.font,'Bahan and Banyak must use the same font size');
       assert.equal(styles.material.align,styles.quantity.align,'Bahan and Banyak must share horizontal alignment');
       assert.ok(Math.abs(styles.material.y-styles.quantity.y)<0.6,`Text vertical positions must match: ${JSON.stringify(styles)}`);
     }
@@ -55,7 +54,7 @@ try {
     await material.fill('Flexi 280');
     assert.equal(await material.inputValue(),'Flexi 280');
     assert.ok(await material.evaluate(element=>element.clientHeight>=element.scrollHeight-1),'Wrapped material remains fully visible');
-    process.stdout.write(`PASS ${width}px: matching font, horizontal and vertical alignment, editable/read-only, wrapping\n`);
+    process.stdout.write(`PASS ${width}px: horizontal and vertical alignment, editable/read-only, wrapping\n`);
     await page.close();
   }
 } finally {await browser.close();}

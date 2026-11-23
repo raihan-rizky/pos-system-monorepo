@@ -21,6 +21,42 @@ describe("printing receipt PDF", () => {
     expect(pdf.output()).not.toContain("INTERNAL_ONLY_BANNER_OKTOBER");
     expect(pdf.output()).toContain(record.number);
   });
+  it.each(["SPANDUK", "PRINT"] as const)("prints split payment method names on the %s PDF", async subcategory => {
+    const record = receipt(subcategory);
+    const asset = subcategory === "SPANDUK" ? "nota-spanduk.png" : "nota-percetakan.png";
+    const artwork = `data:image/png;base64,${readFileSync(resolve("public/images/printing-receipts", asset)).toString("base64")}`;
+    const payment = { total: 60_000, amountPaid: 60_000, paymentMethod: "CASH", payments: [
+      { id: "payment-1", amount: 30_000, method: "CASH" }, { id: "payment-2", amount: 30_000, method: "QRIS" },
+    ] };
+    const pdf = await createPrintingReceiptPdf(record, payment, artwork);
+    const printedText = Array.from(pdf.output().matchAll(/\(([^()]*)\) Tj/g), match => match[1]).join("");
+
+    expect(printedText).toContain("Metode pembayaran: Tunai, QRIS");
+  });
+  it("prints each payment method using its own color", async () => {
+    const record = receipt("PRINT");
+    record.document.lines = [];
+    const artwork = `data:image/png;base64,${readFileSync(resolve("public/images/printing-receipts", "nota-percetakan.png")).toString("base64")}`;
+    const pdf = await createPrintingReceiptPdf(record, {
+      total: 60_000, amountPaid: 60_000, paymentMethod: "QRIS",
+      payments: [{ method: "QRIS" }, { method: "TRANSFER" }, { method: "DEBIT" }, { method: "CREDIT" }],
+    }, artwork);
+    const output = pdf.output();
+    const colorBeforeText = (text: string) => {
+      const textIndex = output.indexOf(`(${text}) Tj`);
+      const colors = output.slice(0, textIndex).match(/[\d.]+ [\d.]+ [\d.]+ rg/g) ?? [];
+      return colors.at(-1);
+    };
+
+    expect(output).toContain("(QRIS) Tj");
+    expect(output).toContain("(Transfer) Tj");
+    expect(output).toContain("(Debit) Tj");
+    expect(output).toContain("(Kartu kredit) Tj");
+    expect(colorBeforeText("QRIS")).toBe("0.067 0.094 0.153 rg");
+    expect(colorBeforeText("Transfer")).toBe("0.145 0.388 0.922 rg");
+    expect(colorBeforeText("Debit")).toBe("0.631 0.384 0.027 rg");
+    expect(colorBeforeText("Kartu kredit")).toBe("0.486 0.227 0.929 rg");
+  });
   it("prints saved A5 supplemental details and keeps long titles and void status on every appendix", async () => {
     const record = receipt("PRINT");
     record.number = `PR-${"W".repeat(77)}`;
@@ -45,8 +81,15 @@ describe("printing receipt PDF", () => {
     const artwork = `data:image/png;base64,${readFileSync(resolve("public/images/printing-receipts/nota-spanduk.png")).toString("base64")}`;
     const pdf = await createPrintingReceiptPdf(record, null, artwork);
     const presentation = buildPrintingReceiptPresentation(record);
-    expect(presentation.pages.flatMap(page => page.fields).every(field => field.textLines.length * field.fittedFontSize / 2.83465 * 1.12 <= field.height)).toBe(true);
-    expect(presentation.pages.flatMap(page => page.fields).every(field => field.fittedFontSize >= 5)).toBe(true);
+    const appendixValues = presentation.appendixPages.flatMap(page => page.lines).filter(line => !line.bold);
+    expect(appendixValues.length).toBeGreaterThan(0);
+    expect(appendixValues.every(line => line.align === "center")).toBe(true);
+    const receiptFields = presentation.pages.flatMap(page => page.fields);
+    expect(receiptFields.filter(field => field.lineField === "name").every(field => field.align === "left")).toBe(true);
+    expect(receiptFields.filter(field => field.lineField === "material").every(field => field.align === "center")).toBe(true);
+    expect(receiptFields.some(field => "topAligned" in field)).toBe(false);
+    expect(receiptFields.every(field => field.textLines.length * field.fittedFontSize / 2.83465 * 1.12 <= field.height)).toBe(true);
+    expect(receiptFields.every(field => field.fittedFontSize >= 5)).toBe(true);
     expect(presentation.appendixPages.flatMap(page => page.lines).every(line => line.y <= 97)).toBe(true);
     expect(pdf.getNumberOfPages()).toBeGreaterThan(1);
     const output = pdf.output();
