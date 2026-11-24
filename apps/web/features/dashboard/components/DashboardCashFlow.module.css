@@ -1,0 +1,44 @@
+.content {
+  container: cash-flow / inline-size;
+}
+
+.overview,
+.flows {
+  display: grid;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.balance {
+  display: grid;
+  align-content: center;
+  background-image: radial-gradient(ellipse at top right, theme("colors.brand.800"), transparent 72%);
+}
+
+.balance::before {
+  position: absolute;
+  inset: 0 0 0 56%;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0 17px,
+    theme("colors.brand.300 / 12%") 17px 18px
+  );
+  mask-image: linear-gradient(to right, transparent, black);
+  pointer-events: none;
+  content: "";
+}
+
+.balanceValue {
+  font-family: var(--font-mono, monospace);
+  font-size: clamp(1.5rem, 1.1rem + 2.1cqi, 2.5rem);
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1.25;
+}
+
+@container cash-flow (min-width: 43rem) {
+  .overview {
+    grid-template-columns: minmax(0, 1.18fr) minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+}

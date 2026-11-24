@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "dashboard-arus-kas-hutang-20261124", date: "2026-11-24", revision: 1,
+    highlight: { title: "Arus kas dan hutang di Dashboard", summary: "Cek arus kas, rumus pengeluaran, dan saldo hutang pemasok dari Dashboard." },
+    title: "Telusuri arus kas dan hutang di Dashboard",
+    summary: "Arus Kas Bulan Ini memakai angka Keuangan. Ikon informasi menunjukkan rumus, dan Saldo Hutang Pemasok merinci sisa Giro dan hutang manual sesuai izin.",
+    kind: "feature", impact: "minor", area: "Dashboard", href: "/dashboard", visual: "financial",
+    steps: [
+      { title: "Buka Arus Kas Bulan Ini", detail: "Di Dashboard, periksa Arus Kas Bersih, Pemasukan, dan Pengeluaran bulan berjalan." },
+      { title: "Periksa rumus", detail: "Pilih ikon informasi pada insight pengeluaran untuk melihat nominal dan rumus persentasenya." },
+      { title: "Telusuri hutang", detail: "Periksa sisa Giro dan hutang manual, lalu pilih Lihat rincian hutang untuk membuka Keuangan." },
+    ],
+  },
+  {
     id: "metode-pembayaran-nota-percetakan-20261123", date: "2026-11-24", revision: 1,
     highlight: { title: "Metode bayar pada nota Percetakan", summary: "Lihat metode pembayaran dalam satu baris berwarna di pratinjau dan PDF." },
     title: "Metode pembayaran tercantum pada nota Percetakan",

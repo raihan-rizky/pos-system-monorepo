@@ -21,6 +21,7 @@ import type { Transaction } from "@/hooks/useTransactions";
 import { useDashboard } from "@/features/dashboard/hooks/useDashboard";
 import { StatTile } from "@/features/dashboard/components/StatTile";
 import { SectionCard } from "@/features/dashboard/components/SectionCard";
+import { DashboardCashFlow } from "@/features/dashboard/components/DashboardCashFlow";
 import { RevenueTrendChart } from "@/features/dashboard/components/RevenueTrendChart";
 import { PaymentMixCard } from "@/features/dashboard/components/PaymentMixCard";
 import { ActiveDpList } from "@/features/dashboard/components/ActiveDpList";
@@ -131,7 +132,7 @@ export default function DashboardPage() {
             className={`grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 ${dashboardData?.receivableBalance === null ? "xl:grid-cols-5" : "xl:grid-cols-6"}`}
           >
             <StatTile
-              label="Pemasukan Hari Ini"
+              label="Penerimaan Hari Ini"
               value={dashboardData?.todayRevenue === null ? "Tidak memiliki izin" : formatRupiah(dashboardData?.todayRevenue ?? 0)}
               hint={
                 <>
@@ -147,7 +148,7 @@ export default function DashboardPage() {
               icon={<Wallet className="h-4 w-4" aria-hidden="true" />}
             />
             <StatTile
-              label="Pemasukan Bulan Ini"
+              label="Penerimaan Bulan Ini"
               value={dashboardData?.monthlyRevenue === null ? "Tidak memiliki izin" : formatRupiah(dashboardData?.monthlyRevenue ?? 0)}
               hint={
                 <>
@@ -202,18 +203,20 @@ export default function DashboardPage() {
             />
           </section>
 
+          <DashboardCashFlow />
+
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
             <SectionCard
               className="xl:col-span-2"
-              title="Tren Pemasukan & Profit"
-              subtitle="Pemasukan mengikuti pembayaran; profit mengikuti penjualan"
+              title="Tren Penerimaan & Profit"
+              subtitle="Penerimaan mengikuti pembayaran. Profit mengikuti penjualan."
               accent="brand"
               icon={<BarChart3 className="h-4 w-4" aria-hidden="true" />}
               action={
                 <div className="flex gap-3 text-[10px] font-bold uppercase tracking-wider">
                   <span className="inline-flex items-center gap-1.5 text-brand-700">
                     <span className="h-2 w-2 rounded-full bg-brand-500" />
-                    Pemasukan
+                    Penerimaan
                   </span>
                   <span className="inline-flex items-center gap-1.5 text-emerald-700">
                     <span className="h-2 w-2 rounded-full bg-emerald-500" />
