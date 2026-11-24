@@ -1,147 +1,155 @@
-/*
- * Draft Receipt (Surat Penawaran / Faktur Sementara) print styles.
- *
- * A4 portrait page (210mm × 297mm).
- * Completely separate from receipt-print.css to avoid conflicts.
- *
- * Key: when #draft-receipt-page exists in the DOM, it overrides
- * the regular receipt @page size via higher specificity and
- * hides #print-receipt entirely.
- */
-
 @media print {
-  /*
-   * Only override @page when the draft receipt is actually in the DOM.
-   * Browsers apply the last-defined @page, so this file must be
-   * imported AFTER receipt-print.css (which it is via DraftReceiptModal).
-  /* Page size is now injected dynamically via <style> in DraftReceiptModal.tsx 
-     to ensure it reliably overrides the global receipt-print.css without conflicts */
-
-  /* Only hide body content if the draft receipt is actually present */
-  body:has(#draft-receipt-page) * {
-    visibility: hidden;
+  @page draft-quotation {
+    size: A4 portrait;
+    margin: 12mm 16mm;
   }
 
-  body:has(#draft-receipt-page) #draft-receipt-page,
-  body:has(#draft-receipt-page) #draft-receipt-page * {
+  body:has(#draft-receipt-page):not(:has(#surat-jalan-print)) > :not(:has(#draft-receipt-page)),
+  div.fixed.inset-0:has(.draft-receipt-modal) > :not(.draft-receipt-modal),
+  .draft-receipt-modal > :not(:has(#draft-receipt-page)),
+  .draft-receipt-content > :not(.draft-receipt-preview),
+  .draft-receipt-modal .print\:hidden {
+    display: none !important;
+  }
+
+  #draft-receipt-page,
+  #draft-receipt-page * {
     visibility: visible !important;
   }
 
-  /* Force-hide the regular receipt if it exists in the DOM while draft is printing */
-  body:has(#draft-receipt-page) #print-receipt {
-    display: none !important;
-  }
-
-  /* Hide the print:hidden utility (buttons, form inputs, etc.) */
-  .print\:hidden {
-    display: none !important;
-  }
-
-  /* Reset positioning and flex centering on modal ancestors to prevent offset */
-  div.fixed.inset-0,
-  div[role="dialog"],
-  div[role="dialog"] > div,
-  .w-full.overflow-x-auto {
+  div.fixed.inset-0:has(.draft-receipt-modal),
+  .draft-receipt-modal,
+  .draft-receipt-modal > :has(#draft-receipt-page),
+  .draft-receipt-preview {
     position: static !important;
     transform: none !important;
+    animation: none !important;
+    opacity: 1 !important;
     display: block !important;
     padding: 0 !important;
     margin: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: transparent !important;
+    box-shadow: none !important;
   }
 
-  /* ── Position the draft receipt on the page ──────────────────── */
   #draft-receipt-page {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
+    page: draft-quotation;
+    width: auto !important;
+    min-height: 0 !important;
     margin: 0 !important;
+    padding: 0 !important;
     border: none !important;
     box-shadow: none !important;
-    background: white !important;
-    overflow: hidden !important;
-    box-sizing: border-box !important;
+    background: var(--print-paper) !important;
+    overflow: visible !important;
   }
 
-  body {
-    margin: 0;
-    padding: 0;
+  body:has(#draft-receipt-page), html:has(#draft-receipt-page) {
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+
+  .draft-receipt-signature {
+    break-inside: avoid;
   }
 }
 
 /* ── Screen preview ──────────────────────────────────────────────── */
 
-#draft-receipt-page {
-  font-family: "Times New Roman", "Georgia", serif;
-  color: #1a1a1a;
+.print-document.draft-receipt-paper {
+  --print-body-font: "Times New Roman", Georgia, serif;
+  --print-ink: #1a1a1a;
+  --print-rule: #333;
+  --print-muted: #475569;
+  --print-fill: #f0f0f0;
+  --print-accent: #9a3412;
+  --print-accent-tint: #fff7ed;
+  --print-outline: #94a3b8;
+  --print-paper-shadow: rgb(0 0 0 / .05);
+  --draft-paper-border: #e5e7eb;
+
+  box-sizing: border-box;
+  width: 210mm;
+  min-height: 297mm;
+  margin-inline: auto;
+  padding: 12mm 16mm;
+  border: 1px solid var(--draft-paper-border);
+  box-shadow: 0 1px 2px var(--print-paper-shadow);
+  font-size: 12px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
-#draft-receipt-page table {
+.draft-letterhead {
+  display: block;
+  width: 100%;
+  margin-bottom: calc(var(--print-step) * 4);
+}
+
+.draft-document-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: calc(var(--print-step) * 4);
+  margin-bottom: calc(var(--print-step) * 3);
+}
+
+.draft-document-meta > div { min-width: 0; }
+.draft-document-meta > div:last-child { max-width: 60%; }
+
+.draft-document-table {
+  width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
+  color: var(--print-ink);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
 }
 
-#draft-receipt-page th,
-#draft-receipt-page td {
-  border: 1px solid #333;
+.draft-col-number { width: 35px; }
+.draft-col-quantity { width: 80px; }
+.draft-col-unit { width: 65px; }
+.draft-col-price { width: 100px; }
+.draft-col-total { width: 110px; }
+
+.draft-document-table th,
+.draft-document-table td {
+  border: 1px solid var(--print-rule);
   padding: 4px 8px;
   font-size: 11px;
 }
 
-#draft-receipt-page th {
-  background-color: #f0f0f0;
-  font-weight: bold;
+.draft-document-table th {
+  background-color: var(--print-fill);
+  font-weight: 700;
   text-align: center;
-  -webkit-print-color-adjust: exact;
-  print-color-adjust: exact;
+  overflow-wrap: normal;
 }
 
-/* Total row highlight */
-#draft-receipt-page .total-row {
-  background-color: #f0f0f0;
-  -webkit-print-color-adjust: exact;
-  print-color-adjust: exact;
-}
+.draft-document-table th:nth-child(2) { text-align: left; }
+.draft-document-table th:last-child { text-align: right; }
+.draft-totals-table .total-row { background-color: var(--print-fill); }
+.draft-totals-table .total-row td { padding: 6px 8px; font-size: 12px; font-weight: 700; }
 
-/* Terbilang box */
-#draft-receipt-page .terbilang-box {
-  border: 1px solid #333;
-  padding: 4px 10px;
+.draft-receipt-paper .terbilang-box {
+  border: 1px solid var(--print-rule);
+  padding: var(--print-step) calc(var(--print-step) * 2.5);
   font-style: italic;
-  font-weight: bold;
+  font-weight: 700;
   font-size: 11px;
   margin-top: -1px;
-}
-
-/* Header section */
-.draft-receipt-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border-bottom: 3px double #cc0000;
-  padding-bottom: 8px;
-  margin-bottom: 16px;
-}
-
-.draft-receipt-header img {
-  width: 70px;
-  height: 70px;
-  object-fit: contain;
-}
-
-.draft-receipt-header-text h1 {
-  font-size: 22px;
-  font-weight: bold;
-  color: #cc0000;
-  margin: 0;
-  letter-spacing: 1px;
-}
-
-.draft-receipt-header-text p {
-  font-size: 11px;
-  margin: 0;
-  color: #333;
 }
 
 /* Signature section */
@@ -153,9 +161,12 @@
 
 .draft-receipt-signature .stamp-area {
   height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+}
+
+.draft-signature-contact {
+  margin: 2px 0 0;
+  font-size: 10px;
+  color: var(--print-muted);
 }
 
 
@@ -190,20 +201,20 @@
   transition: border-color 120ms ease, background-color 120ms ease;
 }
 #draft-receipt-page .draft-item-name-input:not([readonly]):not(:disabled):hover {
-  border-bottom-color: #94a3b8;
+  border-bottom-color: var(--print-outline);
 }
 #draft-receipt-page .draft-item-name-input:focus-visible {
-  border-bottom-color: #c2410c;
-  background: #fff7ed;
-  outline: 1px solid #c2410c;
+  border-bottom-color: var(--print-accent);
+  background: var(--print-accent-tint);
+  outline: 1px solid var(--print-accent);
   outline-offset: 2px;
 }
-#draft-receipt-page .draft-item-name-input[aria-invalid="true"] { border-bottom-color: #b91c1c; }
+#draft-receipt-page .draft-item-name-input[aria-invalid="true"] { border-bottom-color: var(--print-error); }
 #draft-receipt-page .draft-item-edit-icon {
   position: absolute;
   right: 1px;
   top: 4px;
-  color: #64748b;
+  color: var(--print-muted);
   pointer-events: none;
 }
 #draft-receipt-page .draft-item-reference {
@@ -214,8 +225,8 @@
 }
 #draft-receipt-page .draft-item-pos-name {
   margin: 2px 0 0;
-  color: #475569;
-  font-size: 10px;
+  color: var(--print-muted);
+  font-size: 11px;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
@@ -227,20 +238,100 @@
   padding: 2px 0;
   border: 0;
   background: transparent;
-  color: #9a3412;
+  color: var(--print-accent);
   font: inherit;
   font-size: 10px;
 }
 #draft-receipt-page .draft-item-name-reset:hover { text-decoration: underline; }
 #draft-receipt-page .draft-item-name-reset:focus-visible {
-  outline: 2px solid #c2410c;
+  outline: 2px solid var(--print-accent);
   outline-offset: 2px;
 }
 #draft-receipt-page .draft-item-print-name { display: none; }
+.quotation-print { display: none; }
+.quotation-number { text-align: center; }
+.quotation-amount { text-align: right; }
+.draft-document-table .quotation-entry td { vertical-align: top; }
+
+.quotation-field {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 24px;
+  padding: 2px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.quotation-field::placeholder { color: var(--print-muted); }
+.quotation-entry td:nth-child(3) .quotation-field,
+.quotation-entry td:nth-child(4) .quotation-field { text-align: center; }
+.quotation-entry td:nth-child(5) .quotation-field { text-align: right; }
+.quotation-field:hover { border-color: var(--print-outline); }
+.quotation-field:focus-visible,
+.quotation-link:focus-visible,
+.quotation-unlink:focus-visible,
+.quotation-product-results button:focus-visible { outline: 2px solid var(--print-accent); outline-offset: 1px; }
+
+.quotation-link, .quotation-unlink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--print-step);
+  min-height: 24px;
+  color: var(--print-accent);
+  font-weight: 600;
+  text-align: left;
+}
+
+.quotation-link-summary, .quotation-search-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--print-step);
+}
+
+.quotation-link-summary { color: var(--print-muted); }
+.quotation-unlink { flex: none; justify-content: center; min-width: 24px; }
+.quotation-search-row section { padding: var(--print-step); }
+.quotation-search-row .quotation-field { border-color: var(--print-outline); }
+.quotation-product-results { margin-top: var(--print-step); }
+.quotation-product-results button {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--print-step);
+  width: 100%;
+  min-height: 40px;
+  align-items: center;
+  padding: var(--print-step);
+  border-bottom: 1px solid var(--print-outline);
+  text-align: left;
+}
+.quotation-product-results button:hover { background: var(--print-accent-tint); }
+
+@media screen {
+  .draft-receipt-preview:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
+  .draft-receipt-paper .print-item-table-controls button:first-child {
+    background: var(--print-paper);
+    border-color: var(--print-outline);
+    color: var(--print-accent);
+  }
+  .draft-receipt-paper .print-item-table-controls button:first-child:not(:disabled):hover {
+    background: var(--print-accent-tint);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   #draft-receipt-page .draft-item-name-input { transition: none; }
 }
 @media print {
+  .quotation-screen { display: none !important; }
+  .quotation-print { display: block; }
+  .quotation-entry .quotation-print { white-space: pre-wrap; }
   #draft-receipt-page .draft-item-screen-only { display: none !important; }
   #draft-receipt-page .draft-item-print-name {
     display: block !important;

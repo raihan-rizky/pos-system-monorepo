@@ -40,7 +40,7 @@ function toApprovalCartItem(item: Transaction["items"][number]): CartEditorItem 
     serviceNote: item.serviceNote ?? null,
     productId: item.productId ?? null,
     printingServiceId: item.printingServiceId ?? null,
-    productName: item.productName,
+    productName: item.quotationUnit != null ? item.documentName ?? item.productName : item.productName,
     quantity: Number(item.quantity),
     unitPrice: Number(item.unitPrice),
     originalUnitPrice: Number(item.originalUnitPrice ?? item.unitPrice),
@@ -52,6 +52,7 @@ function toApprovalCartItem(item: Transaction["items"][number]): CartEditorItem 
     size: item.size ?? null,
     material: item.material ?? null,
     unit:
+      item.quotationUnit ??
       item.product?.unit ??
       item.printingService?.unit ??
       item.rawMaterialUnit ??

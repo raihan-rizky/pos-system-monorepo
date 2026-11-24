@@ -262,6 +262,9 @@ export async function POST(
               total, amountPaid: finalAmountPaid,
             });
             if (customerArgs) await tx.customer.update(customerArgs);
+            await tx.$queryRaw`
+              SELECT "id" FROM "pos_transactions" WHERE "id" = ${id} AND "storeId" = ${storeId} FOR UPDATE
+            `;
             const quoteForApproval = await buildApprovalQuote(tx, {
               storeId,
               transactionId: id,
@@ -322,6 +325,8 @@ export async function POST(
                     rawMaterialUnit: line.rawMaterialUnit,
                     serviceNote: line.input.serviceNote ?? null,
                     productName: line.name,
+                    documentName: line.documentName ?? null,
+                    quotationUnit: line.quotationUnit ?? null,
                     quantity: line.input.quantity,
                     unitPrice: line.appliedUnitPrice,
                     originalUnitPrice: line.regular,

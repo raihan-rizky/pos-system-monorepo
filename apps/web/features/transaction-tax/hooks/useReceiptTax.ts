@@ -7,7 +7,7 @@ import { useRole } from "@/components/providers/RoleProvider";
 import type { Transaction } from "@/hooks/useTransactions";
 import { calculateTransactionTax, calculateTaxPaymentState, getTransactionTaxMethod, getTransactionTaxRate } from "../helpers/tax-calculation";
 
-type TaxResponse = { transaction: Partial<Transaction> & { id: string }; snapshot: Record<string, unknown> };
+export type TaxResponse = { transaction: Partial<Transaction> & { id: string }; snapshot: Record<string, unknown> };
 
 export function useReceiptTax(transaction: Transaction, open: boolean) {
   const queryClient = useContext(QueryClientContext);
@@ -70,5 +70,5 @@ export function useReceiptTax(transaction: Transaction, open: boolean) {
     finally { busy.current = false; setSaving(false); }
   }
 
-  return { transaction: preview, taxMethod, rateText, canEdit, ready, saving, invalid: Boolean(validationError), error: error ?? validationError, dirty: input !== null, setRateText: (value: string) => { setInput(value); setError(null); }, ensureSaved };
+  return { transaction: preview, taxMethod, rateText, canEdit, ready, saving, invalid: Boolean(validationError), error: error ?? validationError, dirty: input !== null, setRateText: (value: string) => { setInput(value); setError(null); }, ensureSaved, applySaved: setSaved };
 }

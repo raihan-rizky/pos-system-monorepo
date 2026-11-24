@@ -182,10 +182,10 @@ export function buildInvoicePdfData(
       : getStatusDisplay(transaction.status);
 
   const pdfItems: InvoicePdfItem[] = items.map((item, index) => {
-    const unit = item.product?.unit || item.printingService?.unit || item.rawMaterialUnit || "pcs";
+    const unit = item.quotationUnit ?? (item.product?.unit || item.printingService?.unit || item.rawMaterialUnit || "pcs");
     return {
       no: index + 1,
-      productName: item.productName,
+      productName: item.quotationUnit != null ? item.documentName ?? item.productName : item.productName,
       size: formatReceiptSize(item.size) || "-",
       quantity: item.quantity,
       unit,

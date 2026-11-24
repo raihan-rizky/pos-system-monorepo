@@ -1,0 +1,86 @@
+@import "./print-document.css";
+
+.print-item-table > table {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.print-item-blank-row {
+  height: 8mm;
+}
+
+@media screen {
+  .print-item-table {
+    position: relative;
+    margin-block-end: calc(var(--print-action-size) / 2 + var(--print-step) * 1.5);
+  }
+
+  .print-item-table > table > tbody > tr:last-child:not(.print-item-blank-row) > td,
+  .print-item-table > table:has(> tbody:empty) > thead th {
+    padding-block-end: calc(var(--print-action-size) / 2 + var(--print-step));
+  }
+
+  .print-item-table-controls {
+    position: absolute;
+    inset-inline-start: 50%;
+    bottom: 0;
+    transform: translate(-50%, 50%);
+  }
+
+  .print-item-table-controls button {
+    display: grid;
+    place-items: center;
+    width: var(--print-action-size);
+    height: var(--print-action-size);
+    padding: 0;
+    border: 1px solid var(--print-outline);
+    border-radius: 50%;
+    background: var(--print-paper);
+    color: var(--print-accent);
+    cursor: pointer;
+  }
+
+  .print-item-table-controls button:not(:disabled):hover {
+    background: var(--print-accent-tint);
+  }
+
+  .print-item-table-controls button:first-child {
+    border-color: var(--print-accent);
+    background: var(--print-accent);
+    color: var(--print-paper);
+  }
+
+  .print-item-table-controls button:first-child:not(:disabled):hover {
+    background: var(--print-accent-hover);
+  }
+
+  .print-item-table-controls button:focus-visible {
+    outline: 2px solid var(--print-accent);
+    outline-offset: 2px;
+  }
+
+  .print-item-table-controls button:disabled {
+    opacity: .5;
+    cursor: default;
+  }
+
+  .print-item-table-remove {
+    position: absolute;
+    inset-inline-start: calc(100% + var(--print-step) * 1.5);
+    top: 0;
+  }
+}
+
+@media print {
+  .print-item-table-controls {
+    display: none !important;
+  }
+
+  .print-item-table thead {
+    display: table-header-group;
+  }
+
+  .print-item-table tr {
+    break-inside: avoid;
+  }
+}

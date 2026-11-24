@@ -7,17 +7,21 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Modal, Button } from "@pos/ui";
 import { terbilang } from "@/lib/terbilang";
 import type { Transaction } from "@/hooks/useTransactions";
+import { TransactionCustomPriceSummary } from "@/features/pos-checkout/components/TransactionCustomPriceSummary";
 import { useStoreSettings } from "@/hooks/useSettings";
 import { formatDraftNumberForDisplay } from "@/features/transactions-draft/helpers/draft-number";
 import { decodeDivisionFromNote } from "@/features/nota-penawaran/helpers/division-note";
 import { DraftNumberField } from "@/features/transactions-draft/components/DraftNumberField";
 import { useRole } from "@/components/providers/RoleProvider";
+import { PrintItemTable } from "./PrintItemTable";
 import "./draft-receipt-print.css";
 import { getTransactionTaxRate } from "@/features/transaction-tax/helpers/tax-calculation";
 import { useReceiptTax } from "@/features/transaction-tax/hooks/useReceiptTax";
-import { TransactionCustomPriceSummary } from "@/features/pos-checkout/components/TransactionCustomPriceSummary";
 import { TaxField } from "@/features/transaction-tax/components/TaxField";
 import { useDocumentItemNames } from "@/features/transactions-draft/hooks/useDocumentItemNames";
+import { isBlankQuotationRow, parseQuotationRow, QuotationItemRow, type QuotationRowFields } from "@/features/nota-penawaran/components/QuotationItemRow";
+import { useQuotationItems } from "@/features/nota-penawaran/hooks/useQuotationItems";
+import { calculateQuotationTotals, MAX_QUOTATION_AMOUNT, roundQuotationAmount } from "@/features/nota-penawaran/helpers/quotation-items";
 
 interface DraftReceiptModalProps {
   open: boolean;
@@ -25,6 +29,17 @@ interface DraftReceiptModalProps {
   transaction: Transaction;
   initialDivision?: string;
 }
+
+const draftReceiptColumns = (
+  <colgroup>
+    <col className="draft-col-number" />
+    <col />
+    <col className="draft-col-quantity" />
+    <col className="draft-col-unit" />
+    <col className="draft-col-price" />
+    <col className="draft-col-total" />
+  </colgroup>
+);
 
 /**
  * Formal A4-sized draft receipt ("Surat Penawaran / Faktur Sementara")
@@ -41,11 +56,16 @@ export function DraftReceiptModal({
 }: DraftReceiptModalProps) {
   const tax = useReceiptTax(initialTransaction, open);
   const transaction = tax.transaction;
-  const documentNames = useDocumentItemNames(initialTransaction, open);
+  const baseTransaction = useMemo(() => ({ ...initialTransaction, items: initialTransaction.items.filter(item => item.quotationUnit == null) }), [initialTransaction]);
+  const documentNames = useDocumentItemNames(baseTransaction, open);
+  const quotation = useQuotationItems(transaction.id, open);
   const { data: storeSettings } = useStoreSettings();
   const queryClient = useQueryClient();
   const { canPerform } = useRole();
   const canEditNumber = canPerform("transaction.draft", "update");
+  const canEditRows = transaction.status === "DRAFT" && canEditNumber;
+  const canLinkProduct = canPerform("product", "read");
+  const [pendingRows, setPendingRows] = useState<QuotationRowFields[]>([]);
   const [savedNumber, setSavedNumber] = useState(transaction.draftNumber ?? "");
   const [numberInput, setNumberInput] = useState<string | null | undefined>();
   const [automaticNumber, setAutomaticNumber] = useState("");
@@ -55,7 +75,7 @@ export function DraftReceiptModal({
   const [numberError, setNumberError] = useState<string | null>(null);
   const printing = useRef(false);
   const printSession = useRef(0);
-  const printItemsKey = JSON.stringify(transaction.items.map(item => item.id).sort());
+  const printItemsKey = JSON.stringify(baseTransaction.items.map(item => item.id).sort());
 
   useEffect(() => {
     printSession.current += 1;
@@ -63,6 +83,7 @@ export function DraftReceiptModal({
     setIsSavingNumber(false);
     return () => { printSession.current += 1; };
   }, [open, transaction.id, printItemsKey]);
+  useEffect(() => { setPendingRows([]); }, [open, transaction.id]);
 
   useEffect(() => {
     if (!open) return;
@@ -102,8 +123,21 @@ export function DraftReceiptModal({
     initialDivision || decodedDivision
   );
 
-  const handlePrint = async () => {
+  const enteredRows = pendingRows.filter(row => !isBlankQuotationRow(row));
+  const validRows = enteredRows.map(parseQuotationRow);
+  const addedSubtotal = roundQuotationAmount(validRows.reduce((sum, row) => sum + (row ? roundQuotationAmount(row.quantity * row.unitPrice) : 0), 0));
+  const previewTotals = enteredRows.length ? calculateQuotationTotals(transaction, addedSubtotal) : transaction;
+  const invalidRows = validRows.some(row => row === null);
+  const exceedsAmount = previewTotals.subtotal > MAX_QUOTATION_AMOUNT || previewTotals.total > MAX_QUOTATION_AMOUNT;
+
+  const handlePrint = async (shouldPrint: boolean) => {
     if (printing.current) return;
+    if (!quotation.ready) return;
+    if (invalidRows || enteredRows.length > 100 || exceedsAmount) {
+      setNumberError(exceedsAmount ? "Total nota penawaran melebihi batas nominal." : enteredRows.length > 100
+        ? "Simpan maksimal 100 baris terisi sekaligus." : "Isi nama, jumlah, dan harga untuk setiap baris yang digunakan. Baris yang kosong tetap bisa dicetak.");
+      return;
+    }
     const session = printSession.current;
     printing.current = true;
     setIsSavingNumber(true);
@@ -113,6 +147,21 @@ export function DraftReceiptModal({
       if (session !== printSession.current) return;
       await tax.ensureSaved();
       if (session !== printSession.current) return;
+      const newItems = validRows.filter(row => row !== null);
+      if (newItems.length) {
+        if (!canEditRows) throw new Error("Anda tidak memiliki izin menambah item pada nota penawaran.");
+        const result = await quotation.save(newItems);
+        if (session !== printSession.current) return;
+        const addedIds = new Set(newItems.map(item => item.id));
+        flushSync(() => {
+          quotation.accept(result.items);
+          tax.applySaved(result.tax);
+          setPendingRows(current => current.filter(row => !addedIds.has(row.id)));
+        });
+        for (const key of ["transactions", "transaction-history", "transaction", "approval-quote"]) {
+          void queryClient.invalidateQueries({ queryKey: [key] });
+        }
+      }
       if (canEditNumber && numberInput !== undefined) {
         const response = await fetch(`/api/transactions/${transaction.id}/draft-number`, {
           method: "PATCH",
@@ -130,7 +179,7 @@ export function DraftReceiptModal({
         void queryClient.invalidateQueries({ queryKey: ["transaction-history"] });
         void queryClient.invalidateQueries({ queryKey: ["transaction", transaction.id] });
       }
-      if (session === printSession.current) window.print();
+      if (shouldPrint && session === printSession.current) window.print();
     } catch (error) {
       if (session !== printSession.current) return;
       setNumberError(error instanceof Error ? error.message : "Nomor faktur gagal disimpan.");
@@ -142,14 +191,15 @@ export function DraftReceiptModal({
     }
   };
 
-  const items = transaction?.items || [];
+  const items = baseTransaction.items;
+  const savedQuotationItems = quotation.ready ? quotation.items : initialTransaction.items.filter(item => item.quotationUnit != null);
   const storeName = storeSettings?.name || "TOKO TELADAN";
   const storeAddress =
     storeSettings?.address || "Jl. Temu Putih No.30 Cilegon";
   const storePhone = storeSettings?.phone || "0254 393022";
 
-  const grandTotal = Number(transaction.total);
-  const netAmount = Math.max(0, Number(transaction.subtotal ?? grandTotal - Number(transaction.tax ?? 0)) - Number(transaction.discount ?? 0));
+  const grandTotal = Number(previewTotals.total);
+  const netAmount = Math.max(0, Number(previewTotals.subtotal ?? grandTotal - Number(previewTotals.tax ?? 0)) - Number(transaction.discount ?? 0));
   const dpp = Math.round(netAmount * 11 / 12);
   const showTaxSummary = getTransactionTaxRate(transaction) > 0;
 
@@ -168,16 +218,8 @@ export function DraftReceiptModal({
     transaction?.invoiceNumber ||
     "";
   return (
-    <Modal open={open} onClose={onClose} title="Cetak Nota Penawaran" size="4xl">
-      <style>{`
-        @media print {
-          @page {
-            size: A4 portrait !important;
-            margin: 0 !important;
-          }
-        }
-      `}</style>
-      <div className="space-y-4">
+    <Modal open={open} onClose={onClose} title="Cetak Nota Penawaran" size="4xl" className="draft-receipt-modal">
+      <div className="draft-receipt-content space-y-4">
         <TransactionCustomPriceSummary items={transaction.items} />
         {/* ═══ EDITABLE FIELDS (not printed) ═══ */}
         <div className="print:hidden bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
@@ -229,40 +271,27 @@ export function DraftReceiptModal({
             hint={canEditNumber ? "Nomor disimpan ke transaksi sebelum dicetak. Klik Gunakan otomatis untuk memakai nomor sistem." : "Nomor mengikuti transaksi tersimpan. Anda tidak memiliki izin mengubah nomor faktur."}
           />
           {numberError && numberError !== documentNames.error && <p role="alert" className="text-sm text-red-700">{numberError}</p>}
-          <TaxField tax={tax} quotation />
+          <fieldset disabled={isSavingNumber}><TaxField tax={tax} quotation /></fieldset>
           {documentNames.error && <p role="alert" className="text-sm text-red-700">{documentNames.error}</p>}
+          {quotation.error && <p role="alert" className="text-sm text-red-700">{quotation.error}</p>}
           <p className="text-xs text-surface-600">Edit nama pada kolom ITEM. Nama POS menjadi referensi di layar; hanya nama pada nota yang dicetak. Perubahan disimpan saat cetak.</p>
         </div>
 
         {/* ═══ A4 PREVIEW ═══ */}
-        <div className="w-full overflow-x-auto pb-4">
+        <div className="draft-receipt-preview w-full overflow-x-auto pb-4" role="region" aria-label="Pratinjau Nota Penawaran" tabIndex={0}>
           <div
             id="draft-receipt-page"
-            className="bg-white text-black mx-auto border border-gray-200 shadow-sm print:border-none print:shadow-none box-border"
-            style={{
-              width: "210mm",
-              minHeight: "297mm",
-              padding: "12mm 16mm",
-              fontFamily: '"Times New Roman", Georgia, serif',
-            }}
+            className="print-document draft-receipt-paper"
           >
             {/* ═══ HEADER / KOP SURAT ═══ */}
-            { }
             <img
               src="/images/kop-surat-header.png"
               alt="Kop Surat"
-              style={{ width: "100%", marginBottom: 16 }}
+              className="draft-letterhead"
             />
 
             {/* ═══ DOCUMENT INFO ═══ */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: 12,
-                fontSize: 12,
-              }}
-            >
+            <div className="draft-document-meta">
               <div>
                 <div style={{ marginBottom: 4 }}>
                   <span style={{ fontWeight: "bold" }}>No.</span>{" "}
@@ -301,18 +330,32 @@ export function DraftReceiptModal({
             </div>
 
             {/* ═══ ITEMS TABLE ═══ */}
-            <table style={{ width: "100%", marginBottom: 0 }}>
-              <thead>
+            <PrintItemTable
+              key={transaction.id}
+              className="draft-document-table"
+              columnCount={6}
+              columns={draftReceiptColumns}
+              disabled={isSavingNumber}
+              rowActions={canEditRows ? {
+                count: pendingRows.length,
+                lastRowEmpty: pendingRows.length === 0 || isBlankQuotationRow(pendingRows[pendingRows.length - 1]),
+                add: () => {
+                  const row = { id: crypto.randomUUID(), name: "", quantity: "", unit: "", unitPrice: "", product: null };
+                  setPendingRows(current => [...current, row]);
+                },
+                removeLast: () => { setPendingRows(current => current.slice(0, -1)); setNumberError(null); },
+              } : undefined}
+              headings={
                 <tr>
-                  <th style={{ width: 35, textAlign: "center" }}>NO</th>
-                  <th style={{ textAlign: "left" }}>ITEM</th>
-                  <th style={{ width: 80, textAlign: "center" }}>QUANTITAS</th>
-                  <th style={{ width: 65, textAlign: "center" }}>SATUAN</th>
-                  <th style={{ width: 100, textAlign: "center" }}>HARGA SATUAN</th>
-                  <th style={{ width: 110, textAlign: "right" }}>TOTAL HARGA</th>
+                  <th scope="col">NO</th>
+                  <th scope="col">ITEM</th>
+                  <th scope="col">QUANTITAS</th>
+                  <th scope="col">SATUAN</th>
+                  <th scope="col">HARGA SATUAN</th>
+                  <th scope="col">TOTAL HARGA</th>
                 </tr>
-              </thead>
-              <tbody>
+              }
+            >
                 {items.map((item, index) => (
                   <tr key={item.id ?? `item-${index}`}>
                     <td style={{ textAlign: "center" }}>{index + 1}</td>
@@ -374,20 +417,34 @@ export function DraftReceiptModal({
                     </td>
                   </tr>
                 ))}
-              </tbody>
-            </table>
+              {savedQuotationItems.map((item, index) => (
+                <tr key={item.id}>
+                  <td className="quotation-number">{items.length + index + 1}</td>
+                  <td>{item.documentName ?? item.productName}</td>
+                  <td className="quotation-number">{item.quantity}</td>
+                  <td className="quotation-number">{item.quotationUnit}</td>
+                  <td className="quotation-amount">{Number(item.unitPrice).toLocaleString("id-ID")}</td>
+                  <td className="quotation-amount">{Number(item.subtotal).toLocaleString("id-ID")}</td>
+                </tr>
+              ))}
+              {canEditRows && pendingRows.map((row, index) => (
+                <QuotationItemRow key={row.id} row={row} index={index + 1} number={items.length + savedQuotationItems.length + index + 1}
+                  canLink={canLinkProduct} disabled={isSavingNumber} onChange={patch => {
+                    setPendingRows(current => current.map(entry => entry.id === row.id ? { ...entry, ...patch } : entry));
+                    setNumberError(null);
+                  }} />
+              ))}
+            </PrintItemTable>
 
             {/* ═══ TOTAL ROW ═══ */}
-            <table style={{ width: "100%", marginBottom: 0 }}>
+            <table className="draft-document-table draft-totals-table">
+              {draftReceiptColumns}
               <tbody>
                 <tr className="total-row">
                   <td
                     colSpan={5}
                     style={{
                       textAlign: "center",
-                      fontWeight: "bold",
-                      fontSize: 12,
-                      padding: "6px 8px",
                     }}
                   >
                     J U M L A H
@@ -395,10 +452,6 @@ export function DraftReceiptModal({
                   <td
                     style={{
                       textAlign: "right",
-                      fontWeight: "bold",
-                      fontSize: 12,
-                      padding: "6px 8px",
-                      width: 110,
                     }}
                   >
                     Rp{" "}
@@ -406,15 +459,15 @@ export function DraftReceiptModal({
                   </td>
                 </tr>
                 {[
-                    ...(showTaxSummary ? [
-                      ["DPP Nilai Lain", dpp],
-                      ["PPN", Number(transaction.tax ?? 0)],
-                    ] : []),
-                    ["Total", grandTotal],
+                  ...(showTaxSummary ? [
+                    ["DPP Nilai Lain", dpp],
+                    ["PPN", Number(previewTotals.tax ?? 0)],
+                  ] : []),
+                  ["Total", grandTotal],
                 ].map(([label, amount]) => (
                   <tr className="total-row" key={label}>
-                    <td colSpan={5} style={{ textAlign: "left", fontWeight: "bold", fontSize: 12, padding: "6px 8px" }}>{label}</td>
-                    <td style={{ textAlign: "right", fontWeight: "bold", fontSize: 12, padding: "6px 8px", width: 110 }}>Rp {Number(amount).toLocaleString("id-ID")}</td>
+                    <td colSpan={5}>{label}</td>
+                    <td style={{ textAlign: "right" }}>Rp {Number(amount).toLocaleString("id-ID")}</td>
                   </tr>
                 ))}
               </tbody>
@@ -465,7 +518,7 @@ export function DraftReceiptModal({
                 >
                   Indra Gunawan
                 </p>
-                <p style={{ margin: "2px 0 0", fontSize: 10, color: "#555" }}>
+                <p className="draft-signature-contact">
                   Hp. 08111228134
                 </p>
               </div>
@@ -474,7 +527,7 @@ export function DraftReceiptModal({
         </div>
 
         {/* ═══ ACTIONS (NOT PRINTED) ═══ */}
-        <div className="flex gap-3 print:hidden sticky bottom-[-16px] z-10 bg-white pt-4 pb-4 -mx-6 px-6 border-t border-gray-100 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] mt-4">
+        <div className="flex flex-wrap gap-3 print:hidden sticky bottom-[-16px] z-10 bg-white pt-4 pb-4 -mx-6 px-6 border-t border-gray-100 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] mt-4">
           <Button
             variant="secondary"
             size="lg"
@@ -484,12 +537,15 @@ export function DraftReceiptModal({
           >
             Tutup
           </Button>
+          {canEditRows && enteredRows.length > 0 && <Button size="lg" variant="secondary" onClick={() => handlePrint(false)}
+            disabled={isSavingNumber || !quotation.ready || !numberReady || !tax.ready || tax.saving || tax.invalid || !documentNames.ready || documentNames.saving || documentNames.invalid}
+            className="w-full sm:w-auto">Simpan baris</Button>}
           <Button
             variant="accent"
             size="lg"
-            onClick={handlePrint}
+            onClick={() => handlePrint(true)}
             loading={isSavingNumber}
-            disabled={isLoadingNumber || !numberReady || !tax.ready || tax.saving || tax.invalid || !documentNames.ready || documentNames.saving || documentNames.invalid}
+            disabled={!quotation.ready || isLoadingNumber || !numberReady || !tax.ready || tax.saving || tax.invalid || !documentNames.ready || documentNames.saving || documentNames.invalid}
             className="flex-1"
           >
             Cetak Nota Penawaran

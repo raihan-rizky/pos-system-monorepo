@@ -89,9 +89,9 @@ export function buildDraftPdfData(
 
   const pdfItems: DraftPdfItem[] = items.map((item, index) => ({
     no: index + 1,
-    productName: item.productName,
+    productName: item.documentName ?? item.productName,
     quantity: item.quantity,
-    unit: item.product?.unit || item.printingService?.unit || "-",
+    unit: item.quotationUnit ?? (item.product?.unit || item.printingService?.unit || "-"),
     unitPriceFormatted: Number(item.unitPrice).toLocaleString("id-ID"),
     subtotalFormatted: Number(item.subtotal).toLocaleString("id-ID"),
     discountFormatted: Number(item.discount) > 0 ? Number(item.discount).toLocaleString("id-ID") : undefined,

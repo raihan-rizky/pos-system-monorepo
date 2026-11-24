@@ -103,6 +103,7 @@ export const RBAC_HISTORY_ACTIVITIES = [
   { id: "history-approve", label: "Setujui transaksi", requirements: [historyPage, transactionRead, requirement("transaction.approve", "update", "Setujui transaksi")] },
   { id: "history-reject", label: "Tolak transaksi", requirements: [historyPage, transactionRead, requirement("transaction.approve", "delete", "Tolak transaksi")] },
   { id: "history-draft", label: "Setujui draft", requirements: [historyPage, transactionRead, requirement("transaction.draft", "update", "Setujui draft")] },
+  { id: "history-quotation-items", label: "Tambah item Nota Penawaran", requirements: [historyPage, transactionRead, requirement("transaction.draft", "update", "Ubah draft")] },
 ];
 
 export function isActivityRequirementAllowed(role: EditableRole, permissions: RolePermissions, item: ActivityRequirement) {

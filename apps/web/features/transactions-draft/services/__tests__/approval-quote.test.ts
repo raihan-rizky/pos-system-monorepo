@@ -7,6 +7,23 @@ import {
 } from "../approval-quote";
 
 describe("buildApprovalFingerprint", () => {
+  it("carries the saved quote price and entered name into approval with or without a product link", async () => {
+    const client = makeQuoteClient({ customerType: "UMUM" });
+    const current = await client.transaction.findFirst();
+    client.transaction.findFirst.mockResolvedValue({ ...current, status: "DRAFT", items: [
+      { id: "manual", productId: null, productName: "Barang manual", documentName: "Barang manual", quotationUnit: "dus", unitPrice: 75, quantity: 2, discount: 0 },
+      { id: "linked", productId: "paper", productName: "Kertas A4", documentName: "Nama ketikan", quotationUnit: "rim", unitPrice: 65, quantity: 3, discount: 0 },
+    ] } as never);
+    const quote = await buildApprovalQuote(client as never, { storeId: "store-1", transactionId: "tx-1", actorRole: "CASHIER", canViewCostPrice: false, items: [
+      { sourceItemId: "manual", quantity: 2 }, { sourceItemId: "linked", productId: "paper", quantity: 3 },
+    ] });
+    expect(quote.total).toBe(345);
+    expect(quote.items).toMatchObject([
+      { input: { productId: null }, name: "Barang manual", documentName: "Barang manual", quotationUnit: "dus", appliedUnitPrice: 75, unitCost: null },
+      { input: { productId: "paper" }, name: "Kertas A4", documentName: "Nama ketikan", quotationUnit: "rim", appliedUnitPrice: 65, unitCost: 40 },
+    ]);
+  });
+
   it("quotes the selected product using its current subcategory rule", async () => {
     const client = makeQuoteClient({ customerType: "UMUM" });
     const product = (await client.product.findMany())[0];

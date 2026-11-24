@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { readFile, mkdir } from "node:fs/promises";
 import path from "node:path";
-import { bundleReactHarness, repo, web } from "../../../product-stock-groups/__tests__/browser-harness.mjs";
+import { bundleReactHarness, web } from "../../../product-stock-groups/__tests__/browser-harness.mjs";
 const require = createRequire(import.meta.url);
 const { chromium } = require("@playwright/test");
 const bundle = await bundleReactHarness(`
@@ -10,6 +10,8 @@ const bundle = await bundleReactHarness(`
   import {createRoot} from 'react-dom/client';
   import {SuratJalanReceiptEditor} from './features/surat-jalan/components/SuratJalanReceiptEditor';
   import {createSuratJalan,updateSuratJalanDocument} from './features/surat-jalan/api/surat-jalan-api';
+  import './components/receipt-print.css';
+  import './components/draft-receipt-print.css';
   const transaction={id:'txn-1',invoiceNumber:'INV-CONTOH',customerName:'Pelanggan Contoh',status:'COMPLETED',stockDeductionSource:'TRANSACTION',items:[{id:'line-1',productId:'paper',printingServiceId:null,productName:'Kertas HVS A4',quantity:10,unit:'rim'},{id:'line-2',productId:'pen',printingServiceId:null,productName:'Pulpen',quantity:5,unit:'pak'}]};
   const initial={transaction,suratJalan:[],remainingItems:[],eligibility:{eligible:true},progress:{totalQuantity:15,deliveredQuantity:0,pendingQuantity:0,remainingQuantity:15}};
   function Harness(){const [data,setData]=useState(initial);const [open,setOpen]=useState(true);const [canUpdate,setCanUpdate]=useState(true);window.setCanUpdate=setCanUpdate;window.setBundle=setData;window.setEditorOpen=setOpen;
@@ -18,7 +20,7 @@ const bundle = await bundleReactHarness(`
   }
   window.prints=[];window.print=()=>window.prints.push(document.getElementById('surat-jalan-print').innerText);
   createRoot(document.getElementById('root')).render(<Harness/>);
-`, ["features/surat-jalan/components/SuratJalanReceiptEditor.tsx", "features/surat-jalan/components/SuratJalanDocument.tsx", "../../packages/ui/src/Modal.tsx"]);
+`, ["features/surat-jalan/components/SuratJalanReceiptEditor.tsx", "features/surat-jalan/components/SuratJalanDocument.tsx", "components/PrintItemTable.tsx", "../../packages/ui/src/Modal.tsx"]);
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
@@ -32,8 +34,9 @@ try {
   page.on("pageerror", error => errors.push(error.message));
   await page.route("http://localhost:3004/**", async route => {
     const url = new URL(route.request().url());
-    if (url.pathname === "/fixture") return route.fulfill({ contentType: "text/html", body: '<html lang="id"><body><div id="root"></div></body></html>' });
+    if (url.pathname === "/fixture") return route.fulfill({ contentType: "text/html", body: '<!doctype html><html lang="id"><body><div id="root"></div></body></html>' });
     if (url.pathname === "/images/logo_teladan.png") return route.fulfill({ contentType: "image/png", body: await readFile(path.join(web,"public/images/logo_teladan.png")) });
+    if (url.pathname.startsWith("/fonts/print/")) return route.fulfill({ contentType: "font/woff2", body: await readFile(path.join(web, "public/fonts/print", path.basename(url.pathname))) });
     if (route.request().method() === "POST" || route.request().method() === "PATCH") {
       const body = route.request().postDataJSON(); requests.push({ method: route.request().method(), body });
       await new Promise(resolve => setTimeout(resolve, 70));
@@ -53,6 +56,35 @@ try {
   assert.equal(await page.getByRole("button",{name:"Buat Surat Jalan",exact:true}).count(),0);
   assert.equal(await page.getByText("TOTAL INVOICE",{exact:true}).count(),0);
   assert.equal(requests.length,0);
+  const receipt = page.locator("#surat-jalan-print");
+  const itemRows = receipt.locator("tbody > tr");
+  const addBlankRow = receipt.getByRole("button", { name: "Tambah baris kosong" });
+  await addBlankRow.click();
+  await addBlankRow.press("Enter");
+  assert.equal(await itemRows.count(), 4);
+  assert.deepEqual(await itemRows.last().locator("td").allTextContents(), ["", "", "", ""]);
+  const lastRowBox = await itemRows.last().boundingBox();
+  const addRowBox = await addBlankRow.boundingBox();
+  assert.equal(Math.round(addRowBox.width), 44, "the row action has a comfortable touch target");
+  assert.ok(Math.abs(addRowBox.x + addRowBox.width / 2 - (lastRowBox.x + lastRowBox.width / 2)) < 2);
+  assert.ok(Math.abs(addRowBox.y + addRowBox.height / 2 - (lastRowBox.y + lastRowBox.height)) < 2);
+  assert.deepEqual(await receipt.getByRole("columnheader").allTextContents(), ["NO.", "BANYAKNYA", "NAMA BARANG", "KETERANGAN"]);
+  assert.equal(await receipt.getByText("Pengirim", { exact: true }).count(), 1);
+  assert.match(await receipt.innerText(), /Kendaraan.*No\. Polisi/s);
+  assert.match(await receipt.evaluate(element => getComputedStyle(element).fontFamily), /Source Sans 3/);
+  assert.match(await receipt.getByRole("heading", { name: "SURAT JALAN", exact: true }).evaluate(element => getComputedStyle(element).fontFamily), /Barlow Condensed/);
+  const loadedFonts = await page.evaluate(async () => {
+    await document.fonts.ready;
+    return [...document.fonts].filter(font => font.status === "loaded").map(font => font.family).sort();
+  });
+  assert.deepEqual(loadedFonts, ["Barlow Condensed", "Source Sans 3"]);
+  const ink = await receipt.evaluate(element => ({
+    store: getComputedStyle(element.querySelector("h3")).color,
+    title: getComputedStyle(element.querySelector("h2")).color,
+    border: getComputedStyle(element.querySelector("td")).borderTopColor,
+    table: getComputedStyle(element.querySelector("th")).color,
+  }));
+  assert.ok(Object.values(ink).every(color => color === "rgb(46, 49, 146)"));
   await recipient.fill("Gudang Contoh");
   await page.getByLabel("Nama barang 1",{exact:true}).fill("Kertas untuk rapat");
   await page.getByLabel("Jumlah barang 1",{exact:true}).fill("7");
@@ -66,6 +98,7 @@ try {
   assert.equal(requests[0].body.documentNames["line-1"],"Kertas untuk rapat");
   assert.equal(requests[0].body.recipientName,"Gudang Contoh");
   assert.match((await page.evaluate(()=>window.prints))[0],/SJ-CONTOH-001/);
+  assert.equal(await itemRows.count(), 3, "canonical rows and the handwriting space stay together for printing");
   await page.getByRole("button",{name:"Cetak",exact:true}).click();
   assert.equal(requests.length,1);
   assert.equal(await page.evaluate(()=>window.prints.length),2);
@@ -90,6 +123,8 @@ try {
   assert.equal(await page.getByLabel("Jumlah barang 1",{exact:true}).inputValue(),"7");
   await page.evaluate(()=>window.setCanUpdate(false));
   await page.waitForFunction(()=>document.querySelector('[aria-label="Jumlah barang 1"]').readOnly);
+  assert.equal(await itemRows.count(), 1, "reopening resets the print layout");
+  await addBlankRow.click();
   await page.getByRole("button",{name:"Cetak",exact:true}).click();
   assert.equal(requests.length,2);
 
@@ -97,6 +132,11 @@ try {
   const fits=await page.evaluate(()=>({page:document.documentElement.scrollWidth<=innerWidth,dialog:[...document.querySelectorAll('[role="dialog"]')].every(el=>el.scrollWidth<=el.clientWidth)}));
   assert.deepEqual(fits,{page:true,dialog:true});
   await page.emulateMedia({media:"print"});
+  assert.equal(await addBlankRow.isVisible(), false);
+  assert.equal(await page.getByRole("dialog", { includeHidden: true }).evaluate(dialog => getComputedStyle(dialog).animationName), "none", "opening the dialog must not fade the printed page");
+  assert.equal(await itemRows.last().isVisible(), true);
+  assert.deepEqual(await itemRows.last().locator("td").allTextContents(), ["", "", "", ""]);
+  assert.equal(await receipt.getByRole("columnheader").first().evaluate(element => getComputedStyle(element).color), ink.title);
   const printState=await page.evaluate(()=>({editableVisible:[...document.querySelectorAll('#surat-jalan-print input,#surat-jalan-print textarea')].some(el=>getComputedStyle(el).display!=="none"),content:document.getElementById('surat-jalan-print').innerText,overflow:getComputedStyle(document.getElementById('surat-jalan-print')).overflow,appHidden:getComputedStyle(document.getElementById('root')).display==="none"}));
   assert.equal(printState.editableVisible,false);
   assert.match(printState.content,/Kertas untuk rapat/);
@@ -106,15 +146,11 @@ try {
   await page.emulateMedia({media:"screen"});
   await page.setViewportSize({width:1280,height:1000});
   await page.evaluate(()=>window.setCanUpdate(true));
-  const output=path.join(repo,"output/surat-jalan-inline-20261105");
-  await mkdir(output,{recursive:true});
-  await page.screenshot({path:path.join(output,"editor-desktop.png"),fullPage:true});
-  const releaseImages=path.join(web,"public/images/changelog");
-  await mkdir(releaseImages,{recursive:true});
-  await page.getByRole("dialog").screenshot({path:path.join(releaseImages,"surat-jalan-edit-langsung.png")});
-  await page.setViewportSize({width:390,height:844});
-  await page.screenshot({path:path.join(output,"editor-mobile.png"),fullPage:true});
-  await page.setViewportSize({width:1280,height:1000});
+  const output = process.env.POS_PRINT_ARTIFACTS_DIR;
+  if (output) {
+    await mkdir(output, { recursive: true });
+    await receipt.screenshot({ path: path.join(output, "surat-jalan-preview.png") });
+  }
   await page.getByRole("button",{name:"Pengiriman baru",exact:true}).click();
   assert.equal(await page.getByLabel("Jumlah barang 1",{exact:true}).inputValue(),"3");
   assert.equal(await page.getByLabel("Jumlah barang 2",{exact:true}).inputValue(),"5");
@@ -162,8 +198,12 @@ try {
   await page.getByLabel("Pilih surat jalan",{exact:true}).selectOption("closed");
   assert.equal(await page.getByLabel("Jumlah barang 1",{exact:true}).getAttribute("readonly"),"");
   await page.getByLabel("Pilih surat jalan",{exact:true}).selectOption("pending");
+  assert.equal(await itemRows.count(), 42, "switching documents resets the print layout");
+  await addBlankRow.click();
   await page.emulateMedia({media:"print"});
-  await page.pdf({path:path.join(output,"long-document.pdf"),preferCSSPageSize:true,printBackground:true});
+  assert.equal(await itemRows.count(), 43);
+  const pdf = await page.pdf({ path: output && path.join(output, "surat-jalan-long.pdf"), preferCSSPageSize: true, printBackground: true });
+  assert.equal(pdf.subarray(0, 4).toString(), "%PDF");
   assert.match(await page.locator("#surat-jalan-print").innerText(),/Barang contoh panjang 42/);
   await page.emulateMedia({media:"screen"});
   await page.getByRole("button",{name:"Tutup",exact:true}).click();

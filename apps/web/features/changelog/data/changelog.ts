@@ -3,6 +3,32 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "quotation-manual-items", date: "2026-11-24", revision: 1,
+    highlight: { title: "Baris manual Nota Penawaran", summary: "Ketik barang di nota dan kaitkan ke katalog bila perlu." },
+    title: "Tambahkan barang langsung pada Nota Penawaran",
+    summary: "Ketik barang pada baris tambahan di pratinjau A4 klasik untuk memperbarui total nota. Kaitkan ke produk bila perlu atau biarkan baris kosong untuk tulisan tangan.",
+    kind: "feature", impact: "major", area: "Riwayat", href: "/history", visual: "quotation",
+    screenshot: { src: "/images/changelog/nota-penawaran-baris-manual.png", alt: "Baris Nota Penawaran dengan nama yang diketik, produk katalog yang dikaitkan, dan baris kosong" },
+    steps: [
+      { title: "Tambah baris", detail: "Buka Cetak Nota Penawaran, lalu klik + di tepi bawah tabel." },
+      { title: "Isi barang", detail: "Ketik detail barang. Pilih Kaitkan dengan produk jika ingin memilih produk katalog." },
+      { title: "Simpan atau cetak", detail: "Pilih Simpan baris atau Cetak Nota Penawaran. Baris yang dibiarkan kosong ikut tercetak." },
+    ],
+  },
+  {
+    id: "print-handwriting-rows", date: "2026-11-24", revision: 1,
+    highlight: { title: "Baris kosong di dokumen cetak", summary: "Tambah ruang tulisan tangan pada Surat Jalan dan Nota Penawaran." },
+    title: "Tambah baris kosong pada Surat Jalan dan Nota Penawaran",
+    summary: "Tambahkan ruang tulisan tangan dari pratinjau Surat Jalan atau Nota Penawaran. Surat Jalan memakai kop biru, ruang kendaraan, dan tiga tempat tanda tangan.",
+    kind: "improvement", impact: "major", area: "Riwayat", href: "/history", visual: "quotation",
+    screenshot: { src: "/images/changelog/surat-jalan-baris-kosong.png", alt: "Pratinjau Surat Jalan dengan kop biru, baris kosong bergaris, dan tombol tambah di bawah tabel" },
+    steps: [
+      { title: "Buka pratinjau", detail: "Dari Riwayat, buka Cetak Surat Jalan atau Cetak Nota Penawaran." },
+      { title: "Tambah baris kosong", detail: "Klik + di tengah tepi bawah baris terakhir. Gunakan − untuk menghapus baris kosong terakhir." },
+      { title: "Cetak dokumen", detail: "Gunakan tombol cetak untuk menyiapkan ruang tulisan tangan pada kertas atau PDF." },
+    ],
+  },
+  {
     id: "dashboard-arus-kas-hutang-20261124", date: "2026-11-24", revision: 1,
     highlight: { title: "Arus kas dan hutang di Dashboard", summary: "Cek arus kas, rumus pengeluaran, dan saldo hutang pemasok dari Dashboard." },
     title: "Telusuri arus kas dan hutang di Dashboard",

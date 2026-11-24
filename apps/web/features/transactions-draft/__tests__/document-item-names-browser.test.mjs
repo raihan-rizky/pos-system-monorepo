@@ -11,6 +11,8 @@ const entry=[
 "import {createRoot} from 'react-dom/client';",
 "import {QueryClient,QueryClientProvider} from '@tanstack/react-query';",
 "import {RoleProvider} from './components/providers/RoleProvider';",
+"import {buildDefaultRolePermissions} from './features/rbac/helpers/rbac-core';",
+"const authorizationFingerprint = 'quotation-test-permissions'; const permissions = buildDefaultRolePermissions();",
 "import {DraftReceiptModal} from './components/DraftReceiptModal';",
 "const client=new QueryClient({defaultOptions:{queries:{retry:false}}});",
 "const transaction={id:'draft-1',draftNumber:'PNW-TLD-20261019-001',status:'DRAFT',subtotal:22500,discount:0,tax:0,total:22500,items:[",
@@ -18,7 +20,7 @@ const entry=[
 "{id:'item-2',productId:'p1',productName:'Amplop 110 PPL',quantity:1,unitPrice:0,subtotal:0,product:{unit:'Dus'}}",
 "],customerName:'Pelanggan Umum',createdAt:'2026-10-19T03:00:00Z'};",
 "window.prints=[];window.print=()=>window.prints.push(document.querySelector('#draft-receipt-page').innerText);",
-"function Harness(){const [open,setOpen]=useState(false);const [role,setRole]=useState('OWNER');const [replaced,setReplaced]=useState(false);window.replaceVisibleItems=()=>setReplaced(true);window.restoreVisibleItems=()=>setReplaced(false);return <QueryClientProvider client={client}><RoleProvider role={role} userId='fixture-owner' userName='Owner'>",
+"function Harness(){const [open,setOpen]=useState(false);const [role,setRole]=useState('OWNER');const [replaced,setReplaced]=useState(false);window.quotationTestAccess={user:{id:'fixture-owner',name:'Owner',role,storeId:null},authorizationFingerprint,permissions};window.replaceVisibleItems=()=>setReplaced(true);window.restoreVisibleItems=()=>setReplaced(false);return <QueryClientProvider client={client}><RoleProvider role={role} userId='fixture-owner' userName='Owner' authorizationFingerprint={authorizationFingerprint}>",
 "<button onClick={()=>setOpen(true)}>Buka cetak</button><button onClick={()=>setRole('SALES')}>Pakai Sales</button><button onClick={()=>setRole('OWNER')}>Pakai Owner</button>",
 "<DraftReceiptModal open={open} onClose={()=>setOpen(false)} transaction={replaced?{...transaction,items:transaction.items.map(item=>({...item,id:item.id+'-new'}))}:transaction}/>",
 "</RoleProvider></QueryClientProvider>;}createRoot(document.getElementById('root')).render(<Harness/>);"
@@ -40,9 +42,11 @@ try{
  await page.route("http://localhost:3004/**",async route=>{
   const url=new URL(route.request().url());
   if(url.pathname==="/fixture")return route.fulfill({contentType:"text/html",body:'<html lang="id"><body><div id="root"></div></body></html>'});
+  if(url.pathname==="/api/auth/permissions")return route.fulfill({json:await page.evaluate(()=>window.quotationTestAccess)});
   if(url.pathname==="/api/settings/store")return route.fulfill({json:{name:"Toko Teladan"}});
   if(url.pathname.endsWith("/tax"))return route.fulfill({json:{transaction:{id:"draft-1",status:"DRAFT",subtotal:22500,discount:0,tax:0,total:22500,taxRate:null,taxMethod:"DPP_NILAI_LAIN",amountPaid:0,change:0,paymentMethod:"CASH"},snapshot:{}}});
   if(url.pathname.endsWith("/draft-number"))return route.fulfill({json:{draftNumber:"PNW-TLD-20261019-001",automaticNumber:"PNW-TLD-20261019-001"}});
+  if(url.pathname.endsWith("/quotation-items")) return route.fulfill({json:{items:[]}});
   if(url.pathname.endsWith("/document-item-names")){
    if(route.request().method()==="PATCH"){
     const body=route.request().postDataJSON();writes.push(body);if(delaySave)await delaySave;
@@ -81,10 +85,11 @@ try{
  for(const hidden of ["Amplop 110 PPL","Nama POS","Kembalikan nama POS","Nama pada nota"])assert.equal(paper.includes(hidden),false,hidden+" must not appear on paper");
  await page.emulateMedia({media:"screen"});
  assert.equal(await page.getByText("Nama POS: Amplop 110 PPL",{exact:true}).first().isVisible(),true);
- const output=path.join(repo,"output/playwright/document-item-names");await mkdir(output,{recursive:true});
- await page.locator("#draft-receipt-page .draft-item-screen-only").first().screenshot({path:path.join(output,"nama-item-dokumen.png")});
- const publicOutput=path.join(web,"public/images/changelog");await mkdir(publicOutput,{recursive:true});
- await page.locator("#draft-receipt-page .draft-item-screen-only").first().screenshot({path:path.join(publicOutput,"nama-item-dokumen.png")});
+ const output=process.env.POS_PRINT_ARTIFACTS_DIR;
+ if(output){
+   await mkdir(output,{recursive:true});
+   await page.locator("#draft-receipt-page .draft-item-screen-only").first().screenshot({path:path.join(output,"nama-item-dokumen.png")});
+ }
  await page.setViewportSize({width:390,height:844});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true,"A4 preview must scroll within the dialog on mobile");
  await page.setViewportSize({width:1280,height:1000});
