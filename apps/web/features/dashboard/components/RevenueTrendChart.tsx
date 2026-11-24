@@ -62,7 +62,7 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = React.memo(
       <div className="relative">
         <div className="absolute right-0 top-0 z-10">
           <ChartAiInsightButton
-            chartTitle="Tren Pemasukan dan Profit 7 Hari"
+            chartTitle="Tren Penerimaan dan Profit 7 Hari"
             chartContext={JSON.stringify(data)}
           />
         </div>
@@ -118,7 +118,7 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = React.memo(
               formatter={(value: unknown, name: unknown) => [
                 formatRupiah(Number(value)),
                 typeof name === "string"
-                  ? name === "revenue" ? "Pemasukan" : name.charAt(0).toUpperCase() + name.slice(1)
+                  ? name === "revenue" ? "Penerimaan" : name.charAt(0).toUpperCase() + name.slice(1)
                   : "",
               ]}
             />

@@ -47,6 +47,14 @@ export type CashFlowSummary = {
   expense: { total: number | null; incomplete: boolean; daily: { date: string; total: number }[]; components: ExpenseComponents; byCategory: CategoryBucket[]; entryCount: number; correctionOutflow?: number };
 };
 
+export type SupplierDebtSummary = {
+  asOf: string;
+  total: number | null;
+  giroKnown: number;
+  manual: number;
+  unknownGiroCount: number;
+};
+
 export type ExpenseListItem = {
   id: string;
   applicantName: string;
@@ -106,6 +114,16 @@ export function useCashFlowSummary(month: string, enabled = true) {
   return useQuery({
     queryKey: ["finance", "cash-flow-summary", userId, storeId, authorizationFingerprint, month],
     queryFn: () => getJSON<CashFlowSummary>(`/api/finance/cash-flow/summary?month=${month}`),
+    staleTime: 30_000,
+    enabled,
+  });
+}
+
+export function useSupplierDebtSummary(enabled: boolean) {
+  const { userId, storeId, authorizationFingerprint } = useRole();
+  return useQuery({
+    queryKey: ["finance", "supplier-debt-summary", userId, storeId, authorizationFingerprint],
+    queryFn: () => getJSON<SupplierDebtSummary>("/api/finance/giro?summary=1"),
     staleTime: 30_000,
     enabled,
   });

@@ -20,6 +20,7 @@ import {
 } from "@/features/keuangan/hooks/useKeuangan";
 import {
   EXPENSE_CATEGORIES,
+  calculateNetCashFlow,
   type ExpenseCategoryKey,
 } from "@/features/keuangan/helpers/keuangan-core";
 import {
@@ -215,7 +216,7 @@ export default function KeuanganDashboardPage() {
 
   const cashIncome = canReadCashFlow ? cashFlowData?.income.total : incomeData?.cashTotal;
   const cashExpense = canReadCashFlow ? cashFlowData?.expense.total : expenseData?.cashExpense?.total;
-  const net = canReadCashFlow && cashIncome != null && cashExpense != null ? Math.round((cashIncome - cashExpense) * 100) / 100 : null;
+  const net = canReadCashFlow ? calculateNetCashFlow(cashIncome, cashExpense) : null;
   const isNegative = net !== null && net < 0;
   const summaryLoading = canReadCashFlow ? cashFlow.isLoading : (canReadIncome && pemasukan.isLoading) || (canReadExpense && pengeluaran.isLoading);
   const incomeLoading = canReadIncome && (canReadCashFlow ? cashFlow.isLoading : pemasukan.isLoading);
@@ -370,7 +371,7 @@ export default function KeuanganDashboardPage() {
         {/* ─── Pengeluaran column ─── */}
         {!canReadExpense ? (
           <section className="rounded-2xl border border-surface-200 bg-white p-4 text-sm text-surface-500">Tidak memiliki akses pengeluaran</section>
-        ) : <section className="rounded-2xl border border-surface-200 bg-white shadow-sm overflow-hidden">
+        ) : <section id="riwayat-pengeluaran" className="scroll-mt-20 rounded-2xl border border-surface-200 bg-white shadow-sm overflow-hidden">
           <header className="px-3 sm:px-4 py-2 sm:py-3 border-b border-surface-100 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <span className="w-1.5 h-5 rounded-full shrink-0" style={{ backgroundColor: FLOW_COLOR_EXPENSE }} />

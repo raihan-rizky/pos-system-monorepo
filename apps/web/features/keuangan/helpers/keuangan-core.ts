@@ -35,6 +35,10 @@ export function computeNetExpense(
   return a - c;
 }
 
+export function calculateNetCashFlow(income: number | null | undefined, expense: number | null | undefined): number | null {
+  return income != null && expense != null ? Math.round((income - expense) * 100) / 100 : null;
+}
+
 const JAKARTA_TZ = "Asia/Jakarta";
 
 function jakartaDateKey(date: Date): string {

@@ -22,8 +22,9 @@ type ManualRow = {
   dueDate: string | null; note: string | null; payments: Array<Payment & { origin?: ManualPayablePayment['origin'] }>;
 };
 
-export async function GET(_request: Request): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
   try {
+    const summaryOnly = new URL(request.url).searchParams.get('summary') === '1';
     const user = await requirePermission("expense.giro", "read");
     if (!user.storeId) return apiError('Toko pengguna belum tersedia.', 403, { code: 'Forbidden' });
     if (!await canAuthenticatedUserAccessPage(user, '/keuangan')) return apiError('Akses halaman Keuangan diperlukan.', 403, { code: 'Forbidden' });
@@ -33,10 +34,10 @@ export async function GET(_request: Request): Promise<Response> {
       if (authorized.id !== user.id || authorized.storeId !== user.storeId || authorized.role !== user.role) return apiError('Sesi pengguna berubah. Muat ulang dan coba lagi.', 403, { code: 'Forbidden' });
       canReadManualPayables = true;
     } catch (error) {
-      if (handleAuthError(error)?.status !== 403) throw error;
+      if (summaryOnly || handleAuthError(error)?.status !== 403) throw error;
     }
     const today = jakartaToday();
-    const rows = await db.$queryRaw<GiroRow[]>`
+    const giroQuery = db.$queryRaw<GiroRow[]>`
       SELECT g."id" AS "goodsPurchaseId", g."number", g."supplierNameSnapshot" AS "supplierName",
         (CASE WHEN s."count" > 0 THEN s."giroAmount" ELSE g."totalAmount" END)::text AS "amount", e."debtDate", (CASE WHEN s."count" > 0 THEN s."dueDate" ELSE g."paymentDueDate" END)::text AS "dueDate",
         d."id" AS "payableId", (d."ledgerVersion"::numeric * 2)::text AS "ledgerVersion", d."amount"::text AS "payableAmount", d."debtDate"::text AS "payableDebtDate", d."note" AS "payableNote", d."giroHistoryVerifiedAt" AS "historyVerifiedAt", correction."id" AS "correctionId", p."payments", effective."effectivePayments", credit."credited", s."schedule"
@@ -128,7 +129,7 @@ export async function GET(_request: Request): Promise<Response> {
         ))
       ORDER BY "dueDate" ASC NULLS LAST, g."number", g."id"
     `;
-    const manual = canReadManualPayables ? await db.$queryRaw<ManualRow[]>`
+    const manualQuery = canReadManualPayables ? db.$queryRaw<ManualRow[]>`
       SELECT d."id", (d."ledgerVersion"::numeric * 2 + CASE WHEN d."dueDate" IS NOT NULL AND d."dueDate" <= ${today}::date THEN 1 ELSE 0 END)::text AS "ledgerVersion", d."supplierName", d."amount"::text AS "amount", d."debtDate"::text AS "debtDate",
         d."dueDate"::text AS "dueDate", d."note", p."payments"
       FROM "pos_supplier_payables" d
@@ -139,7 +140,10 @@ export async function GET(_request: Request): Promise<Response> {
       ) p ON true
       WHERE d."storeId" = ${user.storeId} AND d."goodsPurchaseId" IS NULL
       ORDER BY d."debtDate" DESC, d."createdAt" DESC, d."id"
-    ` : [];
+    ` : null;
+    const [rows, manual] = summaryOnly && manualQuery
+      ? await db.$transaction([giroQuery, manualQuery], { isolationLevel: 'RepeatableRead' })
+      : await Promise.all([giroQuery, manualQuery ?? []]);
     const items = rows.map(({ amount, historyVerifiedAt, correctionId, payableAmount, effectivePayments: rawEffectivePayments, credited, payments: rawPayments, schedule: rawSchedule, ...row }) => {
       const schedule = (rawSchedule ?? []).map(payment => ({ ...payment, amount: Number(payment.amount) }));
       const payments = rawPayments.map(payment => ({ ...payment, amount: Number(payment.amount) }));
@@ -162,15 +166,37 @@ export async function GET(_request: Request): Promise<Response> {
         return { ...row, schedule, amount: Number(amount), payments, status: 'UNKNOWN', paid: null, remaining: null, historyIssue: true };
       }
     });
-    const manualPayables = manual.map(({ amount, payments: rawPayments, ...row }) => {
-      const ledger = projectPayableLedger({ payableId: row.id, amountCents: Math.round(Number(amount) * 100), debtDate: row.debtDate,
+    const manualBalances = manual.map(({ amount, payments: rawPayments, ...row }) => {
+      const amountCents = Math.round(Number(amount) * 100);
+      const ledger = projectPayableLedger({ payableId: row.id, amountCents, debtDate: row.debtDate,
         dueDate: row.dueDate, todayWib: today, payments: rawPayments.map(payment => ({ id: payment.id, paidAt: payment.paidAt,
           amountCents: Math.round(Number(payment.amount) * 100), origin: payment.origin ?? 'MANUAL' })) });
-      const payments = ledger.payments.map(payment => ({ id: payment.id, paidAt: payment.paidAt, amount: payment.amountCents / 100, origin: payment.origin }));
-      const paid = (Math.round(Number(amount) * 100) - ledger.remainingCents) / 100;
-      return { ...row, amount: Number(amount), paid, payments };
+      return { row, amountCents, ledger };
     });
-    return NextResponse.json({ items, manualPayables, asOf: today }, { headers: { 'Cache-Control': 'private, no-store' } });
+    const options = { headers: { 'Cache-Control': 'private, no-store' } };
+    if (summaryOnly) {
+      let giroCents = 0;
+      let unknownGiroCount = 0;
+      for (const { debtDate, remaining } of items) {
+        if (debtDate && debtDate > today) continue;
+        if (remaining === null) unknownGiroCount++;
+        else giroCents += Math.round(remaining * 100);
+      }
+      const manualCents = manualBalances.reduce((total, { ledger }) => total + ledger.remainingCents, 0);
+      return NextResponse.json({
+        asOf: today,
+        total: unknownGiroCount === 0 ? (giroCents + manualCents) / 100 : null,
+        giroKnown: giroCents / 100,
+        manual: manualCents / 100,
+        unknownGiroCount,
+      }, options);
+    }
+    const manualPayables = manualBalances.map(({ row, amountCents, ledger }) => {
+      const payments = ledger.payments.map(payment => ({ id: payment.id, paidAt: payment.paidAt, amount: payment.amountCents / 100, origin: payment.origin }));
+      const paid = (amountCents - ledger.remainingCents) / 100;
+      return { ...row, amount: amountCents / 100, paid, payments };
+    });
+    return NextResponse.json({ items, manualPayables, asOf: today }, options);
   } catch (error) {
     const authError = handleAuthError(error);
     if (authError) return authError;
