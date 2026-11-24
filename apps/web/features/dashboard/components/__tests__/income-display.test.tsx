@@ -56,7 +56,7 @@ describe("tampilan pemasukan Dashboard", () => {
     state.cashFlow = {
       month: "2026-11",
       income: {
-        total: 200_000, supplierRefund: 20_000, transactionCount: 2, manualEntryCount: 1, daily: [],
+        total: 200_000, supplierRefund: 20_000, daily: [],
         components: { sales: 150_000, manualIncome: 10_000, manualReceivable: 20_000 },
       },
       expense: {
