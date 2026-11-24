@@ -44,6 +44,8 @@ export interface ApprovalQuoteInput {
 export interface ApprovalQuotedItem {
   input: ApprovalItemInput;
   name: string;
+  documentName?: string | null;
+  quotationUnit?: string | null;
   unit: string;
   modal: number | null;
   unitCost: number | null;
@@ -163,7 +165,7 @@ export async function buildApprovalQuote(
       tax: true,
       taxRate: true,
       taxMethod: true,
-      items: { select: { id: true, productId: true, printingServiceId: true, serviceNote: true, rawMaterialProductId: true, size: true, material: true, discount: true, pricingRuleId: true, pricingValue: true, unitPrice: true, originalUnitPrice: true } },
+      items: { select: { id: true, productId: true, printingServiceId: true, serviceNote: true, rawMaterialProductId: true, size: true, material: true, discount: true, pricingRuleId: true, pricingValue: true, unitPrice: true, originalUnitPrice: true, productName: true, documentName: true, quotationUnit: true, quantity: true } },
     },
   });
   if (!transaction) throw new Error("APPROVAL_TRANSACTION_NOT_FOUND");
@@ -212,6 +214,15 @@ export async function buildApprovalQuote(
         source = available[0];
         sourceIds.add(source.id);
       }
+    }
+    if (!line.productId && !line.printingServiceId && (transaction.status !== "DRAFT" || source?.quotationUnit == null)) {
+      throw new Error("APPROVAL_ITEM_SOURCE_REQUIRED");
+    }
+    if (transaction.status === "DRAFT" && source?.quotationUnit != null) {
+      return {
+        ...line, sourceItemId: source.id, rawMaterialProductId: null, rawMaterialQuantity: null,
+        serviceNote: null, size: null, material: null, submittedPrice: null, priceIntent: undefined,
+      };
     }
     return {
       ...line,
@@ -311,6 +322,29 @@ export async function buildApprovalQuote(
     const rawMaterial = line.rawMaterialProductId
       ? productById.get(line.rawMaterialProductId)
       : undefined;
+
+    const quotationItem = transaction.status === "DRAFT" ? transaction.items.find(item => item.id === line.sourceItemId && item.quotationUnit != null) : undefined;
+    if (quotationItem) {
+      const appliedUnitPrice = Number(quotationItem.unitPrice);
+      const unitCost = product?.costPrice == null ? null : Number(product.costPrice);
+      return {
+        input: line,
+        name: product?.name ?? quotationItem.productName,
+        documentName: quotationItem.documentName,
+        quotationUnit: quotationItem.quotationUnit,
+        unit: quotationItem.quotationUnit ?? "",
+        modal: input.canViewCostPrice ? unitCost : null,
+        unitCost,
+        rawMaterialUnitCost: null,
+        rawMaterialUnit: null,
+        regular: Number(product?.price ?? appliedUnitPrice),
+        agent: null, government: null, special: null,
+        appliedUnitPrice,
+        discount: 0,
+        subtotal: discountedLineSubtotal(appliedUnitPrice, line.quantity, 0),
+        appliedPricing: null,
+      };
+    }
 
     if (product) {
       const regular = Number(product.price);
@@ -498,6 +532,10 @@ export async function buildApprovalQuote(
     storeId: transaction.storeId,
     customerId: transaction.customerId,
     customerType,
+    quotationItems: transaction.items.filter(item => item.quotationUnit != null).map(item => ({
+      id: item.id, productId: item.productId, documentName: item.documentName, unit: item.quotationUnit,
+      quantity: item.quantity, unitPrice: Number(item.unitPrice),
+    })).sort((a, b) => a.id.localeCompare(b.id)),
     items: quotedItems.map((line) => ({
       ...line,
       sourceProduct: line.input.productId
@@ -525,7 +563,7 @@ export async function buildApprovalQuote(
 function normalizeItem(item: ApprovalItemInput): ApprovalItemInput {
   const productId = item.productId || null;
   const printingServiceId = item.printingServiceId || null;
-  if (Boolean(productId) === Boolean(printingServiceId)) {
+  if ((productId && printingServiceId) || (!productId && !printingServiceId && !item.sourceItemId)) {
     throw new Error("APPROVAL_ITEM_SOURCE_REQUIRED");
   }
   if (!Number.isInteger(item.quantity) || item.quantity <= 0) {

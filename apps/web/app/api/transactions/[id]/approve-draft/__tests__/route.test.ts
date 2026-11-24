@@ -231,7 +231,11 @@ describe("POST /api/transactions/[id]/approve-draft", () => {
         }),
       }),
     );
-    expect(queryRawMock).toHaveBeenCalledTimes(2);
+    const [draftLock, lockedId, lockedStore] = queryRawMock.mock.calls[0];
+    expect(draftLock.join("?")).toMatch(/pos_transactions.*FOR UPDATE/s);
+    expect([lockedId, lockedStore]).toEqual(["draft-1", "store-main"]);
+    expect(queryRawMock.mock.invocationCallOrder[0]).toBeLessThan(buildApprovalQuoteMock.mock.invocationCallOrder[1]);
+    expect(queryRawMock).toHaveBeenCalledTimes(3);
   });
 
   it.each([

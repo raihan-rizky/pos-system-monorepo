@@ -71,6 +71,8 @@ export interface Transaction {
     printingServiceId?: string | null;
     rawMaterialProductId?: string | null;
     productName: string;
+    documentName?: string | null;
+    quotationUnit?: string | null;
     size: string | null;
     material: string | null;
     serviceNote?: string | null;

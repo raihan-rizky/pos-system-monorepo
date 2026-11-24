@@ -54,6 +54,7 @@ export function SuratJalanReceiptEditor({ bundle, initialRecordId, store, canCre
   }, [bundle.suratJalan, savedRecords]);
   const [values, setValues] = useState(() => valuesForDocument(bundle, record, records));
   const [baseline, setBaseline] = useState(values);
+  const [previewVersion, setPreviewVersion] = useState(0);
   const [date] = useState(() => new Date().toISOString());
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -89,6 +90,7 @@ export function SuratJalanReceiptEditor({ bundle, initialRecordId, store, canCre
   const choose = (next: SuratJalanRecord | null) => {
     const nextValues = valuesForDocument(bundle, next, records);
     setRecord(next); setValues(nextValues); setBaseline(nextValues); setError("");
+    setPreviewVersion(version => version + 1);
   };
   const requestAction = (action: NonNullable<typeof pendingAction>) => {
     if (busy.current) return;
@@ -159,7 +161,7 @@ export function SuratJalanReceiptEditor({ bundle, initialRecordId, store, canCre
           {editable && bundle.transaction.stockDeductionSource === "SURAT_JALAN" && <p className="sj-stock-notice">Transaksi lama: perubahan jumlah pada dokumen yang disetujui juga menyesuaikan stok gudang.</p>}
           {!record && !bundle.eligibility.eligible && <p>Invoice ini belum memenuhi syarat untuk surat jalan baru.</p>}
         </div>
-        <SuratJalanDocument store={store} number={record?.number ?? "Otomatis setelah disimpan"} date={record?.confirmedAt || record?.createdAt || date} recipientName={values.recipientName} rows={values.rows} limits={limits} readOnly={!editable || !!pendingAction}
+        <SuratJalanDocument key={previewVersion} store={store} number={record?.number ?? "Otomatis setelah disimpan"} date={record?.confirmedAt || record?.createdAt || date} recipientName={values.recipientName} rows={values.rows} limits={limits} readOnly={!editable || !!pendingAction} printingBusy={saving || !!pendingAction}
           onRecipientChange={value => setValues(current => ({ ...current, recipientName: value }))}
           onRowChange={(id, field, value) => setValues(current => ({ ...current, rows: current.rows.map(row => row.id === id ? { ...row, [field]: value } : row) }))} />
         <div className="sj-editor-actions surat-jalan-print-hide">

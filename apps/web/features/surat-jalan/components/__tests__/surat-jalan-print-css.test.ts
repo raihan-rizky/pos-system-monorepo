@@ -19,14 +19,13 @@ describe("surat jalan print css", () => {
     expect(css).toContain("display: none !important");
     expect(css).toContain("div[role=\"dialog\"]");
     expect(css).toContain("transform: none !important");
-    expect(css).toContain("position: absolute !important");
-    expect(css).toContain("left: 0 !important");
-    expect(css).toContain("top: 0 !important");
+    expect(css).toContain("@page surat-jalan");
+    expect(css).toContain("page: surat-jalan");
+    expect(css).toContain("position: static !important");
     expect(css).toContain("height: auto !important");
     expect(css).toContain("overflow: visible !important");
-    expect(css).toContain("display: table-header-group");
     expect(css).not.toContain("height: 165mm !important");
     expect(css).not.toContain("transform: scale");
-    expect(css).toContain("padding: 10mm 6mm 4mm 10mm !important");
+    expect(css).toContain("margin: 10mm 6mm 4mm 10mm");
   });
 });

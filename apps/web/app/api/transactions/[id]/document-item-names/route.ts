@@ -31,6 +31,7 @@ async function readDraft(client: Pick<Prisma.TransactionClient, "transaction">, 
       id: true,
       status: true,
       items: {
+        where: { quotationUnit: null },
         orderBy: { id: "asc" },
         select: { id: true, productName: true, documentName: true },
       },

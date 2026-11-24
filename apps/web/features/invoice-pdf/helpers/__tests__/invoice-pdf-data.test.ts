@@ -233,6 +233,13 @@ describe("formatIndonesianDate", () => {
    ══════════════════════════════════════════════════════════════════ */
 
 describe("buildInvoicePdfData", () => {
+  test("keeps the entered name and unit for an approved quotation item", () => {
+    const transaction = makeTransaction();
+    transaction.items[0] = { ...transaction.items[0], quotationUnit: "dus", documentName: "Nama dari penawaran" };
+    const data = buildInvoicePdfData(transaction, DEFAULT_STORE);
+    expect(data.items[0]).toMatchObject({ productName: "Nama dari penawaran", unit: "dus" });
+  });
+
   test("transforms a COMPLETED transaction into PDF data", () => {
     const txn = makeTransaction();
     const data = buildInvoicePdfData(txn, DEFAULT_STORE);

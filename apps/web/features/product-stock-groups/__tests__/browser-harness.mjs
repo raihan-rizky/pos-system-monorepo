@@ -29,6 +29,7 @@ export async function bundleReactHarness(entry, styleSources) {
     platform: "browser",
     format: "iife",
     jsx: "automatic",
+    external: ["/fonts/*"],
     alias: { "@": web, "@pos/ui": path.join(repo, "packages/ui/src/index.ts") },
     define: { "process.env.NODE_ENV": '"production"' },
   });

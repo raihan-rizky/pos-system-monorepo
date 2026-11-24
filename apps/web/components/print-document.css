@@ -1,0 +1,38 @@
+@font-face {
+  font-family: "Barlow Condensed";
+  src: url("/fonts/print/barlow-condensed-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Source Sans 3";
+  src: url("/fonts/print/source-sans-3-latin.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+.print-document {
+  --print-paper: #fff;
+  --print-ink: #262124;
+  --print-rule: #4d4246;
+  --print-muted: #5c5357;
+  --print-fill: #f6f2ef;
+  --print-accent: #8a2635;
+  --print-accent-hover: #70202d;
+  --print-accent-tint: #fbf0f1;
+  --print-outline: #ad737d;
+  --print-error: #a62020;
+  --print-paper-shadow: #20170f19;
+  --print-body-font: "Source Sans 3", sans-serif;
+  --print-heading-font: "Barlow Condensed", "Source Sans 3", sans-serif;
+  --print-step: 4px;
+  --print-action-size: 44px;
+
+  background-color: var(--print-paper);
+  color: var(--print-ink);
+  font-family: var(--print-body-font);
+  line-height: 1.4;
+}
