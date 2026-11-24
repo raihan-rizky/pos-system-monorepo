@@ -3,7 +3,7 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
-    id: "metode-pembayaran-nota-percetakan-20261123", date: "2026-11-23", revision: 1,
+    id: "metode-pembayaran-nota-percetakan-20261123", date: "2026-11-24", revision: 1,
     highlight: { title: "Metode bayar pada nota Percetakan", summary: "Lihat metode pembayaran dalam satu baris berwarna di pratinjau dan PDF." },
     title: "Metode pembayaran tercantum pada nota Percetakan",
     summary: "Nama metode pembayaran tampil sebaris, dengan warna berbeda untuk setiap metode. Nama barang atau file rata kiri dan angka berada di tengah baris.",
