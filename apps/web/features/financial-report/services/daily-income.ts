@@ -16,12 +16,11 @@ async function loadSupplierRefunds(tx: Pick<Prisma.TransactionClient, "$queryRaw
 }
 
 export async function loadIncomePeriod(storeId: string, fromDate: string, toDate: string, {
-  initialPaymentDate = "invoice", includeSupplierRefunds = true,
-}: { initialPaymentDate?: "invoice" | "received"; includeSupplierRefunds?: boolean } = {}): Promise<IncomePeriod> {
+  initialPaymentDate = "invoice", includeSupplierRefunds = true, now = new Date(), client,
+}: { initialPaymentDate?: "invoice" | "received"; includeSupplierRefunds?: boolean; now?: Date; client?: Prisma.TransactionClient } = {}): Promise<IncomePeriod> {
   const from = buildDailyIncomeRange(fromDate, new Date(`${fromDate}T12:00:00+07:00`));
   const to = buildDailyIncomeRange(toDate, new Date(`${toDate}T12:00:00+07:00`));
   if (to.start.getTime() < from.start.getTime()) throw new RangeError("Rentang tanggal tidak valid.");
-  const now = new Date();
   const today = jakartaToday(now);
   if (fromDate > today) return { days: [], contributions: [], outstandingDp: [] };
   const effectiveTo = toDate > today ? today : toDate;
@@ -36,7 +35,7 @@ export async function loadIncomePeriod(storeId: string, fromDate: string, toDate
     { createdAt: bounds, paymentMethod: { not: "TEMPO" as const }, payments: { none: {} } },
     { status: "DP" as const, paymentMethod: { not: "TEMPO" as const }, createdAt: { lt: end } },
   ];
-  const [transactions, manualIncome, manualReceivables, supplierRefunds] = await db.$transaction(tx => Promise.all([
+  const read = (tx: Prisma.TransactionClient) => Promise.all([
     tx.transaction.findMany({
       where: {
         storeId, status: { in: ["COMPLETED", "DP"] },
@@ -61,7 +60,10 @@ export async function loadIncomePeriod(storeId: string, fromDate: string, toDate
     }),
     loadManualReceivablePeriod(tx, storeId, fromDate, effectiveTo),
     includeSupplierRefunds ? loadSupplierRefunds(tx, storeId, fromDate, effectiveTo, now) : [],
-  ]), { isolationLevel: "RepeatableRead", timeout: 30_000 });
+  ]);
+  const [transactions, manualIncome, manualReceivables, supplierRefunds] = await (client
+    ? read(client)
+    : db.$transaction(read, { isolationLevel: "RepeatableRead", timeout: 30_000 }));
   return buildIncomePeriod({ fromDate, toDate: effectiveTo, transactions, manualIncome, manualReceivables, supplierRefunds, initialPaymentDate });
 }
 

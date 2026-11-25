@@ -144,12 +144,14 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
   const names = monthlySheetNames(report.month);
   const [overviewName, netName, dailyName, rcName, rpName, purchaseName, balanceName] = names;
   const month = MONTHS[report.month - 1];
+  const followsKeuangan = report.basis === "keuangan";
   const income = [...report.income].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   const expenses = [...report.expenses].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   const purchasedExpenses = report.purchaseExpenses ?? expenses.filter((entry) => entry.purchase);
   const transfers = report.purchaseExpenses ? purchasedExpenses.filter((entry) => entry.purchase?.method === "TRANSFER") : [];
+  const paymentLabels = { giro_payment: "Giro dibayar", giro_due: "Giro jatuh tempo", overpayment: "Kelebihan bayar", transfer: "Transfer" };
   const cashPurchases = (report.purchasePayments ? report.purchasePayments.map(entry => ({
-    ...entry, description: `${entry.reference} · ${entry.supplier} · ${entry.method === "GIRO" ? "Pembayaran giro" : "Transfer"}`,
+    ...entry, description: `${entry.reference} · ${entry.supplier} · ${entry.recognitionKind ? paymentLabels[entry.recognitionKind] : entry.method === "GIRO" ? "Pembayaran giro" : "Transfer"}`,
   })) : [
     ...transfers.map((entry) => ({ id: entry.id, date: entry.date, group: entry.group, amount: entry.amount, description: `${entry.purchase?.reference} · ${entry.description} · Transfer` })),
     ...(report.giroPayments ?? []).map((entry) => ({ ...entry, description: `${entry.reference} · ${entry.supplier} · Pembayaran giro` })),
@@ -369,7 +371,7 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
   finish(balances, debtTotal + 1, 7);
   summaryLine(32, "PIUTANG", totalReceivables, `${quote(balanceName)}!G${balanceTotal}`);
   summaryLine(34, "HUTANG", report.supplierDebtBalance ?? "", `IF(ISNUMBER(${quote(balanceName)}!G${debtTotal}),${quote(balanceName)}!G${debtTotal},"")`);
-  heading(net, 37, "Selisih penerimaan dan pengeluaran berbasis kas, bukan laba akrual lengkap.", 10, COLORS.soft);
+  heading(net, 37, followsKeuangan ? "Selisih pemasukan dan pengeluaran mengikuti tanggal pencatatan di Keuangan." : "Selisih penerimaan dan pengeluaran berbasis kas, bukan laba akrual lengkap.", 10, COLORS.soft);
   net["!rows"]![36] = { hpt: 30 };
   finish(net, 38, 10);
 
@@ -396,7 +398,7 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
   put(overview, 26, 5, cashIncomplete ? "" : totalExpense, cashIncomplete ? '""' : `${quote(netName)}!F25`);
   put(overview, 29, 3, "PENGHASILAN BERSIH"); merge(overview, 29, 3, 29, 5); put(overview, 29, 7, cashIncomplete ? "" : netAmount, cashIncomplete ? '""' : "E24-E26"); band(overview, 29, 3, 7, COLORS.accent);
   put(overview, 32, 2, "KEKAYAAN BERSIH"); merge(overview, 32, 2, 33, 3); put(overview, 32, 4, typeof netAssets === "number" && !cashIncomplete ? moneySum([netAssets, netAmount]) : "", 'IF(COUNT(G21,G29)=2,G21+G29,"")'); merge(overview, 32, 4, 33, 7); band(overview, 32, 2, 7, COLORS.soft);
-  const notes = ["Modal awal dan stok akhir memakai HPP tiap satuan; stok bersama dihitung sekali. Hutang mencakup sisa giro.", "Riwayat HPP yang belum tersedia atau saldo dengan HPP belum lengkap dibiarkan kosong, bukan nol. HPP kosong dikonversi otomatis dari satuan terkecil yang memiliki HPP.", "Kas memakai pembayaran aktual; nilai giro jatuh tempo adalah jadwal belanja.", ...(cashIncomplete ? ["Ringkasan kas belum lengkap karena riwayat belanja atau giro belum diketahui."] : []), ...report.warnings];
+  const notes = ["Modal awal dan stok akhir memakai HPP tiap satuan; stok bersama dihitung sekali. Hutang mencakup sisa giro.", "Riwayat HPP yang belum tersedia atau saldo dengan HPP belum lengkap dibiarkan kosong, bukan nol. HPP kosong dikonversi otomatis dari satuan terkecil yang memiliki HPP.", followsKeuangan ? "Pemasukan awal memakai tanggal nota. Pengeluaran giro mengikuti jatuh tempo, termasuk giro yang dibayar lebih awal." : "Kas memakai pembayaran aktual; nilai giro jatuh tempo adalah jadwal belanja.", ...(cashIncomplete ? ["Ringkasan kas belum lengkap karena riwayat belanja atau giro belum diketahui."] : []), ...report.warnings];
   notes.forEach((note, index) => { const row = 36 + index * 2; put(overview, row, 2, note); merge(overview, row, 2, row + 1, 7); overview["!rows"]![row - 1] = { hpt: 20 }; });
   finish(overview, 37 + notes.length * 2, 7);
 
@@ -427,35 +429,38 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
     purchaseSections.push({ firstRow: first, totalRow: total, method });
     purchaseRow = total + 3;
   }
-  heading(purchases, purchaseRow, "PEMBAYARAN BELANJA AKTUAL", 6);
-  tableHeader(purchases, purchaseRow + 1, ["No", "Kelompok", "Tanggal bayar", "", "Nilai", "Keterangan"]);
+  heading(purchases, purchaseRow, followsKeuangan ? "PENGELUARAN BELANJA TERCATAT" : "PEMBAYARAN BELANJA AKTUAL", 6);
+  tableHeader(purchases, purchaseRow + 1, ["No", "Kelompok", followsKeuangan ? "Tanggal dicatat" : "Tanggal bayar", followsKeuangan ? "Tanggal bayar" : "", "Nilai", "Keterangan"]);
   cashPurchases.forEach((entry, index) => {
     const row = cashFirst + index;
     put(purchases, row, 1, index + 1).z = "0";
     put(purchases, row, 2, GROUP_LABELS[entry.group]);
     dateCell(purchases, row, 3, entry.date);
+    if (followsKeuangan && "paidAt" in entry && typeof entry.paidAt === "string") dateCell(purchases, row, 4, entry.paidAt);
     put(purchases, row, 5, entry.amount);
     put(purchases, row, 6, entry.description);
   });
-  if (!cashPurchases.length) { put(purchases, cashFirst, 5, 0); put(purchases, cashFirst, 6, "Belum ada pembayaran belanja tercatat."); }
+  if (!cashPurchases.length) { put(purchases, cashFirst, 5, 0); put(purchases, cashFirst, 6, followsKeuangan ? "Belum ada pengeluaran belanja tercatat." : "Belum ada pembayaran belanja tercatat."); }
   const cashTotal = cashEnd + 1;
   put(purchases, cashTotal, 2, "TOTAL DICATAT");
   sumFormula(purchases, cashTotal, 5, cashFirst, cashEnd, moneySum(cashPurchases.map((entry) => entry.amount)));
   band(purchases, cashTotal, 1, 6, COLORS.soft);
-  heading(purchases, cashTotal + 2, cashIncomplete ? "Riwayat giro atau belanja belum lengkap; total kas belum tersedia." : "Jadwal giro tidak menambah kas; hanya pembayaran aktual yang dihitung.", 6, COLORS.soft);
+  heading(purchases, cashTotal + 2, cashIncomplete ? "Riwayat giro atau belanja belum lengkap; total kas belum tersedia." : followsKeuangan ? "Giro dihitung pada tanggal jatuh tempo. Tanggal bayar ditampilkan jika tercatat." : "Jadwal giro tidak menambah kas; hanya pembayaran aktual yang dihitung.", 6, COLORS.soft);
   purchases["!rows"]![cashTotal + 1] = { hpt: 32 };
   finish(purchases, cashTotal + 3, 6);
 
   const currency = (amount: number) => amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const cashStatus = netAmount < 0 ? "Defisit kas" : netAmount > 0 ? "Surplus kas" : "Kas seimbang";
   insight(overview, 6, 7, cashIncomplete ? "Sisa kas belum tersedia · Riwayat giro atau belanja belum lengkap" : `${cashStatus}: Rp ${currency(netAmount)} · Modal awal: ${opening === null ? "belum tersedia" : `Rp ${currency(opening)}`}`, cashIncomplete ? '"Sisa kas belum tersedia · Riwayat giro atau belanja belum lengkap"' : 'IF(G29<0,"Defisit kas",IF(G29>0,"Surplus kas","Kas seimbang"))&": Rp "&TEXT(G29,"#,##0.00")&" · Modal awal: "&IF(ISNUMBER(D8),"Rp "&TEXT(D8,"#,##0.00"),"belum tersedia")');
-  insight(net, 6, 10, cashIncomplete ? "Sisa kas belum tersedia · Riwayat giro atau belanja belum lengkap" : totalIncome > 0 ? `Sisa kas: ${(netAmount / totalIncome * 100).toFixed(1)}% dari penerimaan · Basis kas` : "Belum ada penerimaan · Persentase sisa kas belum tersedia", cashIncomplete ? '"Sisa kas belum tersedia · Riwayat giro atau belanja belum lengkap"' : 'IF(F24>0,"Sisa kas: "&TEXT(F27/F24,"0.0%")&" dari penerimaan · Basis kas","Belum ada penerimaan · Persentase sisa kas belum tersedia")');
-  insight(daily, 8, 12, cashIncomplete ? "Kas belum lengkap; rincian harian hanya memuat pembayaran yang diketahui." : `Perlu pemetaan: Rp ${currency(incomeTotals.UNMAPPED)} · Sudah termasuk total pendapatan`, cashIncomplete ? '"Kas belum lengkap; rincian harian hanya memuat pembayaran yang diketahui."' : `"Perlu pemetaan: Rp "&TEXT(G${dailyTotal + 2},"#,##0.00")&" · Sudah termasuk total pendapatan"`);
+  const balanceBasis = followsKeuangan ? "Sesuai Keuangan" : "Basis kas";
+  insight(net, 6, 10, cashIncomplete ? "Sisa kas belum tersedia · Riwayat giro atau belanja belum lengkap" : totalIncome > 0 ? `Sisa kas: ${(netAmount / totalIncome * 100).toFixed(1)}% dari penerimaan · ${balanceBasis}` : "Belum ada penerimaan · Persentase sisa kas belum tersedia", cashIncomplete ? '"Sisa kas belum tersedia · Riwayat giro atau belanja belum lengkap"' : 'IF(F24>0,"Sisa kas: "&TEXT(F27/F24,"0.0%")&" dari penerimaan · ' + balanceBasis + '","Belum ada penerimaan · Persentase sisa kas belum tersedia")');
+  insight(daily, 8, 12, cashIncomplete ? "Pengeluaran belum lengkap. Rincian harian memuat nominal yang diketahui." : `Perlu pemetaan: Rp ${currency(incomeTotals.UNMAPPED)} · Sudah termasuk total pendapatan`, cashIncomplete ? '"Pengeluaran belum lengkap. Rincian harian memuat nominal yang diketahui."' : `"Perlu pemetaan: Rp "&TEXT(G${dailyTotal + 2},"#,##0.00")&" · Sudah termasuk total pendapatan"`);
   const restrictedIncome = income.some(entry => entry.id.startsWith("restricted:income:") || entry.id.startsWith("manual-income:aggregate:"));
   const restrictedExpenses = expenses.some(entry => entry.id.startsWith("restricted:expense:"));
   insight(rc, 6, 9, `${restrictedIncome ? "Penerimaan digabungkan" : `${income.length} penerimaan`} · Perlu pemetaan: Rp ${currency(incomeTotals.UNMAPPED)}`, `${restrictedIncome ? '"Penerimaan digabungkan"' : `COUNT(A7:A${rcEnd})&" penerimaan"`}&" · Perlu pemetaan: Rp "&TEXT(H${rcTotal},"#,##0.00")`);
   insight(rp, 6, 7, `${restrictedExpenses ? "Pengeluaran digabungkan" : `${expenses.length} pengeluaran manual`} · Gaji / mingguan: Rp ${currency(manualTotals.SALARY)}`, `${restrictedExpenses ? '"Pengeluaran digabungkan"' : `COUNT(A7:A${rpEnd})&" pengeluaran manual"`}&" · Gaji / mingguan: Rp "&TEXT(E${rpTotal},"#,##0.00")`);
-  insight(purchases, 6, 6, `Jadwal belanja: Rp ${currency(moneySum(purchasedExpenses.map(entry => entry.amount)))} · Pembayaran aktual dirinci di bawah`, `"Jadwal belanja: Rp "&TEXT(SUM(${purchaseTotalCells.join(",")}),"#,##0.00")&" · Pembayaran aktual dirinci di bawah"`);
+  const purchasesCaption = followsKeuangan ? "Rincian pengeluaran di bawah" : "Pembayaran aktual dirinci di bawah";
+  insight(purchases, 6, 6, `Jadwal belanja: Rp ${currency(moneySum(purchasedExpenses.map(entry => entry.amount)))} · ${purchasesCaption}`, `"Jadwal belanja: Rp "&TEXT(SUM(${purchaseTotalCells.join(",")}),"#,##0.00")&" · ${purchasesCaption}"`);
   const restrictedReceivables = report.receivables.some(entry => entry.id === "restricted:receivables");
   const restrictedDebts = supplierDebts.some(entry => entry.id === "restricted:supplier-debts");
   const balanceInsight = `${restrictedReceivables ? "Rincian piutang dibatasi" : `${report.receivables.length} nota piutang`} · ${report.supplierDebtBalance === null ? "Hutang belum tersedia" : restrictedDebts ? "Rincian hutang dibatasi" : `${supplierDebts.length} hutang tercatat`}`;
@@ -468,7 +473,7 @@ export function buildMonthlyWorkbook(report: MonthlyFinancialReport): WorkBook {
     XLSX.utils.book_append_sheet(wb, sheet, names[index]);
   });
   colorMonthlyWorkbookContent(wb, { dailyTotal, dailySubtotalRows, rcEnd, rcTotal, rpEnd, rpTotal, balanceEnd, balanceTotal, debtRow, debtTotal, purchaseSections });
-  const guide = buildMonthlyGuide({ monthName: month, debtRow, period: `${report.from} s.d. ${report.to}` });
+  const guide = buildMonthlyGuide({ monthName: month, debtRow, followsKeuangan, period: `${report.from} s.d. ${report.to}` });
   XLSX.utils.book_append_sheet(wb, guide, names[7]);
   sheets.push(guide);
   wb.Workbook = { Names: sheets.flatMap((sheet, index) => [

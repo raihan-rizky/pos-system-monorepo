@@ -12,7 +12,7 @@ describe('endpoint bulanan', () => {
     const response = await GET(new Request('http://localhost/api/finance/report/monthly?year=2026&month=9&storeId=other'));
     expect(response.status).toBe(200);
     expect(mocks.permission).toHaveBeenCalledWith("financial-report.export", "read");
-    expect(mocks.report).toHaveBeenCalledWith('authorized-store', 2026, 9);
+    expect(mocks.report).toHaveBeenCalledWith('authorized-store', 2026, 9, new Date('2026-10-21T03:00:00Z'), { basis: 'keuangan' });
     expect(response.headers.get('cache-control')).toContain('no-store');
   });
   it.each(['year=2026&month=13', 'year=2026&month=11', 'year=2026&month=1.5', 'year=x&month=9', 'month=9', 'year=2026&month='])('menolak periode tidak sah: %s', async query => {

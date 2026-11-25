@@ -2,11 +2,11 @@ import { utils } from "xlsx-js-style";
 import type { WorkSheet } from "xlsx-js-style";
 import { MONTHLY_CONTENT_PALETTES } from "./monthly-workbook-theme";
 
-type GuideContext = { monthName: string; debtRow: number; period: string };
+type GuideContext = { monthName: string; debtRow: number; period: string; followsKeuangan?: boolean };
 type Palette = (typeof MONTHLY_CONTENT_PALETTES)[keyof typeof MONTHLY_CONTENT_PALETTES];
 
 /** A reading guide only: report cells and calculations keep their original layout. */
-export function buildMonthlyGuide({ monthName, debtRow, period }: GuideContext): WorkSheet {
+export function buildMonthlyGuide({ monthName, debtRow, period, followsKeuangan }: GuideContext): WorkSheet {
   const { brand, brandDeep, success, accent, input, surface } = MONTHLY_CONTENT_PALETTES;
   const sheet: WorkSheet = {
     "!ref": "A1:L66",
@@ -69,7 +69,7 @@ export function buildMonthlyGuide({ monthName, debtRow, period }: GuideContext):
   block("A29:D29", "RC = UANG MASUK", success, { solid: true, target: link(`RC ${monthName}`, "A7") });
   block("E29:H29", "RP = UANG KELUAR", accent, { solid: true, target: link(`RP ${monthName}`, "A7") });
   block("I29:L29", "PIUTANG = BELUM DIBAYAR", brandDeep, { solid: true, target: link("PIUTANG & HUTANG", "A7") });
-  block("A30:D32", "Penerimaan transaksi dan Tambah Pemasukan di Keuangan masuk RC sesuai kategori, lalu dijumlahkan ke rekap.", success);
+  block("A30:D32", followsKeuangan ? "Pemasukan RC mengikuti Keuangan. Pembayaran awal memakai tanggal nota, pelunasan memakai tanggal pembayaran." : "Penerimaan transaksi dan Tambah Pemasukan di Keuangan masuk RC sesuai kategori, lalu dijumlahkan ke rekap.", success);
   block("E30:H32", "Semua pengeluaran dihitung sekali. Tambah Belanja Transfer juga tampil di PENGELUARAN BELANJA → VIA TRANSFER.", accent);
   block("I30:L32", "Ini sisa tagihan pelanggan di tanggal akhir laporan. Masuk ke ringkasan harta, tapi belum jadi uang yang diterima.", brand);
   block("A34:B36", "RC + RP + BELANJA", brandDeep, { solid: true, center: true });
@@ -91,10 +91,10 @@ export function buildMonthlyGuide({ monthName, debtRow, period }: GuideContext):
   block("I44:L46", "Rp3.000.000", brand, { size: 20, center: true });
   block("A48:L49", "Jumlah harta = modal awal + piutang − hutang − nilai stok akhir (persediaan)", brand);
   block("A50:L51", "Kekayaan bersih = jumlah harta + sisa kas", success, { target: link("LAP KEU", "D32") });
-  block("A52:L52", "Yang dihitung: uang yang sudah masuk dan keluar. Tagihan yang belum dibayar belum jadi uang masuk.", surface, { size: 11 });
+  block("A52:L52", followsKeuangan ? "Rekap memakai tanggal pencatatan yang sama dengan Keuangan." : "Yang dihitung: uang yang sudah masuk dan keluar. Tagihan yang belum dibayar belum jadi uang masuk.", surface, { size: 11 });
 
   block("A54:L54", "05  Jangan sampai dihitung dua kali", brand, { solid: true, size: 13 });
-  block("A56:F58", "Jadwal berbeda dari kas\nGiro tampil pada bulan jatuh tempo. Kas hanya menghitung pembayaran giro dan transfer yang benar-benar tercatat.", accent);
+  block("A56:F58", followsKeuangan ? "Giro mengikuti jatuh tempo\nGiro yang dibayar lebih awal tetap dihitung pada tanggal jatuh tempo, seperti di Keuangan." : "Jadwal berbeda dari kas\nGiro tampil pada bulan jatuh tempo. Kas hanya menghitung pembayaran giro dan transfer yang benar-benar tercatat.", accent);
   block("G56:L58", "Belum ada kategori? Tetap dihitung\nAngka di bagian Perlu pemetaan sudah masuk total. Cek kategorinya di aplikasi, lalu unduh ulang kalau ada perubahan.", accent);
   block("A60:F62", "Kategori Gaji/Mingguan\nHanya kategori Gaji/Mingguan masuk kolom gaji. Gaji dan kategori lain masuk Nilai. Unduh ulang setelah mengubah kategori; total dihitung sekali.", brand);
   block("G60:L62", "Sisa giro termasuk hutang\nPembayaran mengurangi hutang sesuai tanggal bayar. Riwayat lama perlu diperiksa di Keuangan.", accent);
