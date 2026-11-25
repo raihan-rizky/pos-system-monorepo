@@ -9,10 +9,17 @@ vi.mock("jspdf", async (importOriginal) => {
     default: class extends original.jsPDF {
       constructor(options: import("jspdf").jsPDFOptions) {
         super(options);
-        this.save = vi.fn(() => {
+        const capturePdf = () => {
           savedPdf(this.output());
           return this;
-        }) as typeof this.save;
+        };
+        function save(filename: string, options: { returnPromise: true }): Promise<void>;
+        function save(filename?: string): import("jspdf").jsPDF;
+        function save(_filename?: string, options?: { returnPromise: true }): import("jspdf").jsPDF | Promise<void> {
+          const pdf = capturePdf();
+          return options?.returnPromise ? Promise.resolve() : pdf;
+        }
+        this.save = save;
       }
     },
   };
