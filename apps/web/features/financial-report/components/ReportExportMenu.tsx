@@ -3,7 +3,7 @@
 import { useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "@pos/ui";
 import { Download, FileSpreadsheet, X } from "lucide-react";
-import { exportFinancialReportFile, type ReportExportFormat } from "../helpers/journal-export";
+import { exportFinancialReportFile, type ReportExportFormat, type ReportPdfPageMode } from "../helpers/journal-export";
 import { exportMonthlyFinancialReport } from "../helpers/monthly-export-client";
 import type { ReportPeriod } from "../helpers/journal-core";
 import { useRole } from "@/components/providers/RoleProvider";
@@ -37,6 +37,7 @@ function ReportExportControls({ previewSales, reportRange }: { previewSales: boo
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"monthly" | "journal">("monthly");
   const [format, setFormat] = useState<ReportExportFormat>("xlsx");
+  const [pageMode, setPageMode] = useState<ReportPdfPageMode>("multiple");
   const [month, setMonth] = useState(today.month);
   const [year, setYear] = useState(String(today.year));
   const [period, setPeriod] = useState<ReportPeriod | "custom">(reportRange ? "custom" : "monthly");
@@ -53,6 +54,7 @@ function ReportExportControls({ previewSales, reportRange }: { previewSales: boo
   function openDialog() {
     setMode("monthly");
     setFormat("xlsx");
+    setPageMode("multiple");
     setError(null);
     dialogRef.current?.showModal();
     setOpen(true);
@@ -67,7 +69,7 @@ function ReportExportControls({ previewSales, reportRange }: { previewSales: boo
     setError(null);
     try {
       if (mode === "monthly") await exportMonthlyFinancialReport(selectedYear, month, previewSales);
-      else await exportFinancialReportFile(period, format, previewSales, period === "custom" ? reportRange : undefined);
+      else await exportFinancialReportFile(period, format, previewSales, period === "custom" ? reportRange : undefined, pageMode);
       dialogRef.current?.close();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Laporan belum bisa diunduh. Silakan coba lagi.");
@@ -169,6 +171,15 @@ function ReportExportControls({ previewSales, reportRange }: { previewSales: boo
                       {PERIODS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                     </select>
                   </div>
+                  {format === "pdf" && (
+                      <div className="sm:col-span-2">
+                        <label htmlFor={id + "-page-mode"} className="text-sm font-medium">Tata letak PDF</label>
+                        <select id={id + "-page-mode"} value={pageMode} onChange={event => setPageMode(event.target.value as ReportPdfPageMode)} className={controlClass}>
+                          <option value="single">1 halaman · Ringkasan</option>
+                          <option value="multiple">Banyak halaman</option>
+                        </select>
+                      </div>
+                    )}
                 <p className="text-xs leading-relaxed text-surface-600 sm:col-span-2">Rincian transaksi dan pemasukan manual dalam format Excel atau PDF.</p>
                 </div>
               )}

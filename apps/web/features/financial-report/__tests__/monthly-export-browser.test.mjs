@@ -23,7 +23,7 @@ const bundle = await build({
     build.onLoad({ filter: /.*/, namespace: "fixture" }, ({ path: name }) => ({ contents: name === "role"
       ? "export function useRole(){return {canPerform:()=>true}}"
       : name === "journal-export"
-      ? "export async function exportFinancialReportFile(period,format,preview,range){window.legacyExports.push({period,format,...(range?{range}:{})});}"
+      ? "export async function exportFinancialReportFile(period,format,preview,range,pageMode){window.legacyExports.push({period,format,...(range?{range}:{}),...(format==='pdf'?{pageMode}:{} )});}"
       : `export function serializeMonthlyWorkbook(){return new Uint8Array([80,75]);}` }));
   } }],
 });
@@ -118,6 +118,15 @@ try {
     assert.deepEqual(await page.evaluate(() => window.legacyExports.shift()), { period: "custom", format: "xlsx", range: { from: "2026-05-03", to: "2026-05-05" } });
     await trigger.click();
     await page.getByLabel("Jenis laporan").selectOption("journal");
+    await page.getByLabel("Format").selectOption("pdf");
+    const layout = page.getByLabel("Tata letak PDF");
+    await expect(layout).toHaveValue("multiple");
+    await layout.selectOption("single");
+    await page.getByRole("button", { name: "Unduh PDF", exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+    assert.deepEqual(await page.evaluate(() => window.legacyExports.shift()), { period: "custom", format: "pdf", range: { from: "2026-05-03", to: "2026-05-05" }, pageMode: "single" });
+    await trigger.click();
+    await page.getByLabel("Jenis laporan").selectOption("journal");
     for (const format of ["xlsx", "pdf"]) {
       for (const period of ["daily", "weekly", "30d", "monthly"]) {
         await page.getByLabel("Format").selectOption(format);
@@ -128,7 +137,7 @@ try {
         await page.getByLabel("Jenis laporan").selectOption("journal");
       }
     }
-    assert.deepEqual(await page.evaluate(() => window.legacyExports), ["xlsx", "pdf"].flatMap(format => ["daily", "weekly", "30d", "monthly"].map(period => ({ period, format }))));
+    assert.deepEqual(await page.evaluate(() => window.legacyExports), ["xlsx", "pdf"].flatMap(format => ["daily", "weekly", "30d", "monthly"].map(period => ({ period, format, ...(format === "pdf" ? { pageMode: "multiple" } : {}) }))));
     await page.getByLabel("Jenis laporan").selectOption("monthly");
     await page.getByLabel("Bulan", { exact: true }).selectOption("9");
     await page.getByRole("button", { name: "Unduh Excel", exact: true }).scrollIntoViewIfNeeded();

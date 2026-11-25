@@ -1,4 +1,5 @@
 import { db } from "@pos/db";
+import { buildReportSummaryCatalog } from "@/features/financial-report/helpers/report-breakdowns";
 import { recognizedExpenseFilter } from "@/features/keuangan/helpers/recognized-expense-filter";
 import { findInitialCollections } from "@/features/financial-report/services/initial-collections";
 import { loadReceivableBalance } from "@/features/customer-debt/services/receivable-balance";
@@ -271,8 +272,14 @@ export async function GET(request: Request) {
     const [expenseAggregate, incompleteExpenseCount] = expenseSnapshot.data;
     const manualPayables = expenseSnapshot.payables;
 
-    return NextResponse.json(
-      buildFinancialReport({
+    const summaryCatalog = searchParams.get("summaryCatalog") === "1"
+      ? buildReportSummaryCatalog(await db.productSubcategory.findMany({
+          select: { group: true, name: true, legacyCategory: { select: { name: true } } },
+        }))
+      : undefined;
+
+    return NextResponse.json({
+      ...buildFinancialReport({
         dateFrom,
         dateTo,
         collectionTransactions,
@@ -328,7 +335,8 @@ export async function GET(request: Request) {
           amount: toNumber(payment.amount),
         })),
       }),
-    );
+      ...(summaryCatalog ? { summaryCatalog } : {}),
+    });
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

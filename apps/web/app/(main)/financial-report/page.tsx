@@ -3,6 +3,7 @@
 import React from "react";
 import { useRole } from "@/components/providers/RoleProvider";
 import { DailyIncomeReport } from "@/features/financial-report/components/DailyIncomeReport";
+import { DailyReportDialog } from "@/features/financial-report/components/DailyReportDialog";
 import dynamic from "next/dynamic";
 import {
   RefreshCw,
@@ -98,6 +99,8 @@ export default function FinancialReportPage() {
 }
 
 function FullFinancialReport({ previewSales = false, previewExportAccess = false }: { previewSales?: boolean; previewExportAccess?: boolean } = {}) {
+  const { canPerform } = useRole();
+  const canExport = previewSales ? previewExportAccess : canPerform("financial-report.export", "read");
   const initialRange = React.useMemo(
     () => buildFinancialReportRange("month"),
     [],
@@ -201,7 +204,7 @@ function FullFinancialReport({ previewSales = false, previewExportAccess = false
               </p>
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               <div
                 role="tablist"
                 aria-label="Periode cepat"
@@ -227,7 +230,10 @@ function FullFinancialReport({ previewSales = false, previewExportAccess = false
                   );
                 })}
               </div>
-              <ReportExportMenu previewSales={previewSales} previewExportAccess={previewExportAccess} reportRange={{ from: dateFrom, to: dateTo }} />
+              <div className="flex flex-wrap items-center gap-2">
+                {canExport && <DailyReportDialog dateFrom={dateFrom} dateTo={dateTo} view={previewSales ? "sales" : undefined} />}
+                <ReportExportMenu previewSales={previewSales} previewExportAccess={previewExportAccess} reportRange={{ from: dateFrom, to: dateTo }} />
+              </div>
             </div>
           </div>
         </div>
