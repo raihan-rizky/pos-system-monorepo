@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "excel-bulanan-sesuai-keuangan", date: "2026-11-25", revision: 1,
+    highlight: { title: "Excel bulanan sesuai Keuangan", summary: "Pemasukan dan pengeluaran Excel kini mengikuti pencatatan di Keuangan." },
+    title: "Angka Excel bulanan mengikuti Keuangan",
+    summary: "Ringkasan dan rincian Excel mengikuti periode di Keuangan. Pembayaran awal masuk pada tanggal nota dan pengeluaran giro masuk saat jatuh tempo.",
+    kind: "fix", impact: "major", area: "Laporan Keuangan", href: "/financial-report", visual: "financial",
+    steps: [
+      { title: "Buka ekspor", detail: "Di Laporan Keuangan, buka menu Ekspor dan pilih Laporan bulanan." },
+      { title: "Pilih periode", detail: "Pilih bulan dan tahun yang ingin dicocokkan dengan Keuangan." },
+      { title: "Unduh dan cek", detail: "Pilih Unduh Excel, lalu bandingkan pemasukan dan pengeluaran di LAP KEU." },
+    ],
+  },
+  {
     id: "quotation-manual-items", date: "2026-11-24", revision: 1,
     highlight: { title: "Baris manual Nota Penawaran", summary: "Ketik barang di nota dan kaitkan ke katalog bila perlu." },
     title: "Tambahkan barang langsung pada Nota Penawaran",

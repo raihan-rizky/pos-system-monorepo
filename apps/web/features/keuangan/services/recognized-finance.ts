@@ -355,6 +355,7 @@ export async function loadRecognizedExpenses(
   month: string,
   now = new Date(),
   includeCorrectionCash = true,
+  client?: Prisma.TransactionClient,
 ): Promise<RecognizedExpenses> {
   if (!storeId) throw new Error("Toko pengguna belum tersedia.");
   const range = buildKeuanganMonthRange(month);
@@ -387,7 +388,7 @@ export async function loadRecognizedExpenses(
   } satisfies Prisma.GoodsPurchaseSelect;
   const [year, monthNumber] = month.split("-").map(Number);
   const lastDay = String(new Date(Date.UTC(year, monthNumber, 0)).getUTCDate()).padStart(2, "0");
-  const [expenses, backdatedPurchases, correctionCash, manualPayables] = await db.$transaction(async tx => Promise.all([
+  const read = (tx: Prisma.TransactionClient) => Promise.all([
     tx.expense.findMany({
       where: { storeId, deletedAt: null, backdatedPurchaseDueId: null, backdatedPurchasePaymentId: null,
         OR: [{ occurredAt: { gte: range.start, lt: range.end } },
@@ -407,6 +408,9 @@ export async function loadRecognizedExpenses(
       payments: { where: { cancelledAt: null }, select: { id: true, amount: true, paidAt: true } } } }),
     includeCorrectionCash ? loadExpenseCorrectionCash(tx, storeId, month, now) : undefined,
     loadManualPayablePeriod(tx, storeId, `${month}-01`, `${month}-${lastDay}`, now),
-  ]), { isolationLevel: "RepeatableRead", timeout: 30_000 });
+  ]);
+  const [expenses, backdatedPurchases, correctionCash, manualPayables] = await (client
+    ? read(client)
+    : db.$transaction(read, { isolationLevel: "RepeatableRead", timeout: 30_000 }));
   return buildRecognizedExpenses({ storeId, month, now, expenses, backdatedPurchases, manualPayables, correctionCash });
 }

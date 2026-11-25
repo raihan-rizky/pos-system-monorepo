@@ -5,8 +5,13 @@ import { buildMonthlyPeriod, buildMonthlyReport } from '../helpers/monthly-repor
 import { getMonthlyBalances } from './monthly-balances';
 import { applyShoppingCorrectionReportPayments } from '../helpers/shopping-correction-report-payments';
 import { buildManualPayableReport } from '../helpers/manual-payable-report';
+import { applyKeuanganActivity } from '../helpers/monthly-keuangan-activity';
+import { loadIncomePeriod } from './daily-income';
+import { loadRecognizedExpenses } from '@/features/keuangan/services/recognized-finance';
 
-export async function getMonthlyFinancialReport(storeId: string, year: number, month: number, now = new Date()) {
+export async function getMonthlyFinancialReport(
+  storeId: string, year: number, month: number, now = new Date(), { basis }: { basis?: 'keuangan' } = {},
+) {
   if (!storeId) throw new Error('Toko pengguna belum tersedia.');
   const period = buildMonthlyPeriod(year, month, now);
   const bounds = { gte: period.start, lt: period.end };
@@ -25,7 +30,7 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
   } satisfies Prisma.GoodsPurchaseSelect;
   // All inputs must see the same committed state, including giro payments and
   // their remaining debt. A payment can otherwise commit between the queries.
-  const [transactions, expenses, manualReceivables, balances, backdatedPurchases, manualIncome, correctionCash, manualPayables] = await db.$transaction(async tx => Promise.all([
+  const [transactions, expenses, manualReceivables, balances, backdatedPurchases, manualIncome, correctionCash, manualPayables, incomePeriod, recognizedExpenses] = await db.$transaction(async tx => Promise.all([
     tx.transaction.findMany({
       where: { storeId, status: { in: ['COMPLETED', 'DP'] }, OR: [
         { invoiceDate: { lt: period.end } },
@@ -82,6 +87,8 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
       select: { id: true, storeId: true, supplierName: true, amount: true, debtDate: true, dueDate: true, reportCategory: true, note: true,
         payments: { where: { paidAt: { lte: new Date(`${todayWib}T00:00:00Z`) } }, select: { id: true, amount: true, paidAt: true, origin: true } } },
     }),
+    basis === 'keuangan' ? loadIncomePeriod(storeId, period.from, period.to, { client: tx, now }) : undefined,
+    basis === 'keuangan' ? loadRecognizedExpenses(storeId, period.from.slice(0, 7), now, true, tx) : undefined,
   ]), { isolationLevel: 'RepeatableRead', timeout: 30_000 });
   const scopedExpenses = expenses.map(expense => {
     const candidates = expense.shoppingRequest?.goodsPurchases?.filter(purchase => purchase.storeId === storeId && (purchase.status === 'APPROVED' || (purchase.status === 'CANCELLED' && purchase.statusBeforeCancellation === 'APPROVED'))) ?? [];
@@ -144,5 +151,8 @@ export async function getMonthlyFinancialReport(storeId: string, year: number, m
     const correction = purchase?.shoppingRequest?.corrections?.[0];
     return purchase && correction ? [{ expenseId: expense.id, occurredAt: expense.occurredAt, purchase, correction }] : [];
   }));
+  if (incomePeriod && recognizedExpenses) {
+    applyKeuanganActivity(report, incomePeriod.contributions, recognizedExpenses, { transactions, manualIncome, manualReceivables });
+  }
   return report;
 }

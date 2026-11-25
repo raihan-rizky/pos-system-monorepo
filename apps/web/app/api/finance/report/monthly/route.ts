@@ -127,13 +127,14 @@ export async function GET(request: Request) {
     const monthText = params.get('month') || '';
     const year = Number(yearText);
     const month = Number(monthText);
+    const now = new Date();
     try {
       if (!/^\d{4}$/.test(yearText) || !/^\d{1,2}$/.test(monthText)) throw new RangeError();
-      buildMonthlyPeriod(year, month);
+      buildMonthlyPeriod(year, month, now);
     } catch {
       return apiError('Pilih tahun dan bulan yang valid. Bulan mendatang belum dapat diekspor.', 422, { code: 'ValidationError' });
     }
-    const report = await getMonthlyFinancialReport(user.storeId, year, month);
+    const report = await getMonthlyFinancialReport(user.storeId, year, month, now, { basis: 'keuangan' });
     return NextResponse.json(restrictMonthlyDetails(report, access), { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
   } catch (error) {
     const authError = handleAuthError(error);
