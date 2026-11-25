@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "daily-financial-report-a4", date: "2026-11-26", revision: 1,
+    highlight: { title: "Laporan Harian siap cetak", summary: "Cetak ringkasan satu lembar atau jurnal lengkap dalam format A4." },
+    title: "Cetak atau unduh Laporan Harian",
+    summary: "Periksa pemasukan, pengeluaran, dan rincian omzet untuk satu tanggal. Cetak atau unduh ringkasan A4 yang mencakup nilai Rp 0 atau pilih jurnal lengkap.",
+    kind: "feature", impact: "major", area: "Laporan Keuangan", href: "/financial-report", visual: "financial",
+    screenshot: { src: "/images/changelog/laporan-harian-tata-letak-2026-11-25.png", alt: "Pemilih tanggal WIB dan mode 1 halaman atau Banyak halaman di popup Laporan Harian." },
+    steps: [
+      { title: "Buka Laporan Harian", detail: "Pada Laporan Keuangan, klik Laporan Harian di samping Ekspor." },
+      { title: "Pilih tanggal", detail: "Pilih tanggal WIB dan periksa jurnal pada pratinjau." },
+      { title: "Cetak atau unduh", detail: "Pilih 1 halaman untuk ringkasan atau Banyak halaman untuk jurnal, lalu klik Cetak A4 atau Unduh PDF." },
+    ],
+  },
+  {
     id: "excel-bulanan-sesuai-keuangan", date: "2026-11-25", revision: 1,
     highlight: { title: "Excel bulanan sesuai Keuangan", summary: "Pemasukan dan pengeluaran Excel kini mengikuti pencatatan di Keuangan." },
     title: "Angka Excel bulanan mengikuti Keuangan",

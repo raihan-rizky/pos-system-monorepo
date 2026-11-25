@@ -64,6 +64,12 @@ Pembayaran piutang manual masuk kategori RC yang dipilih pada tanggal pembayaran
 
 Jika gagal, dialog menampilkan pesan dan tombol **Coba lagi** tanpa menghapus pilihan periode. Pengunduhan berikutnya dapat dilakukan setelah proses sebelumnya selesai.
 
+### Laporan Harian siap cetak
+
+Untuk dokumen satu hari, klik **Laporan Harian** di samping **Ekspor** pada tampilan Laporan Lengkap. Pilih tanggal WIB. **Banyak halaman** menjadi pilihan awal dan memuat jurnal per invoice. **1 halaman** memuat ringkasan pemasukan dan pengeluaran, semua metode pembayaran, serta omzet semua kategori dan subkategori dalam satu lembar A4 lanskap. Pilihan tanpa transaksi tampil **Rp 0**. Gunakan **Cetak A4** atau **Unduh PDF**. Total pemasukan mengikuti **Pemasukan Harian** dan pengeluaran mengikuti **Laporan Lengkap** pada tanggal yang sama.
+
+Pemilih tata letak PDF juga tersedia saat mengekspor Jurnal transaksi.
+
 ### Jurnal transaksi dan ekspor dari chat
 
 Pilih **Jurnal transaksi · Excel / PDF** di dialog untuk format jurnal yang sudah tersedia.

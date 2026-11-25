@@ -272,6 +272,7 @@ export const HELP_VISUAL_PAGE_CONFIG: Record<HelpVisualPage, HelpVisualPageConfi
           { key: "finance-primary", label: "Halaman Keuangan" },
           { key: "finance-summary", label: "Kartu Ringkasan" },
           { key: "finance-date-filter", label: "Filter Tanggal" },
+          { key: "finance-daily-report", label: "Laporan Harian" },
           { key: "finance-export", label: "Ekspor" },
         ],
       },

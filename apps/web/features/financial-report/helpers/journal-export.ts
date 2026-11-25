@@ -9,6 +9,8 @@ import {
   type ReportFooter,
   type ReportPeriod,
 } from "./journal-core";
+import { fetchFinancialReport } from "../hooks/useFinancialReport";
+import { buildReportBreakdownTables } from "./report-breakdowns";
 
 type ExportPeriod = ReportPeriod | "custom";
 
@@ -21,6 +23,7 @@ const PERIOD_LABEL_ID: Record<ExportPeriod, string> = {
 };
 
 export type ReportExportFormat = "xlsx" | "pdf";
+export type ReportPdfPageMode = "single" | "multiple";
 
 function formatRupiah(value: number): string {
   const cents = Math.round(value * 100);
@@ -63,6 +66,10 @@ export type ExportInput = {
   rows: ReportRow[];
   footer: ReportFooter;
   categories?: ReportCategorySummary[];
+  details?: {
+    note?: string;
+    tables: Array<{ title: string; headers: string[]; rows: string[][] }>;
+  };
 };
 
 export type ReportExportResult = { advice: string[] };
@@ -94,6 +101,7 @@ export async function exportFinancialReportFile(
   format: ReportExportFormat,
   previewSales = false,
   range?: { from: string; to: string },
+  pageMode: ReportPdfPageMode = "multiple",
 ): Promise<ReportExportResult> {
   const params = new URLSearchParams({ period });
   if (period === "custom" && range) { params.set("from", range.from); params.set("to", range.to); }
@@ -109,8 +117,19 @@ export async function exportFinancialReportFile(
   const input = await response.json() as ExportInput;
   if (format === "xlsx") {
     await exportReportXlsx(input);
+  } else if (pageMode === "single") {
+    const report = await fetchFinancialReport({
+      dateFrom: input.from,
+      dateTo: input.to,
+      summaryCatalog: true,
+      ...(previewSales ? { view: "sales" } : {}),
+    });
+    if (!report.summaryCatalog) throw new Error("Daftar kategori laporan belum tersedia. Silakan coba lagi.");
+    const paymentMethods = PAYMENT_METHODS.map(method => ({ method, amount: input.footer.byMethod[method] ?? 0 }));
+    const tables = buildReportBreakdownTables(report, paymentMethods, report.summaryCatalog, formatRupiah);
+    await exportReportPdf({ ...input, details: { tables } }, pageMode);
   } else {
-    await exportReportPdf(input);
+    await exportReportPdf(input, pageMode);
   }
   return { advice: buildFinancialExportAdvice(input) };
 }
@@ -459,17 +478,48 @@ const PDF_COLOR = {
   cardGrand: [241, 245, 249] as [number, number, number],
 } as const;
 
-export async function exportReportPdf(input: ExportInput): Promise<void> {
-  const [{ default: jsPDF }, autoTableModule] = await Promise.all([
+export async function createReportPdf(
+  input: ExportInput,
+  pageMode: ReportPdfPageMode = "multiple",
+  formatAmount = formatRupiah,
+) {
+  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
     import("jspdf"),
     import("jspdf-autotable"),
   ]);
-  const autoTable = autoTableModule.default ?? autoTableModule;
 
-  const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+  let scale = 1;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4", putOnlyUsedFonts: true });
+    drawJournalPdf(doc, autoTable, input, pageMode, scale, formatAmount);
+    if (pageMode === "multiple" || doc.getNumberOfPages() === 1) return doc;
+    scale /= doc.getNumberOfPages();
+  }
+  throw new Error("Ringkasan belum bisa dimuat dalam satu lembar. Pilih Banyak halaman.");
+}
+
+export async function exportReportPdf(input: ExportInput, pageMode: ReportPdfPageMode = "multiple"): Promise<void> {
+  const doc = await createReportPdf(input, pageMode);
+  doc.save(buildFilename(input.period, "pdf"));
+}
+
+function drawJournalPdf(
+  doc: import("jspdf").jsPDF,
+  autoTable: typeof import("jspdf-autotable").autoTable,
+  input: ExportInput,
+  pageMode: ReportPdfPageMode,
+  scale: number,
+  formatAmount: (value: number) => string,
+) {
+  const money = (amount: number) => formatAmount(amount).replaceAll("\u00a0", " ");
+  // Leave more room for the text by shrinking cell padding first.
+  const fontScale = Math.sqrt(scale);
+  const paddingScale = scale * scale;
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 32;
+  const title = periodTitle(input.period, input.from, input.to);
+  doc.setProperties({ title });
 
   // ── Title bar ──────────────────────────────────────────────────────────
   const barH = 56;
@@ -479,12 +529,12 @@ export async function exportReportPdf(input: ExportInput): Promise<void> {
   doc.setTextColor(...PDF_COLOR.brandText);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
-  doc.text(periodTitle(input.period, input.from, input.to), margin, 28);
+  doc.text(title, margin, 28);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(203, 213, 225); // slate-300 for subtitle on dark bar
-  doc.text("Laporan Keuangan", margin, 44);
+  doc.text(pageMode === "single" ? "Ringkasan Laporan Keuangan" : "Laporan Keuangan", margin, 44);
 
   doc.setTextColor(...PDF_COLOR.brandText);
   doc.setFontSize(9);
@@ -513,19 +563,19 @@ export async function exportReportPdf(input: ExportInput): Promise<void> {
   }> = [
     {
       label: "Total Pemasukan",
-      value: formatRupiah(input.footer.totalPemasukan),
+      value: money(input.footer.totalPemasukan),
       bg: PDF_COLOR.cardPemasukan,
       valueColor: PDF_COLOR.pemasukan,
     },
     {
       label: "Total Pengeluaran",
-      value: formatRupiah(input.footer.totalPengeluaran),
+      value: money(input.footer.totalPengeluaran),
       bg: PDF_COLOR.cardPengeluaran,
       valueColor: PDF_COLOR.pengeluaran,
     },
     {
       label: "Grand Total",
-      value: formatRupiah(input.footer.grandTotal),
+      value: money(input.footer.grandTotal),
       bg: PDF_COLOR.cardGrand,
       valueColor: PDF_COLOR.text,
     },
@@ -549,150 +599,122 @@ export async function exportReportPdf(input: ExportInput): Promise<void> {
     doc.text(card.value, x + 12, cardsTop + 38);
   });
 
-  // ── Main table ─────────────────────────────────────────────────────────
-  const tableTop = cardsTop + cardH + 14;
-  const body = input.rows.map((row) => [
-    row.tanggal,
-    row.invoice,
-    row.person,
-    row.products,
-    row.categories,
-    row.status,
-    formatRupiah(row.amount),
-    row.method,
-  ]);
-
-  autoTable(doc, {
-    head: [[...REPORT_HEADER]],
-    body,
-    startY: tableTop,
-    margin: { left: margin, right: margin, top: barH + 12, bottom: 32 },
-    theme: "grid",
-    styles: {
-      fontSize: 8,
-      cellPadding: 5,
-      overflow: "linebreak",
-      lineColor: PDF_COLOR.border,
-      lineWidth: 0.4,
-      textColor: PDF_COLOR.text,
-      valign: "middle",
-    },
-    headStyles: {
-      fillColor: PDF_COLOR.brand,
-      textColor: PDF_COLOR.brandText,
-      fontStyle: "bold",
-      halign: "left",
-      fontSize: 9,
-      cellPadding: 6,
-      lineWidth: 0,
-    },
-    alternateRowStyles: {
-      fillColor: PDF_COLOR.zebra,
-    },
-    columnStyles: {
-      0: { cellWidth: 60 },
-      1: { cellWidth: 78 },
-      5: { halign: "center", cellWidth: 64, fontStyle: "bold" },
-      6: { halign: "right", cellWidth: 90, fontStyle: "bold" },
-      7: { halign: "center", cellWidth: 56 },
-    },
-    didParseCell: (data) => {
-      if (data.section !== "body") return;
-      const raw = input.rows[data.row.index];
-      if (!raw) return;
-      if (data.column.index === 5) {
-        data.cell.styles.textColor =
-          raw.status === "Pemasukan"
-            ? PDF_COLOR.pemasukan
-            : PDF_COLOR.pengeluaran;
-      }
-      if (data.column.index === 6 && raw.amount < 0) {
-        data.cell.styles.textColor = PDF_COLOR.negative;
-      }
-    },
-  });
-
-  // ── Per-method breakdown table ─────────────────────────────────────────
-  type DocWithAuto = typeof doc & { lastAutoTable?: { finalY: number } };
-  const afterTableY = (doc as DocWithAuto).lastAutoTable?.finalY ?? tableTop;
-  const breakdownTop = afterTableY + 18;
-
-  // If too close to page bottom, add a new page
-  const breakdownEstHeight = 24 + PAYMENT_METHODS.length * 22;
-  if (breakdownTop + breakdownEstHeight > pageHeight - 32) {
-    doc.addPage();
+  let tableTop = cardsTop + cardH + 14;
+  if (input.details?.note) {
+    doc.setFont("helvetica", "normal").setFontSize(8);
+    doc.setTextColor(...PDF_COLOR.muted);
+    const note: string[] = doc.splitTextToSize(input.details.note, pageWidth - 2 * margin);
+    doc.text(note, margin, tableTop);
+    tableTop += note.length * 11 + 5;
   }
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.setTextColor(...PDF_COLOR.text);
-  doc.text(
-    "Rincian per Metode Pembayaran",
-    margin,
-    (doc as DocWithAuto).lastAutoTable?.finalY != null
-      ? Math.min(breakdownTop, pageHeight - breakdownEstHeight - 32)
-      : breakdownTop,
-  );
-
-  autoTable(doc, {
-    head: [["Metode", "Jumlah"]],
-    body: PAYMENT_METHODS.map((m) => [m, formatRupiah(input.footer.byMethod[m])]),
-    startY:
-      ((doc as DocWithAuto).lastAutoTable?.finalY ?? breakdownTop) + 6,
-    margin: { left: margin, right: margin, bottom: 32 },
-    theme: "grid",
-    tableWidth: 280,
-    styles: {
-      fontSize: 9,
-      cellPadding: 6,
-      lineColor: PDF_COLOR.border,
-      lineWidth: 0.4,
-      textColor: PDF_COLOR.text,
-    },
-    headStyles: {
-      fillColor: PDF_COLOR.footerBg,
-      textColor: PDF_COLOR.text,
-      fontStyle: "bold",
-      lineWidth: 0,
-    },
-    columnStyles: {
-      0: { cellWidth: 120, fontStyle: "bold" },
-      1: { halign: "right", cellWidth: 160 },
-    },
-  });
-
-  // Category revenue breakdown
-  if (input.categories && input.categories.length > 0) {
-    const afterMethodY = (doc as DocWithAuto).lastAutoTable?.finalY ?? breakdownTop;
-    const categoryEstHeight = 24 + input.categories.length * 22;
-    const categoryTop =
-      afterMethodY + 18 + categoryEstHeight > pageHeight - 32 ? 52 : afterMethodY + 18;
-
-    if (categoryTop === 52) {
-      doc.addPage();
-    }
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(...PDF_COLOR.text);
-    doc.text("Revenue per Kategori Produk", margin, categoryTop);
+  if (pageMode === "multiple") {
+    const body = input.rows.map((row) => [
+      row.tanggal,
+      row.invoice,
+      row.person,
+      row.products,
+      row.categories,
+      row.status,
+      money(row.amount),
+      row.method,
+    ]);
 
     autoTable(doc, {
-      head: [["Kategori Produk", "Transaksi", "Revenue"]],
-      body: input.categories.map((category) => [
-        category.categoryName,
-        String(category.transactionCount),
-        formatRupiah(category.revenue),
-      ]),
-      startY: categoryTop + 6,
-      margin: { left: margin, right: margin, bottom: 32 },
+      head: [[...REPORT_HEADER]],
+      body: body.length ? body : [[{ content: "Belum ada transaksi.", colSpan: REPORT_HEADER.length }]],
+      startY: tableTop,
+      margin: { left: margin, right: margin, top: barH + 12, bottom: 32 },
       theme: "grid",
-      tableWidth: 360,
       styles: {
-        fontSize: 9,
-        cellPadding: 6,
+        fontSize: 8,
+        cellPadding: 5,
+        overflow: "linebreak",
         lineColor: PDF_COLOR.border,
         lineWidth: 0.4,
+        textColor: PDF_COLOR.text,
+        valign: "middle",
+      },
+      headStyles: {
+        fillColor: PDF_COLOR.brand,
+        textColor: PDF_COLOR.brandText,
+        fontStyle: "bold",
+        halign: "left",
+        fontSize: 9,
+        cellPadding: 6,
+        lineWidth: 0,
+      },
+      alternateRowStyles: {
+        fillColor: PDF_COLOR.zebra,
+      },
+      rowPageBreak: "avoid",
+      columnStyles: {
+        0: { cellWidth: 60 },
+        1: { cellWidth: 78 },
+        5: { halign: "center", cellWidth: 64, fontStyle: "bold" },
+        6: { halign: "right", cellWidth: 90, fontStyle: "bold" },
+        7: { halign: "center", cellWidth: 56 },
+      },
+      didParseCell: (data) => {
+        if (data.section !== "body") return;
+        const raw = input.rows[data.row.index];
+        if (!raw) return;
+        if (data.column.index === 5) {
+          data.cell.styles.textColor =
+            raw.status === "Pemasukan"
+              ? PDF_COLOR.pemasukan
+              : PDF_COLOR.pengeluaran;
+        }
+        if (data.column.index === 6 && raw.amount < 0) {
+          data.cell.styles.textColor = PDF_COLOR.negative;
+        }
+      },
+    });
+  }
+
+  type DocWithAuto = typeof doc & { lastAutoTable?: { finalY: number } };
+  const tables = input.details?.tables ?? [
+    {
+      title: "Rincian per Metode Pembayaran",
+      headers: ["Metode", "Jumlah"],
+      rows: PAYMENT_METHODS.map(method => [method, money(input.footer.byMethod[method])]),
+    },
+    ...(input.categories?.length ? [{
+      title: "Revenue per Kategori Produk",
+      headers: ["Kategori Produk", "Transaksi", "Revenue"],
+      rows: input.categories.map(category => [category.categoryName, String(category.transactionCount), money(category.revenue)]),
+    }] : []),
+  ];
+  const useSummaryColumns = pageMode === "single" && input.details && tables.length > 2;
+  const columnGap = 16;
+  const columnWidth = (pageWidth - 2 * margin - columnGap) / 2;
+  const tableGap = 12 * scale;
+  let startY = ((doc as DocWithAuto).lastAutoTable?.finalY ?? tableTop) + tableGap;
+  for (const [index, table] of tables.entries()) {
+    const useRightColumn = useSummaryColumns && index === tables.length - 1;
+    if (useRightColumn) {
+      doc.setPage(1);
+      startY = tableTop + tableGap;
+    }
+    autoTable(doc, {
+      head: [[{ content: table.title, colSpan: table.headers.length }], table.headers],
+      body: table.rows.length
+        ? table.rows.map(row => row.map(cell => cell.replaceAll("\u00a0", " ")))
+        : [[{ content: "Belum ada data.", colSpan: table.headers.length }]],
+      startY,
+      margin: {
+        left: useRightColumn ? margin + columnWidth + columnGap : margin,
+        right: useSummaryColumns && !useRightColumn ? margin + columnWidth + columnGap : margin,
+        top: 36,
+        bottom: 32,
+      },
+      theme: "grid",
+      tableWidth: useSummaryColumns ? columnWidth : table.headers.length === 2 ? 320 : 360,
+      rowPageBreak: "avoid",
+      styles: {
+        fontSize: 9 * fontScale,
+        cellPadding: 6 * paddingScale,
+        lineColor: PDF_COLOR.border,
+        lineWidth: 0.4 * scale,
         textColor: PDF_COLOR.text,
       },
       headStyles: {
@@ -702,11 +724,10 @@ export async function exportReportPdf(input: ExportInput): Promise<void> {
         lineWidth: 0,
       },
       columnStyles: {
-        0: { cellWidth: 170, fontStyle: "bold" },
-        1: { halign: "right", cellWidth: 80 },
-        2: { halign: "right", cellWidth: 110 },
+        [table.headers.length - 1]: { halign: "right", cellWidth: 110 },
       },
     });
+    startY = ((doc as DocWithAuto).lastAutoTable?.finalY ?? startY) + tableGap;
   }
 
   // ── Page footer (page numbers + brand line) ────────────────────────────
@@ -729,5 +750,4 @@ export async function exportReportPdf(input: ExportInput): Promise<void> {
     );
   }
 
-  doc.save(buildFilename(input.period, "pdf"));
 }

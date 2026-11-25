@@ -102,7 +102,7 @@ const customersState = (target: string) => {
 };
 
 const financeState = (target: string) => {
-  if (["finance-date-filter", "finance-export"].includes(target)) return "finance-report";
+  if (["finance-date-filter", "finance-daily-report", "finance-export"].includes(target)) return "finance-report";
   if (["finance-expense-create", "finance-expense-form", "finance-proof-url", "finance-save"].includes(target)) return "finance-expense-form-open";
   return "finance-cash-flow";
 };

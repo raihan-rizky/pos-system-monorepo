@@ -1,5 +1,5 @@
 import React from "react";
-import { CalendarRange, ChevronLeft, ChevronRight, Download, Plus } from "lucide-react";
+import { CalendarRange, ChevronLeft, ChevronRight, Download, FileText, Plus } from "lucide-react";
 
 import { GuideTarget } from "../GuideTarget";
 import { PreviewButton, PreviewField, PreviewMetric, PreviewModal, PreviewPageRoot } from "../PreviewPrimitives";
@@ -33,7 +33,14 @@ function CashFlowView({ ctx }: { ctx: PreviewContext }) {
 }
 
 function ReportView({ ctx }: { ctx: PreviewContext }) {
-  return <div className="px-6 py-4"><div className="flex items-end justify-between"><div><h1 className="text-xl font-bold">Laporan Keuangan</h1><p className="text-xs text-surface-500">Revenue, gross profit, pembayaran, piutang, dan selisih shift.</p></div><GuideTarget ctx={ctx} target="finance-export" className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white"><Download className="h-4 w-4" />Ekspor</GuideTarget></div><GuideTarget ctx={ctx} target="finance-date-filter" className="mt-4 grid grid-cols-[1fr_1fr_auto] gap-3 rounded-2xl border bg-white p-4"><PreviewField label="Dari" value="01 Juli 2026" /><PreviewField label="Sampai" value="10 Juli 2026" /><span className="flex items-end gap-2 pb-3 text-sm"><CalendarRange className="h-4 w-4" />01–10 Jul 2026</span></GuideTarget><div className="mt-4 grid grid-cols-6 gap-3"><PreviewMetric label="Omzet" value="Rp58 jt" tone="blue" /><PreviewMetric label="Terkumpul" value="Rp52 jt" tone="emerald" /><PreviewMetric label="Laba Kotor" value="Rp24 jt" tone="emerald" /><PreviewMetric label="Margin" value="41,2%" tone="violet" /><PreviewMetric label="Outstanding DP" value="Rp6 jt" tone="amber" /><PreviewMetric label="Loss Stok" value="Rp840 rb" tone="red" /></div></div>;
+  return <div className="px-6 py-4"><div className="flex items-end justify-between"><div><h1 className="text-xl font-bold">Laporan Keuangan</h1><p className="text-xs text-surface-500">Revenue, gross profit, pembayaran, piutang, dan selisih shift.</p></div><div className="flex flex-wrap gap-2">
+          <GuideTarget ctx={ctx} target="finance-daily-report" className="inline-flex items-center gap-2 rounded-xl border border-surface-200 bg-surface-100 px-4 py-2.5 text-sm font-semibold text-surface-800">
+            <FileText className="h-4 w-4" />Laporan Harian
+          </GuideTarget>
+          <GuideTarget ctx={ctx} target="finance-export" className="inline-flex items-center gap-2 rounded-xl border border-surface-200 bg-surface-100 px-4 py-2.5 text-sm font-semibold text-surface-800">
+            <Download className="h-4 w-4" />Ekspor
+          </GuideTarget>
+        </div></div><GuideTarget ctx={ctx} target="finance-date-filter" className="mt-4 grid grid-cols-[1fr_1fr_auto] gap-3 rounded-2xl border bg-white p-4"><PreviewField label="Dari" value="01 Juli 2026" /><PreviewField label="Sampai" value="10 Juli 2026" /><span className="flex items-end gap-2 pb-3 text-sm"><CalendarRange className="h-4 w-4" />01–10 Jul 2026</span></GuideTarget><div className="mt-4 grid grid-cols-6 gap-3"><PreviewMetric label="Omzet" value="Rp58 jt" tone="blue" /><PreviewMetric label="Terkumpul" value="Rp52 jt" tone="emerald" /><PreviewMetric label="Laba Kotor" value="Rp24 jt" tone="emerald" /><PreviewMetric label="Margin" value="41,2%" tone="violet" /><PreviewMetric label="Outstanding DP" value="Rp6 jt" tone="amber" /><PreviewMetric label="Loss Stok" value="Rp840 rb" tone="red" /></div></div>;
 }
 
 function ExpenseModal({ ctx }: { ctx: PreviewContext }) {

@@ -24,6 +24,7 @@ const expenseFindManyMock = vi.hoisted(() => vi.fn());
 const payableFindManyMock = vi.hoisted(() => vi.fn());
 const receivableFindManyMock = vi.hoisted(() => vi.fn());
 const manualIncomeFindManyMock = vi.hoisted(() => vi.fn());
+const productSubcategoryFindManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
@@ -49,6 +50,7 @@ vi.mock("@pos/db", () => ({
       supplierPayable: { findMany: payableFindManyMock },
     }),
     manualIncome: { findMany: manualIncomeFindManyMock },
+    productSubcategory: { findMany: productSubcategoryFindManyMock },
     transaction: {
       findMany: transactionFindManyMock,
     },
@@ -95,6 +97,7 @@ describe("GET /api/finance/report", () => {
     canRolePerformActionMock.mockImplementation(() => false);
     loadReceivableBalanceMock.mockReset();
     manualIncomeFindManyMock.mockResolvedValue([]);
+    productSubcategoryFindManyMock.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -109,6 +112,24 @@ describe("GET /api/finance/report", () => {
     await GET(request);
 
     expect(requirePermissionMock).toHaveBeenCalledWith("financial-report", "read");
+    expect(productSubcategoryFindManyMock).not.toHaveBeenCalled();
+  });
+
+  it("returns the reporting catalog for a summary even on a day without sales", async () => {
+    productSubcategoryFindManyMock.mockResolvedValue([
+      { group: "ATK", name: "Amplop", legacyCategory: { name: "Amplop lama" } },
+      { group: "PERCETAKAN", name: "print", legacyCategory: null },
+    ]);
+
+    const response = await GET(new NextRequest("http://localhost/api/finance/report?dateFrom=2026-11-25&dateTo=2026-11-25&summaryCatalog=1"));
+    expect(response.status).toBe(200);
+    const report = await response.json();
+    expect(report.subcategories).toEqual([]);
+    expect(report.summaryCatalog.categories).toEqual(["ATK", "Percetakan"]);
+    expect(report.summaryCatalog.subcategories).toEqual([
+      { categoryName: "ATK", subcategoryName: "Amplop", legacyName: "Amplop lama" },
+      ...["Cetak", "Plat", "Print", "Spanduk", "Stempel"].map(subcategoryName => ({ categoryName: "Percetakan", subcategoryName })),
+    ]);
   });
 
   it("includes only the current store's manual income in the selected WIB period", async () => {

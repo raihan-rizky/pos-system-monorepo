@@ -1,20 +1,22 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { FinancialReport } from "../helpers/report-core";
+import type { FinancialReportResponse } from "../helpers/report-breakdowns";
 
 export type FinancialReportParams = {
   dateFrom: string;
   dateTo: string;
   view?: "sales";
+  summaryCatalog?: boolean;
 };
 
-async function fetchFinancialReport(params: FinancialReportParams) {
+export async function fetchFinancialReport(params: FinancialReportParams) {
   const searchParams = new URLSearchParams({
     dateFrom: params.dateFrom,
     dateTo: params.dateTo,
   });
   if (params.view === "sales") searchParams.set("view", "sales");
+  if (params.summaryCatalog) searchParams.set("summaryCatalog", "1");
 
   const response = await fetch(`/api/finance/report?${searchParams}`);
   if (!response.ok) {
@@ -24,13 +26,16 @@ async function fetchFinancialReport(params: FinancialReportParams) {
     throw new Error(error?.message || "Gagal memuat laporan keuangan");
   }
 
-  return response.json() as Promise<FinancialReport>;
+  return response.json() as Promise<FinancialReportResponse>;
 }
 
 export function useFinancialReport(params: FinancialReportParams) {
   return useQuery({
     queryKey: ["financial-report", params],
     queryFn: () => fetchFinancialReport(params),
-    placeholderData: (previous) => previous,
+    placeholderData: (previous, previousQuery) => {
+      const previousParams = previousQuery?.queryKey[1] as FinancialReportParams | undefined;
+      return previousParams?.view === params.view && previousParams?.summaryCatalog === params.summaryCatalog ? previous : undefined;
+    },
   });
 }
