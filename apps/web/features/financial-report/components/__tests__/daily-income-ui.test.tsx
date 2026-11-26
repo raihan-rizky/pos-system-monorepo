@@ -79,7 +79,7 @@ describe("daily financial report UI", () => {
     const html = renderToStaticMarkup(createElement(FinancialReportPage));
     expect(html).toContain("Laporan Keuangan");
     expect(html).toContain("Lihat sebagai Sales");
-    expect(html).toMatch(/<button[^>]*>Pemasukan Harian<\/button>/);
+    expect(html).not.toMatch(/<button[^>]*>Pemasukan Harian<\/button>/);
     expect(mocks.full).toHaveBeenCalledOnce();
     expect(mocks.daily).not.toHaveBeenCalled();
   });

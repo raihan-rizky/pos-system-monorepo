@@ -23,7 +23,7 @@ export const AUDITED_HELP_STEP_TARGETS: Record<string, readonly AuditedHelpStepT
     ["settings", "settings-permission-checkbox"], ["settings", "settings-review-save"],
   ],
   "owner-reports": [["finance", "finance-primary"], ["finance", "finance-date-filter"], ["finance", "finance-summary"], ["finance", "finance-export"]],
-  "cashier-daily-income-comparison": [["finance", "finance-date-filter"], ["finance", "finance-summary"], ["finance", "finance-summary"]],
+  "cashier-daily-income-comparison": [["finance", "finance-date-filter"], ["finance", "finance-summary"], ["finance", "finance-summary"], ["finance", "finance-daily-report"]],
   "sales-daily-income": [["finance", "finance-primary"], ["finance", "finance-date-filter"], ["finance", "finance-primary"]],
   "owner-performance": [["salespersons", "salespersons-primary"], ["salespersons", "salespersons-summary"], ["salespersons", "salespersons-detail"]],
   "owner-approval-stock": [["inventory", "inventory-primary"], ["inventory", "inventory-stock-log-tab"], ["inventory", "inventory-approval-actions"], ["inventory", "inventory-approval-actions"]],

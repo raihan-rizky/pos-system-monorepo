@@ -20,13 +20,14 @@ export function buildDailyReportDocument(
   financial: FinancialReportResponse | undefined,
   journal: ExportInput | undefined,
   pageMode: ReportPdfPageMode,
+  { canReadExpenses, canReadProfit }: { canReadExpenses: boolean; canReadProfit: boolean },
 ): DailyReportDocument | undefined {
   if (income?.date !== date || income.total === undefined || financial?.dateFrom !== date || financial.dateTo !== date
     || journal?.from !== date || journal.to !== date || (pageMode === "single" && !financial.summaryCatalog)) {
     return undefined;
   }
 
-  const totalPengeluaran = 0 - financial.summary.expenseTotal;
+  const totalPengeluaran = canReadExpenses ? -financial.summary.expenseTotal : 0;
   return {
     dateLabel: new Intl.DateTimeFormat("id-ID", {
       dateStyle: "full",
@@ -35,6 +36,7 @@ export function buildDailyReportDocument(
     journal: {
       ...journal,
       period: "daily",
+      rows: canReadExpenses ? journal.rows : journal.rows.filter(row => row.status !== "Pengeluaran"),
       footer: {
         ...journal.footer,
         totalPemasukan: income.total,
@@ -42,6 +44,7 @@ export function buildDailyReportDocument(
         grandTotal: income.total + totalPengeluaran,
       },
       details: {
+        showExpenseTotals: canReadExpenses,
         note: "Total pemasukan memakai uang yang diterima pada tanggal pilihan.",
         tables: [
           {
@@ -49,7 +52,7 @@ export function buildDailyReportDocument(
             headers: ["Rincian", "Nominal"],
             rows: [
               amountRow("Omzet", financial.summary.revenue),
-              amountRow("Laba Kotor", financial.summary.grossProfit),
+              ...(canReadProfit ? [amountRow("Laba Kotor", financial.summary.grossProfit)] : []),
             ],
           },
           ...buildReportBreakdownTables(financial, income.paymentMethods ?? [], pageMode === "single" ? financial.summaryCatalog : undefined),

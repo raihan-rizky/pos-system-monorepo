@@ -1,15 +1,8 @@
-import { db } from "@pos/db";
-import { buildReportSummaryCatalog } from "@/features/financial-report/helpers/report-breakdowns";
-import { recognizedExpenseFilter } from "@/features/keuangan/helpers/recognized-expense-filter";
-import { findInitialCollections } from "@/features/financial-report/services/initial-collections";
-import { loadReceivableBalance } from "@/features/customer-debt/services/receivable-balance";
-import { withManualPayableSnapshot } from "@/features/financial-report/services/manual-payable-period";
-import { loadManualReceivablePeriod } from "@/features/financial-report/services/manual-receivable-period";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
 import { canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
+import { loadFinancialReport } from "@/features/financial-report/services/financial-report";
 import {
-  buildFinancialReport,
   buildFinancialReportRange,
   type FinancialReportPreset,
 } from "@/features/financial-report/helpers/report-core";
@@ -25,12 +18,6 @@ const MAX_RANGE_DAYS = 366;
 
 function isPreset(value: string | null): value is FinancialReportPreset {
   return value !== null && PRESETS.has(value as FinancialReportPreset);
-}
-
-function addOneJakartaDay(dateKey: string) {
-  const date = new Date(`${dateKey}T00:00:00+07:00`);
-  date.setUTCDate(date.getUTCDate() + 1);
-  return date;
 }
 
 function isValidDateKey(dateKey: string) {
@@ -52,22 +39,6 @@ function rangeDays(dateFrom: string, dateTo: string): number {
   const from = new Date(`${dateFrom}T00:00:00+07:00`);
   const to = new Date(`${dateTo}T00:00:00+07:00`);
   return Math.round((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000)) + 1;
-}
-
-function toDateBounds(dateFrom: string, dateTo: string) {
-  return {
-    gte: new Date(`${dateFrom}T00:00:00+07:00`),
-    lt: addOneJakartaDay(dateTo),
-  };
-}
-
-function toNumber(value: unknown): number {
-  if (typeof value === "number") return value;
-  if (typeof value === "string") return Number(value) || 0;
-  if (value && typeof value === "object" && "toString" in value) {
-    return Number(value.toString()) || 0;
-  }
-  return 0;
 }
 
 export async function GET(request: Request) {
@@ -127,216 +98,10 @@ export async function GET(request: Request) {
       );
     }
 
-    const dateBounds = toDateBounds(dateFrom, dateTo);
-    const receivableBalancePromise = canReadReceivableBalance
-      ? loadReceivableBalance(storeId, dateTo)
-      : Promise.resolve(undefined);
-
-    const [
-      transactions,
-      shifts,
-      inventoryLogs,
-      expenseSnapshot,
-      debtPayments,
-      collectionTransactions,
-      receivableBalance,
-      manualIncome,
-      manualReceivables,
-    ] = await Promise.all([
-      db.transaction.findMany({
-        where: {
-          storeId,
-          status: { in: ["COMPLETED", "DP"] },
-          invoiceDate: dateBounds,
-        },
-        orderBy: { invoiceDate: "desc" },
-        select: {
-          id: true,
-          invoiceNumber: true,
-          transactionCategory: true,
-          printingSubcategory: true,
-          printingReceipt: { select: { subcategory: true } },
-          invoiceDate: true,
-          createdAt: true,
-          status: true,
-          paymentMethod: true,
-          total: true,
-          amountPaid: true,
-          change: true,
-          discount: true,
-          salesName: true,
-          salesperson: { select: { name: true } },
-          payments: {
-            select: { method: true, amount: true, createdAt: true },
-          },
-          debtPaymentLogs: { select: { id: true } },
-          items: {
-            select: {
-              productId: true,
-              printingServiceId: true,
-              productName: true,
-              quantity: true,
-              subtotal: true,
-              unitCost: true,
-              product: {
-                select: {
-                  category: { select: { name: true } },
-                  catalogSubcategory: { select: { group: true, name: true } },
-                },
-              },
-            },
-          },
-        },
-      }),
-      db.cashierShift.findMany({
-        where: {
-          storeId,
-          openedAt: dateBounds,
-        },
-        orderBy: { openedAt: "desc" },
-        select: {
-          id: true,
-          openedAt: true,
-          closedAt: true,
-          openingBalance: true,
-          expectedBalance: true,
-          closingBalance: true,
-          discrepancy: true,
-          status: true,
-          cashier: { select: { name: true } },
-        },
-      }),
-      db.inventoryLog.findMany({
-        where: {
-          product: { storeId },
-          createdAt: dateBounds,
-          OR: [
-            { reason: { in: ["WASTE", "USAGE", "OPNAME", "MANUAL_ADJUSTMENT"] } },
-            { reason: null },
-          ],
-        },
-        select: {
-          type: true,
-          reason: true,
-          quantity: true,
-          unitCost: true,
-          createdAt: true,
-        },
-      }),
-      withManualPayableSnapshot(db, storeId, dateFrom, dateTo, async tx => Promise.all([tx.expense.aggregate({
-        where: {
-          storeId,
-          deletedAt: null,
-          occurredAt: dateBounds,
-          ...recognizedExpenseFilter(),
-        },
-        _sum: { amount: true, changeAmount: true },
-        _count: { _all: true },
-      }), tx.expense.count({
-        where: {
-          storeId,
-          deletedAt: null,
-          occurredAt: dateBounds,
-          ...recognizedExpenseFilter(),
-          hasMissingCostSnapshot: true,
-        },
-      })])),
-      db.debtPaymentLog.findMany({
-        where: {
-          storeId,
-          createdAt: dateBounds,
-          transaction: { status: { in: ["COMPLETED", "DP"] } },
-        },
-        select: {
-          transactionId: true,
-          paymentMethod: true,
-          amount: true,
-          createdAt: true,
-          transaction: {
-            select: {
-              salesName: true,
-              salesperson: { select: { name: true } },
-            },
-          },
-        },
-      }),
-      findInitialCollections(db, storeId, dateBounds),
-      receivableBalancePromise,
-      db.manualIncome.findMany({
-        where: { storeId, deletedAt: null, occurredAt: dateBounds },
-        select: { id: true, occurredAt: true, category: true, amount: true, payments: { select: { method: true, amount: true } } },
-      }),
-      loadManualReceivablePeriod(db, storeId, dateFrom, dateTo),
-    ]);
-
-    const [expenseAggregate, incompleteExpenseCount] = expenseSnapshot.data;
-    const manualPayables = expenseSnapshot.payables;
-
-    const summaryCatalog = searchParams.get("summaryCatalog") === "1"
-      ? buildReportSummaryCatalog(await db.productSubcategory.findMany({
-          select: { group: true, name: true, legacyCategory: { select: { name: true } } },
-        }))
-      : undefined;
-
-    return NextResponse.json({
-      ...buildFinancialReport({
-        dateFrom,
-        dateTo,
-        collectionTransactions,
-        receivableBalance,
-        manualIncome,
-        manualReceivables,
-        transactions: transactions.map((transaction) => ({
-          ...transaction,
-          createdAt: transaction.invoiceDate,
-          total: toNumber(transaction.total),
-          amountPaid: toNumber(transaction.amountPaid),
-          change: toNumber(transaction.change),
-          discount: toNumber(transaction.discount),
-          payments: transaction.payments.map((payment) => ({
-            ...payment,
-            amount: toNumber(payment.amount),
-          })),
-          items: transaction.items.map((item) => ({
-            ...item,
-            quantity: toNumber(item.quantity),
-            subtotal: toNumber(item.subtotal),
-            unitCost:
-              item.unitCost === null || item.unitCost === undefined
-                ? null
-                : toNumber(item.unitCost),
-          })),
-        })),
-        shifts: shifts.map((shift) => ({
-          ...shift,
-          openingBalance: toNumber(shift.openingBalance),
-          expectedBalance: toNumber(shift.expectedBalance),
-          closingBalance: toNumber(shift.closingBalance),
-          discrepancy: toNumber(shift.discrepancy),
-        })),
-        inventoryLogs: inventoryLogs.map((logRow) => ({
-          type: logRow.type,
-          reason: logRow.reason,
-          quantity: toNumber(logRow.quantity),
-          unitCost:
-            logRow.unitCost === null || logRow.unitCost === undefined
-              ? null
-              : toNumber(logRow.unitCost),
-          createdAt: logRow.createdAt,
-        })),
-        expenseSummary: {
-          amount: toNumber(expenseAggregate._sum.amount) + manualPayables.payments.reduce((sum, payment) => sum + payment.amountCents, 0) / 100,
-          changeAmount: toNumber(expenseAggregate._sum.changeAmount),
-          entryCount: expenseAggregate._count._all + manualPayables.payments.length,
-          incompleteCount: incompleteExpenseCount,
-        },
-        debtPayments: debtPayments.map((payment) => ({
-          ...payment,
-          amount: toNumber(payment.amount),
-        })),
-      }),
-      ...(summaryCatalog ? { summaryCatalog } : {}),
-    });
+    return NextResponse.json(await loadFinancialReport(storeId, dateFrom, dateTo, {
+      canReadReceivableBalance,
+      includeSummaryCatalog: searchParams.get("summaryCatalog") === "1",
+    }));
   } catch (error) {
     const authErr = handleAuthError(error);
     if (authErr) return authErr;

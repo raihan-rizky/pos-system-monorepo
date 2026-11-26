@@ -66,7 +66,7 @@ Jika gagal, dialog menampilkan pesan dan tombol **Coba lagi** tanpa menghapus pi
 
 ### Laporan Harian siap cetak
 
-Untuk dokumen satu hari, klik **Laporan Harian** di samping **Ekspor** pada tampilan Laporan Lengkap. Pilih tanggal WIB. **Banyak halaman** menjadi pilihan awal dan memuat jurnal per invoice. **1 halaman** memuat ringkasan pemasukan dan pengeluaran, semua metode pembayaran, serta omzet semua kategori dan subkategori dalam satu lembar A4 lanskap. Pilihan tanpa transaksi tampil **Rp 0**. Gunakan **Cetak A4** atau **Unduh PDF**. Total pemasukan mengikuti **Pemasukan Harian** dan pengeluaran mengikuti **Laporan Lengkap** pada tanggal yang sama.
+Klik **Laporan Harian** di samping **Ekspor** atau pemilih tanggal pemasukan. Owner juga dapat membukanya di **Lihat sebagai Sales**, dengan keterangan **Dibuka sebagai Owner**. Pilih tanggal WIB. **Banyak halaman** memuat jurnal per invoice. **1 halaman** memuat ringkasan dan semua metode pembayaran, kategori, serta subkategori dalam satu lembar A4 lanskap, termasuk **Rp 0**. Klik **Cetak A4** atau **Unduh PDF**. Izin **Laporan Harian** aktif secara bawaan bagi Kasir, Owner, dan Admin. Total pemasukan mengikuti **Pemasukan Harian**. Data pengeluaran, laba, dan identitas mengikuti izin terkait.
 
 Pemilih tata letak PDF juga tersedia saat mengekspor Jurnal transaksi.
 

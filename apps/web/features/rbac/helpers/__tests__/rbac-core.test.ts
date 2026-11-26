@@ -11,6 +11,29 @@ import {
 } from "../rbac-core";
 
 describe("RBAC permission matrix", () => {
+  it("defaults the daily printable report to cashier, owner, and admin independently from full export", () => {
+    const permissions = buildDefaultRolePermissions();
+    const target = "financial-report.daily-report";
+    expect(RESOURCE_TARGETS).toContain(target);
+    for (const role of ["CASHIER", "OWNER", "ADMIN"] as const) {
+      expect(canRolePerformAction(role, target, "read", permissions)).toBe(true);
+    }
+    for (const role of ["SALES", "INVENTORY"] as const) {
+      expect(canRolePerformAction(role, target, "read", permissions)).toBe(false);
+    }
+    expect(canRolePerformAction("CASHIER", "financial-report.export", "read", permissions)).toBe(false);
+    for (const action of ["create", "update", "delete"] as const) {
+      expect(canRolePerformAction("CASHIER", target, action, permissions)).toBe(false);
+    }
+    const overrides = normalizeRolePermissions([
+      { role: "ADMIN", scope: "resource", target, action: "read", allowed: false },
+      { role: "SALES", scope: "resource", target, action: "read", allowed: true },
+    ]);
+    expect(canRolePerformAction("ADMIN", target, "read", overrides)).toBe(false);
+    expect(canRolePerformAction("ADMIN", "financial-report.export", "read", overrides)).toBe(true);
+    expect(canRolePerformAction("SALES", target, "read", overrides)).toBe(true);
+  });
+
   it("allows cashier and owner to compare daily receipts while keeping other report access separate", () => {
     const defaults = buildDefaultRolePermissions();
     expect(canRoleAccessPage("CASHIER", "/financial-report", defaults)).toBe(true);

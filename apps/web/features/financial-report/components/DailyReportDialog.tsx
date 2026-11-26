@@ -6,21 +6,10 @@ import { Button } from "@pos/ui";
 import { Download, FileText, Printer, X } from "lucide-react";
 import { useRole } from "@/components/providers/RoleProvider";
 import { formatRupiahPrecise } from "@/lib/utils";
-import { jakartaToday, type DailyIncomeAccess } from "../helpers/daily-income";
-import { buildDailyReportDocument, type DailyReportDocument } from "../helpers/daily-report-document";
+import { jakartaToday } from "../helpers/daily-income";
+import type { DailyReportDocument } from "../helpers/daily-report-document";
 import { REPORT_HEADER } from "../helpers/journal-core";
-import type { ExportInput, ReportPdfPageMode } from "../helpers/journal-export";
-import { useDailyIncome } from "../hooks/useDailyIncome";
-import { useFinancialReport } from "../hooks/useFinancialReport";
-
-const incomeAccess: DailyIncomeAccess = {
-  total: true,
-  paymentMethods: true,
-  categories: false,
-  subcategories: false,
-  outstandingDp: false,
-  receivableBalance: false,
-};
+import type { ReportPdfPageMode } from "../helpers/journal-export";
 
 type ExportAction = "print" | "download";
 
@@ -50,6 +39,7 @@ function DailyReportPreview({ report, pageMode }: { report: DailyReportDocument;
     { label: "Grand Total", value: footer.grandTotal, color: "border-surface-200 bg-surface-100 text-surface-900" },
   ];
   const showJournal = pageMode === "multiple";
+  const showExpenseTotals = details.showExpenseTotals !== false;
 
   return (
     <article aria-label="Pratinjau laporan harian" className="overflow-hidden rounded-xl border border-surface-200 bg-white">
@@ -58,8 +48,8 @@ function DailyReportPreview({ report, pageMode }: { report: DailyReportDocument;
         <p className="text-xs text-surface-200">{report.dateLabel}</p>
       </header>
       <div className="space-y-4 p-3 sm:p-4">
-        <dl className="grid gap-2 sm:grid-cols-3">
-          {totals.map(total => (
+        <dl className={"grid gap-2 " + (showExpenseTotals ? "sm:grid-cols-3" : "sm:max-w-sm")}>
+          {(showExpenseTotals ? totals : totals.slice(0, 1)).map(total => (
             <div key={total.label} className={"rounded-lg border px-3 py-2.5 " + total.color}>
               <dt className="text-xs font-medium">{total.label}</dt>
               <dd className="mt-0.5 break-words text-base font-semibold tabular-nums">{formatRupiahPrecise(total.value)}</dd>
@@ -119,34 +109,25 @@ function DailyReportPreview({ report, pageMode }: { report: DailyReportDocument;
   );
 }
 
-function DailyReportResults({ date, view, pageMode }: { date: string; view?: "sales"; pageMode: ReportPdfPageMode }) {
+function DailyReportResults({ date, pageMode }: { date: string; pageMode: ReportPdfPageMode }) {
   const { userId, storeId, authorizationFingerprint } = useRole();
-  const income = useDailyIncome(date, incomeAccess);
-  const financial = useFinancialReport({
-    dateFrom: date,
-    dateTo: date,
-    ...(view ? { view } : {}),
-    ...(pageMode === "single" ? { summaryCatalog: true } : {}),
-  });
-  const journal = useQuery({
-    queryKey: ["daily-report-journal", userId, storeId, authorizationFingerprint, date, view],
+  const query = useQuery({
+    queryKey: ["daily-report-document", userId, storeId, authorizationFingerprint, date, pageMode],
     gcTime: 0,
+    retry: false,
     queryFn: async ({ signal }) => {
-      const params = new URLSearchParams({ period: "custom", from: date, to: date });
-      if (view) params.set("view", view);
-      const response = await fetch("/api/finance/report/journal?" + params, { cache: "no-store", signal });
+      const params = new URLSearchParams({ date, layout: pageMode });
+      const response = await fetch("/api/finance/report/daily-document?" + params, { cache: "no-store", signal });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
-        throw new Error(body?.message || "Jurnal transaksi belum dapat dimuat.");
+        throw new Error(body?.message || "Laporan Harian belum bisa dimuat.");
       }
-      return response.json() as Promise<ExportInput>;
+      return response.json() as Promise<DailyReportDocument>;
     },
   });
   const [action, setAction] = useState<ExportAction | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
-  const queryError = income.error ?? financial.error ?? journal.error;
-  const report = queryError ? undefined : buildDailyReportDocument(date, income.data, financial.data, journal.data, pageMode);
-  const loading = income.isPending || financial.isPending || financial.isPlaceholderData || journal.isPending;
+  const report = query.error ? undefined : query.data;
 
   async function exportReport(nextAction: ExportAction) {
     if (!report || action) return;
@@ -186,12 +167,12 @@ function DailyReportResults({ date, view, pageMode }: { date: string; view?: "sa
   return (
     <>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-surface-50 px-4 py-3 sm:px-6">
-        {report ? <DailyReportPreview report={report} pageMode={pageMode} /> : !queryError && loading ? (
+        {report ? <DailyReportPreview report={report} pageMode={pageMode} /> : !query.error && query.isPending ? (
           <p role="status" className="py-4 text-sm text-surface-600">Memuat laporan harian…</p>
         ) : (
           <div className="space-y-3 py-4 text-sm">
-            <p role="alert" className="text-red-700">{queryError?.message ?? "Laporan untuk tanggal ini belum tersedia."}</p>
-            <Button type="button" size="sm" variant="secondary" loading={income.isFetching || financial.isFetching || journal.isFetching} onClick={() => void Promise.all([income.refetch(), financial.refetch(), journal.refetch()])}>
+            <p role="alert" className="text-red-700">{query.error?.message ?? "Laporan untuk tanggal ini belum tersedia."}</p>
+            <Button type="button" size="sm" variant="secondary" loading={query.isFetching} onClick={() => void query.refetch()}>
               Coba lagi
             </Button>
           </div>
@@ -203,10 +184,10 @@ function DailyReportResults({ date, view, pageMode }: { date: string; view?: "sa
   );
 }
 
-export function DailyReportDialog({ dateFrom, dateTo, view }: {
+export function DailyReportDialog({ dateFrom, dateTo, openedAsOwner = false }: {
   dateFrom: string;
   dateTo: string;
-  view?: "sales";
+  openedAsOwner?: boolean;
 }) {
   const titleId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -235,7 +216,10 @@ export function DailyReportDialog({ dateFrom, dateTo, view }: {
         className="fixed inset-0 m-auto max-h-[calc(100dvh-1.5rem)] w-[calc(100%-1.5rem)] max-w-6xl flex-col overflow-hidden overscroll-contain rounded-2xl border border-surface-200 bg-white p-0 text-surface-900 shadow-2xl backdrop:overflow-hidden backdrop:overscroll-contain backdrop:bg-surface-950/45 open:flex"
       >
         <header className="flex shrink-0 items-center justify-between gap-3 px-4 pb-2 pt-3 sm:px-6">
-          <h2 id={titleId} className="text-lg font-semibold tracking-tight">Laporan Harian</h2>
+          <div>
+            <h2 id={titleId} className="text-lg font-semibold tracking-tight">Laporan Harian</h2>
+            {openedAsOwner && <p className="text-xs text-surface-600">Dibuka sebagai Owner</p>}
+          </div>
           <button type="button" aria-label="Tutup laporan harian" onClick={() => dialogRef.current?.close()} className="inline-flex size-10 items-center justify-center rounded-lg text-surface-600 hover:bg-surface-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600">
             <X size={20} aria-hidden="true" />
           </button>
@@ -259,7 +243,7 @@ export function DailyReportDialog({ dateFrom, dateTo, view }: {
                 </div>
               </fieldset>
             </div>
-            {valid ? <DailyReportResults key={date} date={date} view={view} pageMode={pageMode} /> : (
+            {valid ? <DailyReportResults key={date} date={date} pageMode={pageMode} /> : (
               <>
                 <p role="status" className="bg-surface-50 px-4 py-5 text-sm text-surface-600 sm:px-6">Pilih tanggal hari ini atau sebelumnya.</p>
                 <DailyReportActions />

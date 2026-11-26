@@ -28,7 +28,9 @@ const bundle = await build({
         useEffect(()=>{const update=()=>setIdentity(window.__receiptTestIdentity||'A');window.addEventListener('receipt-test-identity-change',update);return()=>window.removeEventListener('receipt-test-identity-change',update)},[]);
         const role=new URL(location.href).searchParams.get('role')||'OWNER';
         const limited=new URL(location.href).searchParams.has('limited');return {role,userId:'test-'+role+'-'+identity,storeId:'store-'+identity,authorizationFingerprint:role+'-'+limited+'-'+identity,
-        canAccess:()=>true,canPerform:target=>role==='OWNER'||target==='transaction'||(limited?target==='financial-report.daily-outstanding-dp':target.startsWith('financial-report.daily-'))};}`
+        canAccess:()=>true,canPerform:target=>target==='financial-report.daily-report'
+          ? !new URL(location.href).searchParams.has('deny-report') && ['OWNER','CASHIER','ADMIN'].includes(role)
+          : role==='OWNER'||target==='transaction'||(limited?target==='financial-report.daily-outstanding-dp':target.startsWith('financial-report.daily-'))};}`
       : name === 'link' ? 'import React from "react"; export default function Link({href,children,...props}){return React.createElement("a",{href,...props},children)}'
       : name === 'dynamic' ? 'export default function dynamic(){return ()=>null}' : 'export const ReportExportMenu=()=>null;export const TrendChart=()=>null;', resolveDir: web }));
   } }],
@@ -68,8 +70,7 @@ try {
     let restrict = false;
     let salesFull = false;
     let salesExportAccess = true;
-    const journalViews = [];
-    let journalFixture = false;
+    const reportRequests = [];
     let receiptFail = false;
     let receiptEmpty = false;
     let holdReceipt = false;
@@ -87,33 +88,37 @@ try {
         const json = { date: url.searchParams.get('date'), outstandingDp: 25000 };
         if (!limited) Object.assign(json, { total: 25000, categories: [{ category: 'Percetakan', amount: 25000 }], subcategories: [{ category: 'Percetakan', subcategory: 'Spanduk', amount: 25000 }], paymentMethods: [{ method: 'CASH', amount: 15000 }, { method: 'TRANSFER', amount: 10000 }] });
         if (url.searchParams.get('view') === 'sales') json.receiptHistoryAccess = { total: !limited, category: !limited, subcategory: !limited, method: !limited, outstandingDp: true };
-        if (journalFixture && !limited) {
-          const amount = json.date === '2026-11-06' ? 18000 : 25000;
-          Object.assign(json, { total: amount, paymentMethods: [{ method: 'CASH', amount }] });
-        }
         return route.fulfill({ json });
       }
-      if (url.pathname === '/api/finance/report/journal') {
-        const date = url.searchParams.get('from');
-        assert.equal(url.searchParams.get('period'), 'custom');
-        assert.equal(url.searchParams.get('to'), date);
-        journalViews.push(url.searchParams.get('view'));
-        return route.fulfill({ json: {
-          period: 'custom',
-          from: date,
-          to: date,
-          footer: { totalPemasukan: 93000, totalPengeluaran: -12500, grandTotal: 80500, byMethod: {} },
-          rows: Array.from({ length: 42 }, (_, index) => ({
-            tanggal: date,
-            invoice: 'JR-' + String(index + 1).padStart(3, '0'),
-            person: 'Sales contoh',
-            products: 'Cetak spanduk dan label kemasan ukuran khusus',
-            categories: 'Percetakan / Spanduk',
-            status: 'Pemasukan',
-            amount: 1500,
-            method: 'TEMPO',
+      if (url.pathname === '/api/finance/report/daily-document') {
+        const date = url.searchParams.get('date');
+        const singlePage = url.searchParams.get('layout') === 'single';
+        reportRequests.push(Object.fromEntries(url.searchParams));
+        const previousDay = date === '2026-11-06';
+        const totalPemasukan = previousDay ? 18000 : 25000;
+        const totalPengeluaran = previousDay ? -8000 : -12500;
+        const money = amount => 'Rp ' + amount.toLocaleString('id-ID');
+        const owner = !new URL(page.url()).searchParams.has('role');
+        return route.fulfill({ json: { dateLabel: date + ' WIB', journal: {
+          period: 'daily', from: date, to: date,
+          footer: { totalPemasukan, totalPengeluaran, grandTotal: totalPemasukan + totalPengeluaran, byMethod: {} },
+          rows: singlePage ? [] : Array.from({ length: 42 }, (_, index) => ({
+            tanggal: date, invoice: 'JR-' + String(index + 1).padStart(3, '0'), person: 'Sales contoh',
+            products: 'Cetak spanduk dan label kemasan ukuran khusus', categories: 'Percetakan / Spanduk',
+            status: 'Pemasukan', amount: 1500, method: 'TEMPO',
           })),
-        } });
+          details: {
+            note: 'Total pemasukan memakai uang yang diterima pada tanggal pilihan.',
+            tables: [
+              { title: 'Ringkasan Penjualan', headers: ['Rincian', 'Nominal'], rows: [['Omzet', money(50000)], ...(owner ? [['Laba Kotor', money(32000)]] : [])] },
+              { title: 'Pemasukan per Metode Pembayaran', headers: ['Metode pembayaran', 'Nominal'], rows: [['Tunai', money(totalPemasukan)], ...(singlePage ? ['Transfer', 'QRIS', 'Debit', 'Kredit'].map(name => [name, money(0)]) : [])] },
+              { title: 'Omzet per Kategori', headers: ['Kategori', 'Nominal'], rows: singlePage ? [['ATK', money(0)], ['Percetakan', money(50000)]] : [['Percetakan', money(50000)]] },
+              { title: 'Omzet per Subkategori', headers: ['Kategori / Subkategori', 'Nominal'], rows: singlePage
+                ? [['ATK / Amplop', money(0)], ...['Cetak', 'Plat', 'Print', 'Spanduk', 'Stempel'].map(name => ['Percetakan / ' + name, money(name === 'Spanduk' ? 40000 : 0)])]
+                : [['Percetakan / Spanduk', money(40000)]] },
+            ],
+          },
+        } } });
       }
       if (url.pathname === '/api/finance/report') {
         requests.push({ full: true, ...Object.fromEntries(url.searchParams) });
@@ -127,15 +132,6 @@ try {
           salespersons: [],
           categories: [{ categoryName: 'Percetakan', revenue: 50000, grossProfit: 32000, transactionCount: 1 }],
           subcategories: [{ categoryName: 'Percetakan', subcategoryName: 'Spanduk', revenue: 40000, grossProfit: 25000, transactionCount: 1 }],
-          ...(url.searchParams.get('summaryCatalog') === '1' ? {
-            summaryCatalog: {
-              categories: ['ATK', 'Percetakan'],
-              subcategories: [
-                { categoryName: 'ATK', subcategoryName: 'Amplop' },
-                ...['Cetak', 'Plat', 'Print', 'Spanduk', 'Stempel'].map(subcategoryName => ({ categoryName: 'Percetakan', subcategoryName })),
-              ],
-            },
-          } : {}),
           paymentMethods: [],
           shifts: [],
           lossStok: [],
@@ -163,6 +159,7 @@ try {
     });
     const load = async (query = '') => { await page.goto(`http://daily-sales.test/${query}`); await page.addScriptTag({ content: bundle.outputFiles[0].text }); };
     await load();
+    await expect(page.getByRole('button', { name: 'Pemasukan Harian', exact: true })).toHaveCount(0);
     const sales = page.getByRole('button', { name: 'Lihat sebagai Sales', exact: true });
     await expect(sales).toHaveAttribute('aria-pressed', 'false');
     await sales.focus();
@@ -181,9 +178,26 @@ try {
     assert.equal(await page.locator('main').count(), 1);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({ path: path.join(output, `sales-${width}.png`) });
-    if (width === 1280) await page.locator('#root').screenshot({ path: path.join(output, 'sales-crop.png') });
+    if (width === 1280) {
+      await page.locator('#root').screenshot({ path: path.join(output, 'sales-crop.png') });
+      const reportHeader = await page.locator('main > header').boundingBox();
+      assert.ok(reportHeader);
+      await page.screenshot({
+        path: path.join(output, 'laporan-harian-pratinjau-sales.png'),
+        clip: { x: 0, y: 0, width, height: Math.floor(reportHeader.y + reportHeader.height) },
+      });
+    }
     await page.getByLabel('Tanggal pemasukan').fill('2026-11-06');
     await expect.poll(() => requests.at(-1).date).toBe('2026-11-06');
+    const reportButton = page.getByRole('button', { name: 'Laporan Harian', exact: true });
+    await expect(reportButton).toBeVisible();
+    await reportButton.click();
+    const previewReport = page.getByRole('dialog', { name: 'Laporan Harian' });
+    await expect(previewReport.getByText('Dibuka sebagai Owner', { exact: true })).toBeVisible();
+    await expect(previewReport.getByLabel('Tanggal laporan')).toHaveValue('2026-11-06');
+    await expect(previewReport.getByText('JR-001', { exact: true })).toBeVisible();
+    assert.deepEqual(reportRequests.at(-1), { date: '2026-11-06', layout: 'multiple' });
+    await page.keyboard.press('Escape');
     const totalButton = page.getByRole('button', { name: /Lihat rincian Total Pemasukan/ });
     assert.equal(requests.filter(row => row.receipt).length, 0, 'receipt details are fetched only when opened');
     await totalButton.focus(); await page.keyboard.press('Enter');
@@ -238,12 +252,13 @@ try {
     await page.keyboard.press('Escape');
     receiptEmpty = false;
     await load();
-    await page.getByRole('button', { name: 'Pemasukan Harian', exact: true }).click();
-    await page.getByRole('button', { name: /Lihat rincian Total Pemasukan/ }).click();
+    await page.getByRole('tab', { name: 'Hari ini', exact: true }).click();
+    await page.getByRole('button', { name: 'Rincian Pemasukan', exact: true }).click();
     dialog = page.getByRole('dialog', { name: 'Rincian pemasukan' });
     await dialog.locator('summary').filter({ hasText: 'Cocokkan penerimaan' }).click();
     await expect(dialog.getByLabel('Aktual Tunai (Rp)')).toBeVisible();
     await page.keyboard.press('Escape');
+    await sales.click();
     receiptEmpty = false;
     await page.getByRole('button', { name: /Lihat rincian Total Pemasukan/ }).click();
     await expect(dialog).toContainText('INV-OLD');
@@ -276,7 +291,6 @@ try {
     await expect(full).toBeFocused();
     await expect(page.getByRole('heading', { name: 'Laporan Keuangan', exact: true })).toBeVisible();
     const dailyReport = page.getByRole('button', { name: 'Laporan Harian', exact: true });
-    journalFixture = true;
     {
       await expect(dailyReport).toBeVisible();
       await dailyReport.click();
@@ -395,7 +409,7 @@ try {
     const salesExpense = await page.getByText(/Rp\s*12\.500/, { exact: true }).innerText();
     const salesExpenseDigits = salesExpense.replace(/\D/g, '');
     await dailyReport.click();
-    await expect.poll(() => journalViews.at(-1)).toBe('sales');
+    await expect.poll(() => reportRequests.at(-1)).toEqual({ date: '2026-11-07', layout: 'multiple' });
     const dailyExpense = await page.getByRole('dialog', { name: 'Laporan Harian' }).getByText(/(?:-Rp\s*|Rp\s*-)12\.500/).innerText();
     assert.equal(dailyExpense.replace(/\D/g, ''), salesExpenseDigits);
     await page.keyboard.press('Escape');
@@ -403,9 +417,9 @@ try {
     salesExportAccess = false;
     await sales.click();
     await expect(page.getByRole('heading', { name: 'Laporan Keuangan', exact: true })).toBeVisible();
-    await expect(dailyReport).toHaveCount(0);
-    journalFixture = false;
+    await expect(dailyReport).toBeVisible();
     await load('?role=SALES&limited=1');
+    await expect(dailyReport).toHaveCount(0);
     const beforeSales = requests.filter(row => row.full).length;
     await expect(page.getByRole('heading', { name: 'Outstanding DP', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Total Pemasukan', exact: true })).toHaveCount(0);
@@ -429,6 +443,15 @@ try {
     await page.getByRole('button', { name: /Lihat rincian Total Pemasukan/ }).click();
     await expect(dialog).toContainText('Belum ada penerimaan yang dapat ditampilkan pada tanggal ini.');
     await page.keyboard.press('Escape');
+    await load('?role=CASHIER');
+    await page.getByLabel('Tanggal pemasukan').fill('2026-11-06');
+    await dailyReport.click();
+    await expect(previewReport.getByLabel('Tanggal laporan')).toHaveValue('2026-11-06');
+    await expect(previewReport.getByText('Dibuka sebagai Owner')).toHaveCount(0);
+    await expect(previewReport.getByText('Total Pengeluaran', { exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await load('?role=CASHIER&deny-report=1');
+    await expect(dailyReport).toHaveCount(0);
     assert.deepEqual(errors, []);
     process.stdout.write(`PASS ${width}px: toggle, keyboard/focus, same daily API, dates, independent grants, error/retry, mobile overflow\n`);
     await page.close();

@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "daily-report-cashier-and-sales-preview", date: "2026-11-26", revision: 1,
+    highlight: { title: "Akses Laporan Harian", summary: "Buka Laporan Harian dari tampilan Kasir atau pratinjau Sales milik Owner." },
+    title: "Laporan Harian dari Kasir dan pratinjau Sales",
+    screenshot: { src: "/images/changelog/laporan-harian-pratinjau-sales-2026-11-26.png", alt: "Tampilan Owner dengan pilihan Laporan Lengkap dan Lihat sebagai Sales serta tombol Laporan Harian di samping tanggal." },
+    summary: "Kasir, Owner, dan Admin dapat membuka Laporan Harian melalui izin khusus. Owner dapat membuka laporan dari Lihat sebagai Sales.",
+    kind: "improvement", impact: "major", area: "Laporan Keuangan", href: "/financial-report", visual: "financial",
+    steps: [
+      { title: "Buka Laporan Keuangan", detail: "Pilih tanggal pemasukan. Owner juga dapat memilih Lihat sebagai Sales." },
+      { title: "Buka Laporan Harian", detail: "Klik Laporan Harian di samping tanggal atau Ekspor, lalu pilih tata letak." },
+      { title: "Cetak atau simpan", detail: "Klik Cetak A4 atau Unduh PDF." },
+    ],
+  },
+  {
     id: "daily-financial-report-a4", date: "2026-11-26", revision: 1,
     highlight: { title: "Laporan Harian siap cetak", summary: "Cetak ringkasan satu lembar atau jurnal lengkap dalam format A4." },
     title: "Cetak atau unduh Laporan Harian",

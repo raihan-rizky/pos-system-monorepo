@@ -68,6 +68,7 @@ export type ExportInput = {
   categories?: ReportCategorySummary[];
   details?: {
     note?: string;
+    showExpenseTotals?: boolean;
     tables: Array<{ title: string; headers: string[]; rows: string[][] }>;
   };
 };
@@ -553,7 +554,6 @@ function drawJournalPdf(
   const cardsTop = barH + 16;
   const cardH = 52;
   const gap = 12;
-  const cardW = (pageWidth - margin * 2 - gap * 2) / 3;
 
   const cards: Array<{
     label: string;
@@ -581,7 +581,9 @@ function drawJournalPdf(
     },
   ];
 
-  cards.forEach((card, i) => {
+  const visibleCards = input.details?.showExpenseTotals === false ? cards.slice(0, 1) : cards;
+  const cardW = (pageWidth - margin * 2 - gap * (visibleCards.length - 1)) / visibleCards.length;
+  visibleCards.forEach((card, i) => {
     const x = margin + i * (cardW + gap);
     doc.setFillColor(card.bg[0], card.bg[1], card.bg[2]);
     doc.setDrawColor(...PDF_COLOR.border);

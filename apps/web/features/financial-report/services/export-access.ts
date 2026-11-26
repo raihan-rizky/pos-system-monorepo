@@ -1,19 +1,10 @@
 import { getCurrentUser } from "@/lib/rbac/guard";
 import { apiError } from "@/lib/api/responses";
-import { canRoleAccessPage, canRolePerformAction } from "@/features/rbac/helpers/rbac-core";
+import { canRoleAccessPage, canRolePerformAction, type Role, type RolePermissions } from "@/features/rbac/helpers/rbac-core";
 import { getGlobalRolePermissions } from "@/features/rbac/helpers/rbac-server";
 
 export async function getFinancialExportAccess(request: Request): Promise<
-  { response: ReturnType<typeof apiError> } | {
-    user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
-    canReadManualIncome: boolean;
-    canReadTransactions: boolean;
-    canReadExpenses: boolean;
-    canReadCustomers: boolean;
-    canReadReceivables: boolean;
-    canReadPurchases: boolean;
-    canReadInventory: boolean;
-  }
+  { response: ReturnType<typeof apiError> } | (FinancialExportDetails & { user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>> })
 > {
   const user = await getCurrentUser();
   if (!user) return { response: apiError("Silakan masuk untuk mengekspor laporan.", 401, { code: "Unauthorized" }) };
@@ -32,9 +23,12 @@ export async function getFinancialExportAccess(request: Request): Promise<
     || !canRolePerformAction(role, "financial-report.export", "read", permissions)) {
     return { response: apiError("Akses ekspor laporan belum diizinkan.", 403, { code: "Forbidden" }) };
   }
+  return { user, ...resolveFinancialExportDetails(role, permissions) };
+}
+
+export function resolveFinancialExportDetails(role: Role, permissions: RolePermissions) {
   const canReadExpenses = canRolePerformAction(role, "expense", "read", permissions);
   return {
-    user,
     canReadManualIncome: canRolePerformAction(role, "income", "read", permissions),
     canReadTransactions: canRoleAccessPage(role, "/history", permissions) && canRolePerformAction(role, "transaction", "read", permissions),
     canReadExpenses,
@@ -48,3 +42,5 @@ export async function getFinancialExportAccess(request: Request): Promise<
       && canRolePerformAction(role, "expense.giro", "read", permissions),
   };
 }
+
+export type FinancialExportDetails = ReturnType<typeof resolveFinancialExportDetails>;
