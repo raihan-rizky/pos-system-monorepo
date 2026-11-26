@@ -9,6 +9,7 @@ import { buildReceiptHistoryUrl, type ReceiptHistoryContext } from "@/features/t
 import { DAILY_INCOME_PERMISSIONS, hasDailyReceivableAccess, jakartaToday, type DailyIncomeAccess } from "../helpers/daily-income";
 import { useDailyIncome } from "../hooks/useDailyIncome";
 import { DailyIncomeReceiptDialog } from "./DailyIncomeReceiptDialog";
+import { DailyReportDialog } from "./DailyReportDialog";
 
 type BreakdownRow = { label: string; amount: number; href?: string };
 function IncomeBreakdown({ title, rows }: { title: string; rows: BreakdownRow[] }) {
@@ -36,6 +37,7 @@ export function DailyIncomeReport({ previewSales = false, fullReportPreview }: {
   useEffect(() => setDetailsOpen(false), [date, previewSales, userId, storeId, authorizationFingerprint]);
   const { data, isLoading, isFetching, error, refetch } = useDailyIncome(date, access, previewSales);
   const hasAccess = Object.values(access).some(Boolean);
+  const canOpenDailyReport = canPerform("financial-report.daily-report", "read");
   const report = !error && !isLoading && data?.date === date ? data : undefined;
   if (previewSales && report?.viewMode === "full" && fullReportPreview) return typeof fullReportPreview === "function" ? fullReportPreview(report.exportAccess === true) : fullReportPreview;
   const historyGate = canAccess("/history") && canPerform("transaction", "read");
@@ -49,11 +51,12 @@ export function DailyIncomeReport({ previewSales = false, fullReportPreview }: {
     <header className="border-b border-[#dce9ed] bg-white px-4 py-5 sm:px-6">
       <div className="mx-auto flex max-w-6xl flex-wrap items-end justify-between gap-4">
         <div><p className="text-xs font-semibold text-[#326279]">Ringkasan toko</p><h1 className="mt-1 text-2xl font-bold tracking-tight text-[#142f40]">Pemasukan Harian</h1><p className="mt-1 text-sm text-[#587586]">Pembayaran awal/DP mengikuti tanggal nota. Pelunasan mengikuti tanggal pembayaran (WIB).</p></div>
-        {hasAccess && <div className="flex flex-wrap items-end gap-2">
+        {(hasAccess || canOpenDailyReport) && <div className="flex flex-wrap items-end gap-2">
           <label className="flex flex-col gap-1 text-sm font-medium text-[#294b5d]">Tanggal pemasukan
             <input type="date" value={date} max={jakartaToday()} onChange={event => { if (event.target.value) setDate(event.target.value); }} className="min-h-11 rounded-lg border border-[#c9dce6] bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700" />
           </label>
-          <button type="button" onClick={() => void refetch()} disabled={isFetching} aria-label="Muat ulang pemasukan harian" className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-[#c9dce6] text-[#294b5d] hover:bg-[#f1f7fb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700 disabled:opacity-50"><RefreshCw size={18} className={isFetching ? "motion-safe:animate-spin" : ""} /></button>
+          {hasAccess && <button type="button" onClick={() => void refetch()} disabled={isFetching} aria-label="Muat ulang pemasukan harian" className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-[#c9dce6] text-[#294b5d] hover:bg-[#f1f7fb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700 disabled:opacity-50"><RefreshCw size={18} className={isFetching ? "motion-safe:animate-spin" : ""} /></button>}
+          {canOpenDailyReport && <DailyReportDialog dateFrom={date} dateTo={date} openedAsOwner={previewSales} />}
         </div>}
       </div>
     </header>

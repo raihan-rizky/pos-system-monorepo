@@ -1,8 +1,10 @@
 "use client";
 
 import React from "react";
+import { Button } from "@pos/ui";
 import { useRole } from "@/components/providers/RoleProvider";
 import { DailyIncomeReport } from "@/features/financial-report/components/DailyIncomeReport";
+import { DailyIncomeReceiptDialog } from "@/features/financial-report/components/DailyIncomeReceiptDialog";
 import { DailyReportDialog } from "@/features/financial-report/components/DailyReportDialog";
 import dynamic from "next/dynamic";
 import {
@@ -82,9 +84,12 @@ export default function FinancialReportPage() {
   if (!canAccess("/financial-report")) return <p className="p-6 text-sm text-surface-600">Akses Laporan Keuangan belum diizinkan.</p>;
   const canReadFullReport = canPerform("financial-report", "read");
   if (!canReadFullReport) return <DailyIncomeReport />;
-  const currentView = viewMode === "sales" && role !== "OWNER" ? "full" : viewMode;
-  const views: Array<["full" | "daily" | "sales", string]> = [["full", "Laporan Lengkap"], ["daily", "Pemasukan Harian"]];
-  if (role === "OWNER") views.push(["sales", "Lihat sebagai Sales"]);
+  const owner = role === "OWNER";
+  const currentView = (owner ? viewMode === "daily" : viewMode === "sales") ? "full" : viewMode;
+  const views: Array<["full" | "daily" | "sales", string]> = [
+    ["full", "Laporan Lengkap"],
+    owner ? ["sales", "Lihat sebagai Sales"] : ["daily", "Pemasukan Harian"],
+  ];
   return <div className="flex min-h-0 flex-1 flex-col">
     <div className="border-b border-surface-200 bg-white px-4 py-3 md:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -99,8 +104,10 @@ export default function FinancialReportPage() {
 }
 
 function FullFinancialReport({ previewSales = false, previewExportAccess = false }: { previewSales?: boolean; previewExportAccess?: boolean } = {}) {
-  const { canPerform } = useRole();
-  const canExport = previewSales ? previewExportAccess : canPerform("financial-report.export", "read");
+  const { role, canPerform } = useRole();
+  const canOpenDailyReport = canPerform("financial-report.daily-report", "read");
+  const canOpenReceiptDetails = role === "OWNER" && !previewSales;
+  const [receiptDate, setReceiptDate] = React.useState<string | null>(null);
   const initialRange = React.useMemo(
     () => buildFinancialReportRange("month"),
     [],
@@ -231,7 +238,8 @@ function FullFinancialReport({ previewSales = false, previewExportAccess = false
                 })}
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {canExport && <DailyReportDialog dateFrom={dateFrom} dateTo={dateTo} view={previewSales ? "sales" : undefined} />}
+                {canOpenReceiptDetails && dateFrom === dateTo && <Button type="button" variant="secondary" aria-haspopup="dialog" onClick={() => setReceiptDate(dateFrom)}>Rincian Pemasukan</Button>}
+                {canOpenDailyReport && <DailyReportDialog dateFrom={dateFrom} dateTo={dateTo} openedAsOwner={previewSales} />}
                 <ReportExportMenu previewSales={previewSales} previewExportAccess={previewExportAccess} reportRange={{ from: dateFrom, to: dateTo }} />
               </div>
             </div>
@@ -524,6 +532,7 @@ function FullFinancialReport({ previewSales = false, previewExportAccess = false
           loading={isLoading}
         />
       </div>
+      {canOpenReceiptDetails && receiptDate && <DailyIncomeReceiptDialog date={receiptDate} allowComparison onClose={() => setReceiptDate(null)} />}
     </main>
   );
 }

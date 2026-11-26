@@ -61,6 +61,15 @@ describe("tata letak PDF Jurnal Transaksi", () => {
     expect(contents.includes("INV-CONTOH-001")).toBe(false);
   });
 
+  it("menyembunyikan pengeluaran dan total bersih ketika izin data pengeluaran dicabut", async () => {
+    const contents = (await createReportPdf({
+      ...journal, details: { showExpenseTotals: false, tables: [] },
+    })).output();
+    expect(contents).toContain("TOTAL PEMASUKAN");
+    expect(contents).not.toContain("TOTAL PENGELUARAN");
+    expect(contents).not.toContain("GRAND TOTAL");
+  });
+
   it("memuat rincian invoice secara bawaan", async () => {
     const contents = (await createReportPdf(journal)).output();
 
