@@ -181,10 +181,11 @@ try {
   const amount = recorded.getByLabel("Nominal pembayaran 1", { exact: true });
   const date = recorded.getByLabel("Tanggal pembayaran 1", { exact: true });
   assert.equal(await amount.count(), 0);
-  await recorded.getByRole("button", { name: "Ubah pembayaran tercatat 1", exact: true }).click();
-  assert.equal(await amount.inputValue(), "1200000.00");
+  assert.match(await recorded.innerText(), /Mengikuti rincian jadwal/);
+  await recorded.getByRole("button", { name: "Ubah manual pembayaran tercatat 1", exact: true }).click();
+  assert.equal(await amount.inputValue(), "8936156.00");
   assert.equal(await date.inputValue(), "2026-11-17");
-  assert.equal(await recorded.getByRole("button", { name: "Giro", exact: true }).getAttribute("aria-pressed"), "true");
+  assert.equal(await recorded.getByRole("button", { name: "Transfer", exact: true }).getAttribute("aria-pressed"), "true");
   await recorded.getByRole("button", { name: "Transfer + Giro", exact: true }).click();
   await recorded.getByLabel("Nominal Transfer pembayaran 1", { exact: true }).fill("400000");
   await amount.fill("1250000");
