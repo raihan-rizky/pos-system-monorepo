@@ -109,6 +109,24 @@ describe("POST /api/inventory/[id]/approve", () => {
     expect(productUpdateMock).not.toHaveBeenCalled();
   });
 
+  it("rejects a stale approval when a pending usage entry was edited", async () => {
+    inventoryLogFindUniqueMock.mockResolvedValue({
+      id: "log-1", productId: "product-1", type: "OUT", reason: "USAGE",
+      quantity: 5, note: "Pemakaian toko", status: "PENDING",
+    });
+    productFindUniqueMock.mockResolvedValue(standaloneProduct("product-1", 10));
+    inventoryLogUpdateMock.mockImplementationOnce(async ({ where, data }) => {
+      // The requester saved a quantity of 2 after this approval read the row.
+      if (where.quantity === 5 && where.status === "PENDING") {
+        throw Object.assign(new Error("Record changed"), { code: "P2025" });
+      }
+      return { id: "log-1", ...data };
+    });
+
+    expect((await call("log-1")).status).toBe(409);
+    expect(productUpdateMock).not.toHaveBeenCalled();
+  });
+
   it("returns 422 with available and requested when approval would make stock negative, and leaves stock untouched", async () => {
     inventoryLogFindUniqueMock.mockResolvedValue({
       id: "log-1",

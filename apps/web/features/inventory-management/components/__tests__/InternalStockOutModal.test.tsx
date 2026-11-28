@@ -56,7 +56,7 @@ describe("InternalStockOutModal", () => {
     expect(html).toContain("Kirim Permintaan");
   });
 
-  it("describes stock-log approval instead of the old internal request workflow", () => {
+  it("directs users to Log Stok to manage submitted usage", () => {
     const html = renderToStaticMarkup(
       <InternalStockOutModal
         open
@@ -65,7 +65,7 @@ describe("InternalStockOutModal", () => {
       />,
     );
 
-    expect(html).toContain("log stok pending");
+    expect(html).toContain("Riwayat → Log Stok");
     expect(html).not.toContain("Owner akan me-review permintaan ini");
   });
 });

@@ -3,6 +3,12 @@ import * as routeHandlers from "../route";
 
 const { POST } = routeHandlers;
 
+const cancelledUsageFilter = {
+  type: "OUT",
+  reason: "USAGE",
+  correctionRequests: { some: { status: "APPROVED", correctedQuantity: 0 } },
+};
+
 const requirePermissionMock = vi.hoisted(() => vi.fn());
 const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const inventoryLogFindFirstMock = vi.hoisted(() => vi.fn());
@@ -19,6 +25,8 @@ const correctionMovementCreateMock = vi.hoisted(() => vi.fn());
 const inventoryLogCreateMock = vi.hoisted(() => vi.fn());
 const transactionMock = vi.hoisted(() => vi.fn());
 const applyProductStockDeltaMock = vi.hoisted(() => vi.fn());
+const applyProductStockDeltasMock = vi.hoisted(() => vi.fn());
+const queryRawMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
@@ -27,6 +35,7 @@ vi.mock("@/lib/rbac/guard", () => ({
 
 vi.mock("@/features/product-stock-groups/stock-mutations", () => ({
   applyProductStockDelta: applyProductStockDeltaMock,
+  applyProductStockDeltas: applyProductStockDeltasMock,
 }));
 
 vi.mock("@pos/db", () => ({
@@ -60,6 +69,21 @@ function post(body: unknown) {
   );
 }
 
+it("leaves cancelled usage in stock history and out of the daily verification queue", async () => {
+  requirePermissionMock.mockResolvedValue({ id: "inventory-1", role: "INVENTORY", storeId: "store-main" });
+  inventoryLogFindManyMock.mockResolvedValue([]);
+  inventoryLogCountMock.mockResolvedValue(0);
+
+  const result = await routeHandlers.GET(
+    new Request("http://localhost/api/inventory-management/log-verifications?dateKey=2026-11-28"),
+  );
+
+  expect(result.status).toBe(200);
+  expect(inventoryLogCountMock).toHaveBeenLastCalledWith(expect.objectContaining({
+    where: expect.objectContaining({ NOT: cancelledUsageFilter }),
+  }));
+});
+
 describe("POST /api/inventory-management/log-verifications", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -80,16 +104,23 @@ describe("POST /api/inventory-management/log-verifications", () => {
     inventoryTaskFindUniqueMock.mockResolvedValue(null);
     inventoryDaySessionFindUniqueMock.mockResolvedValue(null);
     correctionFindFirstMock.mockResolvedValue(null);
+    applyProductStockDeltasMock.mockResolvedValue([]);
+    queryRawMock.mockResolvedValue([{ id: "log-1" }]);
     transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) =>
       callback({
         inventoryLogCorrectionRequest: {
           findFirst: correctionFindFirstMock,
+          create: correctionCreateMock,
           update: correctionUpdateMock,
         },
-        inventoryLog: { create: inventoryLogCreateMock },
+        inventoryLog: { create: inventoryLogCreateMock, findFirst: inventoryLogFindFirstMock },
         inventoryLogCorrectionMovement: {
           create: correctionMovementCreateMock,
         },
+        inventoryTask: { findUnique: inventoryTaskFindUniqueMock },
+        inventoryDaySession: { findUnique: inventoryDaySessionFindUniqueMock },
+        product: { findFirst: productFindFirstMock },
+        $queryRaw: queryRawMock,
       }),
     );
     inventoryLogVerificationUpsertMock.mockResolvedValue({
@@ -263,6 +294,27 @@ describe("POST /api/inventory-management/log-verifications", () => {
     });
   });
 
+  it("cannot start a verification correction on usage the Owner has cancelled", async () => {
+    inventoryLogFindFirstMock.mockResolvedValue({
+      id: "log-1", productId: "paper", quantity: 10, reason: "USAGE", status: "APPROVED",
+      createdAt: new Date("2026-06-30T02:00:00.000Z"),
+      verification: { status: "MISMATCH" },
+      correctionRequests: [{
+        id: "owner-cancellation", status: "APPROVED", correctedProductId: "paper",
+        correctedQuantity: 0, correctedReason: "USAGE", correctedNote: "Barang kembali", movements: [],
+      }],
+    });
+    productFindFirstMock.mockResolvedValue({ id: "paper" });
+
+    const response = await post({
+      action: "CREATE_CORRECTION", inventoryLogId: "log-1", correctedProductId: "paper",
+      correctedQuantity: 2, correctedReason: "USAGE", correctedNote: "Hitung ulang",
+    });
+
+    expect(response.status).toBe(409);
+    expect(correctionCreateMock).not.toHaveBeenCalled();
+  });
+
   it("approves a correction atomically with reversal and replacement movements", async () => {
     requirePermissionMock.mockResolvedValue({
       id: "owner-2",
@@ -312,7 +364,7 @@ describe("POST /api/inventory-management/log-verifications", () => {
       { storeId: "store-main", productId: "product-right", delta: -4 },
     );
     expect(correctionUpdateMock).toHaveBeenCalledWith({
-      where: { id: "correction-1" },
+      where: { id: "correction-1", status: "PENDING" },
       data: expect.objectContaining({
         status: "APPROVED",
         decidedBy: "owner-2",
@@ -353,6 +405,36 @@ describe("POST /api/inventory-management/log-verifications", () => {
     expect(applyProductStockDeltaMock).not.toHaveBeenCalled();
   });
 
+  it("approves a verification correction from the quantity after an earlier Owner correction", async () => {
+    requirePermissionMock.mockResolvedValue({ id: "owner-2", name: "Owner Dua", role: "OWNER", storeId: "store-main" });
+    const source = {
+      id: "log-1", type: "OUT", reason: "USAGE", productId: "paper", quantity: 10,
+      unitCost: 12000, note: "Awal",
+      correctionRequests: [{
+        id: "owner-correction", status: "APPROVED", correctedProductId: "labels",
+        correctedQuantity: 6, correctedReason: "USAGE", correctedNote: "Produk diganti",
+        movements: [{ inventoryLog: { unitCost: 23000 } }],
+      }],
+    };
+    inventoryLogFindFirstMock.mockResolvedValue(source);
+    correctionFindFirstMock.mockResolvedValue({
+      id: "correction-1", inventoryLogId: source.id, storeId: "store-main", inventoryLog: source,
+      correctedProductId: "labels", correctedQuantity: 4, correctedReason: "USAGE",
+      correctedNote: "Jumlah baru", status: "PENDING", requestedBy: "inventory-1",
+    });
+    correctionUpdateMock.mockResolvedValue({ id: "correction-1", status: "APPROVED" });
+    productFindFirstMock.mockResolvedValue({ id: "labels", costPrice: 26000 });
+    inventoryLogCreateMock.mockResolvedValue({ id: "adjustment-1" });
+
+    const response = await post({ action: "APPROVE_CORRECTION", correctionRequestId: "correction-1" });
+
+    expect(response.status).toBe(200);
+    expect(applyProductStockDeltasMock).toHaveBeenCalledWith(expect.anything(), {
+      storeId: "store-main", items: [{ productId: "labels", delta: 2 }], allowNegative: true,
+    });
+    expect(applyProductStockDeltaMock).not.toHaveBeenCalled();
+  });
+
   it("rejects a correction with an audit reason and no stock mutation", async () => {
     requirePermissionMock.mockResolvedValue({
       id: "owner-2",
@@ -379,7 +461,7 @@ describe("POST /api/inventory-management/log-verifications", () => {
     expect(response.status).toBe(200);
     expect(requirePermissionMock).toHaveBeenCalledWith("inventory.approve", "update");
     expect(correctionUpdateMock).toHaveBeenCalledWith({
-      where: { id: "correction-1" },
+      where: { id: "correction-1", status: "PENDING" },
       data: expect.objectContaining({
         status: "REJECTED",
         decidedBy: "owner-2",

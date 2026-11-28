@@ -8,6 +8,17 @@ import {
   resolveOutLogVerificationState,
 } from "@/features/inventory-management/helpers/inventory-management-rules";
 import { applyProductStockDelta } from "@/features/product-stock-groups/stock-mutations";
+import {
+  cancelledInternalUseLogWhere,
+  internalUseCorrectionFields,
+  internalUseCorrectionOrder,
+  resolveEffectiveInternalUse,
+} from "@/features/inventory-management/helpers/internal-use-log";
+import {
+  isInventoryCorrectionDayLocked,
+  lockInventoryLogForCorrection,
+  recordInternalUseCorrectionMovements,
+} from "@/features/inventory-management/services/internal-use-stock-corrections";
 
 const verificationSchema = z.object({
   inventoryLogId: z.string().min(1),
@@ -66,6 +77,7 @@ export async function GET(request: Request) {
     const where = {
       type: "OUT" as const,
       status: "APPROVED" as const,
+      NOT: cancelledInternalUseLogWhere,
       createdAt: { gte: start, lt: end },
       product: { storeId: user.storeId },
       OR: [{ reason: "USAGE" as const }, { reason: "MANUAL_ADJUSTMENT" as const }],
@@ -172,7 +184,7 @@ export async function POST(request: Request) {
         if (pending.requestedBy === user.id) throw new Error("SELF_APPROVAL");
 
         return tx.inventoryLogCorrectionRequest.update({
-          where: { id: pending.id },
+          where: { id: pending.id, status: "PENDING" },
           data: {
             status: "REJECTED",
             decidedBy: user.id,
@@ -197,12 +209,69 @@ export async function POST(request: Request) {
           },
           include: {
             inventoryLog: {
-              select: { id: true, productId: true, quantity: true },
+              select: { id: true, productId: true, quantity: true, reason: true },
             },
           },
         });
         if (!pending) throw new Error("CORRECTION_NOT_FOUND");
         if (pending.requestedBy === user.id) throw new Error("SELF_APPROVAL");
+
+        const usage = pending.inventoryLog.reason === "USAGE";
+        if (usage && !(await lockInventoryLogForCorrection(tx, storeId, pending.inventoryLogId))) {
+          throw new Error("CORRECTION_NOT_FOUND");
+        }
+        const now = new Date();
+        const approved = await tx.inventoryLogCorrectionRequest.update({
+          where: { id: pending.id, status: "PENDING" },
+          data: {
+            status: "APPROVED",
+            decidedBy: user.id,
+            decidedAt: now,
+            rejectionReason: null,
+            version: { increment: 1 },
+          },
+        });
+
+        if (usage) {
+          const source = await tx.inventoryLog.findFirst({
+            where: { id: pending.inventoryLogId, product: { storeId }, status: "APPROVED" },
+            select: {
+              productId: true, quantity: true, unitCost: true, note: true,
+              correctionRequests: {
+                where: { status: "APPROVED", id: { not: pending.id } },
+                orderBy: internalUseCorrectionOrder,
+                select: internalUseCorrectionFields,
+              },
+            },
+          });
+          if (!source) throw new Error("CORRECTION_NOT_FOUND");
+          const from = resolveEffectiveInternalUse(source, source.correctionRequests);
+          if (from.quantity === 0) throw new Error("USAGE_ALREADY_CANCELLED");
+
+          const replacement = from.productId === pending.correctedProductId
+            ? null
+            : await tx.product.findFirst({
+              where: { id: pending.correctedProductId, storeId },
+              select: { costPrice: true },
+            });
+          await recordInternalUseCorrectionMovements(tx, {
+            storeId,
+            sourceId: pending.inventoryLogId,
+            correctionId: pending.id,
+            from,
+            to: {
+              productId: pending.correctedProductId,
+              quantity: pending.correctedQuantity,
+              unitCost: replacement ? replacement.costPrice : from.unitCost,
+            },
+            note: pending.correctedNote,
+            requestedBy: pending.requestedBy,
+            approvedBy: user.id,
+            approverName: user.name,
+            decidedAt: now,
+          });
+          return approved;
+        }
 
         const movements = calculateOutLogCorrectionMovements({
           originalProductId: pending.inventoryLog.productId,
@@ -210,7 +279,6 @@ export async function POST(request: Request) {
           correctedProductId: pending.correctedProductId,
           correctedQuantity: pending.correctedQuantity,
         });
-        const now = new Date();
 
         for (const movement of movements) {
           await applyProductStockDelta(tx, {
@@ -241,16 +309,7 @@ export async function POST(request: Request) {
           });
         }
 
-        return tx.inventoryLogCorrectionRequest.update({
-          where: { id: pending.id },
-          data: {
-            status: "APPROVED",
-            decidedBy: user.id,
-            decidedAt: now,
-            rejectionReason: null,
-            version: { increment: 1 },
-          },
-        });
+        return approved;
       });
 
       return NextResponse.json({ data: correction });
@@ -258,103 +317,76 @@ export async function POST(request: Request) {
 
     if (body?.action === "CREATE_CORRECTION") {
       const input = correctionSchema.parse(body);
-      const sourceLog = await db.inventoryLog.findFirst({
-        where: {
-          id: input.inventoryLogId,
-          type: "OUT",
-          status: "APPROVED",
-          product: { storeId },
-          OR: [{ reason: "USAGE" }, { reason: "MANUAL_ADJUSTMENT" }],
-        },
-        select: {
-          id: true,
-          productId: true,
-          quantity: true,
-          createdAt: true,
-          verification: { select: { status: true } },
-        },
-      });
-      if (!sourceLog) {
-        return NextResponse.json(
-          { message: "Log OUT tidak ditemukan" },
-          { status: 404 },
-        );
-      }
-      if (sourceLog.verification?.status !== "MISMATCH") {
-        return NextResponse.json(
-          { message: "Tandai Log OUT sebagai Perlu Koreksi terlebih dahulu" },
-          { status: 422 },
-        );
-      }
-
-      const [pendingCorrection, correctedProduct] = await Promise.all([
-        db.inventoryLogCorrectionRequest.findFirst({
+      return await db.$transaction(async (tx) => {
+        if (!(await lockInventoryLogForCorrection(tx, storeId, input.inventoryLogId))) {
+          return NextResponse.json({ message: "Log OUT tidak ditemukan" }, { status: 404 });
+        }
+        const sourceLog = await tx.inventoryLog.findFirst({
           where: {
-            storeId,
-            inventoryLogId: sourceLog.id,
-            status: "PENDING",
+            id: input.inventoryLogId,
+            type: "OUT",
+            status: "APPROVED",
+            product: { storeId },
+            OR: [{ reason: "USAGE" }, { reason: "MANUAL_ADJUSTMENT" }],
           },
-          select: { id: true },
-        }),
-        db.product.findFirst({
-          where: { id: input.correctedProductId, storeId, isActive: true },
-          select: { id: true },
-        }),
-      ]);
-      if (pendingCorrection) {
-        return NextResponse.json(
-          { message: "Koreksi Log OUT ini masih menunggu approval" },
-          { status: 409 },
-        );
-      }
-      if (!correctedProduct) {
-        return NextResponse.json(
-          { message: "Produk koreksi tidak ditemukan atau sudah nonaktif" },
-          { status: 422 },
-        );
-      }
-
-      const periodKey = jakartaDateKey(sourceLog.createdAt);
-      const [matchingTask, daySession] = await Promise.all([
-        db.inventoryTask.findUnique({
-          where: {
-            storeId_type_periodKey: {
-              storeId,
-              type: "DAILY_STOCK_MATCHING",
-              periodKey,
+          select: {
+            id: true,
+            createdAt: true,
+            verification: { select: { status: true } },
+            correctionRequests: {
+              where: { status: "APPROVED", correctedQuantity: 0 },
+              take: 1,
+              select: { id: true },
             },
           },
-          select: { status: true },
-        }),
-        db.inventoryDaySession.findUnique({
-          where: { storeId_periodKey: { storeId, periodKey } },
-          select: { status: true },
-        }),
-      ]);
-      if (
-        matchingTask?.status === "SUBMITTED" ||
-        daySession?.status === "CHECKED_OUT"
-      ) {
-        return NextResponse.json(
-          { message: "Koreksi sudah dikunci setelah matching atau check-out" },
-          { status: 409 },
-        );
-      }
+        });
+        if (!sourceLog) {
+          return NextResponse.json({ message: "Log OUT tidak ditemukan" }, { status: 404 });
+        }
+        if (sourceLog.correctionRequests?.length) {
+          return NextResponse.json({ message: "Pemakaian internal sudah dibatalkan" }, { status: 409 });
+        }
+        if (sourceLog.verification?.status !== "MISMATCH") {
+          return NextResponse.json(
+            { message: "Tandai Log OUT sebagai Perlu Koreksi terlebih dahulu" },
+            { status: 422 },
+          );
+        }
 
-      const correction = await db.inventoryLogCorrectionRequest.create({
-        data: {
-          storeId,
-          inventoryLogId: sourceLog.id,
-          correctedProductId: input.correctedProductId,
-          correctedQuantity: input.correctedQuantity,
-          correctedReason: input.correctedReason,
-          correctedNote: input.correctedNote,
-          requestedBy: user.id,
-          status: "PENDING",
-        },
+        const [pendingCorrection, correctedProduct] = await Promise.all([
+          tx.inventoryLogCorrectionRequest.findFirst({
+            where: { storeId, inventoryLogId: sourceLog.id, status: "PENDING" },
+            select: { id: true },
+          }),
+          tx.product.findFirst({
+            where: { id: input.correctedProductId, storeId, isActive: true },
+            select: { id: true },
+          }),
+        ]);
+        if (pendingCorrection) {
+          return NextResponse.json({ message: "Koreksi Log OUT ini masih menunggu approval" }, { status: 409 });
+        }
+        if (!correctedProduct) {
+          return NextResponse.json({ message: "Produk koreksi tidak ditemukan atau sudah nonaktif" }, { status: 422 });
+        }
+        if (await isInventoryCorrectionDayLocked(tx, storeId, sourceLog.createdAt)) {
+          return NextResponse.json({ message: "Koreksi sudah dikunci setelah matching atau check-out" }, { status: 409 });
+        }
+
+        const correction = await tx.inventoryLogCorrectionRequest.create({
+          data: {
+            storeId,
+            inventoryLogId: sourceLog.id,
+            correctedProductId: input.correctedProductId,
+            correctedQuantity: input.correctedQuantity,
+            correctedReason: input.correctedReason,
+            correctedNote: input.correctedNote,
+            requestedBy: user.id,
+            status: "PENDING",
+          },
+        });
+        return NextResponse.json({ data: correction }, { status: 201 });
       });
-
-      return NextResponse.json({ data: correction }, { status: 201 });
     }
 
     const input = verificationSchema.parse(body);
@@ -364,6 +396,7 @@ export async function POST(request: Request) {
         id: input.inventoryLogId,
         type: "OUT",
         status: "APPROVED",
+        NOT: cancelledInternalUseLogWhere,
         product: { storeId },
       },
       select: {
@@ -461,11 +494,15 @@ export async function POST(request: Request) {
       );
     }
 
-    if (error instanceof Error && error.message === "CORRECTION_NOT_FOUND") {
+    if (error instanceof Error && (error.message === "CORRECTION_NOT_FOUND" ||
+        ("code" in error && error.code === "P2025"))) {
       return NextResponse.json(
         { message: "Request koreksi tidak ditemukan atau sudah diputuskan" },
         { status: 404 },
       );
+    }
+    if (error instanceof Error && error.message === "USAGE_ALREADY_CANCELLED") {
+      return NextResponse.json({ message: "Pemakaian internal sudah dibatalkan" }, { status: 409 });
     }
     if (error instanceof Error && error.message === "SELF_APPROVAL") {
       return NextResponse.json(

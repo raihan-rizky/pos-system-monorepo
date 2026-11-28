@@ -1,4 +1,10 @@
 import type { Prisma } from "@pos/db";
+import {
+  internalUseCorrectionFields,
+  internalUseCorrectionOrder,
+  resolveEffectiveInternalUse,
+  type InternalUseCorrection,
+} from "@/features/inventory-management/helpers/internal-use-log";
 import type {
   InternalUseRecap,
   InternalUseRecapEntry,
@@ -21,7 +27,26 @@ export interface InternalUseRecapRow {
     sku: string;
     unit: string;
   };
+  correctionRequests?: (InternalUseCorrection & { correctedProduct: InternalUseRecapRow["product"] })[];
 }
+
+const productFields = { id: true, name: true, sku: true, unit: true } as const;
+
+export const internalUseRecapRowFields = {
+  id: true,
+  productId: true,
+  quantity: true,
+  unitCost: true,
+  note: true,
+  person: true,
+  createdAt: true,
+  product: { select: productFields },
+  correctionRequests: {
+    where: { status: "APPROVED" },
+    orderBy: internalUseCorrectionOrder,
+    select: { ...internalUseCorrectionFields, correctedProduct: { select: productFields } },
+  },
+} satisfies Prisma.InventoryLogSelect;
 
 function decimalToNumber(value: Prisma.Decimal | number | string | null): number | null {
   if (value === null) return null;
@@ -39,8 +64,22 @@ export function buildInternalUseRecap(input: {
     throw new Error("Invalid internal use recap period range");
   }
 
+  const rows = input.rows.flatMap((row) => {
+    const effective = resolveEffectiveInternalUse(row, row.correctionRequests ?? []);
+    if (!effective.correction) return [row];
+    if (effective.quantity <= 0 || effective.correction.correctedReason !== "USAGE") return [];
+
+    return [{
+      ...row,
+      productId: effective.productId,
+      product: effective.correction.correctedProduct,
+      quantity: effective.quantity,
+      unitCost: effective.unitCost,
+      note: effective.note,
+    }];
+  });
   const productMap = new Map<string, InternalUseRecapProduct>();
-  const entries: InternalUseRecapEntry[] = input.rows.map((row) => {
+  const entries: InternalUseRecapEntry[] = rows.map((row) => {
     const unitCost = decimalToNumber(row.unitCost);
     const value = unitCost === null ? null : unitCost * row.quantity;
     const groupKey = `${row.productId}:${row.product.unit}`;
@@ -86,14 +125,14 @@ export function buildInternalUseRecap(input: {
     (total, product) => total + product.missingUnitCostCount,
     0,
   );
-  const productCount = new Set(input.rows.map((row) => row.productId)).size;
+  const productCount = new Set(rows.map((row) => row.productId)).size;
 
   return {
     period: input.period,
     anchorDate: input.anchorDate,
     range: resolved.range,
     summary: {
-      entryCount: input.rows.length,
+      entryCount: rows.length,
       productCount,
       unitGroupCount: products.length,
       totalQuantity: products.reduce((total, product) => total + product.quantity, 0),

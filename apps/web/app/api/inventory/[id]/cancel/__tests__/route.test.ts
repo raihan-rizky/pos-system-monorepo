@@ -56,7 +56,7 @@ describe("POST /api/inventory/[id]/cancel", () => {
     expect(response.status).toBe(200);
     expect(inventoryLogUpdateMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "log-1" },
+        where: { id: "log-1", status: "PENDING" },
         data: expect.objectContaining({
           status: "REJECTED",
           rejectionReason: "Dibatalkan oleh pemohon",

@@ -25,9 +25,8 @@ function isProductOnlyStockLog(note: string | null | undefined) {
 
 // POST /api/inventory/[id]/approve
 // OWNER-only. Flips status PENDING → APPROVED inside a transaction and
-// applies the stock delta. The status check inside the transaction is the
-// race guard: a second concurrent approver reads a non-PENDING row and
-// receives 409.
+// applies the stock delta. The conditional write also checks the usage values
+// in case the requester edited them after the approval read the log.
 export async function POST(
   _request: Request,
   context: { params: Promise<{ id: string }> },
@@ -52,6 +51,7 @@ export async function POST(
           id: true,
           productId: true,
           type: true,
+          reason: true,
           quantity: true,
           note: true,
           status: true,
@@ -80,6 +80,22 @@ export async function POST(
         throw new Error(`ALREADY_DECIDED:${log.status}`);
       }
 
+      const approvesInternalUse = log.type === "OUT" && log.reason === "USAGE";
+      const decision = {
+        where: {
+          id,
+          status: "PENDING" as const,
+          ...(approvesInternalUse ? { productId: log.productId, quantity: log.quantity, note: log.note } : {}),
+        },
+        data: {
+          status: "APPROVED" as const,
+          approvedBy: user.id,
+          approverName: user.name,
+          decidedAt: new Date(),
+        },
+      };
+      // Claim a usage request before applying the exact values we just read.
+      const claimed = approvesInternalUse ? await tx.inventoryLog.update(decision) : null;
       const delta = computeStockDelta(log.type, log.quantity);
       const stockResult = isProductOnlyStockLog(log.note)
         ? null
@@ -89,15 +105,7 @@ export async function POST(
             delta,
           });
 
-      const updatedLog = await tx.inventoryLog.update({
-        where: { id },
-        data: {
-          status: "APPROVED",
-          approvedBy: user.id,
-          approverName: user.name,
-          decidedAt: new Date(),
-        },
-      });
+      const updatedLog = claimed ?? await tx.inventoryLog.update(decision);
 
       logger.info("inventory.approval.stock_updated", {
         logId: id,
@@ -135,6 +143,9 @@ export async function POST(
     }
 
     if (error instanceof Error) {
+      if ("code" in error && error.code === "P2025") {
+        return apiError("Permintaan sudah berubah. Muat ulang Log Stok sebelum menyetujui.", 409, { code: "Conflict" });
+      }
       if (error.message === "NOT_FOUND") {
         return apiError("Permintaan tidak ditemukan", 404, { code: "NotFound" });
       }

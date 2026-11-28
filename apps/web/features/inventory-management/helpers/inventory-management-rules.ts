@@ -1,4 +1,5 @@
 import type { Role } from "@/features/rbac/helpers/rbac-core";
+import { cancelledInternalUseLogWhere } from "./internal-use-log";
 
 export type StockTaskKind =
   | "NEGATIVE_STOCK"
@@ -115,6 +116,7 @@ export function calculateOutLogCorrectionMovements(input: {
 
 export function unresolvedOutLogVerificationWhere() {
   return {
+    NOT: cancelledInternalUseLogWhere,
     AND: [
       { OR: [{ reason: "USAGE" as const }, { reason: "MANUAL_ADJUSTMENT" as const }] },
       {

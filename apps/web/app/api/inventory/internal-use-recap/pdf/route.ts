@@ -4,7 +4,7 @@ import { db } from "@pos/db";
 import { apiError, apiValidationError } from "@/lib/api/responses";
 import { getLogger } from "@/lib/logger";
 import { handleAuthError, requirePermission } from "@/lib/rbac/guard";
-import { buildInternalUseRecap } from "@/features/internal-use-recap/helpers/internal-use-recap";
+import { buildInternalUseRecap, internalUseRecapRowFields } from "@/features/internal-use-recap/helpers/internal-use-recap";
 import { buildInternalUseRecapPdf } from "@/features/internal-use-recap/helpers/internal-use-recap-pdf";
 import { resolveInternalUsePeriodRange, todayJakartaIsoDate } from "@/features/internal-use-recap/helpers/period";
 
@@ -49,23 +49,7 @@ export async function GET(request: NextRequest) {
           lt: range.endDate,
         },
       },
-      select: {
-        id: true,
-        productId: true,
-        quantity: true,
-        unitCost: true,
-        note: true,
-        person: true,
-        createdAt: true,
-        product: {
-          select: {
-            id: true,
-            name: true,
-            sku: true,
-            unit: true,
-          },
-        },
-      },
+      select: internalUseRecapRowFields,
       orderBy: [{ createdAt: "desc" }],
     });
 

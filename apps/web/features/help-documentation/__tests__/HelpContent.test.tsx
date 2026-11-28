@@ -180,7 +180,7 @@ describe('HelpContent', () => {
     expect(html).not.toContain('pilih invoice');
   });
 
-  it('documents the Log OUT verification queue and correction-only Stock Log history', () => {
+  it('documents Log OUT verification and the Owner actions for approved internal usage', () => {
     const html = renderToStaticMarkup(
       <HelpContent targetRole="INVENTORY" searchQuery="Verifikasi Log OUT" />
     );
@@ -189,7 +189,8 @@ describe('HelpContent', () => {
     expect(html).toContain('Setujui');
     expect(html).toContain('Perlu Koreksi');
     expect(html).toContain('tombol Koreksi');
-    expect(html).toContain('Log Stok hanya menampilkan warna dan badge');
+    expect(html).toContain('Owner juga dapat mengoreksi atau membatalkan pemakaian yang sudah disetujui');
+    expect(html).toContain('Riwayat → Log Stok selama hari stok masih terbuka');
   });
 
   it('documents the individual stock update via the edit product button', () => {

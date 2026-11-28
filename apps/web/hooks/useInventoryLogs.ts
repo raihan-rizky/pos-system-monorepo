@@ -50,6 +50,17 @@ export interface InventoryLog {
   } | null;
   supplierId?: string | null;
   supplier?: { id: string; name: string } | null;
+  transactionId?: string | null;
+  sourceTransactionRef?: string | null;
+  suratJalanId?: string | null;
+  internalUseDayLocked?: boolean;
+  internalUseCorrectionPending?: boolean;
+  effectiveInternalUse?: {
+    correctionId: string;
+    product: InventoryLog["product"];
+    quantity: number;
+    note: string | null;
+  };
   product: {
     id: string;
     name: string;
@@ -187,6 +198,29 @@ export function useCancelInventoryLog() {
   return useMutation({
     mutationFn: (id: string) => postJson(`/api/inventory/${id}/cancel`),
     onSuccess: () => invalidateInventoryQueries(qc),
+  });
+}
+
+type InternalUseEditFields = { productId: string; quantity: number; note: string };
+
+export type InternalUseLogChange =
+  | ({ action: "editPending" } & InternalUseEditFields)
+  | ({ action: "correct"; expectedCorrectionId: string | null } & InternalUseEditFields)
+  | { action: "cancel"; expectedCorrectionId: string | null; note: string };
+
+export function useUpdateInternalUseLog() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: InternalUseLogChange }) =>
+      postJson(`/api/inventory/${encodeURIComponent(id)}/internal-use`, input),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["inventory-logs"] }),
+        qc.invalidateQueries({ queryKey: ["products"] }),
+        qc.invalidateQueries({ queryKey: ["internal-use-recap"] }),
+        qc.invalidateQueries({ queryKey: ["inventory-management"] }),
+      ]);
+    },
   });
 }
 
