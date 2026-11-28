@@ -35,7 +35,7 @@ Verifikasi Log OUT adalah pengecekan kebenaran catatan barang keluar, bukan matc
 
 ### Edit dan pembatalan Pemakaian Internal
 
-Buka **Inventaris → Riwayat → Log Stok** dan pilih entri pemakaian yang ingin diperbaiki.
+Buka **Inventaris → Riwayat → Log Stok**, pilih **Pemakaian Internal**, lalu cari entri yang ingin diperbaiki.
 
 - Pemohon dengan izin mengubah data gudang dan **Edit permintaan sendiri** dapat mengubah produk, jumlah, atau alasan selama menunggu persetujuan. Gunakan **Batalkan** untuk menarik permintaan yang masih menunggu.
 - Untuk entri yang sudah disetujui, Owner dapat memilih **Koreksi** atau **Batalkan** dan mengisi alasan selama hari stok terbuka. Koreksi mencatat selisih atau pergantian produk. Pembatalan mengembalikan jumlah yang masih tercatat keluar.

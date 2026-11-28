@@ -13,6 +13,7 @@ import {
 import { useRole } from "@/components/providers/RoleProvider";
 import { useCancelBulkBatch } from "@/features/bulk-stock-approval/hooks/useBulkApproval";
 import { OutLogVerificationBadge } from "@/features/inventory-management/components/OutLogVerificationPanel";
+import { ProductStockThumbnail } from "@/features/inventory-management/components/ProductStockThumbnail";
 import { isIndividualInternalUseLog } from "@/features/inventory-management/helpers/internal-use-log";
 
 import {
@@ -30,7 +31,6 @@ import {
   Clock,
   AlertCircle,
 } from "lucide-react";
-import { getDefaultProductImage } from "@/lib/utils";
 
 const InternalUseLogModal = lazy(() => import("@/features/inventory-management/components/InternalUseLogModal"));
 
@@ -64,6 +64,19 @@ const STATUS_FILTERS: Array<{ id: string; label: string; status?: string }> = [
   { id: "pending", label: "Pending", status: "PENDING" },
   { id: "approved", label: "Disetujui", status: "APPROVED" },
   { id: "rejected", label: "Ditolak", status: "REJECTED" },
+];
+
+const TYPE_FILTERS: Array<{
+  id: string;
+  label: string;
+  type?: InventoryLog["type"];
+  reason?: string;
+}> = [
+  { id: "all", label: "Semua tipe" },
+  { id: "in", label: "Stock In", type: "IN" },
+  { id: "out", label: "Stock Out", type: "OUT" },
+  { id: "internal-use", label: "Pemakaian Internal", type: "OUT", reason: "USAGE" },
+  { id: "adjustment", label: "Penyesuaian", type: "ADJUSTMENT" },
 ];
 
 function formatDate(dateStr: string) {
@@ -150,7 +163,7 @@ function OriginalInternalUse({ log }: { log: InventoryLog }) {
 }
 
 export default function StockLogsTab() {
-  const [typeFilter, setTypeFilter] = useState<string>("");
+  const [typeFilterId, setTypeFilterId] = useState("all");
   const [statusFilterId, setStatusFilterId] = useState<string>("all");
   const [page, setPage] = useState(1);
   const limit = 20;
@@ -165,8 +178,10 @@ export default function StockLogsTab() {
     [statusFilterId],
   );
 
+  const typeFilter = TYPE_FILTERS.find((filter) => filter.id === typeFilterId);
   const { data, isLoading, isError } = useInventoryLogs({
-    type: typeFilter || undefined,
+    type: typeFilter?.type,
+    reason: typeFilter?.reason,
     status: statusParam,
     page,
     limit,
@@ -289,16 +304,13 @@ export default function StockLogsTab() {
           </div>
           <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
             <Filter className="w-4 h-4 text-slate-400 shrink-0" />
-            {[
-              { id: "", label: "Semua tipe" },
-              { id: "IN", label: "Stock In" },
-              { id: "OUT", label: "Stock Out" },
-              { id: "ADJUSTMENT", label: "Penyesuaian" },
-            ].map((f) => (
+            {TYPE_FILTERS.map((f) => (
               <button
                 key={f.id}
-                onClick={() => { setTypeFilter(f.id); setPage(1); }}
-                className={`min-h-9 flex-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer sm:flex-none ${typeFilter === f.id
+                type="button"
+                onClick={() => { setTypeFilterId(f.id); setPage(1); }}
+                aria-pressed={typeFilterId === f.id}
+                className={`min-h-9 flex-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer sm:flex-none ${typeFilterId === f.id
                   ? "bg-slate-900 text-white shadow-md"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
@@ -433,9 +445,15 @@ export default function StockLogsTab() {
                         </td>
                         <td className="py-3 px-3 align-middle">
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
-                              <img src={log.product.imageUrl || getDefaultProductImage(log.product.category?.name)} alt="" className="w-full h-full object-cover" />
-                            </div>
+                            <ProductStockThumbnail
+                              name={log.product.name}
+                              decorative
+                              imageUrl={log.product.imageUrl}
+                              backupImageUrl={`/api/products/${encodeURIComponent(log.product.id)}/thumbnail`}
+                              categoryName={log.product.category?.name}
+                              size="sm"
+                              className="rounded-xl border-slate-100"
+                            />
                             <div className="min-w-0">
                               <p className="font-semibold text-slate-900 text-sm truncate max-w-[200px]">{log.product.name}</p>
                               <p className="text-[10px] text-slate-400 font-bold tracking-wider">{log.product.sku}</p>
@@ -535,9 +553,15 @@ export default function StockLogsTab() {
                   )}
                   <div className="flex min-w-0 items-start justify-between gap-3">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
-                        <img src={log.product.imageUrl || getDefaultProductImage(log.product.category?.name)} alt="" className="w-full h-full object-cover rounded-xl" />
-                      </div>
+                      <ProductStockThumbnail
+                        name={log.product.name}
+                        decorative
+                        imageUrl={log.product.imageUrl}
+                        backupImageUrl={`/api/products/${encodeURIComponent(log.product.id)}/thumbnail`}
+                        categoryName={log.product.category?.name}
+                        size="sm"
+                        className="h-10 w-10 rounded-xl border-slate-100"
+                      />
                       <div className="min-w-0">
                         <p className="font-bold text-slate-900 text-sm truncate">{log.product.name}</p>
                         <p className="text-[10px] text-slate-400 font-bold">{relativeTime(log.createdAt)}</p>

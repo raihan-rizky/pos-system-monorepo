@@ -1,7 +1,10 @@
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
+  type GetObjectCommandOutput,
   PutObjectCommand,
   S3Client,
+  S3ServiceException,
 } from "@aws-sdk/client-s3";
 
 type R2Environment = Record<string, string | undefined>;
@@ -81,6 +84,72 @@ function createR2Client(config: R2MediaStorageConfig) {
       secretAccessKey: config.secretAccessKey,
     },
   });
+}
+
+const PRODUCT_IMAGE_CONTENT_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/avif",
+]);
+let productImageClient: S3Client | undefined;
+
+function productImageObjectKey(imageUrl: string, publicBaseUrl: string) {
+  try {
+    const url = new URL(imageUrl);
+    const base = new URL(publicBaseUrl);
+    const prefix = `${base.pathname.replace(/\/+$/, "")}/`;
+    if (
+      url.origin !== base.origin ||
+      url.username ||
+      url.password ||
+      !url.pathname.startsWith(`${prefix}products/`)
+    ) {
+      return null;
+    }
+    return getR2MediaObjectKey(decodeURIComponent(url.pathname.slice(prefix.length)));
+  } catch {
+    return null;
+  }
+}
+
+export async function readProductImageFromR2(
+  imageUrl: string,
+  dependencies?: {
+    env?: R2Environment;
+    send?: (command: GetObjectCommand) => Promise<GetObjectCommandOutput>;
+  },
+) {
+  const env = dependencies?.env ?? process.env;
+  const publicBaseUrl = env.R2_PUBLIC_BASE_URL;
+  const key = publicBaseUrl ? productImageObjectKey(imageUrl, publicBaseUrl) : null;
+  if (!key) return null;
+
+  const config = getR2MediaStorageConfig(env);
+  const command = new GetObjectCommand({ Bucket: config.bucketName, Key: key });
+
+  try {
+    const object = dependencies?.send
+      ? await dependencies.send(command)
+      : await (productImageClient ??= createR2Client(config)).send(command, {
+          abortSignal: AbortSignal.timeout(6_000),
+        });
+    if (!object.Body) return null;
+
+    const body = object.Body.transformToWebStream();
+    const contentType = object.ContentType?.split(";", 1)[0].trim().toLowerCase();
+    if (!contentType || !PRODUCT_IMAGE_CONTENT_TYPES.has(contentType)) {
+      await body.cancel();
+      return null;
+    }
+    return { body, contentType };
+  } catch (error) {
+    if (error instanceof S3ServiceException && error.$metadata.httpStatusCode === 404) {
+      return null;
+    }
+    throw new MediaStorageUnavailableError();
+  }
 }
 
 export async function uploadMediaToR2(

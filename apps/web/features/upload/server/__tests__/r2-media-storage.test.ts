@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   deleteMediaFromR2,
   getR2MediaObjectKey,
+  readProductImageFromR2,
   uploadMediaToR2,
 } from "../r2-media-storage";
 
@@ -15,6 +16,47 @@ const VALID_ENV = {
 };
 
 describe("R2 media storage", () => {
+  it("reads a raster photo from the configured bucket without using the public URL", async () => {
+    const body = new Response("product photo").body;
+    const send = vi.fn().mockResolvedValue({
+      ContentType: "image/png",
+      Body: { transformToWebStream: () => body },
+    });
+
+    await expect(readProductImageFromR2(
+      "https://pub-example.r2.dev/products/kertas%20baru.png",
+      { env: VALID_ENV, send },
+    )).resolves.toEqual({ body, contentType: "image/png" });
+    expect(send.mock.calls[0][0].input).toEqual({
+      Bucket: "pos-media",
+      Key: "products/kertas baru.png",
+    });
+  });
+
+  it.each([
+    "https://other.example/products/kertas.png",
+    "https://pub-example.r2.dev/expenses/document.png",
+    "https://pub-example.r2.dev/products/..%2Fexpenses/document.png",
+  ])("ignores photo URLs outside the product namespace: %s", async (imageUrl) => {
+    const send = vi.fn();
+    await expect(readProductImageFromR2(imageUrl, { env: VALID_ENV, send })).resolves.toBeNull();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("rejects active image types before returning a same-origin response", async () => {
+    const cancel = vi.fn().mockResolvedValue(undefined);
+    const send = vi.fn().mockResolvedValue({
+      ContentType: "image/svg+xml",
+      Body: { transformToWebStream: () => ({ cancel }) },
+    });
+
+    await expect(readProductImageFromR2(
+      "https://pub-example.r2.dev/products/invalid.svg",
+      { env: VALID_ENV, send },
+    )).resolves.toBeNull();
+    expect(cancel).toHaveBeenCalled();
+  });
+
   it("uploads product media with the requested object key", async () => {
     const send = vi.fn().mockResolvedValue({});
 

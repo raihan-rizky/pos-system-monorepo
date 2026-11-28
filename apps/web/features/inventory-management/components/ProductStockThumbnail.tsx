@@ -11,7 +11,9 @@ const sizeClasses = {
 
 interface ProductStockThumbnailProps {
   name: string;
+  decorative?: boolean;
   imageUrl?: string | null;
+  backupImageUrl?: string;
   categoryName?: string | null;
   size?: keyof typeof sizeClasses;
   className?: string;
@@ -19,12 +21,16 @@ interface ProductStockThumbnailProps {
 
 export function ProductStockThumbnail({
   name,
+  decorative = false,
   imageUrl,
+  backupImageUrl,
   categoryName,
   size = "md",
   className,
 }: ProductStockThumbnailProps) {
   const fallbackSrc = getDefaultProductImage(categoryName);
+  const primarySrc = imageUrl?.trim() || fallbackSrc;
+  const recoverySrc = backupImageUrl && backupImageUrl !== primarySrc ? backupImageUrl : fallbackSrc;
 
   return (
     <div
@@ -35,13 +41,14 @@ export function ProductStockThumbnail({
       )}
     >
       <img
-        src={imageUrl || fallbackSrc}
-        alt={`Foto produk ${name}`}
+        src={primarySrc}
+        alt={decorative ? "" : `Foto produk ${name}`}
         loading="lazy"
         className="h-full w-full object-cover"
-        onError={(event) => {
-          event.currentTarget.onerror = null;
-          event.currentTarget.src = fallbackSrc;
+        onError={({ currentTarget }) => {
+          const failedSrc = currentTarget.getAttribute("src");
+          if (failedSrc === fallbackSrc) return;
+          currentTarget.src = failedSrc === primarySrc ? recoverySrc : fallbackSrc;
         }}
       />
     </div>

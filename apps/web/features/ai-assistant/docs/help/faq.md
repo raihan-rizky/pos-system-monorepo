@@ -484,6 +484,6 @@ Di baki pemindahan, pilih **ATK** atau **PERCETAKAN**, lalu subkategori; di pons
 
 ### Q57: Bagaimana cara mengedit atau membatalkan Stock Out Internal?
 
-1. Buka **Inventaris → Riwayat → Log Stok** dan periksa status entri pemakaian.
+1. Buka **Inventaris → Riwayat → Log Stok**, pilih **Pemakaian Internal**, lalu periksa status entri.
 2. Untuk permintaan sendiri yang menunggu, pilih **Edit** untuk memperbarui produk, jumlah, atau alasan. Pilih **Batalkan** untuk menarik permintaan. Aksi mengikuti izin akun.
 3. Untuk pemakaian yang sudah disetujui, Owner dapat memilih **Koreksi** atau **Batalkan** dan mengisi alasan selama hari stok masih terbuka. Pembatalan mengembalikan jumlah pemakaian yang masih tercatat keluar. Gunakan **Input awal** untuk memeriksa log asli dan **Rekap Pemakaian Internal** untuk melihat hasilnya.

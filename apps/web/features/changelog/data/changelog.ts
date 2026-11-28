@@ -31,7 +31,7 @@ export const CHANGELOG: ChangeEntry[] = [
     href: "/inventory",
     visual: "history-table",
     steps: [
-      { title: "Buka Log Stok", detail: "Masuk ke Inventaris → Riwayat → Log Stok dan cari entri pemakaian." },
+      { title: "Buka Log Stok", detail: "Masuk ke Inventaris → Riwayat → Log Stok, lalu pilih Pemakaian Internal." },
       { title: "Pilih tindakan", detail: "Pemohon dapat mengedit atau membatalkan entri yang menunggu. Owner dapat mengoreksi atau membatalkan entri yang sudah disetujui selama hari stok terbuka." },
       { title: "Konfirmasi perubahan", detail: "Simpan perubahan atau konfirmasi pembatalan. Isi alasan untuk koreksi atau pembatalan entri yang sudah disetujui." },
     ],

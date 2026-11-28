@@ -110,6 +110,7 @@ describe("StockLogsTab", () => {
     expect(html).toContain("Perlu Koreksi");
     expect(html).toContain("border-rose-200");
     expect(html).not.toContain(">Koreksi</button>");
+    expect(html.match(/src="\/images\/kertas_default\.png" alt=""/g)).toHaveLength(2);
   });
 
   it("groups an inbound receipt as an openable supplier bundle without PB number in the list", () => {

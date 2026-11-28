@@ -310,6 +310,85 @@ test.describe("Stock approval flow — role-aware behavior", () => {
   });
 
   test.describe("Stock Logs UI states", () => {
+    test("finds internal usage actions apart from other stock logs", async ({ page }) => {
+      const usage = makeStockLog({
+        type: "OUT",
+        reason: "USAGE",
+        status: "APPROVED",
+        note: "Kertas untuk laporan toko",
+      });
+      const adjustment = makeStockLog({
+        type: "ADJUSTMENT",
+        reason: "MANUAL_ADJUSTMENT",
+        status: "APPROVED",
+        note: "Penyesuaian stok etalase",
+      });
+      await setupRole(page, "OWNER", {
+        initialLogs: [adjustment, REJECTED_HISTORICAL, usage],
+      });
+      const sa = new StockApprovalPage(page);
+      await sa.gotoInventory();
+      await sa.openStockLogsTab();
+
+      const table = page.getByRole("table");
+      await expect(table.getByText("Penyesuaian stok etalase")).toBeVisible();
+      const filter = page.getByRole("button", { name: "Pemakaian Internal", exact: true });
+      await expect(filter).toBeVisible({ timeout: 5000 });
+      await filter.click();
+
+      const usageRow = table.getByRole("row").filter({ hasText: "Kertas untuk laporan toko" });
+      await expect(usageRow.getByRole("button", { name: "Koreksi", exact: true })).toBeVisible();
+      await expect(usageRow.getByRole("button", { name: "Batalkan", exact: true })).toBeVisible();
+      await expect(table.getByRole("row")).toHaveCount(2);
+    });
+
+    test("loads a fallback thumbnail at desktop and mobile widths when the original returns 522", async ({ page }) => {
+      const originalUrl = "https://assets.stock-log.test/kertas.png";
+      const log = makeStockLog({
+        ...APPROVED_HISTORICAL,
+        product: {
+          ...APPROVED_HISTORICAL.product,
+          imageUrl: originalUrl,
+          category: { name: "Kertas", icon: null },
+        },
+      });
+      await setupRole(page, "OWNER", { initialLogs: [log] });
+      await page.route(originalUrl, (route) => route.fulfill({ status: 522 }));
+      const sa = new StockApprovalPage(page);
+      await sa.gotoInventory();
+      await sa.openStockLogsTab();
+
+      const thumbnail = page.locator('img[src="/images/kertas_default.png"]:visible');
+      await expect(thumbnail).toBeVisible({ timeout: 5000 });
+      await expect.poll(() => thumbnail.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+
+      await page.setViewportSize({ width: 390, height: 844 });
+      await expect(thumbnail).toBeVisible();
+      await expect.poll(() => thumbnail.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+    });
+
+    test("recovers the product photo through the app when the public image fails", async ({ page }) => {
+      const originalUrl = "https://assets.stock-log.test/kertas.png";
+      const log = makeStockLog({
+        ...APPROVED_HISTORICAL,
+        product: { ...APPROVED_HISTORICAL.product, imageUrl: originalUrl },
+      });
+      const backupUrl = `/api/products/${log.product.id}/thumbnail`;
+      await setupRole(page, "OWNER", { initialLogs: [log] });
+      await page.route(originalUrl, (route) => route.fulfill({ status: 522 }));
+      await page.route(`**${backupUrl}`, (route) => route.fulfill({
+        path: "public/images/kertas.png",
+        contentType: "image/png",
+      }));
+      const sa = new StockApprovalPage(page);
+      await sa.gotoInventory();
+      await sa.openStockLogsTab();
+
+      const thumbnail = page.locator(`img[src="${backupUrl}"]:visible`);
+      await expect(thumbnail).toBeVisible({ timeout: 5000 });
+      await expect.poll(() => thumbnail.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+    });
+
     test("renders pending pinned to top, status pills, and rejection reason on rejected rows", async ({
       page,
     }) => {
