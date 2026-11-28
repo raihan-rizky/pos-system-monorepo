@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "pembayaran-tercatat-satu-form", date: "2026-11-28", revision: 1,
+    highlight: { title: "Edit pembayaran dalam satu form", summary: "Ubah langsung metode, nominal, dan tanggal pembayaran tercatat." },
+    title: "Ubah pembayaran tercatat dalam satu form",
+    summary: "Klik Ubah untuk melihat metode, nominal, dan tanggal sekaligus. Saat memilih Transfer + Giro, cukup isi nominal Transfer dan bagian Giro dihitung otomatis.",
+    kind: "improvement", impact: "minor", area: "Keuangan", href: "/keuangan", visual: "financial",
+    screenshot: { src: "/images/changelog/pembayaran-tercatat-satu-form-2026-11-28.png", alt: "Form pembayaran contoh dengan pilihan Transfer dan Giro, nominal, dan tanggal yang langsung terlihat." },
+    steps: [
+      { title: "Buka pembayaran tercatat", detail: "Pilih Ubah pembayaran dari kartu Giro Pembelian." },
+      { title: "Klik Ubah", detail: "Edit metode, nominal, dan tanggal pada baris pembayaran." },
+      { title: "Periksa lalu simpan", detail: "Isi alasan, pilih Tinjau dampak, lalu simpan koreksi." },
+    ],
+  },
+  {
     id: "internal-stock-out-edit-cancel",
     date: "2026-11-28",
     revision: 1,

@@ -23,6 +23,9 @@ function nodes(node: unknown): ReactElement<any>[] {
 function text(n: any): string { return typeof n === "string" ? n : Array.isArray(n) ? n.map(text).join("") : n?.props ? text(n.props.children) : ""; }
 function render(data = editor, initialSection: "details" | "payment" = "details", onReload?: () => Promise<typeof editor>) { state.index = 0; return nodes(ShoppingRequestCorrectionForm({ editor: data, onClose: vi.fn(), initialSection, onReload })); }
 function input(label: string) { return render().find(n => n.props["aria-label"] === label)!; }
+function action(tree: ReactElement<any>[], label: string) {
+  return tree.find(n => n.type === "button" && (n.props["aria-label"] ?? text(n)) === label)!;
+}
 async function submit() { await render().find(n => n.type === "form")!.props.onSubmit({ preventDefault() {} }); }
 beforeEach(() => { state.values = []; preview.mockReset(); save.mockReset(); preview.mockResolvedValue({ version: "v1", oldTotal: "700.00", newTotal: "500.00", paid: "700.00", overpaid: "200.00", stock: [{ productId: "pr1", baseDelta: -2, unit: "rim" }], affectedDates: ["2026-11-01"], changes: [{ field: "receivedQty", before: 7, after: 5 }] }); });
 it("pintasan pembayaran menampilkan ringkasan tanpa mencampurkan formulir barang", () => {
@@ -113,7 +116,7 @@ it("memuat data terbaru saat konflik tanpa membuang jadwal dan alasan yang sedan
   tree = render(data, "payment", reload);
   expect(tree.find(n => n.type === InboundPaymentFields)!.props.payments).toMatchObject([{ amount: 200 }, { amount: 500, dueDate: "2026-12-05" }]);
   expect(tree.find(n => n.props["aria-label"] === "Alasan perubahan")!.props.value).toBe("Kesepakatan baru");
-  expect(tree.find(n => n.props["aria-label"] === "Alokasi TRANSFER pembayaran 1")!.props.value).toBe("800.00");
+  expect(tree.map(text).join(" ")).toMatch(/Transfer.*800/);
   await tree.find(n => n.type === "form")!.props.onSubmit({ preventDefault() {} });
   expect(preview).toHaveBeenLastCalledWith(expect.objectContaining({ expectedVersion: "v2" }));
 });
@@ -158,23 +161,21 @@ it("meminta pilihan eksplisit sebelum menerapkan kembali koreksi pembayaran aktu
   const reload = vi.fn().mockResolvedValue(latest);
   preview.mockRejectedValueOnce(Object.assign(new Error("Data berubah. Muat ulang."), { status: 409 }));
   let tree = render(data, "payment", reload);
-  const checkbox = nodes(tree.find(n => n.type === "label" && text(n).includes("Koreksi nominal atau tanggal"))).find(n => n.type === "input")!;
-  checkbox.props.onChange({ target: { checked: true } });
+  action(tree, "Ubah pembayaran tercatat 1").props.onClick();
   tree = render(data, "payment", reload);
-  nodes(tree.find(n => n.type === "label" && text(n) === "Nominal")).find(n => n.type === "input")!.props.onChange({ target: { value: "600" } });
+  tree.find(n => n.props["aria-label"] === "Nominal pembayaran 1")!.props.onChange({ target: { value: "600" } });
   tree = render(data, "payment", reload);
-  tree.find(n => n.props["aria-label"] === "Alokasi TRANSFER pembayaran 1")!.props.onChange({ target: { value: "600" } });
   tree.find(n => n.props["aria-label"] === "Alasan perubahan")!.props.onChange({ target: { value: "Koreksi nominal" } });
   tree = render(data, "payment", reload);
   await tree.find(n => n.type === "form")!.props.onSubmit({ preventDefault() {} });
   tree = render(data, "payment", reload);
   await tree.find(n => n.type === "button" && text(n) === "Muat data terbaru")!.props.onClick();
   tree = render(data, "payment", reload);
-  expect(tree.find(n => n.props["aria-label"] === "Alokasi TRANSFER pembayaran 1")!.props.value).toBe("800.00");
+  expect(tree.map(text).join(" ")).toMatch(/Transfer.*800/);
   expect(tree.map(text).join(" ")).toContain("600");
   tree.find(n => n.type === "button" && text(n) === "Gunakan kembali koreksi saya")!.props.onClick();
   tree = render(data, "payment", reload);
-  expect(tree.find(n => n.props["aria-label"] === "Alokasi TRANSFER pembayaran 1")!.props.value).toBe("600");
+  expect(tree.map(text).join(" ")).toMatch(/Transfer.*600/);
   await tree.find(n => n.type === "form")!.props.onSubmit({ preventDefault() {} });
   expect(preview).toHaveBeenLastCalledWith(expect.objectContaining({ expectedVersion: "v2", payment: expect.objectContaining({ corrections: [expect.objectContaining({ amount: "600" })] }) }));
 });
@@ -315,13 +316,15 @@ it("menolak total jadwal yang tidak sesuai tanpa mengirim preview dan mempertaha
   expect(input("Alasan perubahan").props.value).toBe("Perbaiki rincian");
 });
 
-it("menolak alokasi yang tidak mencakup sumber pembayaran tanpa menghapus isian", async () => {
-  input("Alokasi TRANSFER pembayaran 1").props.onChange({ target: { value: "600" } });
+it("menolak pembagian yang menghabiskan nominal Giro dan mempertahankan isian", async () => {
+  action(render(), "Ubah pembayaran tercatat 1").props.onClick();
+  action(render(), "Transfer + Giro").props.onClick();
+  input("Nominal Transfer pembayaran 1").props.onChange({ target: { value: "700" } });
   input("Alasan perubahan").props.onChange({ target: { value: "Perbaiki alokasi" } });
   await submit();
   expect(preview).not.toHaveBeenCalled();
-  expect(render().map(text).join(" ")).toMatch(/alokasi.*sama.*pembayaran/i);
-  expect(input("Alokasi TRANSFER pembayaran 1").props.value).toBe("600");
+  expect(render().map(text).join(" ")).toMatch(/nominal Transfer.*lebih kecil/i);
+  expect(input("Nominal Transfer pembayaran 1").props.value).toBe("700");
 });
 
 it("mengulang simpan dengan payload dan kunci sama setelah gangguan jaringan", async () => {
@@ -357,13 +360,50 @@ it("menyarankan jadwal untuk sisa tanpa mengubah pembayaran transfer tercatat", 
 
 it("mengganti metode pembayaran tercatat tanpa menggandakan uang atau mengubah jadwal", async () => {
   const tree = render(editor, "payment");
-  tree.find(n => n.type === "select" && n.props["aria-label"] === "Metode pembayaran tercatat 1")!.props.onChange({ target: { value: "GIRO" } });
+  action(tree, "Ubah pembayaran tercatat 1").props.onClick();
+  action(render(editor, "payment"), "Giro").props.onClick();
   render(editor, "payment").find(n => n.props["aria-label"] === "Alasan perubahan")!.props.onChange({ target: { value: "Bukti pembayaran Giro" } });
   await render(editor, "payment").find(n => n.type === "form")!.props.onSubmit({ preventDefault() {} });
   expect(preview).toHaveBeenCalledWith(expect.objectContaining({ payment: expect.objectContaining({
     method: "TRANSFER",
     allocations: [{ ...editor.payment.allocations[0], method: "GIRO" }],
     corrections: [],
+  }) }));
+});
+
+it("langsung menampilkan nominal dan tanggal di satu form dan menyesuaikan alokasi saat nominal diubah", async () => {
+  const collapsed = render();
+  expect(collapsed.some(n => n.props["aria-label"] === "Nominal pembayaran 1")).toBe(false);
+  action(collapsed, "Ubah pembayaran tercatat 1").props.onClick();
+  expect(input("Nominal pembayaran 1").props.value).toBe("700.00");
+  expect(input("Tanggal pembayaran 1").props.value).toBe("2026-11-01");
+  expect(action(render(), "Transfer").props["aria-pressed"]).toBe(true);
+  input("Nominal pembayaran 1").props.onChange({ target: { value: "625.50" } });
+  input("Tanggal pembayaran 1").props.onChange({ target: { value: "2026-11-03" } });
+  action(render(), "Selesai").props.onClick();
+  expect(render().some(n => n.props["aria-label"] === "Nominal pembayaran 1")).toBe(false);
+  input("Alasan perubahan").props.onChange({ target: { value: "Sesuai catatan" } });
+  await submit();
+  expect(preview).toHaveBeenCalledWith(expect.objectContaining({ payment: expect.objectContaining({
+    allocations: [{ ...editor.payment.allocations[0], amount: "625.50" }],
+    corrections: [{ ...editor.payment.sources[0], amount: "625.50", paidAt: "2026-11-03" }],
+  }) }));
+});
+
+it("menghitung bagian Giro dari total dikurangi nominal Transfer", async () => {
+  action(render(), "Ubah pembayaran tercatat 1").props.onClick();
+  action(render(), "Transfer + Giro").props.onClick();
+  input("Nominal Transfer pembayaran 1").props.onChange({ target: { value: "200.23" } });
+  expect(text(render().find(n => n.type === "output"))).toMatch(/499,77/);
+  input("Nominal pembayaran 1").props.onChange({ target: { value: "680.20" } });
+  expect(text(render().find(n => n.type === "output"))).toMatch(/479,97/);
+  input("Alasan perubahan").props.onChange({ target: { value: "Bayar dengan dua metode" } });
+  await submit();
+  expect(preview).toHaveBeenCalledWith(expect.objectContaining({ payment: expect.objectContaining({
+    allocations: [
+      { ...editor.payment.allocations[0], amount: "200.23" },
+      { ...editor.payment.allocations[0], method: "GIRO", amount: "479.97" },
+    ],
   }) }));
 });
 
@@ -385,8 +425,8 @@ it("mengganti nominal dan alokasi pembayaran lama dengan Giro bulan ini menurut 
   vi.setSystemTime(new Date("2026-11-30T17:00:00Z"));
 
   const tree = render(giroExample, "payment");
-  expect(tree.find(n => n.props["aria-label"] === "Metode pembayaran tercatat 1")?.props.value).toBe("GIRO");
-  expect(tree.filter(n => n.type === "legend").map(text).join(" ")).toContain("4.581.769,2");
+  expect(action(tree, "Ubah manual pembayaran tercatat 1")).toBeDefined();
+  expect(tree.map(text).join(" ")).toMatch(/Mengikuti jadwal Giro.*4.127.720.*4.581.769,2/);
   tree.find(n => n.props["aria-label"] === "Alasan perubahan")!.props.onChange({ target: { value: "Samakan nominal pembayaran dengan jadwal Giro" } });
   await render(giroExample, "payment").find(n => n.type === "form")!.props.onSubmit({ preventDefault() {} });
   expect(preview).toHaveBeenCalledWith(expect.objectContaining({ payment: expect.objectContaining({
@@ -405,7 +445,7 @@ it.each(["2026-11-30T16:59:59Z", "2026-12-31T17:00:00Z"])(
     vi.setSystemTime(new Date(now));
 
     const tree = render(giroExample, "payment");
-    expect(tree.find(n => n.props["aria-label"] === "Metode pembayaran tercatat 1")?.props.value).toBe("TRANSFER");
+    expect(action(tree, "Ubah pembayaran tercatat 1")).toBeDefined();
     tree.find(n => n.props["aria-label"] === "Alasan perubahan")!.props.onChange({ target: { value: "Periksa catatan pembayaran" } });
     await render(giroExample, "payment").find(n => n.type === "form")!.props.onSubmit({ preventDefault() {} });
     expect(preview).toHaveBeenCalledWith(expect.objectContaining({ payment: expect.objectContaining({
@@ -415,23 +455,24 @@ it.each(["2026-11-30T16:59:59Z", "2026-12-31T17:00:00Z"])(
   },
 );
 
-it("membatalkan penggantian otomatis dan membuka koreksi manual", async () => {
+it("membuka koreksi manual dari draf Giro dan dapat kembali mengikuti jadwal", async () => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-12-24T04:00:00Z"));
 
   const tree = render(giroExample, "payment");
-  const automatic = tree.find(n => n.props["aria-label"] === "Pakai nominal jadwal Giro")!;
-  expect(automatic?.props.checked).toBe(true);
-  automatic.props.onChange({ target: { checked: false } });
-  const reverted = render(giroExample, "payment");
-  const method = reverted.find(n => n.props["aria-label"] === "Metode pembayaran tercatat 1")!;
-  expect(method.props.value).toBe("TRANSFER");
-  expect(method.props.disabled).toBeFalsy();
-  reverted.find(n => n.props["aria-label"] === "Alasan perubahan")!.props.onChange({ target: { value: "Pertahankan pembayaran aktual" } });
+  action(tree, "Ubah manual pembayaran tercatat 1").props.onClick();
+  let edited = render(giroExample, "payment");
+  expect(edited.find(n => n.props["aria-label"] === "Nominal pembayaran 1")?.props.value).toBe("4581769.20");
+  expect(edited.find(n => n.props["aria-label"] === "Tanggal pembayaran 1")?.props.value).toBe("2026-11-27");
+  action(edited, "Transfer").props.onClick();
+  action(render(giroExample, "payment"), "Pakai jadwal Giro").props.onClick();
+  edited = render(giroExample, "payment");
+  expect(edited.some(n => n.props["aria-label"] === "Nominal pembayaran 1")).toBe(false);
+  edited.find(n => n.props["aria-label"] === "Alasan perubahan")!.props.onChange({ target: { value: "Ikuti jadwal Giro" } });
   await render(giroExample, "payment").find(n => n.type === "form")!.props.onSubmit({ preventDefault() {} });
   expect(preview).toHaveBeenCalledWith(expect.objectContaining({ payment: expect.objectContaining({
-    allocations: giroExample.payment.allocations,
-    corrections: [],
+    allocations: [{ ...giroExample.payment.allocations[0], method: "GIRO", amount: "4581769.20" }],
+    corrections: [{ ...giroExample.payment.sources[0], amount: "4581769.20" }],
   }) }));
 });
 
@@ -443,8 +484,8 @@ it("memakai kembali nominal asli saat jadwal dipindah ke bulan depan", async () 
   ]);
 
   const tree = render(giroExample, "payment");
-  expect(tree.find(n => n.props["aria-label"] === "Metode pembayaran tercatat 1")?.props.value).toBe("TRANSFER");
-  expect(tree.some(n => n.props["aria-label"] === "Pakai nominal jadwal Giro")).toBe(false);
+  expect(action(tree, "Ubah pembayaran tercatat 1")).toBeDefined();
+  expect(tree.map(text).join(" ")).not.toContain("Mengikuti jadwal Giro");
 });
 
 it.each([0, 2])("membiarkan koreksi manual bila jumlah pembayaran tercatat %s", (count) => {
@@ -453,6 +494,6 @@ it.each([0, 2])("membiarkan koreksi manual bila jumlah pembayaran tercatat %s", 
   const sources = Array.from({ length: count }, (_, i) => ({ ...giroExample.payment.sources[0], paymentId: `pay${i}` }));
   const allocations = sources.map(source => ({ ...giroExample.payment.allocations[0], paymentId: source.paymentId }));
   const tree = render({ ...giroExample, payment: { ...giroExample.payment, sources, allocations } }, "payment");
-  expect(tree.some(n => n.props["aria-label"] === "Pakai nominal jadwal Giro")).toBe(false);
-  expect(tree.filter(n => n.type === "select" && n.props["aria-label"]?.startsWith("Metode pembayaran tercatat"))).toHaveLength(count);
+  expect(tree.map(text).join(" ")).not.toContain("Mengikuti jadwal Giro");
+  expect(tree.filter(n => n.type === "button" && n.props["aria-label"]?.startsWith("Ubah pembayaran tercatat"))).toHaveLength(count);
 });
