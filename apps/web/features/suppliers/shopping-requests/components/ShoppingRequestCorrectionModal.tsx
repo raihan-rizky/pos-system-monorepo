@@ -19,6 +19,9 @@ import styles from "./ShoppingRequestCorrectionModal.module.css";
 const control = "min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600";
 const action = "min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600 disabled:opacity-50";
 const money = formatRupiahPrecise;
+const jakartaDate = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit",
+});
 type EditorItem = ShoppingRequestCorrectionEditor["items"][number];
 type PaymentDraft = { keys: string[]; allocations: ShoppingRequestCorrectionInput["payment"]["allocations"]; corrections: ShoppingRequestCorrectionInput["payment"]["corrections"] };
 type ScheduleDraft = { method: "TRANSFER" | "GIRO" | null; dueDate: string; schedule: InboundPaymentInput[] | undefined };
@@ -78,6 +81,7 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
   const [schedule, setSchedule] = useState<InboundPaymentInput[] | undefined>(() => editor.payment.schedule?.length ? editor.payment.schedule.map(row => ({ ...row, amount: Number(row.amount) })) : undefined);
   const [allocations, setAllocations] = useState<ShoppingRequestCorrectionInput["payment"]["allocations"]>(() => editor.payment.allocations);
   const [corrections, setCorrections] = useState<ShoppingRequestCorrectionInput["payment"]["corrections"]>([]);
+  const [useScheduledGiro, setUseScheduledGiro] = useState(true);
   const [catalog, setCatalog] = useState<ShoppingRequestCorrectionInput["catalog"]>([]);
   const [stage, setStage] = useState<"edit" | "catalog" | "review">("edit");
   const [review, setReview] = useState<{ preview: CorrectionPreview; input: ShoppingRequestCorrectionInput } | null>(null);
@@ -114,11 +118,26 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
   const plannedTransfer = plannedPayments.filter(row => row.method === "TRANSFER").reduce((sum, row) => sum + Math.round(row.amount * 100), 0) / 100;
   const plannedGiro = plannedPayments.filter(row => row.method === "GIRO").reduce((sum, row) => sum + Math.round(row.amount * 100), 0) / 100;
   const giroDates = plannedPayments.filter(row => row.method === "GIRO").map(row => row.dueDate).filter((date): date is string => Boolean(date));
-  const recordedTransfer = allocations.filter(row => row.method === "TRANSFER").reduce((sum, row) => sum + Math.round(Number(row.amount) * 100), 0);
-  const recordedGiro = allocations.filter(row => row.method === "GIRO").reduce((sum, row) => sum + Math.round(Number(row.amount) * 100), 0);
+  const singleGiro = plannedPayments.length === 1 && plannedPayments[0].method === "GIRO" ? plannedPayments[0] : null;
+  const singleSource = editor.payment.sources.length === 1 ? editor.payment.sources[0] : null;
+  const scheduledCorrection = initialSection === "payment" && singleSource && singleGiro?.dueDate &&
+    singleGiro.dueDate.slice(0, 7) === jakartaDate.format(new Date()).slice(0, 7) &&
+    plannedGiro > 0 && Math.round(plannedGiro * 100) === Math.round(scheduledTotal * 100) &&
+    plannedGiro !== Number(singleSource.amount)
+    ? { ...singleSource, amount: plannedGiro.toFixed(2), paidAt: singleSource.paidAt.slice(0, 10) }
+    : null;
+  const automaticCorrection = useScheduledGiro ? scheduledCorrection : null;
+  const paymentCorrections = automaticCorrection ? [automaticCorrection] : corrections;
+  const paymentAllocations: typeof allocations = automaticCorrection ? [{
+    paymentId: automaticCorrection.paymentId,
+    sourceKind: automaticCorrection.sourceKind,
+    amount: automaticCorrection.amount,
+    method: "GIRO",
+  }] : allocations;
+  const recordedTransfer = paymentAllocations.filter(row => row.method === "TRANSFER").reduce((sum, row) => sum + Math.round(Number(row.amount) * 100), 0);
+  const recordedGiro = paymentAllocations.filter(row => row.method === "GIRO").reduce((sum, row) => sum + Math.round(Number(row.amount) * 100), 0);
   const transferOverPlan = recordedTransfer > Math.round(plannedTransfer * 100);
   const giroOverPlan = recordedGiro > Math.round(plannedGiro * 100);
-  const singleGiro = plannedPayments.length === 1 && plannedPayments[0].method === "GIRO" ? plannedPayments[0] : null;
   const giroAfterTransfer = (Math.round(scheduledTotal * 100) - recordedTransfer) / 100;
   const canSuggestSchedule = singleGiro?.dueDate && transferOverPlan && recordedGiro === 0 && giroAfterTransfer > 0;
   const changedPrices = items.filter(item => !editor.items.some(old => old.clientLineKey === item.clientLineKey && old.productId === item.productId && Number(old.unitPrice) === Number(item.unitPrice)));
@@ -153,9 +172,9 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
         }
       } else if (method === "GIRO" && !dueDate) throw new Error("Tanggal jatuh tempo Giro wajib diisi.");
       for (const source of editor.payment.sources) {
-        const correction = corrections.find(entry => entry.paymentId === source.paymentId && entry.sourceKind === source.sourceKind);
+        const correction = paymentCorrections.find(entry => entry.paymentId === source.paymentId && entry.sourceKind === source.sourceKind);
         const amount = Number(correction?.amount ?? source.amount);
-        const allocated = allocations.filter(entry => entry.paymentId === source.paymentId && entry.sourceKind === source.sourceKind)
+        const allocated = paymentAllocations.filter(entry => entry.paymentId === source.paymentId && entry.sourceKind === source.sourceKind)
           .reduce((sum, entry) => sum + Math.round(Number(entry.amount) * 100), 0);
         if (!Number.isFinite(amount) || !Number.isFinite(allocated) || allocated !== Math.round(amount * 100)) {
           throw new Error("Jumlah alokasi harus sama dengan nominal pembayaran tercatat. Periksa alokasi Transfer dan Giro.");
@@ -170,7 +189,7 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
       idempotencyKey, expectedVersion: editor.version, reason: reason.trim(),
       header: { ...header, name: header.name?.trim() ?? "", number: header.number?.trim() ?? "" },
       items: items.map(({ clientLineKey, requestItemId, purchaseItemId, productId, unit, requestedQty, approvedQty, orderedQty, unitPrice, receipts }) => ({ clientLineKey, requestItemId, purchaseItemId, productId, unit, requestedQty, approvedQty, orderedQty, unitPrice, receipts })),
-      payment: { method, dueDate: dueDate || null, ...(schedule ? { schedule: schedule.map(row => ({ ...row, amount: row.amount.toFixed(2), dueDate: row.dueDate ?? null, note: row.note ?? null })) } : {}), allocations: allocations.filter(entry => Number(entry.amount) > 0), corrections },
+      payment: { method, dueDate: dueDate || null, ...(schedule ? { schedule: schedule.map(row => ({ ...row, amount: row.amount.toFixed(2), dueDate: row.dueDate ?? null, note: row.note ?? null })) } : {}), allocations: paymentAllocations.filter(entry => Number(entry.amount) > 0), corrections: paymentCorrections },
       catalog: catalog.filter(entry => items.some(item => item.productId === entry.productId) && (entry.costPrice !== null || entry.salePrice !== null)),
     };
     const signature = JSON.stringify({ ...input, idempotencyKey: undefined });
@@ -222,6 +241,7 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
     if (!paymentDraft) return;
     const available = new Set(editor.payment.sources.map(paymentSourceKey));
     if (paymentDraft.keys.some(key => !available.has(key))) return;
+    setUseScheduledGiro(false);
     setAllocations(current => [...current.filter(row => !paymentDraft.keys.includes(paymentSourceKey(row))), ...paymentDraft.allocations]);
     setCorrections(current => [...current.filter(row => !paymentDraft.keys.includes(paymentSourceKey(row))), ...paymentDraft.corrections]);
     setPaymentDraft(null);
@@ -331,16 +351,26 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
         </aside>
         </div>
         <h3 className="border-t border-slate-200 pt-4 font-bold">Pembayaran tercatat</h3>
+        {scheduledCorrection && singleSource && <div className="space-y-1 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
+          <label className="flex min-h-11 items-center gap-2 font-semibold">
+            <input type="checkbox" aria-label="Pakai nominal jadwal Giro" checked={useScheduledGiro} onChange={event => {
+              setUseScheduledGiro(event.target.checked);
+              setError(null);
+            }} />
+            Pakai nominal jadwal Giro
+          </label>
+          <p>Giro jatuh tempo bulan ini. Nominal pembayaran akan berubah dari {money(singleSource.amount)} menjadi {money(scheduledCorrection.amount)} jika pilihan ini aktif dan koreksi disimpan.</p>
+        </div>}
         {!editor.payment.sources.length && <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Belum ada pembayaran tercatat. Jadwal pembayaran tidak membuat pelunasan otomatis.</p>}
         {editor.payment.sources.map((source, index) => {
           const belongsToPayment = (entry: { paymentId: string; sourceKind: string }) =>
             entry.paymentId === source.paymentId && entry.sourceKind === source.sourceKind;
-          const correction = corrections.find(belongsToPayment);
-          const sourceAllocations = allocations.filter(entry => belongsToPayment(entry) && Number(entry.amount) > 0);
+          const correction = paymentCorrections.find(belongsToPayment);
+          const sourceAllocations = paymentAllocations.filter(entry => belongsToPayment(entry) && Number(entry.amount) > 0);
           const recordedMethod = sourceAllocations.length === 1 ? sourceAllocations[0].method : "";
-          return <fieldset key={`${source.sourceKind}:${source.paymentId}`} aria-invalid={paymentError?.includes("alokasi") ? true : undefined} aria-describedby={paymentError?.includes("alokasi") ? "correction-allocation-error" : undefined} className="space-y-3 rounded-xl border p-3"><legend>Pembayaran {index + 1} · {money(source.amount)} · {correctionDate(source.paidAt)}</legend>
+          return <fieldset key={`${source.sourceKind}:${source.paymentId}`} aria-invalid={paymentError?.includes("alokasi") ? true : undefined} aria-describedby={paymentError?.includes("alokasi") ? "correction-allocation-error" : undefined} className="space-y-3 rounded-xl border p-3"><legend>Pembayaran {index + 1} · {money(correction?.amount ?? source.amount)} · {correctionDate(correction?.paidAt ?? source.paidAt)}</legend>
             <label className="block text-sm font-medium">Metode pembayaran tercatat
-              <select className={control} aria-label={`Metode pembayaran tercatat ${index + 1}`} value={recordedMethod} onChange={event => {
+              <select className={control} aria-label={`Metode pembayaran tercatat ${index + 1}`} disabled={Boolean(automaticCorrection)} value={recordedMethod} onChange={event => {
                 const next = event.target.value;
                 if (next !== "TRANSFER" && next !== "GIRO") return;
                 setAllocations(current => [...current.filter(entry => !belongsToPayment(entry)), {
@@ -353,13 +383,13 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
                 <option value="GIRO">Giro</option>
               </select>
             </label>
-            <details className="space-y-2 text-sm" open={paymentError?.includes("alokasi") || undefined}>
+            {!automaticCorrection && <details className="space-y-2 text-sm" open={paymentError?.includes("alokasi") || undefined}>
               <summary className="min-h-11 cursor-pointer py-2 font-medium">Koreksi lanjutan</summary>
               <p className="text-slate-600">Bagi nominal ke Transfer dan Giro, atau koreksi nominal dan tanggal sesuai bukti pembayaran.</p>
             <div className="grid gap-3 sm:grid-cols-2">{(["TRANSFER", "GIRO"] as const).map(allocationMethod => <label key={allocationMethod}>Alokasi {allocationMethod === "GIRO" ? "Giro" : "Transfer"}<input className={control} aria-label={`Alokasi ${allocationMethod} pembayaran ${index + 1}`} type="number" min="0" step="0.01" value={allocations.find(entry => entry.paymentId === source.paymentId && entry.sourceKind === source.sourceKind && entry.method === allocationMethod)?.amount ?? "0"} onChange={e => setAllocations(current => [...current.filter(entry => !(entry.paymentId === source.paymentId && entry.sourceKind === source.sourceKind && entry.method === allocationMethod)), { paymentId: source.paymentId, sourceKind: source.sourceKind, method: allocationMethod, amount: e.target.value }])} /></label>)}</div>
             <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={Boolean(correction)} onChange={e => setCorrections(current => e.target.checked ? [...current, { ...source, paidAt: source.paidAt.slice(0, 10) }] : current.filter(entry => !(entry.paymentId === source.paymentId && entry.sourceKind === source.sourceKind)))} />Koreksi nominal atau tanggal pembayaran ini</label>
             {correction && <div className="grid gap-3 sm:grid-cols-2">{([ ["amount", "Nominal", "number"], ["paidAt", "Tanggal pembayaran", "date"] ] as const).map(([field, label, type]) => <label key={field}>{label}<input className={control} type={type} min={type === "number" ? "0" : undefined} step={type === "number" ? "0.01" : undefined} required value={correction[field]} onChange={e => setCorrections(current => current.map(entry => entry === correction ? { ...entry, [field]: e.target.value } : entry))} /></label>)}</div>}
-            </details>
+            </details>}
           </fieldset>;
         })}
         {paymentError?.includes("alokasi") && <p id="correction-allocation-error" className="text-sm font-semibold text-rose-800">{paymentError}</p>}

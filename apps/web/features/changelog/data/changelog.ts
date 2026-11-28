@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "giro-nominal-jadwal-bulan-berjalan", date: "2026-11-28", revision: 1,
+    highlight: { title: "Nominal Giro mengikuti jadwal", summary: "Form koreksi mengisi nominal Giro yang jatuh tempo bulan ini." },
+    title: "Koreksi nominal Giro dari jadwal bulan ini",
+    summary: "Untuk satu jadwal Giro bulan ini dan satu pembayaran tercatat, form mengisi nominal pengganti dari jadwal. Anda bisa meninjau hasilnya atau mengoreksi secara manual.",
+    kind: "improvement", impact: "minor", area: "Keuangan", href: "/keuangan", visual: "financial",
+    steps: [
+      { title: "Buka Ubah pembayaran", detail: "Buka koreksi dari kartu Giro Pembelian." },
+      { title: "Periksa nominal Giro", detail: "Tinjau nominal yang diisi dari jadwal bulan ini." },
+      { title: "Tinjau dan simpan", detail: "Isi alasan, pilih Tinjau dampak, lalu simpan koreksi." },
+    ],
+  },
+  {
     id: "giro-pembelian-saldo-dan-koreksi", date: "2026-11-28", revision: 1,
     highlight: { title: "Saldo Giro lebih jelas", summary: "Lihat pembayaran tercatat dan ubah jadwal langsung dari kartu Giro." },
     title: "Lihat saldo dan koreksi pembayaran Giro",

@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({ values: [] as any[], index: 0 }));
 const preview = vi.hoisted(() => vi.fn()); const save = vi.hoisted(() => vi.fn());
 vi.mock("react", async () => ({ ...await vi.importActual<typeof import("react")>("react"), useEffect: () => {}, useRef: () => ({ current: null }), useState: (initial: any) => {
@@ -365,4 +365,94 @@ it("mengganti metode pembayaran tercatat tanpa menggandakan uang atau mengubah j
     allocations: [{ ...editor.payment.allocations[0], method: "GIRO" }],
     corrections: [],
   }) }));
+});
+
+afterEach(() => vi.useRealTimers());
+
+const giroExample = {
+  ...editor,
+  totalAmount: "4581769.20",
+  payment: {
+    ...editor.payment,
+    sources: [{ ...editor.payment.sources[0], amount: "4127720.00", paidAt: "2026-11-27" }],
+    allocations: [{ ...editor.payment.allocations[0], amount: "4127720.00" }],
+    schedule: [{ method: "GIRO" as const, amount: "4581769.20", dueDate: "2026-12-24", note: null }],
+  },
+};
+
+it("mengganti nominal dan alokasi pembayaran lama dengan Giro bulan ini menurut WIB", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-30T17:00:00Z"));
+
+  const tree = render(giroExample, "payment");
+  expect(tree.find(n => n.props["aria-label"] === "Metode pembayaran tercatat 1")?.props.value).toBe("GIRO");
+  expect(tree.filter(n => n.type === "legend").map(text).join(" ")).toContain("4.581.769,2");
+  tree.find(n => n.props["aria-label"] === "Alasan perubahan")!.props.onChange({ target: { value: "Samakan nominal pembayaran dengan jadwal Giro" } });
+  await render(giroExample, "payment").find(n => n.type === "form")!.props.onSubmit({ preventDefault() {} });
+  expect(preview).toHaveBeenCalledWith(expect.objectContaining({ payment: expect.objectContaining({
+    allocations: [{ paymentId: "pay1", sourceKind: "TRANSFER_EXPENSE", method: "GIRO", amount: "4581769.20" }],
+    corrections: [{ paymentId: "pay1", sourceKind: "TRANSFER_EXPENSE", amount: "4581769.20", paidAt: "2026-11-27" }],
+  }) }));
+  expect(save).not.toHaveBeenCalled();
+  await render(giroExample, "payment").find(n => n.type === "button" && text(n) === "Simpan perubahan")!.props.onClick();
+  expect(save).toHaveBeenCalledWith({ ...preview.mock.calls[0][0], expectedPreviewVersion: "v1" });
+});
+
+it.each(["2026-11-30T16:59:59Z", "2026-12-31T17:00:00Z"])(
+  "mempertahankan pembayaran lama di luar bulan jatuh tempo Giro (%s)",
+  async (now) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(now));
+
+    const tree = render(giroExample, "payment");
+    expect(tree.find(n => n.props["aria-label"] === "Metode pembayaran tercatat 1")?.props.value).toBe("TRANSFER");
+    tree.find(n => n.props["aria-label"] === "Alasan perubahan")!.props.onChange({ target: { value: "Periksa catatan pembayaran" } });
+    await render(giroExample, "payment").find(n => n.type === "form")!.props.onSubmit({ preventDefault() {} });
+    expect(preview).toHaveBeenCalledWith(expect.objectContaining({ payment: expect.objectContaining({
+      allocations: giroExample.payment.allocations,
+      corrections: [],
+    }) }));
+  },
+);
+
+it("membatalkan penggantian otomatis dan membuka koreksi manual", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-12-24T04:00:00Z"));
+
+  const tree = render(giroExample, "payment");
+  const automatic = tree.find(n => n.props["aria-label"] === "Pakai nominal jadwal Giro")!;
+  expect(automatic?.props.checked).toBe(true);
+  automatic.props.onChange({ target: { checked: false } });
+  const reverted = render(giroExample, "payment");
+  const method = reverted.find(n => n.props["aria-label"] === "Metode pembayaran tercatat 1")!;
+  expect(method.props.value).toBe("TRANSFER");
+  expect(method.props.disabled).toBeFalsy();
+  reverted.find(n => n.props["aria-label"] === "Alasan perubahan")!.props.onChange({ target: { value: "Pertahankan pembayaran aktual" } });
+  await render(giroExample, "payment").find(n => n.type === "form")!.props.onSubmit({ preventDefault() {} });
+  expect(preview).toHaveBeenCalledWith(expect.objectContaining({ payment: expect.objectContaining({
+    allocations: giroExample.payment.allocations,
+    corrections: [],
+  }) }));
+});
+
+it("memakai kembali nominal asli saat jadwal dipindah ke bulan depan", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-12-24T04:00:00Z"));
+  render(giroExample, "payment").find(n => n.type === InboundPaymentFields)!.props.onChange([
+    { method: "GIRO", amount: 4581769.20, dueDate: "2027-01-24", note: null },
+  ]);
+
+  const tree = render(giroExample, "payment");
+  expect(tree.find(n => n.props["aria-label"] === "Metode pembayaran tercatat 1")?.props.value).toBe("TRANSFER");
+  expect(tree.some(n => n.props["aria-label"] === "Pakai nominal jadwal Giro")).toBe(false);
+});
+
+it.each([0, 2])("membiarkan koreksi manual bila jumlah pembayaran tercatat %s", (count) => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-12-24T04:00:00Z"));
+  const sources = Array.from({ length: count }, (_, i) => ({ ...giroExample.payment.sources[0], paymentId: `pay${i}` }));
+  const allocations = sources.map(source => ({ ...giroExample.payment.allocations[0], paymentId: source.paymentId }));
+  const tree = render({ ...giroExample, payment: { ...giroExample.payment, sources, allocations } }, "payment");
+  expect(tree.some(n => n.props["aria-label"] === "Pakai nominal jadwal Giro")).toBe(false);
+  expect(tree.filter(n => n.type === "select" && n.props["aria-label"]?.startsWith("Metode pembayaran tercatat"))).toHaveLength(count);
 });
