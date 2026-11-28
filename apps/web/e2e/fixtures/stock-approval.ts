@@ -79,6 +79,7 @@ export async function setupStockApprovalRoutes(
     const url = new URL(route.request().url());
     const statusParam = url.searchParams.get("status");
     const typeParam = url.searchParams.get("type");
+    const reasonParam = url.searchParams.get("reason");
     const limit = Math.max(1, Number(url.searchParams.get("limit") ?? "20") || 20);
     const pageNum = Math.max(1, Number(url.searchParams.get("page") ?? "1") || 1);
 
@@ -92,6 +93,9 @@ export async function setupStockApprovalRoutes(
     let filtered = store.logs;
     if (typeParam === "IN" || typeParam === "OUT" || typeParam === "ADJUSTMENT") {
       filtered = filtered.filter((l) => l.type === typeParam);
+    }
+    if (reasonParam) {
+      filtered = filtered.filter((l) => l.reason === reasonParam);
     }
     if (requestedStatuses.length > 0) {
       filtered = filtered.filter((l) => requestedStatuses.includes(l.status));

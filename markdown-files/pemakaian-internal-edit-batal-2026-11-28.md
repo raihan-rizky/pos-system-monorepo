@@ -1,10 +1,12 @@
 # Edit dan pembatalan Pemakaian Internal
 
-Buka **Inventaris → Riwayat → Log Stok**. Tindakan berlaku untuk setiap barang yang dicatat lewat Stock Out Internal.
+Buka **Inventaris → Riwayat → Log Stok**, lalu pilih filter **Pemakaian Internal** untuk menemukan catatan Stock Out Internal.
 
 1. Saat permintaan **Menunggu persetujuan**, pemohon dapat memilih **Edit** untuk mengganti produk, jumlah, atau alasan. **Batalkan** menarik permintaan dari antrean. Stok baru berubah setelah persetujuan.
 2. Untuk entri **Disetujui**, Owner dapat memilih **Koreksi** atau **Batalkan** dan mengisi alasan. Aksi tersedia selama pencocokan stok belum dikirim dan hari stok belum check-out. Permintaan koreksi yang sedang menunggu keputusan perlu diselesaikan terlebih dahulu.
 3. Periksa status **Dikoreksi** atau **Dibatalkan** di Log Stok. **Input awal** menampilkan produk, jumlah, dan alasan awal. Rekap Pemakaian Internal dan PDF menghitung pemakaian yang masih berlaku.
+
+Saat domain foto gagal merespons, Log Stok mengambil foto produk lewat aplikasi. Gambar bawaan kategori tampil jika foto masih belum tersedia.
 
 Koreksi mencatat selisih stok. Jika pemakaian 10 rim dikoreksi menjadi 7 rim, stok bertambah 3 rim. Membatalkan hasil koreksi mengembalikan 7 rim sisanya. Bila produk diganti, stok produk sebelumnya dikembalikan dan stok produk pengganti dikurangi.
 

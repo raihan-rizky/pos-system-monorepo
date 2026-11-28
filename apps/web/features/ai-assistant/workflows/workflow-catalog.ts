@@ -1097,7 +1097,7 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
     iconKey: "warehouse",
     requiredCapabilities: [{ resource: "inventory", action: "read" }],
     steps: [
-      { title: "Cari catatan pemakaian", description: "Buka Inventaris → Riwayat → Log Stok. Cari entri pemakaian internal dan periksa statusnya." },
+      { title: "Cari catatan pemakaian", description: "Buka Inventaris → Riwayat → Log Stok, lalu pilih Pemakaian Internal. Cari entri dan periksa statusnya." },
       { title: "Kelola permintaan yang menunggu", description: "Untuk permintaan sendiri, pilih Edit untuk mengganti produk, jumlah, atau alasan. Edit memerlukan izin mengubah data gudang dan Edit permintaan sendiri. Pilih Batalkan untuk menarik permintaan selama masih menunggu persetujuan." },
       { title: "Koreksi entri yang disetujui", description: "Owner dapat memilih Koreksi atau Batalkan dan mengisi alasan selama hari stok belum dikunci. Pembatalan mengembalikan jumlah yang masih tercatat keluar. Buka Input awal untuk melihat catatan asli dan periksa hasilnya di Rekap Pemakaian Internal." },
     ],
