@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@pos/ui";
-import { Banknote, CalendarDays, ChevronDown, CircleAlert, CircleCheck, CircleDollarSign, CircleHelp, ClipboardCheck, Clock3, History, Info, Link2, ReceiptText, X } from "lucide-react";
-import { formatRupiah } from "@/lib/utils";
+import { Banknote, CalendarDays, ChevronDown, CircleAlert, CircleCheck, CircleDollarSign, CircleHelp, ClipboardCheck, Clock3, History, Link2, Pencil, ReceiptText, X } from "lucide-react";
+import { formatRupiah, formatRupiahPrecise } from "@/lib/utils";
 import { useRole } from "@/components/providers/RoleProvider";
 import { GIRO_PAYMENT_CHANGE_EVENT, GiroPaymentError, giroPaymentStorageKey, listPendingGiroPayments, postGiroPayment, readGiroPaymentGeneration, readPendingGiroPayment, type GiroPaymentScope, type PendingGiroPayment, type StorageLike, type WithLock } from "../helpers/giro-payment-request";
 import { jakartaToday } from "../helpers/supplier-payable-input";
@@ -13,14 +13,21 @@ import { GiroSupplierCredit } from "./GiroSupplierCredit";
 export { planGiroLink, postGiroLink } from "../helpers/giro-link";
 export { GiroLinkDialog, GiroLinkFields } from "./GiroLinkDialog";
 
+const ShoppingRequestCorrectionModal = lazy(() => import("@/features/suppliers/shopping-requests/components/ShoppingRequestCorrectionModal")
+  .then(module => ({ default: module.ShoppingRequestCorrectionModal })));
+
 const GIRO_PANEL_EXPANDED_STORAGE_KEY = "keuangan:giro-pembelian:expanded";
 
-type GiroPayment = { id?: string; amount: number; paidAt: string };
+type GiroPayment = { id?: string; amount: number; paidAt: string; method?: "TRANSFER" | "GIRO" | "MIXED"; transferAmount?: number };
 type Giro = {
   goodsPurchaseId: string;
   number: string;
   supplierName: string;
   amount: number;
+  shoppingRequestId?: string | null;
+  balanceTotal?: number;
+  plannedTransfer?: number;
+  purchasePayments?: GiroPayment[];
   debtDate: string | null;
   payableDebtDate?: string | null;
   payableNote?: string | null;
@@ -56,19 +63,37 @@ function giroMonthLabel(date: string | null, today: string): string {
   return new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${date}T00:00:00.000Z`));
 }
 
-export function GiroAction({ item, canUpdate, pending, blocked = false, hasManualPayables = false, onReview, onPay, onLink }: { item: Giro; canUpdate: boolean; pending: boolean; blocked?: boolean; hasManualPayables?: boolean; onReview: () => void; onPay: () => void; onLink?: () => void }) {
-  if (!canUpdate || blocked) return null;
+function transferPaidCents(payments: GiroPayment[]): number {
+  return payments.reduce((sum, payment) => sum + Math.round((payment.transferAmount ?? (payment.method === "TRANSFER" ? payment.amount : 0)) * 100), 0);
+}
+
+function recordedPaymentOverPlan(item: Giro): "TRANSFER" | "GIRO" | null {
+  if (item.status === "UNKNOWN" || item.historyIssue) return null;
+  if (transferPaidCents(item.purchasePayments ?? []) > Math.round((item.plannedTransfer ?? 0) * 100)) return "TRANSFER";
+  return Math.round((item.paid ?? 0) * 100) > Math.round(item.amount * 100) ? "GIRO" : null;
+}
+
+const paymentMethodLabel = (method: GiroPayment["method"]) => {
+  if (method === "MIXED") return "Transfer dan Giro";
+  return method === "TRANSFER" ? "Transfer" : "Giro";
+};
+
+export function GiroAction({ item, canUpdate, pending, blocked = false, hasManualPayables = false, onReview, onPay, onLink, onEdit }: { item: Giro; canUpdate: boolean; pending: boolean; blocked?: boolean; hasManualPayables?: boolean; onReview: () => void; onPay: () => void; onLink?: () => void; onEdit?: () => void }) {
+  if (blocked || (!canUpdate && !onEdit)) return null;
   const buttonClass = "inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500";
   const paymentClass = `${buttonClass} border-brand-300 bg-brand-50 text-brand-800 hover:bg-brand-100`;
   const linkClass = `${buttonClass} border-surface-300 bg-white text-surface-700 hover:bg-surface-50`;
-  if (pending) return <button type="button" onClick={onPay} className={paymentClass}><CircleCheck className="h-4 w-4" aria-hidden="true" />Pastikan pembayaran</button>;
+  if (pending) return canUpdate ? <button type="button" onClick={onPay} className={paymentClass}><CircleCheck className="h-4 w-4" aria-hidden="true" />Pastikan pembayaran</button> : null;
   if (item.historyIssue) return null;
-  if (item.status === "UNKNOWN") return <button type="button" onClick={onReview} className={paymentClass}><ClipboardCheck className="h-4 w-4" aria-hidden="true" />Periksa riwayat</button>;
-  const canPay = item.remaining !== null && (item.availableToPay ?? item.remaining) > 0;
-  const canLink = Boolean(item.payableId && hasManualPayables && onLink);
-  if (!canPay && !canLink) return null;
+  if (item.status === "UNKNOWN") return canUpdate ? <button type="button" onClick={onReview} className={paymentClass}><ClipboardCheck className="h-4 w-4" aria-hidden="true" />Periksa riwayat</button> : null;
+  const canPay = canUpdate && item.remaining !== null && (item.availableToPay ?? item.remaining) > 0;
+  const canLink = canUpdate && Boolean(item.payableId && hasManualPayables && onLink);
+  const reviewSchedule = Boolean(onEdit && recordedPaymentOverPlan(item));
+  if (!canPay && !canLink && !onEdit) return null;
   return <div className="flex flex-col gap-2">
-    {canPay && <button type="button" onClick={onPay} className={paymentClass}><Banknote className="h-4 w-4" aria-hidden="true" />Catat pembayaran</button>}
+    {reviewSchedule && <button type="button" onClick={onEdit} className={paymentClass}><Pencil className="h-4 w-4" aria-hidden="true" />Periksa jadwal</button>}
+    {canPay && <button type="button" onClick={onPay} className={reviewSchedule ? linkClass : paymentClass}><Banknote className="h-4 w-4" aria-hidden="true" />Catat pembayaran</button>}
+    {onEdit && !reviewSchedule && <button type="button" onClick={onEdit} className={linkClass}><Pencil className="h-4 w-4" aria-hidden="true" />Ubah pembayaran</button>}
     {canLink && <button type="button" onClick={onLink} className={linkClass}><Link2 className="h-4 w-4" aria-hidden="true" />Hubungkan hutang manual</button>}
   </div>;
 }
@@ -130,12 +155,20 @@ export async function saveGiro(mode: "review" | "payment", item: Giro, values: {
 }
 
 export function GiroPaymentFields({ item, amount, onAmountChange, paidAt, onPaidAtChange, pending = false }: { item: Giro; amount: string; onAmountChange: (value: string) => void; paidAt: string; onPaidAtChange: (value: string) => void; pending?: boolean }) {
+  const available = item.availableToPay ?? item.remaining ?? 0;
+  const amountCents = Math.round(Number(amount) * 100);
+  const projectedBalance = item.remaining === null ? null : (Math.round(item.remaining * 100) - amountCents) / 100;
   return <>
-    <p className="text-sm text-surface-700">{item.number} · {item.supplierName} · Sisa {formatRupiah(item.remaining ?? 0)}</p>
-    {Boolean(item.futurePayments?.length) && <p className="text-sm text-surface-600">Maksimal pembayaran baru {formatRupiah(item.availableToPay ?? 0)} setelah memperhitungkan pembayaran yang sudah tercatat untuk tanggal mendatang.</p>}
+    <p className="text-sm text-surface-700">{item.number} · {item.supplierName}</p>
+    <dl className="space-y-1 rounded-lg bg-surface-50 p-3 text-sm">
+      <div className="flex justify-between gap-2"><dt>Sisa hari ini</dt><dd className="font-semibold">{formatRupiahPrecise(item.remaining ?? 0)}</dd></div>
+      {Boolean(item.futurePayments?.length) && <div className="flex justify-between gap-2"><dt>Maksimal pembayaran baru</dt><dd className="font-semibold">{formatRupiahPrecise(available)}</dd></div>}
+    </dl>
+    <p className="text-sm text-surface-600">Metode pencatatan: Giro</p>
     {pending && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Pastikan pembayaran sebelumnya sebelum mencatat pembayaran lain.</p>}
     <label className="block text-sm font-medium">Nominal pembayaran (Rp)<input autoFocus name="amount" required type="number" min="0.01" max={pending ? undefined : item.availableToPay ?? item.remaining ?? 0} step="0.01" inputMode="decimal" readOnly={pending} value={amount} onChange={event => onAmountChange(event.target.value)} className={control} /></label>
     <label className="block text-sm font-medium">Tanggal pembayaran<input name="paidAt" required type="date" min={pending ? undefined : item.payableDebtDate ?? item.debtDate ?? undefined} max={pending ? undefined : jakartaToday()} readOnly={pending} value={paidAt} onChange={event => onPaidAtChange(event.target.value)} className={control} /></label>
+    {!pending && projectedBalance !== null && paidAt && paidAt <= jakartaToday() && amountCents > 0 && amountCents <= Math.round(available * 100) && <p aria-live="polite" className="text-sm text-surface-700">Sisa setelah pembayaran <strong>{formatRupiahPrecise(projectedBalance)}</strong></p>}
   </>;
 }
 
@@ -147,7 +180,7 @@ export function GiroReviewFields({ item, manualPayables, selectedPayableId, onSe
   const savedPayments = item.payableId ? item.payments : selected?.payments ?? [];
   const debtDate = item.payableId ? item.payableDebtDate ?? item.debtDate : selected && item.debtDate && selected.debtDate < item.debtDate ? selected.debtDate : item.debtDate;
   return <>
-    <p className="text-sm text-surface-700">{item.number} · {item.supplierName} · Nominal {formatRupiah(item.amount)}</p>
+    <p className="text-sm text-surface-700">{item.number} · {item.supplierName} · Nominal {formatRupiahPrecise(item.amount)}</p>
     <p className="text-sm text-surface-600">Periksa seluruh pembayaran yang pernah dilakukan. Tambahkan yang belum tercatat sebelum mengonfirmasi.</p>
     {!item.payableId && <label className="block text-sm font-medium">Hutang yang sudah dicatat (opsional)
       <select name="payableId" value={selectedPayableId ?? ""} onChange={event => onSelectPayable(event.target.value || null)} className={control}>
@@ -283,7 +316,9 @@ export function GiroPanel({ canUpdate, canLinkManual = false, legacyPaymentIds =
 
 function GiroPanelState({ canUpdate, canLinkManual, legacyPaymentIds }: { canUpdate: boolean; canLinkManual: boolean; legacyPaymentIds: string[] }) {
   const queryClient = useQueryClient();
-  const { userId, storeId, authorizationFingerprint } = useRole();
+  const { userId, storeId, authorizationFingerprint, canAccess, canPerform } = useRole();
+  const canEditPayments = canAccess?.("/suppliers") && canPerform?.("supplier.shopping_request.correct_processed", "update");
+  const [correctionRequestId, setCorrectionRequestId] = useState<string | null>(null);
   const [selection, setSelection] = useState<{ item: Giro; mode: "review" | "payment"; initialPending?: PendingGiroPayment | null; initialGeneration?: string | null } | null>(null);
   const [linkItem, setLinkItem] = useState<Giro | null>(null);
   const [pendingById, setPendingById] = useState<Record<string, PendingState>>({});
@@ -409,6 +444,11 @@ function GiroPanelState({ canUpdate, canLinkManual, legacyPaymentIds }: { canUpd
             const storageError = saved && "error" in saved ? saved.error : null;
             const hasLegacyPayment = Boolean(item.payableId && legacyPaymentIds.includes(item.payableId));
             const StatusIcon = statusIcons[item.status];
+            const posted = item.purchasePayments ?? item.payments.filter(payment => payment.paidAt <= asOf);
+            const requestId = canEditPayments ? item.shoppingRequestId : null;
+            const paymentOverPlan = recordedPaymentOverPlan(item);
+            const showsPurchaseBalance = item.balanceIncludesOtherMethods || !(item.plannedTransfer && item.plannedTransfer > 0);
+            const recordedTransfer = transferPaidCents(posted) / 100;
             return (
             <li key={item.goodsPurchaseId} className="relative overflow-hidden rounded-xl border border-surface-200 bg-white p-3.5 shadow-sm transition-colors hover:border-brand-200 sm:p-4">
               <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${statusRailTone[item.status]}`} />
@@ -429,10 +469,25 @@ function GiroPanelState({ canUpdate, canLinkManual, legacyPaymentIds }: { canUpd
                     </div>
                   </div>
 
+                  <div className="mt-3 rounded-lg border border-brand-100 bg-brand-50/60 p-3">
+                    <p className="text-xs font-medium text-brand-800">{showsPurchaseBalance ? "Sisa utang pembelian" : "Sisa Giro"}</p>
+                    <p className="mt-0.5 text-xl font-bold tabular-nums text-brand-900">{item.remaining === null ? "Belum diketahui" : formatRupiahPrecise(item.remaining)}</p>
+                    {item.remaining !== null && item.balanceTotal !== undefined && <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-surface-700">
+                      <span>{showsPurchaseBalance ? "Total pembelian" : "Total Giro"} <strong>{formatRupiahPrecise(item.balanceTotal)}</strong></span>
+                      {recordedTransfer > 0 && <span>Transfer tercatat <strong>{formatRupiahPrecise(recordedTransfer)}</strong></span>}
+                      {(item.paid ?? 0) > 0 && <span>Giro tercatat <strong>{formatRupiahPrecise(item.paid ?? 0)}</strong></span>}
+                      {posted.length === 0 && <span>Belum ada pembayaran per hari ini</span>}
+                      {Boolean(item.creditApplied) && <span>Kredit terpakai <strong>{formatRupiahPrecise(item.creditApplied ?? 0)}</strong></span>}
+                    </div>}
+                  </div>
+                  {paymentOverPlan && <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                    {paymentMethodLabel(paymentOverPlan)} tercatat melebihi nominal pada jadwal. Cocokkan jadwal dengan catatan pembayaran.
+                  </p>}
+
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     <div className="rounded-lg border border-brand-100 bg-brand-50/60 px-3 py-2.5">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-700">Nominal Giro</p>
-                      <p className="mt-0.5 break-words text-base font-bold tabular-nums text-brand-900">{formatRupiah(item.amount)}</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-700">Nominal Giro terjadwal</p>
+                      <p className="mt-0.5 break-words text-base font-bold tabular-nums text-brand-900">{formatRupiahPrecise(item.amount)}</p>
                     </div>
                     <div className="rounded-lg border border-surface-200 bg-surface-50 px-3 py-2.5">
                       <div className="flex items-center gap-2 text-surface-500">
@@ -448,17 +503,6 @@ function GiroPanelState({ canUpdate, canLinkManual, legacyPaymentIds }: { canUpd
                     </div>
                   </div>
 
-                  <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-surface-200 bg-white px-3 py-2.5">
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-surface-500">Sisa tagihan</p>
-                      <p className="mt-0.5 text-sm font-bold tabular-nums text-surface-900">{item.remaining !== null ? formatRupiah(item.remaining) : "Belum diketahui"}</p>
-                    </div>
-                    {item.balanceIncludesOtherMethods && <p className="inline-flex max-w-full items-start gap-1.5 text-[11px] leading-relaxed text-surface-600">
-                      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-600" aria-hidden="true" />
-                      <span>Sisa memperhitungkan pembayaran pembelian sampai hari ini.</span>
-                    </p>}
-                    {typeof item.creditApplied === "number" && item.creditApplied > 0 && <p className="text-[11px] font-medium text-surface-600">Kredit terpakai <span className="font-semibold tabular-nums">{formatRupiah(item.creditApplied)}</span></p>}
-                  </div>
 
                   {!item.debtDate && <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-red-700"><CircleAlert className="h-4 w-4" aria-hidden="true" />Tanggal kewajiban belum tersedia.</p>}
                   {item.historyIssue && <p role="status" className="mt-3 inline-flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-800"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />Riwayat pembayaran tidak sesuai. Hubungi pengelola untuk memeriksa data giro ini.</p>}
@@ -481,7 +525,7 @@ function GiroPanelState({ canUpdate, canLinkManual, legacyPaymentIds }: { canUpd
                           </div>
                           <p className="mt-1 break-words text-[11px] text-surface-500">{giro.dueDate || "Tanggal belum tersedia"}{giro.note ? ` · ${giro.note}` : ""}</p>
                         </div>
-                        <strong className="text-xs font-semibold tabular-nums text-surface-800">{formatRupiah(giro.amount)}</strong>
+                        <strong className="text-xs font-semibold tabular-nums text-surface-800">{formatRupiahPrecise(giro.amount)}</strong>
                       </li>)}
                     </ol>
                   </section>}
@@ -496,15 +540,15 @@ function GiroPanelState({ canUpdate, canLinkManual, legacyPaymentIds }: { canUpd
                         <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-brand-800 ring-1 ring-inset ring-brand-100">{item.futurePayments?.length} pembayaran</span>
                       </div>
                       <ul className="mt-2 space-y-1.5">
-                        {item.futurePayments?.map((payment, index) => <li key={`${payment.id ?? index}-${payment.paidAt}`} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-brand-100/80 pt-1.5 text-[11px] text-surface-700">
-                          <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5 text-brand-700" aria-hidden="true" />{giroMonthLabel(payment.paidAt, asOf)} · <span className="tabular-nums">{payment.paidAt}</span></span>
-                          <strong className="font-semibold tabular-nums text-surface-900">{formatRupiah(payment.amount)}</strong>
+                        {item.futurePayments?.map((payment, index) => <li key={`${payment.id ?? index}-${payment.paidAt}-${payment.method ?? "GIRO"}`} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-brand-100/80 pt-1.5 text-[11px] text-surface-700">
+                          <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5 text-brand-700" aria-hidden="true" />{paymentMethodLabel(payment.method)} · <span className="tabular-nums">{payment.paidAt}</span></span>
+                          <strong className="font-semibold tabular-nums text-surface-900">{formatRupiahPrecise(payment.amount)}</strong>
                         </li>)}
                       </ul>
                       <p className="mt-2 text-[11px] leading-relaxed text-surface-600">Sisa di atas berlaku per {asOf} dan otomatis berkurang pada tanggal pembayaran.</p>
                       {item.availableToPay !== null && item.availableToPay !== undefined && <p className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-brand-100 bg-white px-2.5 py-2 text-[11px]">
                         <span className="font-medium text-surface-600">Maksimal pembayaran baru</span>
-                        <strong className="font-bold tabular-nums text-brand-900">{formatRupiah(item.availableToPay)}</strong>
+                        <strong className="font-bold tabular-nums text-brand-900">{formatRupiahPrecise(item.availableToPay)}</strong>
                       </p>}
                     </div>
                   </aside>}
@@ -512,23 +556,23 @@ function GiroPanelState({ canUpdate, canLinkManual, legacyPaymentIds }: { canUpd
                   {hasLegacyPayment && <p role="status" className="mt-3 inline-flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />Catatan pembayaran lama perlu diperiksa pada panel pemulihan sebelum mencatat pembayaran baru.</p>}
                   {storageError && <p role="alert" className="mt-3 inline-flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-800"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />{storageError}</p>}
 
-                  {item.status !== "UNKNOWN" && item.payments.length > 0 && <details className="group mt-3 overflow-hidden rounded-xl border border-surface-200 bg-white">
+                  {item.status !== "UNKNOWN" && posted.length > 0 && <details className="group mt-3 overflow-hidden rounded-xl border border-surface-200 bg-white">
                     <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-semibold text-surface-700 outline-none transition-colors hover:bg-surface-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500">
                       <History className="h-4 w-4 text-brand-700" aria-hidden="true" />
                       <span>Riwayat pembayaran</span>
-                      <span className="rounded-full bg-surface-100 px-2 py-0.5 text-[10px] font-semibold text-surface-600">{item.payments.length}</span>
+                      <span className="rounded-full bg-surface-100 px-2 py-0.5 text-[10px] font-semibold text-surface-600">{posted.length}</span>
                       <ChevronDown className="ml-auto h-4 w-4 text-surface-500 transition-transform group-open:rotate-180" aria-hidden="true" />
                     </summary>
                     <ul className="divide-y divide-surface-100 border-t border-surface-200 px-3">
-                      {item.payments.map((payment, index) => <li key={`${payment.paidAt}-${index}`} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2 text-xs">
-                        <span className="text-surface-600">{payment.paidAt}</span>
-                        <strong className="tabular-nums text-surface-900">{formatRupiah(payment.amount)}</strong>
+                      {posted.map((payment, index) => <li key={`${payment.id ?? index}-${payment.paidAt}-${payment.method ?? "GIRO"}`} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2 text-xs">
+                        <span className="text-surface-600">{paymentMethodLabel(payment.method)} · {payment.paidAt}</span>
+                        <strong className="tabular-nums text-surface-900">{formatRupiahPrecise(payment.amount)}</strong>
                       </li>)}
                     </ul>
                   </details>}
                 </div>
                 <div className="sm:w-48 sm:justify-self-end sm:pt-1">
-                  <GiroAction item={item} canUpdate={canUpdate} pending={Boolean(pending)} blocked={Boolean(storageError) || hasLegacyPayment || !storeId || !userId} hasManualPayables={canLinkManual && Boolean(list.data?.manualPayables.length)} onReview={() => setSelection({ item, mode: "review" })} onPay={() => openPayment(item)} onLink={() => setLinkItem(item)} />
+                  <GiroAction item={item} canUpdate={canUpdate} pending={Boolean(pending)} blocked={Boolean(storageError) || hasLegacyPayment || !storeId || !userId} hasManualPayables={canLinkManual && Boolean(list.data?.manualPayables.length)} onReview={() => setSelection({ item, mode: "review" })} onPay={() => openPayment(item)} onLink={() => setLinkItem(item)} onEdit={requestId ? () => setCorrectionRequestId(requestId) : undefined} />
                 </div>
               </div>
             </li>
@@ -537,6 +581,9 @@ function GiroPanelState({ canUpdate, canLinkManual, legacyPaymentIds }: { canUpd
       )}
       </details>
       {selection && <GiroDialog item={selection.item} mode={selection.mode} scope={storeId && userId && selection.item.payableId ? { storeId, userId, payableId: selection.item.payableId } : null} manualPayables={canLinkManual ? list.data?.manualPayables ?? [] : []} initialPending={selection.initialPending ?? null} initialGeneration={selection.initialGeneration} onPendingChange={value => { if (selection.item.payableId) setPendingById(current => ({ ...current, [selection.item.payableId!]: value })); }} onClose={() => setSelection(null)} onSaved={() => queryClient.invalidateQueries({ queryKey: ["finance"] })} onRefreshReview={async () => { const result = await list.refetch(); if (result.isError || !result.data) throw new Error("Gagal memuat giro"); return { ...result.data, manualPayables: canLinkManual ? result.data.manualPayables : [] }; }} />}
+      {canEditPayments && correctionRequestId && <Suspense fallback={<p role="status" className="mt-2 text-sm text-surface-600">Memuat rincian pembayaran…</p>}>
+        <ShoppingRequestCorrectionModal requestId={correctionRequestId} initialSection="payment" onClose={() => setCorrectionRequestId(null)} />
+      </Suspense>}
       {linkItem && <GiroLinkDialog item={linkItem} manualPayables={list.data?.manualPayables ?? []} onClose={() => setLinkItem(null)} onSaved={() => queryClient.invalidateQueries({ queryKey: ["finance"] })} onRefresh={async () => { const result = await list.refetch(); if (result.isError || !result.data) throw new Error("Gagal memuat giro"); return result.data; }} />}
     </section>
   );

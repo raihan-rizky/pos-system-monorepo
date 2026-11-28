@@ -140,6 +140,13 @@ try {
     await page.screenshot({ path: path.join(artifacts, `payment-mobile-${width}.png`), fullPage: true });
   }
   await page.setViewportSize({ width: 1280, height: 900 });
+  const firstMethod = page.getByRole("combobox", { name: /Metode Pembayaran 1/i });
+  assert.equal(await firstMethod.inputValue(), "TRANSFER");
+  await firstMethod.selectOption("GIRO");
+  await page.getByLabel("Tanggal Jatuh Tempo 1", { exact: true }).fill("2026-12-05");
+  await firstMethod.selectOption("TRANSFER");
+  assert.equal(await page.getByLabel("Tanggal Jatuh Tempo 1", { exact: true }).count(), 0);
+  assert.equal(await page.getByLabel("Nominal Pembayaran 1", { exact: true }).inputValue(), "8936156");
   await page.getByLabel("Nominal Pembayaran 1", { exact: true }).fill("4947500");
   await page.getByRole("button", { name: "Tambah jadwal", exact: true }).click();
   await page.getByLabel("Tanggal Jatuh Tempo 2", { exact: true }).fill("2026-12-05");

@@ -9,6 +9,8 @@ import { chromium } from "@playwright/test";
 const state = vi.hoisted(() => ({
   loading: false,
   error: false,
+  canAccessSuppliers: false,
+  canCorrectPurchases: false,
   manualPayables: [] as { id: string; supplierName: string; amount: number; debtDate: string; dueDate: string | null; paid: number; payments: { id?: string; amount: number; paidAt: string }[] }[],
   items: [
     { goodsPurchaseId: "g1", number: "PB-001", supplierName: "Toko Satu", amount: 100000, debtDate: "2026-10-01", dueDate: "2026-11-05", payableId: null, status: "UNKNOWN", paid: null, remaining: null, payments: [] },
@@ -25,7 +27,11 @@ vi.mock("@tanstack/react-query", () => ({
     ? { data: { items: state.items, manualPayables: state.manualPayables }, isLoading: state.loading, isError: state.error, refetch: vi.fn() }
     : { data: { items: [], page: 1, total: 0 }, isLoading: false, isError: false },
 }));
-vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({ storeId: "store-1", userId: "user-1" }) }));
+vi.mock("@/components/providers/RoleProvider", () => ({ useRole: () => ({
+  storeId: "store-1", userId: "user-1",
+  canAccess: (page: string) => page === "/suppliers" && state.canAccessSuppliers,
+  canPerform: (resource: string, action: string) => resource === "supplier.shopping_request.correct_processed" && action === "update" && state.canCorrectPurchases,
+}) }));
 
 import { SupplierPayablesPanel } from "../SupplierPayablesPanel";
 import { GiroAction, GiroPaymentFields, GiroReviewFields, saveGiro } from "../GiroPanel";
@@ -65,6 +71,51 @@ describe("panel giro di Keuangan", () => {
       expect(await page.getByRole("button", { name: "Periksa riwayat" }).isVisible()).toBe(true);
     } finally {
       await browser.close();
+    }
+  });
+
+
+  it("menunjukkan transfer yang mengurangi sisa dengan angka tepat", () => {
+    state.items.push({
+      ...state.items[2], goodsPurchaseId: "g-mixed", number: "PB-MIXED", amount: 458.17,
+      balanceTotal: 458.17, totalPaid: 412.72, remaining: 45.45,
+      payments: [], purchasePayments: [{ id: "transfer", amount: 412.72, paidAt: "2026-10-12", method: "TRANSFER" }],
+    } as never);
+    try {
+      const html = renderToStaticMarkup(<SupplierPayablesPanel canCreate canUpdate />);
+      expect(html).toContain("Sisa utang pembelian");
+      expect(html).toContain("45,45");
+      expect(html).toContain("Transfer");
+      expect(html).toContain("412,72");
+    } finally {
+      state.items.pop();
+    }
+  });
+
+  it("menawarkan pemeriksaan jadwal hanya jika koreksi tersedia dan ada selisih", () => {
+    const item = { ...state.items[2], status: "PARTIAL" as const, remaining: 45.45, amount: 458.17, dueDate: "2026-12-24", purchasePayments: [{ amount: 412.72, paidAt: "2026-10-12", method: "TRANSFER" as const }] };
+    const allowed = renderToStaticMarkup(<GiroAction item={item} canUpdate pending={false} onReview={() => {}} onPay={() => {}} onEdit={() => {}} />);
+    const denied = renderToStaticMarkup(<GiroAction item={item} canUpdate pending={false} onReview={() => {}} onPay={() => {}} />);
+    expect(allowed).toContain("Periksa jadwal");
+    expect(denied).not.toContain("Periksa jadwal");
+    expect(denied).toContain("Catat pembayaran");
+  });
+
+  it("menampilkan pintasan koreksi dari kartu hanya dengan kedua izin yang diperlukan", () => {
+    state.items.push({ ...state.items[2], goodsPurchaseId: "g-edit", shoppingRequestId: "request-edit" } as never);
+    try {
+      state.canAccessSuppliers = true;
+      const render = () => renderToStaticMarkup(<SupplierPayablesPanel canCreate canUpdate />);
+      expect(render()).not.toContain("Ubah pembayaran");
+      state.canAccessSuppliers = false;
+      state.canCorrectPurchases = true;
+      expect(render()).not.toContain("Ubah pembayaran");
+      state.canAccessSuppliers = true;
+      expect(render()).toContain("Ubah pembayaran");
+    } finally {
+      state.items.pop();
+      state.canAccessSuppliers = false;
+      state.canCorrectPurchases = false;
     }
   });
 
@@ -447,6 +498,7 @@ describe("panel giro di Keuangan", () => {
         `,
         resolveDir: process.cwd(), sourcefile: "giro-browser-harness.tsx", loader: "tsx",
       },
+      external: ["*/ShoppingRequestCorrectionModal"],
       alias: { "@": process.cwd() }, jsx: "automatic", bundle: true, write: false, platform: "browser", format: "iife",
     });
     const browser = await chromium.launch({ headless: true });

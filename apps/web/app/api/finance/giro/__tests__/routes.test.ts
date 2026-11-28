@@ -85,6 +85,39 @@ describe('giro endpoints', () => {
     ]));
   });
 
+
+  it('menyajikan riwayat yang dipakai menghitung sisa pembelian dan memisahkan catatan mendatang', async () => {
+    const transfer = { id: 'transfer-1', amount: '412.72', paidAt: '2026-10-27', method: 'TRANSFER' };
+    const future = { id: 'giro-1', amount: '20.00', paidAt: '2026-12-05', method: 'GIRO' };
+    mocks.query.mockResolvedValueOnce([{
+      ...purchase, shoppingRequestId: 'request-1', amount: '458.17', payableAmount: '458.17',
+      historyVerifiedAt: new Date(), correctionId: 'c1', effectivePayments: [transfer, future], payments: [future],
+    }]).mockResolvedValueOnce([]);
+    const response = await GET(new Request('http://localhost/api/finance/giro'));
+    expect((await response.json()).items[0]).toMatchObject({
+      shoppingRequestId: 'request-1', balanceTotal: 458.17, totalPaid: 412.72,
+      purchasePayments: [{ ...transfer, amount: 412.72 }], futurePayments: [{ ...future, amount: 20 }],
+      remaining: 45.45, availableToPay: 25.45,
+    });
+    const query = (mocks.query.mock.calls[0][0] as TemplateStringsArray).join(' ');
+    expect(query).toContain('a."method"::text');
+    expect(query).toContain('source."method"');
+  });
+
+  it('mempertahankan pembayaran campuran sebagai satu catatan dengan nominal Transfer yang tepat', async () => {
+    mocks.query.mockResolvedValueOnce([{
+      ...purchase, historyVerifiedAt: new Date(), correctionId: 'c1', payableAmount: '100000.00',
+      effectivePayments: [{ id: 'mixed', amount: '412.72', paidAt: '2026-10-27', method: 'MIXED', transferAmount: '300.50' }], payments: [],
+    }]).mockResolvedValueOnce([]);
+    const response = await GET(new Request('http://localhost/api/finance/giro'));
+    expect((await response.json()).items[0].purchasePayments).toEqual([
+      { id: 'mixed', amount: 412.72, paidAt: '2026-10-27', method: 'MIXED', transferAmount: 300.50 },
+    ]);
+    const query = (mocks.query.mock.calls[0][0] as TemplateStringsArray).join(' ');
+    expect(query).toContain('GROUP BY source."id", source."paidAt"');
+    expect(query).not.toContain('GROUP BY source."id", source."paidAt", source."method"');
+  });
+
   it('selects both notes for review', async () => {
     mocks.query.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     await GET(new Request('http://localhost/api/finance/giro'));
