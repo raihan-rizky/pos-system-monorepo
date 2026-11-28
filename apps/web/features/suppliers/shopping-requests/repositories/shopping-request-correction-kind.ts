@@ -1,4 +1,5 @@
 import { Prisma } from "@pos/db";
+import { normalizeCorrectionUnit } from "../helpers/shopping-request-correction";
 import type { ShoppingRequestCorrectionInput } from "../types/shopping-request-correction";
 import type { ShoppingRequestCorrectionEditor } from "./shopping-request-correction-editor";
 
@@ -11,7 +12,7 @@ export function isPaymentOnlyCorrection(
     value.name, value.number, value.businessDate, value.supplierId, value.requestedByName, value.note,
   ];
   const items = (rows: ShoppingRequestCorrectionInput["items"]) => rows.map(item => JSON.stringify([
-    item.clientLineKey, item.requestItemId, item.purchaseItemId, item.productId, item.unit,
+    item.clientLineKey, item.requestItemId, item.purchaseItemId, item.productId, normalizeCorrectionUnit(item.unit),
     item.requestedQty, item.approvedQty, item.orderedQty, new Prisma.Decimal(item.unitPrice).toFixed(2),
     item.receipts.map(receipt => [receipt.receiptLineId, receipt.receivedQty]).sort(
       (left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)),

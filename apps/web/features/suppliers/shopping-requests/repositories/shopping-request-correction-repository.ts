@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { Prisma } from "@pos/db";
 import { resolveGoodsPurchaseFulfillment } from "@/features/inventory-management/helpers/inbound-receipt-rules";
 import { parseShoppingRequestCorrection } from "../helpers/shopping-request-correction-input";
+import { normalizeCorrectionUnit } from "../helpers/shopping-request-correction";
 import { ShoppingRequestCorrectionError } from "../services/shopping-request-correction-error";
 import type { ShoppingRequestActor } from "../types/shopping-request";
 import type { CorrectionPreview, CorrectionResult, ShoppingRequestCorrectionInput } from "../types/shopping-request-correction";
@@ -69,7 +70,7 @@ export async function commitShoppingRequestCorrectionRecord(
   const { editor } = plan;
   const itemWithoutReceipts = (item: ShoppingRequestCorrectionInput["items"][number]) => ({
     clientLineKey: item.clientLineKey, requestItemId: item.requestItemId, purchaseItemId: item.purchaseItemId,
-    productId: item.productId, unit: item.unit,
+    productId: item.productId, unit: normalizeCorrectionUnit(item.unit),
   });
   const allocationKeys = (allocations: ShoppingRequestCorrectionInput["payment"]["allocations"]) =>
     allocations.map((entry) => JSON.stringify([entry.sourceKind, entry.paymentId, entry.method, entry.amount])).sort();
