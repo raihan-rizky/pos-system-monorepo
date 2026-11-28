@@ -3,6 +3,18 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "pembayaran-tercatat-mengikuti-jadwal-per-baris", date: "2026-11-28", revision: 1,
+    highlight: { title: "Pembayaran ikuti rincian jadwal", summary: "Nominal dan metode catatan mengikuti baris jadwal yang sepadan." },
+    title: "Default pembayaran tercatat mengikuti rincian jadwal",
+    summary: "Jika jumlah baris dan total jadwal cocok, setiap catatan mengikuti metode serta nominal baris jadwal yang seurut. Tanggal pembayaran aktual tetap dipertahankan.",
+    kind: "improvement", impact: "minor", area: "Keuangan", href: "/keuangan", visual: "financial",
+    steps: [
+      { title: "Buka Ubah pembayaran", detail: "Pilih pembelian dari Daftar Belanja atau kartu Giro Pembelian." },
+      { title: "Periksa pembayaran", detail: "Cocokkan setiap catatan dengan baris jadwal yang berurutan." },
+      { title: "Ubah atau terapkan", detail: "Pilih Ubah manual pada satu baris atau Pakai rincian jadwal untuk kembali." },
+    ],
+  },
+  {
     id: "pembayaran-tercatat-satu-form", date: "2026-11-28", revision: 1,
     highlight: { title: "Edit pembayaran dalam satu form", summary: "Ubah langsung metode, nominal, dan tanggal pembayaran tercatat." },
     title: "Ubah pembayaran tercatat dalam satu form",

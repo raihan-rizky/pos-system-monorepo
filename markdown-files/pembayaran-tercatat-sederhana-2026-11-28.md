@@ -2,6 +2,6 @@
 
 Buka **Ubah pembayaran** dari **Keuangan → Hutang Pemasok → Giro Pembelian** atau **Supplier → Daftar Belanja**. Tiap baris **Pembayaran tercatat** menampilkan metode, nominal, dan tanggal.
 
-1. Pilih **Ubah** untuk mengedit metode, nominal, dan tanggal sekaligus. Jika draf memakai jadwal Giro bulan ini, tombolnya **Ubah manual**. Gunakan **Pakai jadwal Giro** untuk mengaktifkan kembali draf otomatis.
-2. Untuk satu pembayaran yang terbagi, pilih **Transfer + Giro** dan isi bagian Transfer. Bagian Giro dihitung dari total pembayaran dikurangi bagian Transfer.
-3. Pilih **Selesai** untuk menutup form baris. Isi alasan, pilih **Tinjau dampak**, lalu **Simpan perubahan** untuk menerapkan koreksi.
+1. Jika jumlah pembayaran tercatat dan rincian jadwal sama, nominal jadwal positif, serta total jadwal sesuai total pembelian, setiap catatan mengikuti metode dan nominal baris jadwal yang seurut. Tanggal pembayaran aktual tetap dipertahankan, termasuk bila jatuh tempo berbeda bulan.
+2. Pilih **Ubah manual** untuk menyesuaikan satu pembayaran. Gunakan **Pakai rincian jadwal** untuk mengembalikan pembayaran itu ke jadwal.
+3. Untuk satu pembayaran yang terbagi, pilih **Transfer + Giro** dan isi bagian Transfer. Bagian Giro dihitung dari total pembayaran dikurangi bagian Transfer. Pilih **Selesai** untuk menutup form, isi alasan, pilih **Tinjau dampak**, lalu **Simpan perubahan**.

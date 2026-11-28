@@ -19,9 +19,6 @@ import styles from "./ShoppingRequestCorrectionModal.module.css";
 const control = "min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600";
 const action = "min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600 disabled:opacity-50";
 const money = formatRupiahPrecise;
-const jakartaDate = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit",
-});
 type EditorItem = ShoppingRequestCorrectionEditor["items"][number];
 type PaymentDraft = { keys: string[]; allocations: ShoppingRequestCorrectionInput["payment"]["allocations"]; corrections: ShoppingRequestCorrectionInput["payment"]["corrections"] };
 type RecordedPayment = ShoppingRequestCorrectionEditor["payment"]["sources"][number];
@@ -95,7 +92,7 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
   const [schedule, setSchedule] = useState<InboundPaymentInput[] | undefined>(() => editor.payment.schedule?.length ? editor.payment.schedule.map(row => ({ ...row, amount: Number(row.amount) })) : undefined);
   const [allocations, setAllocations] = useState<ShoppingRequestCorrectionInput["payment"]["allocations"]>(() => editor.payment.allocations);
   const [corrections, setCorrections] = useState<ShoppingRequestCorrectionInput["payment"]["corrections"]>([]);
-  const [useScheduledGiro, setUseScheduledGiro] = useState(true);
+  const [manualPaymentKeys, setManualPaymentKeys] = useState<Set<string>>(() => new Set());
   const [editingPayment, setEditingPayment] = useState<string | null>(null);
   const [invalidPayment, setInvalidPayment] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<ShoppingRequestCorrectionInput["catalog"]>([]);
@@ -135,21 +132,37 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
   const plannedGiro = plannedPayments.filter(row => row.method === "GIRO").reduce((sum, row) => sum + Math.round(row.amount * 100), 0) / 100;
   const giroDates = plannedPayments.filter(row => row.method === "GIRO").map(row => row.dueDate).filter((date): date is string => Boolean(date));
   const singleGiro = plannedPayments.length === 1 && plannedPayments[0].method === "GIRO" ? plannedPayments[0] : null;
-  const singleSource = editor.payment.sources.length === 1 ? editor.payment.sources[0] : null;
-  const scheduledCorrection = initialSection === "payment" && singleSource && singleGiro?.dueDate &&
-    singleGiro.dueDate.slice(0, 7) === jakartaDate.format(new Date()).slice(0, 7) &&
-    plannedGiro > 0 && Math.round(plannedGiro * 100) === Math.round(scheduledTotal * 100) &&
-    plannedGiro !== Number(singleSource.amount)
-    ? { ...singleSource, amount: plannedGiro.toFixed(2), paidAt: singleSource.paidAt.slice(0, 10) }
-    : null;
-  const automaticCorrection = useScheduledGiro ? scheduledCorrection : null;
-  const paymentCorrections = automaticCorrection ? [automaticCorrection] : corrections;
-  const paymentAllocations: typeof allocations = automaticCorrection ? [{
-    paymentId: automaticCorrection.paymentId,
-    sourceKind: automaticCorrection.sourceKind,
-    amount: automaticCorrection.amount,
-    method: "GIRO",
-  }] : allocations;
+  const canMatchRecordedPaymentsToSchedule = initialSection === "payment" && Boolean(schedule?.length) &&
+    editor.payment.sources.length > 0 && editor.payment.sources.length === plannedPayments.length &&
+    plannedPayments.every(row => Number.isFinite(row.amount) && Math.round(row.amount * 100) > 0) &&
+    plannedPayments.reduce((sum, row) => sum + Math.round(row.amount * 100), 0) === Math.round(scheduledTotal * 100);
+  const scheduledPayments = canMatchRecordedPaymentsToSchedule
+    ? editor.payment.sources.map((source, index) => ({ source, payment: plannedPayments[index] }))
+    : [];
+  const scheduledPaymentByKey = new Map(scheduledPayments.map(row => [paymentSourceKey(row.source), row.payment]));
+  const automaticPayments = scheduledPayments.filter(({ source }) => !manualPaymentKeys.has(paymentSourceKey(source)));
+  const automaticPaymentKeys = new Set(automaticPayments.map(({ source }) => paymentSourceKey(source)));
+  const automaticCorrections = automaticPayments.flatMap(({ source, payment }) =>
+    Math.round(Number(source.amount) * 100) === Math.round(payment.amount * 100) ? [] : [{
+      paymentId: source.paymentId,
+      sourceKind: source.sourceKind,
+      amount: payment.amount.toFixed(2),
+      paidAt: source.paidAt.slice(0, 10),
+    }],
+  );
+  const paymentCorrections = [
+    ...corrections.filter(entry => !automaticPaymentKeys.has(paymentSourceKey(entry))),
+    ...automaticCorrections,
+  ];
+  const paymentAllocations: typeof allocations = [
+    ...allocations.filter(entry => !automaticPaymentKeys.has(paymentSourceKey(entry))),
+    ...automaticPayments.map(({ source, payment }) => ({
+      paymentId: source.paymentId,
+      sourceKind: source.sourceKind,
+      amount: payment.amount.toFixed(2),
+      method: payment.method,
+    })),
+  ];
   const recordedTransfer = paymentAllocations.filter(row => row.method === "TRANSFER").reduce((sum, row) => sum + Math.round(Number(row.amount) * 100), 0);
   const recordedGiro = paymentAllocations.filter(row => row.method === "GIRO").reduce((sum, row) => sum + Math.round(Number(row.amount) * 100), 0);
   const transferOverPlan = recordedTransfer > Math.round(plannedTransfer * 100);
@@ -259,7 +272,7 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
       setPaymentDraft(changedKeys.size ? { keys: [...changedKeys], allocations: allocations.filter(row => changedKeys.has(paymentSourceKey(row))), corrections: corrections.filter(row => changedKeys.has(paymentSourceKey(row))) } : null);
       setEditor(latest); setHeader(latest.header); setItems(latest.items);
       if (initialSection === "details") setCatalog([]);
-      setAllocations(latest.payment.allocations); setCorrections([]);
+      setAllocations(latest.payment.allocations); setCorrections([]); setManualPaymentKeys(new Set());
       setEditingPayment(null);
       setInvalidPayment(null);
       setReview(null); setStage("edit"); setIdempotencyKey(crypto.randomUUID());
@@ -272,7 +285,7 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
     if (!paymentDraft) return;
     const available = new Set(editor.payment.sources.map(paymentSourceKey));
     if (paymentDraft.keys.some(key => !available.has(key))) return;
-    setUseScheduledGiro(false);
+    setManualPaymentKeys(current => new Set([...current, ...paymentDraft.keys]));
     setAllocations(current => [...current.filter(row => !paymentDraft.keys.includes(paymentSourceKey(row))), ...paymentDraft.allocations]);
     setCorrections(current => [...current.filter(row => !paymentDraft.keys.includes(paymentSourceKey(row))), ...paymentDraft.corrections]);
     setPaymentDraft(null);
@@ -409,7 +422,8 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
           const paidAt = (correction?.paidAt ?? source.paidAt).slice(0, 10);
           const transfer = sourceAllocations.find(row => row.method === "TRANSFER")?.amount ?? "";
           const giro = recordedMethod === "SPLIT" ? giroRemainder(amount, transfer) : null;
-          const followsSchedule = Boolean(automaticCorrection);
+          const scheduledPayment = scheduledPaymentByKey.get(key);
+          const followsSchedule = Boolean(scheduledPayment && !manualPaymentKeys.has(key));
           const open = editingPayment === key && !followsSchedule;
           const position = index + 1;
           const closeEditor = () => {
@@ -444,9 +458,9 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
                 aria-label={`${open ? "Tutup" : followsSchedule ? "Ubah manual" : "Ubah"} pembayaran tercatat ${position}`}
                 onClick={() => {
                   if (open) return finishEditor();
-                  if (automaticCorrection) {
-                    editRecordedPayment(source, automaticCorrection.amount, automaticCorrection.paidAt, "GIRO");
-                    setUseScheduledGiro(false);
+                  if (followsSchedule && scheduledPayment) {
+                    editRecordedPayment(source, scheduledPayment.amount.toFixed(2), paidAt, scheduledPayment.method);
+                    setManualPaymentKeys(current => new Set(current).add(key));
                   }
                   setEditingPayment(key);
                 }}>
@@ -454,8 +468,9 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
               </button>
             </div>
             {followsSchedule && <p className="mx-3 mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-              <strong className="block">Mengikuti jadwal Giro</strong>
+              <strong className="block">Mengikuti rincian jadwal · {scheduledPayment?.method === "GIRO" ? "Giro" : "Transfer"}</strong>
               {money(source.amount)} <span aria-hidden="true">→</span><span className="sr-only"> menjadi </span> {money(amount)}
+              {scheduledPayment?.dueDate && <span className="ml-2">· Jatuh tempo {correctionDate(scheduledPayment.dueDate)}</span>}
             </p>}
             {open && <div className="space-y-3 border-t border-emerald-100 p-3">
               <fieldset className="space-y-1">
@@ -496,14 +511,14 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
               </div>}
               {invalidPayment === key && error && <p className="text-sm font-semibold text-rose-800">{error}</p>}
               <div className="flex flex-wrap items-center justify-end gap-2">
-                {scheduledCorrection && <button type="button" className={`${action} mr-auto`} onClick={() => {
-                  setAllocations(current => [...current.filter(entry => !belongsToPayment(entry)), ...editor.payment.allocations.filter(belongsToPayment)]);
+                {scheduledPayment && !followsSchedule && <button type="button" className={`${action} mr-auto`} onClick={() => {
+                  setManualPaymentKeys(current => { const next = new Set(current); next.delete(key); return next; });
+                  setAllocations(current => current.filter(entry => !belongsToPayment(entry)));
                   setCorrections(current => current.filter(entry => !belongsToPayment(entry)));
-                  setUseScheduledGiro(true);
                   setInvalidPayment(null);
                   setError(null);
                   closeEditor();
-                }}>Pakai jadwal Giro</button>}
+                }}>Pakai rincian jadwal</button>}
                 <button type="button" className={action} onClick={finishEditor}>Selesai</button>
               </div>
             </div>}
