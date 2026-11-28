@@ -26,6 +26,14 @@ const fixture = {
   items: [{ clientLineKey: "line", requestItemId: "request-line", purchaseItemId: "purchase-line", productId: "example-product", productName: "Kertas Contoh", sku: "CONTOH-001", unit: "pak", requestedQty: 1, approvedQty: 1, orderedQty: 1, unitPrice: "8936156.00", receipts: [{ receiptLineId: "receipt-line", receivedQty: 1 }], catalogCostPrice: "8936156.00", catalogSalePrice: "9500000.00", catalogUpdatedAt: "2026-11-12T00:00:00Z" }],
   payment: { method: "TRANSFER", dueDate: null, schedule: [{ method: "TRANSFER", amount: "8936156.00", dueDate: null, note: null }], sources: [], allocations: [] }, pendingReceipts: [],
 };
+const recordedFixture = {
+  ...fixture,
+  payment: {
+    ...fixture.payment,
+    sources: [{ paymentId: "example-recorded", sourceKind: "TRANSFER_EXPENSE", amount: "1200000.00", paidAt: "2026-11-17" }],
+    allocations: [{ paymentId: "example-recorded", sourceKind: "TRANSFER_EXPENSE", method: "GIRO", amount: "1200000.00" }],
+  },
+};
 const bundle = await build({
   stdin: { contents: `import React, {useState} from 'react'; import {createRoot} from 'react-dom/client';
     import {ShoppingRequestCorrectionModal} from './features/suppliers/shopping-requests/components/ShoppingRequestCorrectionModal';
@@ -38,8 +46,8 @@ const bundle = await build({
     builder.onResolve({ filter: /useShoppingRequestCorrection$/ }, () => ({ path: "hooks", namespace: "correction-fixture" }));
     builder.onResolve({ filter: /\/(SupplierSelector|ProductAutocomplete)$/ }, args => ({ path: args.path.split("/").at(-1), namespace: "correction-fixture" }));
     builder.onLoad({ filter: /.*/, namespace: "correction-fixture" }, args => ({ contents: args.path === "hooks" ? `
-      const editor=${JSON.stringify(fixture)},preview=${JSON.stringify(preview)};
-      export const useCorrectionEditor=()=>({data:editor,isPending:false,isError:false,refetch:async()=>({data:{...editor,version:'editor-2'}})});
+      const editor=${JSON.stringify(fixture)},recordedEditor=${JSON.stringify(recordedFixture)},preview=${JSON.stringify(preview)};
+      export const useCorrectionEditor=()=>({data:window.recordedExample ? recordedEditor : editor,isPending:false,isError:false,refetch:async()=>({data:{...editor,version:'editor-2'}})});
       export const usePreviewCorrection=()=>({isPending:false,mutateAsync:async input=>{window.previewCalls.push(input);if(window.conflictNext){window.conflictNext=false;throw Object.assign(new Error('Data berubah. Muat ulang.'),{status:409});}return preview;}});
       export const useSaveCorrection=()=>({isPending:false,mutateAsync:async input=>{window.saveCalls.push(input);if(window.failOnce){window.failOnce=false;throw new Error('Koneksi terputus. Coba simpan lagi.');}return {correctionId:'example-audit'};}});
     ` : `export const ${args.path}=()=>null;`, loader: "js", resolveDir: web }));
@@ -165,8 +173,38 @@ try {
   assert.equal(paymentPreview.expectedVersion, "editor-2");
   assert.equal(paymentPreview.payment.schedule[0].amount, "4947500.00");
   assert.equal(paymentPreview.payment.schedule[1].amount, "3988656.00");
+  await page.keyboard.press("Escape");
+  await page.getByRole("dialog").waitFor({ state: "hidden" });
+  await page.evaluate(() => { window.recordedExample = true; });
+  await page.getByRole("button", { name: "Ubah pembayaran contoh" }).click();
+  const recorded = page.getByRole("region", { name: "Pembayaran tercatat 1", exact: true });
+  const amount = recorded.getByLabel("Nominal pembayaran 1", { exact: true });
+  const date = recorded.getByLabel("Tanggal pembayaran 1", { exact: true });
+  assert.equal(await amount.count(), 0);
+  await recorded.getByRole("button", { name: "Ubah pembayaran tercatat 1", exact: true }).click();
+  assert.equal(await amount.inputValue(), "1200000.00");
+  assert.equal(await date.inputValue(), "2026-11-17");
+  assert.equal(await recorded.getByRole("button", { name: "Giro", exact: true }).getAttribute("aria-pressed"), "true");
+  await recorded.getByRole("button", { name: "Transfer + Giro", exact: true }).click();
+  await recorded.getByLabel("Nominal Transfer pembayaran 1", { exact: true }).fill("400000");
+  await amount.fill("1250000");
+  await date.fill("2026-11-18");
+  assert.match(await recorded.getByLabel("Nominal Giro pembayaran 1", { exact: true }).innerText(), /850\.000/);
+  await page.setViewportSize({ width: 320, height: 820 });
+  assert.equal(await recorded.evaluate(element => element.scrollWidth <= element.clientWidth + 1), true);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await recorded.screenshot({ path: path.join(artifacts, "pembayaran-tercatat-form.png") });
+  await recorded.getByRole("button", { name: "Selesai", exact: true }).click();
+  assert.equal(await amount.count(), 0);
+  assert.equal(await recorded.getByRole("button", { name: "Ubah pembayaran tercatat 1", exact: true }).evaluate(element => element === document.activeElement), true);
+  await page.getByLabel("Alasan perubahan").fill("Sesuaikan bukti pembayaran contoh");
+  await page.getByRole("button", { name: "Tinjau dampak", exact: true }).click();
+  await page.getByRole("heading", { name: "Tinjau dampak sebelum simpan", exact: true }).waitFor();
+  const recordedPreview = await page.evaluate(() => window.previewCalls.at(-1).payment);
+  assert.deepEqual(recordedPreview.allocations.map(({ method, amount }) => [method, Number(amount)]), [["TRANSFER", 400000], ["GIRO", 850000]]);
+  assert.equal(recordedPreview.corrections[0].paidAt, "2026-11-18");
   assert.deepEqual(errors, []);
-  process.stdout.write("PASS: real correction UI, mixed schedule, focus trap/restore, retry, inline validation, mobile and keyboard.\n");
+  process.stdout.write("PASS: real correction UI, schedule and recorded payment edits, focus, retry, validation and mobile.\n");
 } finally {
   await browser.close();
 }

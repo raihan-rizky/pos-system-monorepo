@@ -24,6 +24,20 @@ const jakartaDate = new Intl.DateTimeFormat("en-CA", {
 });
 type EditorItem = ShoppingRequestCorrectionEditor["items"][number];
 type PaymentDraft = { keys: string[]; allocations: ShoppingRequestCorrectionInput["payment"]["allocations"]; corrections: ShoppingRequestCorrectionInput["payment"]["corrections"] };
+type RecordedPayment = ShoppingRequestCorrectionEditor["payment"]["sources"][number];
+type RecordedMethod = PaymentDraft["allocations"][number]["method"] | "SPLIT";
+const recordedMethods: { value: RecordedMethod; label: string }[] = [
+  { value: "TRANSFER", label: "Transfer" },
+  { value: "GIRO", label: "Giro" },
+  { value: "SPLIT", label: "Transfer + Giro" },
+];
+const validPaymentAmount = (value: string) => /^\d+(?:\.\d{1,2})?$/.test(value);
+const splitPaymentError = "Isi nominal Transfer yang lebih besar dari nol dan lebih kecil dari total pembayaran.";
+const giroRemainder = (total: string, transfer: string) => {
+  if (!validPaymentAmount(total) || !validPaymentAmount(transfer)) return null;
+  const remainder = new Decimal(total).minus(transfer);
+  return remainder.gt(0) && new Decimal(transfer).gt(0) ? remainder.toFixed(2) : null;
+};
 type ScheduleDraft = { method: "TRANSFER" | "GIRO" | null; dueDate: string; schedule: InboundPaymentInput[] | undefined };
 const paymentSourceKey = (source: { sourceKind: string; paymentId: string }) => JSON.stringify([source.sourceKind, source.paymentId]);
 const scheduleDraftFromEditor = (editor: ShoppingRequestCorrectionEditor): ScheduleDraft => ({
@@ -82,6 +96,8 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
   const [allocations, setAllocations] = useState<ShoppingRequestCorrectionInput["payment"]["allocations"]>(() => editor.payment.allocations);
   const [corrections, setCorrections] = useState<ShoppingRequestCorrectionInput["payment"]["corrections"]>([]);
   const [useScheduledGiro, setUseScheduledGiro] = useState(true);
+  const [editingPayment, setEditingPayment] = useState<string | null>(null);
+  const [invalidPayment, setInvalidPayment] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<ShoppingRequestCorrectionInput["catalog"]>([]);
   const [stage, setStage] = useState<"edit" | "catalog" | "review">("edit");
   const [review, setReview] = useState<{ preview: CorrectionPreview; input: ShoppingRequestCorrectionInput } | null>(null);
@@ -106,7 +122,7 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
   const previewMutation = usePreviewCorrection(editor.requestId);
   const saveMutation = useSaveCorrection(editor.requestId);
   const busy = adding || refreshing || previewMutation.isPending || saveMutation.isPending;
-  const paymentError = error && /jadwal|alokasi|giro|pembayaran/i.test(error) ? error : null;
+  const paymentError = !invalidPayment && error && /jadwal|alokasi|giro|pembayaran/i.test(error) ? error : null;
   const hasReceipts = editor.items.some(item => item.receipts.length) || items.some(item => item.receipts.some(receipt => receipt.receivedQty > 0));
   const purchaseUnchanged = JSON.stringify(header) === JSON.stringify(editor.header) && JSON.stringify(items) === JSON.stringify(editor.items) &&
     !catalog.some(entry => entry.costPrice !== null || entry.salePrice !== null);
@@ -163,6 +179,7 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
   const loadPreview = async () => {
     if (!reason.trim() || busy) return;
     setError(null); setConflict(false);
+    setInvalidPayment(null);
     try {
       if (schedule) {
         try { validateInboundPayments(scheduledTotal, schedule, { allowEstablishedZeroRows: true }); }
@@ -172,12 +189,24 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
         }
       } else if (method === "GIRO" && !dueDate) throw new Error("Tanggal jatuh tempo Giro wajib diisi.");
       for (const source of editor.payment.sources) {
-        const correction = paymentCorrections.find(entry => entry.paymentId === source.paymentId && entry.sourceKind === source.sourceKind);
-        const amount = Number(correction?.amount ?? source.amount);
-        const allocated = paymentAllocations.filter(entry => entry.paymentId === source.paymentId && entry.sourceKind === source.sourceKind)
-          .reduce((sum, entry) => sum + Math.round(Number(entry.amount) * 100), 0);
-        if (!Number.isFinite(amount) || !Number.isFinite(allocated) || allocated !== Math.round(amount * 100)) {
-          throw new Error("Jumlah alokasi harus sama dengan nominal pembayaran tercatat. Periksa alokasi Transfer dan Giro.");
+        const key = paymentSourceKey(source);
+        const correction = paymentCorrections.find(entry => paymentSourceKey(entry) === key);
+        const amount = correction?.amount ?? source.amount;
+        const rows = paymentAllocations.filter(entry => paymentSourceKey(entry) === key);
+        const openedError = !validPaymentAmount(amount) ? "Isi nominal pembayaran dengan maksimal dua angka desimal."
+          : correction && !correction.paidAt ? "Isi tanggal pembayaran."
+          : rows.some(row => row.amount === "") ? splitPaymentError
+          : null;
+        if (openedError) {
+          setEditingPayment(key);
+          setInvalidPayment(key);
+          throw new Error(openedError);
+        }
+        const allocated = rows.reduce((sum, entry) => sum.plus(entry.amount), new Decimal(0));
+        if (!allocated.eq(amount)) {
+          setEditingPayment(key);
+          setInvalidPayment(key);
+          throw new Error("Periksa pembagian pembayaran Transfer dan Giro. Jumlahnya harus sama dengan nominal pembayaran.");
         }
       }
     } catch (cause) {
@@ -231,6 +260,8 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
       setEditor(latest); setHeader(latest.header); setItems(latest.items);
       if (initialSection === "details") setCatalog([]);
       setAllocations(latest.payment.allocations); setCorrections([]);
+      setEditingPayment(null);
+      setInvalidPayment(null);
       setReview(null); setStage("edit"); setIdempotencyKey(crypto.randomUUID());
       setError(null); setConflict(false); setConfirmReload(false);
       setRefreshNotice("Data terbaru dimuat. Alasan Anda tetap tersedia; periksa jadwal dan pembayaran tercatat sebelum meninjau dampak.");
@@ -246,6 +277,21 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
     setCorrections(current => [...current.filter(row => !paymentDraft.keys.includes(paymentSourceKey(row))), ...paymentDraft.corrections]);
     setPaymentDraft(null);
     setRefreshNotice("Koreksi Anda diterapkan kembali pada data terbaru. Periksa nominal dan alokasi, lalu tinjau dampak.");
+  };
+  const editRecordedPayment = (source: RecordedPayment, amount: string, paidAt: string, method: RecordedMethod, transfer = "") => {
+    const key = paymentSourceKey(source);
+    const identity = { paymentId: source.paymentId, sourceKind: source.sourceKind };
+    const changed = !validPaymentAmount(amount) || !new Decimal(amount).eq(source.amount) || paidAt !== source.paidAt.slice(0, 10);
+    setCorrections(current => [
+      ...current.filter(entry => paymentSourceKey(entry) !== key),
+      ...(changed ? [{ ...identity, amount, paidAt }] : []),
+    ]);
+    const next: typeof allocations = method === "SPLIT"
+      ? [{ ...identity, method: "TRANSFER", amount: transfer }, { ...identity, method: "GIRO", amount: giroRemainder(amount, transfer) ?? "" }]
+      : [{ ...identity, method, amount }];
+    setAllocations(current => [...current.filter(entry => paymentSourceKey(entry) !== key), ...next]);
+    setInvalidPayment(null);
+    setError(null);
   };
   const selectCatalog = (item: EditorItem, field: "costPrice" | "salePrice", value: string | null) => setCatalog(current => {
     const entry = current.find(entry => entry.productId === item.productId) ?? { productId: item.productId, costPrice: null, salePrice: null, expectedUpdatedAt: item.catalogUpdatedAt };
@@ -351,48 +397,118 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
         </aside>
         </div>
         <h3 className="border-t border-slate-200 pt-4 font-bold">Pembayaran tercatat</h3>
-        {scheduledCorrection && singleSource && <div className="space-y-1 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
-          <label className="flex min-h-11 items-center gap-2 font-semibold">
-            <input type="checkbox" aria-label="Pakai nominal jadwal Giro" checked={useScheduledGiro} onChange={event => {
-              setUseScheduledGiro(event.target.checked);
-              setError(null);
-            }} />
-            Pakai nominal jadwal Giro
-          </label>
-          <p>Giro jatuh tempo bulan ini. Nominal pembayaran akan berubah dari {money(singleSource.amount)} menjadi {money(scheduledCorrection.amount)} jika pilihan ini aktif dan koreksi disimpan.</p>
-        </div>}
         {!editor.payment.sources.length && <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Belum ada pembayaran tercatat. Jadwal pembayaran tidak membuat pelunasan otomatis.</p>}
         {editor.payment.sources.map((source, index) => {
-          const belongsToPayment = (entry: { paymentId: string; sourceKind: string }) =>
-            entry.paymentId === source.paymentId && entry.sourceKind === source.sourceKind;
+          const key = paymentSourceKey(source);
+          const belongsToPayment = (entry: Pick<RecordedPayment, "paymentId" | "sourceKind">) => paymentSourceKey(entry) === key;
           const correction = paymentCorrections.find(belongsToPayment);
-          const sourceAllocations = paymentAllocations.filter(entry => belongsToPayment(entry) && Number(entry.amount) > 0);
-          const recordedMethod = sourceAllocations.length === 1 ? sourceAllocations[0].method : "";
-          return <fieldset key={`${source.sourceKind}:${source.paymentId}`} aria-invalid={paymentError?.includes("alokasi") ? true : undefined} aria-describedby={paymentError?.includes("alokasi") ? "correction-allocation-error" : undefined} className="space-y-3 rounded-xl border p-3"><legend>Pembayaran {index + 1} · {money(correction?.amount ?? source.amount)} · {correctionDate(correction?.paidAt ?? source.paidAt)}</legend>
-            <label className="block text-sm font-medium">Metode pembayaran tercatat
-              <select className={control} aria-label={`Metode pembayaran tercatat ${index + 1}`} disabled={Boolean(automaticCorrection)} value={recordedMethod} onChange={event => {
-                const next = event.target.value;
-                if (next !== "TRANSFER" && next !== "GIRO") return;
-                setAllocations(current => [...current.filter(entry => !belongsToPayment(entry)), {
-                  paymentId: source.paymentId, sourceKind: source.sourceKind, method: next, amount: correction?.amount ?? source.amount,
-                }]);
-                setError(null);
-              }}>
-                <option value="" disabled>Alokasi khusus</option>
-                <option value="TRANSFER">Transfer</option>
-                <option value="GIRO">Giro</option>
-              </select>
-            </label>
-            {!automaticCorrection && <details className="space-y-2 text-sm" open={paymentError?.includes("alokasi") || undefined}>
-              <summary className="min-h-11 cursor-pointer py-2 font-medium">Koreksi lanjutan</summary>
-              <p className="text-slate-600">Bagi nominal ke Transfer dan Giro, atau koreksi nominal dan tanggal sesuai bukti pembayaran.</p>
-            <div className="grid gap-3 sm:grid-cols-2">{(["TRANSFER", "GIRO"] as const).map(allocationMethod => <label key={allocationMethod}>Alokasi {allocationMethod === "GIRO" ? "Giro" : "Transfer"}<input className={control} aria-label={`Alokasi ${allocationMethod} pembayaran ${index + 1}`} type="number" min="0" step="0.01" value={allocations.find(entry => entry.paymentId === source.paymentId && entry.sourceKind === source.sourceKind && entry.method === allocationMethod)?.amount ?? "0"} onChange={e => setAllocations(current => [...current.filter(entry => !(entry.paymentId === source.paymentId && entry.sourceKind === source.sourceKind && entry.method === allocationMethod)), { paymentId: source.paymentId, sourceKind: source.sourceKind, method: allocationMethod, amount: e.target.value }])} /></label>)}</div>
-            <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={Boolean(correction)} onChange={e => setCorrections(current => e.target.checked ? [...current, { ...source, paidAt: source.paidAt.slice(0, 10) }] : current.filter(entry => !(entry.paymentId === source.paymentId && entry.sourceKind === source.sourceKind)))} />Koreksi nominal atau tanggal pembayaran ini</label>
-            {correction && <div className="grid gap-3 sm:grid-cols-2">{([ ["amount", "Nominal", "number"], ["paidAt", "Tanggal pembayaran", "date"] ] as const).map(([field, label, type]) => <label key={field}>{label}<input className={control} type={type} min={type === "number" ? "0" : undefined} step={type === "number" ? "0.01" : undefined} required value={correction[field]} onChange={e => setCorrections(current => current.map(entry => entry === correction ? { ...entry, [field]: e.target.value } : entry))} /></label>)}</div>}
-            </details>}
-          </fieldset>;
+          const sourceAllocations = paymentAllocations.filter(belongsToPayment);
+          const recordedMethod: RecordedMethod = sourceAllocations.length > 1 ? "SPLIT"
+            : sourceAllocations[0]?.method ?? (source.sourceKind === "TRANSFER_EXPENSE" ? "TRANSFER" : "GIRO");
+          const amount = correction?.amount ?? source.amount;
+          const paidAt = (correction?.paidAt ?? source.paidAt).slice(0, 10);
+          const transfer = sourceAllocations.find(row => row.method === "TRANSFER")?.amount ?? "";
+          const giro = recordedMethod === "SPLIT" ? giroRemainder(amount, transfer) : null;
+          const followsSchedule = Boolean(automaticCorrection);
+          const open = editingPayment === key && !followsSchedule;
+          const position = index + 1;
+          const closeEditor = () => {
+            setEditingPayment(null);
+            paymentRef.current?.querySelector<HTMLButtonElement>(`[data-payment-edit="${position}"]`)?.focus();
+          };
+          const finishEditor = () => {
+            const message = !validPaymentAmount(amount) ? "Isi nominal pembayaran dengan maksimal dua angka desimal."
+              : !paidAt ? "Isi tanggal pembayaran."
+              : recordedMethod === "SPLIT" && !giro ? splitPaymentError : null;
+            if (message) {
+              setInvalidPayment(key);
+              setError(message);
+              return;
+            }
+            closeEditor();
+          };
+
+          return <section key={key} aria-label={`Pembayaran tercatat ${position}`} className="rounded-xl border border-emerald-100">
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3">
+              <div className="min-w-0" aria-live="polite">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+                    {recordedMethods.find(option => option.value === recordedMethod)?.label}
+                  </span>
+                  <strong className="text-lg tabular-nums">{validPaymentAmount(amount) ? money(amount) : "Nominal belum valid"}</strong>
+                </div>
+                <p className="text-sm text-slate-600">{paidAt ? `Dibayar ${correctionDate(paidAt)}` : "Tanggal pembayaran belum diisi"}</p>
+                {giro && <p className="text-xs text-slate-600">Transfer {money(transfer)} · Giro {money(giro)}</p>}
+              </div>
+              <button type="button" className={action} data-payment-edit={position} aria-expanded={open}
+                aria-label={`${open ? "Tutup" : followsSchedule ? "Ubah manual" : "Ubah"} pembayaran tercatat ${position}`}
+                onClick={() => {
+                  if (open) return finishEditor();
+                  if (automaticCorrection) {
+                    editRecordedPayment(source, automaticCorrection.amount, automaticCorrection.paidAt, "GIRO");
+                    setUseScheduledGiro(false);
+                  }
+                  setEditingPayment(key);
+                }}>
+                {open ? "Tutup" : followsSchedule ? "Ubah manual" : "Ubah"}
+              </button>
+            </div>
+            {followsSchedule && <p className="mx-3 mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+              <strong className="block">Mengikuti jadwal Giro</strong>
+              {money(source.amount)} <span aria-hidden="true">→</span><span className="sr-only"> menjadi </span> {money(amount)}
+            </p>}
+            {open && <div className="space-y-3 border-t border-emerald-100 p-3">
+              <fieldset className="space-y-1">
+                <legend className="text-sm font-semibold">Metode pembayaran</legend>
+                <div className="flex flex-wrap gap-2">
+                  {recordedMethods.map(option => <button type="button" key={option.value}
+                    aria-pressed={recordedMethod === option.value}
+                    className={`${action} ${recordedMethod === option.value ? "border-emerald-600 bg-emerald-50 text-emerald-900" : ""}`}
+                    onClick={() => {
+                      if (recordedMethod === option.value) return;
+                      editRecordedPayment(source, amount, paidAt, option.value);
+                    }}>
+                    {option.label}
+                  </button>)}
+                </div>
+              </fieldset>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-sm font-semibold">Nominal pembayaran
+                  <input className={control} aria-label={`Nominal pembayaran ${position}`} type="number" inputMode="decimal" min="0" step="0.01"
+                    value={amount} onChange={event => editRecordedPayment(source, event.target.value, paidAt, recordedMethod, transfer)} />
+                </label>
+                <label className="text-sm font-semibold">Tanggal pembayaran
+                  <input className={control} aria-label={`Tanggal pembayaran ${position}`} type="date"
+                    value={paidAt} onChange={event => editRecordedPayment(source, amount, event.target.value, recordedMethod, transfer)} />
+                </label>
+              </div>
+              {recordedMethod === "SPLIT" && <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-sm font-semibold">Nominal Transfer
+                  <input className={control} aria-label={`Nominal Transfer pembayaran ${position}`} type="number" inputMode="decimal" min="0.01" step="0.01"
+                    value={transfer} onChange={event => editRecordedPayment(source, amount, paidAt, recordedMethod, event.target.value)} />
+                </label>
+                <div className="text-sm font-semibold">
+                  <span>Nominal Giro</span>
+                  <output aria-label={`Nominal Giro pembayaran ${position}`} className="flex min-h-11 items-center rounded-lg bg-slate-50 px-3 tabular-nums">
+                    {giro ? money(giro) : "—"}
+                  </output>
+                </div>
+              </div>}
+              {invalidPayment === key && error && <p className="text-sm font-semibold text-rose-800">{error}</p>}
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {scheduledCorrection && <button type="button" className={`${action} mr-auto`} onClick={() => {
+                  setAllocations(current => [...current.filter(entry => !belongsToPayment(entry)), ...editor.payment.allocations.filter(belongsToPayment)]);
+                  setCorrections(current => current.filter(entry => !belongsToPayment(entry)));
+                  setUseScheduledGiro(true);
+                  setInvalidPayment(null);
+                  setError(null);
+                  closeEditor();
+                }}>Pakai jadwal Giro</button>}
+                <button type="button" className={action} onClick={finishEditor}>Selesai</button>
+              </div>
+            </div>}
+          </section>;
         })}
-        {paymentError?.includes("alokasi") && <p id="correction-allocation-error" className="text-sm font-semibold text-rose-800">{paymentError}</p>}
         </section>
         <label className="block font-semibold">Alasan perubahan<textarea required className={control} aria-label="Alasan perubahan" value={reason} onChange={e => setReason(e.target.value)} /></label>
       </fieldset>

@@ -6,7 +6,7 @@ Di **Keuangan → Hutang Pemasok → Giro Pembelian**, kartu menampilkan saldo h
 
 1. Pada kartu yang bisa dikoreksi, klik **Ubah pembayaran** atau **Periksa jadwal** jika pembayaran tercatat melebihi jadwal metode terkait. Pintasan memerlukan akses Supplier dan izin koreksi daftar belanja.
 2. Untuk mengubah rencana, pilih Transfer atau Giro pada **Rincian jadwal**. Isi tanggal jatuh tempo untuk Giro. Jika satu jadwal Giro mencakup Transfer yang sudah tercatat dan Giro memang hanya untuk sisanya, gunakan **Pakai saran jadwal**. Periksa nominal dengan bukti transaksi sebelum menyimpan.
-3. Untuk mengubah metode pembayaran yang sudah tercatat, pilih metode pada baris **Pembayaran tercatat**. Buka **Koreksi lanjutan** untuk membagi satu pembayaran atau memperbaiki nominal dan tanggal.
+3. Di baris **Pembayaran tercatat**, pilih **Ubah** untuk membuka metode, nominal, dan tanggal sekaligus. Untuk membagi satu pembayaran, pilih **Transfer + Giro** lalu isi bagian Transfer. Form menghitung bagian Giro dari sisanya.
 4. Isi alasan, pilih **Tinjau dampak**, lalu simpan. Riwayat koreksi mencatat perubahan melalui mekanisme koreksi pembelian yang sudah ada.
 
 ## Cara saldo ditampilkan
