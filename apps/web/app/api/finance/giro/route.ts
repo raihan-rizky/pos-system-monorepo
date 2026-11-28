@@ -10,12 +10,14 @@ import { projectPayableLedger, type ManualPayablePayment } from '@/features/keua
 export const dynamic = 'force-dynamic';
 const log = getLogger('api:finance:giro');
 type Payment = { id: string; amount: string; paidAt: string };
+type PurchasePayment = Payment & { method: 'TRANSFER' | 'GIRO' | 'MIXED'; transferAmount?: string | null };
 type GiroRow = {
   goodsPurchaseId: string; number: string; supplierName: string; amount: string;
+  shoppingRequestId: string | null; plannedTransfer: string | null;
   debtDate: string | null; dueDate: string | null; payableId: string | null; payableDebtDate: string | null;
   historyVerifiedAt: Date | null; payableNote: string | null; ledgerVersion: string | null; payments: Payment[];
   schedule?: { id: string; amount: string; dueDate: string; note: string | null }[];
-  correctionId: string | null; payableAmount: string | null; effectivePayments: Payment[]; credited: string;
+  correctionId: string | null; payableAmount: string | null; effectivePayments: PurchasePayment[]; credited: string;
 };
 type ManualRow = {
   id: string; ledgerVersion: string; supplierName: string; amount: string; debtDate: string;
@@ -39,6 +41,14 @@ export async function GET(request: Request): Promise<Response> {
     const today = jakartaToday();
     const giroQuery = db.$queryRaw<GiroRow[]>`
       SELECT g."id" AS "goodsPurchaseId", g."number", g."supplierNameSnapshot" AS "supplierName",
+        CASE WHEN g."status" = 'APPROVED' AND EXISTS (
+          SELECT 1 FROM "pos_shopping_requests" request
+          WHERE request."id" = g."shoppingRequestId" AND request."storeId" = g."storeId" AND request."status" <> 'CANCELLED'
+        ) AND NOT EXISTS (
+          SELECT 1 FROM "pos_goods_purchases" other
+          WHERE other."shoppingRequestId" = g."shoppingRequestId" AND other."storeId" = g."storeId"
+            AND other."status" = 'APPROVED' AND other."id" <> g."id"
+        ) THEN g."shoppingRequestId" ELSE NULL END AS "shoppingRequestId", s."transferAmount"::text AS "plannedTransfer",
         (CASE WHEN s."count" > 0 THEN s."giroAmount" ELSE g."totalAmount" END)::text AS "amount", e."debtDate", (CASE WHEN s."count" > 0 THEN s."dueDate" ELSE g."paymentDueDate" END)::text AS "dueDate",
         d."id" AS "payableId", (d."ledgerVersion"::numeric * 2)::text AS "ledgerVersion", d."amount"::text AS "payableAmount", d."debtDate"::text AS "payableDebtDate", d."note" AS "payableNote", d."giroHistoryVerifiedAt" AS "historyVerifiedAt", correction."id" AS "correctionId", p."payments", effective."effectivePayments", credit."credited", s."schedule"
       FROM "pos_goods_purchases" g
@@ -84,16 +94,18 @@ export async function GET(request: Request): Promise<Response> {
         ) pay
       ) p ON true
       LEFT JOIN LATERAL (
-        SELECT COALESCE(json_agg(json_build_object('id', paid."id", 'amount', paid."amount"::text, 'paidAt', paid."paidAt"::text)
+        SELECT COALESCE(json_agg(json_build_object('id', paid."id", 'amount', paid."amount"::text, 'paidAt', paid."paidAt"::text, 'method', paid."method", 'transferAmount', paid."transferAmount"::text)
           ORDER BY paid."paidAt", paid."id") FILTER (WHERE paid."amount" > 0), '[]'::json) AS "effectivePayments"
         FROM (
-          SELECT source."id", SUM(source."amount") AS "amount", source."paidAt"
+          SELECT source."id", SUM(source."amount") AS "amount", source."paidAt",
+            CASE WHEN COUNT(DISTINCT source."method") > 1 THEN 'MIXED' ELSE MIN(source."method") END AS "method",
+            SUM(source."amount") FILTER (WHERE source."method" = 'TRANSFER') AS "transferAmount"
           FROM (
             SELECT CASE WHEN a."sourceKind" = 'PAYABLE_PAYMENT' THEN a."paymentId"
-              ELSE a."sourceKind" || ':' || a."paymentId" END AS "id", a."amount", a."paidAt"
+              ELSE a."sourceKind" || ':' || a."paymentId" END AS "id", a."amount", a."paidAt", a."method"::text AS "method"
             FROM "pos_shopping_request_correction_allocations" a WHERE a."correctionId" = correction."id"
             UNION ALL
-            SELECT pay."id", pay."amount", pay."paidAt" FROM "pos_supplier_payable_payments" pay
+            SELECT pay."id", pay."amount", pay."paidAt", 'GIRO' FROM "pos_supplier_payable_payments" pay
             WHERE pay."payableId" = d."id" AND NOT EXISTS (
               SELECT 1 FROM jsonb_array_elements(COALESCE(correction."afterSnapshot" #> '{paymentSnapshot,sources}', '[]'::jsonb)) source
               WHERE source->>'sourceKind' = 'PAYABLE_PAYMENT' AND source->>'paymentId' = pay."id"
@@ -102,7 +114,7 @@ export async function GET(request: Request): Promise<Response> {
             SELECT 'TRANSFER_EXPENSE:' || e."id", COALESCE(g."initialTransferAmount", CASE
               WHEN s."transferCount" > 0 THEN s."transferAmount"
               WHEN g."paymentMethod" = 'TRANSFER' AND g."totalBasis" = 'ORDERED' THEN e."amount"
-              ELSE 0 END), COALESCE(g."initialTransferPaidAt", e."debtDate"::date)
+              ELSE 0 END), COALESCE(g."initialTransferPaidAt", e."debtDate"::date), 'TRANSFER'
             WHERE correction."id" IS NOT NULL AND e."id" IS NOT NULL AND NOT EXISTS (
               SELECT 1 FROM jsonb_array_elements(COALESCE(correction."afterSnapshot" #> '{paymentSnapshot,sources}', '[]'::jsonb)) source
               WHERE source->>'sourceKind' = 'TRANSFER_EXPENSE' AND source->>'paymentId' = e."id"
@@ -144,7 +156,7 @@ export async function GET(request: Request): Promise<Response> {
     const [rows, manual] = summaryOnly && manualQuery
       ? await db.$transaction([giroQuery, manualQuery], { isolationLevel: 'RepeatableRead' })
       : await Promise.all([giroQuery, manualQuery ?? []]);
-    const items = rows.map(({ amount, historyVerifiedAt, correctionId, payableAmount, effectivePayments: rawEffectivePayments, credited, payments: rawPayments, schedule: rawSchedule, ...row }) => {
+    const items = rows.map(({ amount, historyVerifiedAt, correctionId, payableAmount, plannedTransfer, effectivePayments: rawEffectivePayments, credited, payments: rawPayments, schedule: rawSchedule, ...row }) => {
       const schedule = (rawSchedule ?? []).map(payment => ({ ...payment, amount: Number(payment.amount) }));
       const payments = rawPayments.map(payment => ({ ...payment, amount: Number(payment.amount) }));
       if (!row.debtDate) return { ...row, schedule, amount: Number(amount), payments, status: 'UNKNOWN', paid: null, remaining: null, historyIssue: true };
@@ -153,14 +165,26 @@ export async function GET(request: Request): Promise<Response> {
         if (corrected && (payableAmount === null || payableAmount === undefined || !Array.isArray(rawEffectivePayments))) throw new Error('Saldo pembelian terkoreksi tidak tersedia.');
         const total = corrected ? Number(payableAmount) : Number(amount);
         const creditApplied = Number(credited ?? 0);
-        const cashPayments = corrected ? rawEffectivePayments.map(payment => ({ ...payment, amount: Number(payment.amount) })) : payments;
+        const cashPayments = corrected
+          ? rawEffectivePayments.map(({ transferAmount, ...payment }) => ({
+            ...payment,
+            amount: Number(payment.amount),
+            ...(transferAmount != null ? { transferAmount: Number(transferAmount) } : {}),
+          }))
+          : payments.map(payment => ({ ...payment, method: 'GIRO' as const }));
         const cashBalance = summarizeGiro(total, cashPayments, Boolean(historyVerifiedAt), today, { allowCorrection: corrected });
         const balancePayments = creditApplied > 0 ? [...cashPayments, { amount: creditApplied, paidAt: today }] : cashPayments;
         const balance = creditApplied > 0 ? summarizeGiro(total, balancePayments, Boolean(historyVerifiedAt), today, { allowCorrection: corrected }) : cashBalance;
         const committedBalance = summarizeGiro(total, balancePayments, Boolean(historyVerifiedAt), '9999-12-31', { allowCorrection: corrected });
         const giroPaid = corrected ? summarizeGiro(Number(amount), payments, Boolean(historyVerifiedAt), today, { allowCorrection: true }).paid : cashBalance.paid;
+        const purchasePayments = balance.remaining === null ? [] : cashPayments.filter(payment => payment.paidAt <= today);
         const futurePayments = cashPayments.filter(payment => payment.paidAt > today);
-        return { ...row, schedule, amount: Number(amount), payments, ...balance, paid: giroPaid, creditApplied, availableToPay: committedBalance.remaining, futurePayments, ...(corrected ? { totalPaid: cashBalance.paid } : {}), balanceIncludesOtherMethods: corrected, historyIssue: false };
+        return {
+          ...row, schedule, amount: Number(amount), payments, ...balance, paid: giroPaid, creditApplied,
+          balanceTotal: total, totalPaid: cashBalance.paid, plannedTransfer: Number(plannedTransfer ?? 0),
+          purchasePayments, availableToPay: committedBalance.remaining, futurePayments,
+          balanceIncludesOtherMethods: corrected, historyIssue: false,
+        };
       } catch (error) {
         log.error('Riwayat pembayaran giro tidak konsisten', error);
         return { ...row, schedule, amount: Number(amount), payments, status: 'UNKNOWN', paid: null, remaining: null, historyIssue: true };

@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Decimal } from "@pos/db/decimal";
 import { Modal } from "@pos/ui";
+import { formatRupiahPrecise } from "@/lib/utils";
 import type { Product } from "@/hooks/useProducts";
 import { SupplierSelector } from "@/features/suppliers/components/SupplierSelector";
 import { InboundPaymentFields } from "@/features/inventory-management/components/InboundPaymentFields";
@@ -17,7 +18,7 @@ import styles from "./ShoppingRequestCorrectionModal.module.css";
 
 const control = "min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600";
 const action = "min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600 disabled:opacity-50";
-const money = (value: string) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(Number(value));
+const money = formatRupiahPrecise;
 type EditorItem = ShoppingRequestCorrectionEditor["items"][number];
 type PaymentDraft = { keys: string[]; allocations: ShoppingRequestCorrectionInput["payment"]["allocations"]; corrections: ShoppingRequestCorrectionInput["payment"]["corrections"] };
 type ScheduleDraft = { method: "TRANSFER" | "GIRO" | null; dueDate: string; schedule: InboundPaymentInput[] | undefined };
@@ -115,7 +116,11 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
   const giroDates = plannedPayments.filter(row => row.method === "GIRO").map(row => row.dueDate).filter((date): date is string => Boolean(date));
   const recordedTransfer = allocations.filter(row => row.method === "TRANSFER").reduce((sum, row) => sum + Math.round(Number(row.amount) * 100), 0);
   const recordedGiro = allocations.filter(row => row.method === "GIRO").reduce((sum, row) => sum + Math.round(Number(row.amount) * 100), 0);
-  const paymentMismatch = editor.payment.sources.length > 0 && (recordedTransfer !== Math.round(plannedTransfer * 100) || recordedGiro !== Math.round(plannedGiro * 100));
+  const transferOverPlan = recordedTransfer > Math.round(plannedTransfer * 100);
+  const giroOverPlan = recordedGiro > Math.round(plannedGiro * 100);
+  const singleGiro = plannedPayments.length === 1 && plannedPayments[0].method === "GIRO" ? plannedPayments[0] : null;
+  const giroAfterTransfer = (Math.round(scheduledTotal * 100) - recordedTransfer) / 100;
+  const canSuggestSchedule = singleGiro?.dueDate && transferOverPlan && recordedGiro === 0 && giroAfterTransfer > 0;
   const changedPrices = items.filter(item => !editor.items.some(old => old.clientLineKey === item.clientLineKey && old.productId === item.productId && Number(old.unitPrice) === Number(item.unitPrice)));
   const productName = (id: string) => items.find(item => item.productId === id)?.productName ?? editor.items.find(item => item.productId === id)?.productName ?? "Barang";
   const patchItem = (key: string, patch: Partial<EditorItem>) => setItems(current => current.map(item => item.clientLineKey === key ? { ...item, ...patch } : item));
@@ -285,9 +290,30 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
         {editor.expenseMismatch && <p role="status" className={`${styles.warning} rounded-lg border p-3 text-sm`}>Nilai pengeluaran tercatat tidak sesuai dengan total pembelian. Laporan terkait mungkin belum lengkap; periksa catatan pengeluaran secara terpisah.</p>}
         <p role="status" className={`${styles.warning} rounded-lg border p-3 text-sm`}>Perubahan pembayaran dapat memengaruhi utang dan laporan.{editor.pendingReceipts.length > 0 && " Ada penerimaan yang menunggu, tetapi Anda tetap dapat mengubah pembayaran."}</p>
         <p className="text-sm text-slate-600">Perubahan ini membetulkan catatan. Tidak ada pemindahan uang atau pengembalian uang otomatis.</p>
+        {(transferOverPlan || giroOverPlan) && <div className={`${styles.warning} space-y-2 rounded-lg border p-3 text-sm`}>
+          <div role="status">
+            {transferOverPlan && <p>Transfer tercatat {money(recordedTransfer / 100)}. Jadwal Transfer {money(plannedTransfer)}.</p>}
+            {giroOverPlan && <p>Giro tercatat {money(recordedGiro / 100)}. Jadwal Giro {money(plannedGiro)}.</p>}
+          </div>
+          {canSuggestSchedule && singleGiro && <>
+            <p>Jika Giro hanya untuk sisanya, jadwalkan Transfer {money(recordedTransfer / 100)} dan Giro {money(giroAfterTransfer)}.</p>
+            <button type="button" className={action} onClick={() => {
+              setSchedule([
+                { method: "TRANSFER", amount: recordedTransfer / 100, dueDate: null, note: null },
+                { ...singleGiro, amount: giroAfterTransfer },
+              ]);
+              setError(null);
+            }}>Pakai saran jadwal</button>
+          </>}
+        </div>}
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(220px,0.75fr)]">
         <div className="space-y-3">
-        {!schedule && <div className="grid gap-3 sm:grid-cols-2"><label>Metode pembayaran<select className={control} aria-label="Metode pembayaran" value={method ?? ""} onChange={e => setMethod(e.target.value as typeof method || null)}><option value="">Belum ditentukan</option><option value="TRANSFER">Transfer</option><option value="GIRO">Giro</option></select></label><label>Jatuh tempo<input type="date" className={control} aria-label="Jatuh tempo" value={dueDate} onChange={e => setDueDate(e.target.value)} /></label></div>}
+        {!schedule && <div className="grid gap-3 sm:grid-cols-2"><label>Metode pembayaran<select className={control} aria-label="Metode pembayaran" value={method ?? ""} onChange={e => {
+          const next = e.target.value as typeof method || null;
+          setMethod(next);
+          if (next !== "GIRO") setDueDate("");
+          setError(null);
+        }}><option value="">Belum ditentukan</option><option value="TRANSFER">Transfer</option><option value="GIRO">Giro</option></select></label>{method === "GIRO" && <label>Jatuh tempo<input type="date" className={control} aria-label="Jatuh tempo" value={dueDate} onChange={e => setDueDate(e.target.value)} /></label>}</div>}
         {schedule ? <InboundPaymentFields payments={schedule} totalAmount={scheduledTotal} allowZeroAmounts context="correction" error={paymentError?.includes("alokasi") ? null : paymentError} onChange={value => { setSchedule(value); setError(null); }} /> : <button type="button" className={action} onClick={() => setSchedule([{ method: method ?? "TRANSFER", amount: scheduledTotal, dueDate: method === "GIRO" ? dueDate || null : null, note: null }])}>Atur rincian Transfer dan Giro</button>}
         <p className="text-sm text-slate-600">Rincian jadwal adalah rencana pembayaran. Pembayaran yang sudah terjadi tetap dicatat terpisah di bawah.</p>
         </div>
@@ -298,22 +324,42 @@ export function ShoppingRequestCorrectionForm({ editor: initialEditor, onClose, 
           <dl className="mt-4 space-y-2 border-t border-emerald-200 pt-4 tabular-nums">
             <div className="flex justify-between gap-3"><dt>Transfer</dt><dd className="font-semibold">{money(String(plannedTransfer))}</dd></div>
             <div className="flex justify-between gap-3"><dt>Giro</dt><dd className="font-semibold">{money(String(plannedGiro))}</dd></div>
-            <div className="flex justify-between gap-3"><dt>Selisih alokasi</dt><dd className="font-semibold">{money(String((Math.round(scheduledTotal * 100) - Math.round(plannedTransfer * 100) - Math.round(plannedGiro * 100)) / 100))}</dd></div>
+            <div className="flex justify-between gap-3"><dt>Selisih jadwal dari total</dt><dd className="font-semibold">{money(String((Math.round(scheduledTotal * 100) - Math.round(plannedTransfer * 100) - Math.round(plannedGiro * 100)) / 100))}</dd></div>
           </dl>
           {giroDates.length > 0 && <p className="mt-4 rounded-lg bg-emerald-100 p-3">Jatuh tempo Giro: <strong>{giroDates.length === 1 ? correctionDate(giroDates[0]) : "lihat setiap jadwal"}</strong></p>}
           <p className="mt-3 text-xs">Saldo utang mengikuti pembayaran yang tercatat, bukan hanya jadwal.</p>
         </aside>
         </div>
-        <h3 className="border-t border-slate-200 pt-4 font-bold">Pembayaran tercatat dan alokasi</h3>
-        {paymentMismatch && <p role="status" className={`${styles.warning} rounded-lg border p-3 text-sm`}>Alokasi pembayaran tercatat berbeda dari jadwal. Periksa dampaknya pada saldo utang dan koreksi catatan bila diperlukan; catatan tidak berubah otomatis.</p>}
+        <h3 className="border-t border-slate-200 pt-4 font-bold">Pembayaran tercatat</h3>
         {!editor.payment.sources.length && <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Belum ada pembayaran tercatat. Jadwal pembayaran tidak membuat pelunasan otomatis.</p>}
         {editor.payment.sources.map((source, index) => {
-          const correction = corrections.find(entry => entry.paymentId === source.paymentId && entry.sourceKind === source.sourceKind);
+          const belongsToPayment = (entry: { paymentId: string; sourceKind: string }) =>
+            entry.paymentId === source.paymentId && entry.sourceKind === source.sourceKind;
+          const correction = corrections.find(belongsToPayment);
+          const sourceAllocations = allocations.filter(entry => belongsToPayment(entry) && Number(entry.amount) > 0);
+          const recordedMethod = sourceAllocations.length === 1 ? sourceAllocations[0].method : "";
           return <fieldset key={`${source.sourceKind}:${source.paymentId}`} aria-invalid={paymentError?.includes("alokasi") ? true : undefined} aria-describedby={paymentError?.includes("alokasi") ? "correction-allocation-error" : undefined} className="space-y-3 rounded-xl border p-3"><legend>Pembayaran {index + 1} · {money(source.amount)} · {correctionDate(source.paidAt)}</legend>
-            <p className="text-sm">Tentukan alokasi pembayaran lama ke Transfer/Giro. Satu pembayaran tidak boleh dihitung dua kali.</p>
+            <label className="block text-sm font-medium">Metode pembayaran tercatat
+              <select className={control} aria-label={`Metode pembayaran tercatat ${index + 1}`} value={recordedMethod} onChange={event => {
+                const next = event.target.value;
+                if (next !== "TRANSFER" && next !== "GIRO") return;
+                setAllocations(current => [...current.filter(entry => !belongsToPayment(entry)), {
+                  paymentId: source.paymentId, sourceKind: source.sourceKind, method: next, amount: correction?.amount ?? source.amount,
+                }]);
+                setError(null);
+              }}>
+                <option value="" disabled>Alokasi khusus</option>
+                <option value="TRANSFER">Transfer</option>
+                <option value="GIRO">Giro</option>
+              </select>
+            </label>
+            <details className="space-y-2 text-sm" open={paymentError?.includes("alokasi") || undefined}>
+              <summary className="min-h-11 cursor-pointer py-2 font-medium">Koreksi lanjutan</summary>
+              <p className="text-slate-600">Bagi nominal ke Transfer dan Giro, atau koreksi nominal dan tanggal sesuai bukti pembayaran.</p>
             <div className="grid gap-3 sm:grid-cols-2">{(["TRANSFER", "GIRO"] as const).map(allocationMethod => <label key={allocationMethod}>Alokasi {allocationMethod === "GIRO" ? "Giro" : "Transfer"}<input className={control} aria-label={`Alokasi ${allocationMethod} pembayaran ${index + 1}`} type="number" min="0" step="0.01" value={allocations.find(entry => entry.paymentId === source.paymentId && entry.sourceKind === source.sourceKind && entry.method === allocationMethod)?.amount ?? "0"} onChange={e => setAllocations(current => [...current.filter(entry => !(entry.paymentId === source.paymentId && entry.sourceKind === source.sourceKind && entry.method === allocationMethod)), { paymentId: source.paymentId, sourceKind: source.sourceKind, method: allocationMethod, amount: e.target.value }])} /></label>)}</div>
             <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={Boolean(correction)} onChange={e => setCorrections(current => e.target.checked ? [...current, { ...source, paidAt: source.paidAt.slice(0, 10) }] : current.filter(entry => !(entry.paymentId === source.paymentId && entry.sourceKind === source.sourceKind)))} />Koreksi nominal atau tanggal pembayaran ini</label>
             {correction && <div className="grid gap-3 sm:grid-cols-2">{([ ["amount", "Nominal", "number"], ["paidAt", "Tanggal pembayaran", "date"] ] as const).map(([field, label, type]) => <label key={field}>{label}<input className={control} type={type} min={type === "number" ? "0" : undefined} step={type === "number" ? "0.01" : undefined} required value={correction[field]} onChange={e => setCorrections(current => current.map(entry => entry === correction ? { ...entry, [field]: e.target.value } : entry))} /></label>)}</div>}
+            </details>
           </fieldset>;
         })}
         {paymentError?.includes("alokasi") && <p id="correction-allocation-error" className="text-sm font-semibold text-rose-800">{paymentError}</p>}

@@ -204,7 +204,7 @@ it("mengedit nominal, tanggal, dan catatan beberapa jadwal pembayaran", async ()
   const data = { ...editor, payment: { ...editor.payment, schedule } };
   const fields = render(data).find(n => n.type === InboundPaymentFields);
   expect(fields).toBeDefined();
-  expect(render(data).map(text).join(" ")).toMatch(/alokasi pembayaran tercatat berbeda dari jadwal/i);
+  expect(render(data).map(text).join(" ")).toMatch(/Transfer tercatat Rp\s*700\. Jadwal Transfer Rp\s*200\./i);
   fields!.props.onChange([{ method: "TRANSFER", amount: 200, dueDate: null, note: "DP" }, { method: "GIRO", amount: 500, dueDate: "2026-12-20", note: "Koreksi" }]);
   input("Alasan perubahan").props.onChange({ target: { value: "Jatuh tempo berubah" } });
   await submit();
@@ -334,4 +334,35 @@ it("mengulang simpan dengan payload dan kunci sama setelah gangguan jaringan", a
   await saveButton().props.onClick();
   expect(save.mock.calls).toHaveLength(2);
   expect(save.mock.calls[1][0]).toEqual(save.mock.calls[0][0]);
+});
+
+it("menyarankan jadwal untuk sisa tanpa mengubah pembayaran transfer tercatat", async () => {
+  const data = { ...editor, totalAmount: "1000.20", payment: {
+    ...editor.payment, schedule: [{ method: "GIRO" as const, amount: "1000.20", dueDate: "2026-12-24", note: null }],
+  } };
+  let tree = render(data, "payment");
+  tree.find(n => n.type === "button" && text(n).includes("Pakai saran jadwal"))!.props.onClick();
+  tree = render(data, "payment");
+  tree.find(n => n.props["aria-label"] === "Alasan perubahan")!.props.onChange({ target: { value: "Giro untuk sisa" } });
+  await render(data, "payment").find(n => n.type === "form")!.props.onSubmit({ preventDefault() {} });
+  expect(preview).toHaveBeenCalledWith(expect.objectContaining({ payment: expect.objectContaining({
+    schedule: [
+      { method: "TRANSFER", amount: "700.00", dueDate: null, note: null },
+      { method: "GIRO", amount: "300.20", dueDate: "2026-12-24", note: null },
+    ],
+    allocations: editor.payment.allocations,
+    corrections: [],
+  }) }));
+});
+
+it("mengganti metode pembayaran tercatat tanpa menggandakan uang atau mengubah jadwal", async () => {
+  const tree = render(editor, "payment");
+  tree.find(n => n.type === "select" && n.props["aria-label"] === "Metode pembayaran tercatat 1")!.props.onChange({ target: { value: "GIRO" } });
+  render(editor, "payment").find(n => n.props["aria-label"] === "Alasan perubahan")!.props.onChange({ target: { value: "Bukti pembayaran Giro" } });
+  await render(editor, "payment").find(n => n.type === "form")!.props.onSubmit({ preventDefault() {} });
+  expect(preview).toHaveBeenCalledWith(expect.objectContaining({ payment: expect.objectContaining({
+    method: "TRANSFER",
+    allocations: [{ ...editor.payment.allocations[0], method: "GIRO" }],
+    corrections: [],
+  }) }));
 });

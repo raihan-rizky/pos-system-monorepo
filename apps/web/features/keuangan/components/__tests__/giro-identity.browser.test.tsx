@@ -61,13 +61,14 @@ describe.skipIf(process.env.FINANCE_BROWSER_TEST !== "1")("isolasi identitas dia
         }) {
           pluginBuild.onResolve({ filter: /^(lucide-react|@pos\/ui|@\/lib\/utils)$/ }, args => ({ path: args.path, namespace: "giro-stub" }));
           pluginBuild.onLoad({ filter: /.*/, namespace: "giro-stub" }, args => ({
-            contents: args.path === "lucide-react" ? "export const Banknote = () => null; export const CalendarDays = () => null; export const ChevronDown = () => null; export const CircleAlert = () => null; export const CircleCheck = () => null; export const CircleDollarSign = () => null; export const CircleHelp = () => null; export const Clock3 = () => null; export const ClipboardCheck = () => null; export const History = () => null; export const Info = () => null; export const Link2 = () => null; export const ReceiptText = () => null; export const X = () => null;"
+            contents: args.path === "lucide-react" ? "export const Banknote = () => null; export const CalendarDays = () => null; export const ChevronDown = () => null; export const CircleAlert = () => null; export const CircleCheck = () => null; export const CircleDollarSign = () => null; export const CircleHelp = () => null; export const Clock3 = () => null; export const ClipboardCheck = () => null; export const History = () => null; export const Pencil = () => null; export const Link2 = () => null; export const ReceiptText = () => null; export const X = () => null;"
               : args.path === "@pos/ui" ? "import React from 'react'; export const Button = ({children, loading, ...props}) => <button {...props}>{children}</button>;"
-                : "export const formatRupiah = value => 'Rp ' + value;",
+                : "export const formatRupiah = value => 'Rp ' + value; export const formatRupiahPrecise = formatRupiah;",
             loader: "jsx", resolveDir: process.cwd(),
           }));
         },
       }],
+      external: ["*/ShoppingRequestCorrectionModal"],
       alias: { "@": process.cwd() }, jsx: "automatic", bundle: true, write: false, platform: "browser", format: "iife",
     });
     script = bundle.outputFiles[0].text;

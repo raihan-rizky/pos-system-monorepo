@@ -3,6 +3,19 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "giro-pembelian-saldo-dan-koreksi", date: "2026-11-28", revision: 1,
+    highlight: { title: "Saldo Giro lebih jelas", summary: "Lihat pembayaran tercatat dan ubah jadwal langsung dari kartu Giro." },
+    title: "Lihat saldo dan koreksi pembayaran Giro",
+    screenshot: { src: "/images/changelog/giro-koreksi-pembayaran-2026-11-28.png", alt: "Form Ubah pembayaran dengan contoh jadwal Transfer dan Giro, nominal, tanggal jatuh tempo, dan tombol Tinjau dampak." },
+    summary: "Kartu Giro menampilkan sisa utang, pembayaran tercatat, dan nominal terjadwal. Pengguna berizin bisa mengubah Transfer atau Giro dan meninjau dampaknya dari kartu yang sama.",
+    kind: "improvement", impact: "major", area: "Keuangan", href: "/keuangan", visual: "financial",
+    steps: [
+      { title: "Buka Giro Pembelian", detail: "Periksa sisa, pembayaran tercatat, dan nominal Giro terjadwal." },
+      { title: "Cocokkan jadwal", detail: "Pilih Periksa jadwal atau Ubah pembayaran, lalu pilih metode yang sesuai." },
+      { title: "Tinjau dan simpan", detail: "Isi alasan, tinjau dampaknya, lalu simpan koreksi." },
+    ],
+  },
+  {
     id: "daily-report-cashier-and-sales-preview", date: "2026-11-26", revision: 1,
     highlight: { title: "Akses Laporan Harian", summary: "Buka Laporan Harian dari tampilan Kasir atau pratinjau Sales milik Owner." },
     title: "Laporan Harian dari Kasir dan pratinjau Sales",
