@@ -31,7 +31,16 @@ Verifikasi Log OUT adalah pengecekan kebenaran catatan barang keluar, bukan matc
 - Klik **Perlu Koreksi** jika ada data yang salah. Badge dan warna baris menjadi **Perlu Koreksi**, lalu tombol **Koreksi** tersedia di antrean verifikasi.
 - Form koreksi dapat memperbaiki produk, qty, alasan, dan catatan. Koreksi menunggu approval maker-checker; pembuat koreksi tidak boleh menyetujui koreksinya sendiri.
 - Setelah koreksi disetujui, baris masuk status **Siap Dicek Ulang** dan harus disetujui ulang sebelum dianggap selesai.
-- **Log Stok** hanya menampilkan warna dan badge status verifikasi. Tombol **Setujui**, **Perlu Koreksi**, dan **Koreksi** hanya ada di antrean verifikasi Log OUT.
+- Gunakan **Setujui**, **Perlu Koreksi**, dan **Koreksi** di antrean verifikasi Log OUT untuk menindaklanjuti tugas verifikasi.
+
+### Edit dan pembatalan Pemakaian Internal
+
+Buka **Inventaris → Riwayat → Log Stok** dan pilih entri pemakaian yang ingin diperbaiki.
+
+- Pemohon dengan izin mengubah data gudang dan **Edit permintaan sendiri** dapat mengubah produk, jumlah, atau alasan selama menunggu persetujuan. Gunakan **Batalkan** untuk menarik permintaan yang masih menunggu.
+- Untuk entri yang sudah disetujui, Owner dapat memilih **Koreksi** atau **Batalkan** dan mengisi alasan selama hari stok terbuka. Koreksi mencatat selisih atau pergantian produk. Pembatalan mengembalikan jumlah yang masih tercatat keluar.
+- Gunakan **Input awal** untuk meninjau log sebelum perubahan. Rekap Pemakaian Internal dan PDF mengikuti jumlah hasil koreksi. Entri yang dibatalkan tetap terlihat di Log Stok.
+- Matching stok harian dan Check Out tetap diblokir selama masih ada Log OUT yang belum final **Sesuai**.
 - Matching stok harian dan Check Out tetap diblokir selama masih ada Log OUT yang belum final **Sesuai**.
 
 ### Matching Stok Harian

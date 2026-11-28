@@ -1087,6 +1087,21 @@ export const FAQ_WORKFLOWS: AssistantWorkflowDefinition[] = [
       { title: "Cetak atau simpan PDF", description: "Periksa pratinjau, lalu pilih Cetak A4 atau Unduh PDF. Kasir, Owner, dan Admin mendapat izin Laporan Harian secara bawaan. Izin data terkait menentukan rincian yang tersedia." },
     ],
   }),
+  workflow({
+    faqNumber: 57,
+    slug: "edit-cancel-internal-stock-out",
+    title: "Bagaimana cara mengedit atau membatalkan Stock Out Internal?",
+    aliases: ["edit pemakaian internal", "batal pemakaian internal", "batalkan stock out internal", "koreksi stok keluar internal", "ubah jumlah barang dipakai"],
+    route: "/inventory",
+    actionLabel: "Buka Inventaris",
+    iconKey: "warehouse",
+    requiredCapabilities: [{ resource: "inventory", action: "read" }],
+    steps: [
+      { title: "Cari catatan pemakaian", description: "Buka Inventaris → Riwayat → Log Stok. Cari entri pemakaian internal dan periksa statusnya." },
+      { title: "Kelola permintaan yang menunggu", description: "Untuk permintaan sendiri, pilih Edit untuk mengganti produk, jumlah, atau alasan. Edit memerlukan izin mengubah data gudang dan Edit permintaan sendiri. Pilih Batalkan untuk menarik permintaan selama masih menunggu persetujuan." },
+      { title: "Koreksi entri yang disetujui", description: "Owner dapat memilih Koreksi atau Batalkan dan mengisi alasan selama hari stok belum dikunci. Pembatalan mengembalikan jumlah yang masih tercatat keluar. Buka Input awal untuk melihat catatan asli dan periksa hasilnya di Rekap Pemakaian Internal." },
+    ],
+  }),
 ];
 
 export function getWorkflowPayload(workflow: AssistantWorkflowDefinition): AssistantWorkflowPayload {

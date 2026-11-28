@@ -7,6 +7,8 @@ const handleAuthErrorMock = vi.hoisted(() => vi.fn());
 const inventoryLogFindManyMock = vi.hoisted(() => vi.fn());
 const inventoryLogCountMock = vi.hoisted(() => vi.fn());
 const batchOperationItemFindManyMock = vi.hoisted(() => vi.fn());
+const inventoryTaskFindManyMock = vi.hoisted(() => vi.fn());
+const inventoryDaySessionFindManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/rbac/guard", () => ({
   requirePermission: requirePermissionMock,
@@ -22,6 +24,8 @@ vi.mock("@pos/db", () => ({
     batchOperationItem: {
       findMany: batchOperationItemFindManyMock,
     },
+    inventoryTask: { findMany: inventoryTaskFindManyMock },
+    inventoryDaySession: { findMany: inventoryDaySessionFindManyMock },
   },
   Prisma: {},
 }));
@@ -38,6 +42,8 @@ describe("GET /api/inventory/logs", () => {
     inventoryLogFindManyMock.mockResolvedValue([]);
     inventoryLogCountMock.mockResolvedValue(0);
     batchOperationItemFindManyMock.mockResolvedValue([]);
+    inventoryTaskFindManyMock.mockResolvedValue([]);
+    inventoryDaySessionFindManyMock.mockResolvedValue([]);
   });
 
   it("uses product read permission because stock logs are shown inside Products", async () => {
@@ -125,6 +131,32 @@ describe("GET /api/inventory/logs", () => {
         take: 10,
       }),
     );
+  });
+
+  it("exposes the approved usage correction and the session lock separately", async () => {
+    requirePermissionMock.mockResolvedValue({ id: "owner-1", role: "OWNER", storeId: "store-main" });
+    inventoryDaySessionFindManyMock.mockResolvedValue([{ periodKey: "2026-11-28" }]);
+    const product = { id: "paper", name: "Kertas", sku: "K", unit: "rim" };
+    inventoryLogFindManyMock.mockResolvedValue([{
+      id: "log-1", type: "OUT", reason: "USAGE", status: "APPROVED", productId: product.id,
+      product, quantity: 10, note: "Alasan awal", createdAt: new Date("2026-11-27T19:00:00Z"),
+      correctionRequests: [
+        { id: "rejected", status: "REJECTED" },
+        {
+          id: "approved", status: "APPROVED", correctedProduct: product,
+          correctedQuantity: 7, correctedNote: "Hitung ulang",
+        },
+      ],
+    }]);
+
+    const response = await GET(new NextRequest("http://localhost/api/inventory/logs"));
+    expect(response.status).toBe(200);
+    expect((await response.json()).data[0]).toMatchObject({
+      quantity: 10,
+      internalUseDayLocked: true,
+      effectiveInternalUse: { correctionId: "approved", product, quantity: 7, note: "Hitung ulang" },
+      latestCorrection: { id: "rejected", status: "REJECTED" },
+    });
   });
 
   it("accepts a comma-separated status filter", async () => {

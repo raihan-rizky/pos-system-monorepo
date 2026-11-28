@@ -148,7 +148,7 @@ export function InternalStockOutModal({
         });
       }
       onSuccess(
-        `${cartItems.length} log stok pending berhasil dibuat.`
+        `${cartItems.length} log pemakaian berhasil dicatat.`
       );
       onClose();
     } catch (err) {
@@ -180,8 +180,8 @@ export function InternalStockOutModal({
               <PackageMinus className="h-4 w-4" />
             </div>
             <p className="text-sm text-amber-900 leading-relaxed">
-              Tambahkan produk ke keranjang pemakaian internal.
-              <strong> Submit membuat log stok pending</strong> dengan alasan USAGE untuk direview owner.
+              Tambahkan produk ke keranjang pemakaian internal. Setelah dikirim, buka
+              {" "}<strong>Riwayat → Log Stok</strong> untuk melihat atau mengelola catatannya.
             </p>
           </div>
 

@@ -4,6 +4,7 @@ import React, { lazy, Suspense, useMemo, useState } from "react";
 import {
   type InventoryLog,
   type InventoryLogStatus,
+  type InternalUseLogChange,
   useApproveInventoryLog,
   useCancelInventoryLog,
   useInventoryLogs,
@@ -12,6 +13,7 @@ import {
 import { useRole } from "@/components/providers/RoleProvider";
 import { useCancelBulkBatch } from "@/features/bulk-stock-approval/hooks/useBulkApproval";
 import { OutLogVerificationBadge } from "@/features/inventory-management/components/OutLogVerificationPanel";
+import { isIndividualInternalUseLog } from "@/features/inventory-management/helpers/internal-use-log";
 
 import {
   PackagePlus,
@@ -29,6 +31,8 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { getDefaultProductImage } from "@/lib/utils";
+
+const InternalUseLogModal = lazy(() => import("@/features/inventory-management/components/InternalUseLogModal"));
 
 const BulkStockApprovalModal = lazy(() =>
   import("@/features/bulk-stock-approval/components/BulkStockApprovalModal").then(
@@ -119,13 +123,42 @@ function outLogVerificationRowClass(
   return "border-slate-200 bg-slate-50/40";
 }
 
+function getStockLogDisplay(log: InventoryLog) {
+  const correction = log.effectiveInternalUse;
+  const cancelled = correction?.quantity === 0 ||
+    (isIndividualInternalUseLog(log) && log.status === "REJECTED" &&
+      log.rejectionReason === "Dibatalkan oleh pemohon");
+
+  return {
+    log: correction
+      ? { ...log, product: correction.product, quantity: correction.quantity, note: correction.note }
+      : log,
+    statusText: cancelled ? "Dibatalkan" : correction ? "Dikoreksi" : statusLabel(log.status),
+    cancelled,
+  };
+}
+
+function OriginalInternalUse({ log }: { log: InventoryLog }) {
+  if (!log.effectiveInternalUse) return null;
+  return (
+    <details className="mt-1 text-xs text-slate-500">
+      <summary className="cursor-pointer font-semibold">Input awal</summary>
+      <p>{log.product.name} · {log.quantity} {log.product.unit}</p>
+      {log.note && <p className="break-words">{log.note}</p>}
+    </details>
+  );
+}
+
 export default function StockLogsTab() {
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [statusFilterId, setStatusFilterId] = useState<string>("all");
   const [page, setPage] = useState(1);
   const limit = 20;
-  const { role, userId } = useRole();
+  const { role, userId, canPerform } = useRole();
   const isOwner = role === "OWNER";
+  const canUpdateInventory = canPerform("inventory", "update");
+  const canEditOwnUsage = canUpdateInventory && canPerform("inventory.internal_use", "update");
+  const canCorrectApprovedUsage = isOwner && canPerform("inventory.approve", "update");
 
   const statusParam = useMemo(
     () => STATUS_FILTERS.find((s) => s.id === statusFilterId)?.status,
@@ -148,6 +181,10 @@ export default function StockLogsTab() {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [selectedUsage, setSelectedUsage] = useState<{
+    log: InventoryLog;
+    action: InternalUseLogChange["action"];
+  } | null>(null);
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [selectedBatchType, setSelectedBatchType] = useState<string | null>(
     null,
@@ -158,14 +195,29 @@ export default function StockLogsTab() {
   const pendingTotal = pagination?.pendingTotal ?? 0;
   const entries = useMemo(() => groupBulkLogs(logs), [logs]);
 
+  const getActions = (log: InventoryLog) => {
+    const individualUsage = isIndividualInternalUseLog(log);
+    const ownPending = log.status === "PENDING" && log.createdBy === userId;
+    return {
+      canCancel: ownPending && (!individualUsage || canUpdateInventory),
+      canEditUsage: individualUsage && ownPending && canEditOwnUsage,
+      canCorrectUsage: individualUsage && log.status === "APPROVED" && canCorrectApprovedUsage &&
+        !log.internalUseDayLocked && !log.internalUseCorrectionPending && log.effectiveInternalUse?.quantity !== 0,
+      onUsageAction: (action: InternalUseLogChange["action"]) => setSelectedUsage({ log, action }),
+    };
+  };
+
   const handleApprove = async (id: string) => {
     setActionError(null);
     try {
       await approveMut.mutateAsync(id);
     } catch (err) {
-      const e = err as Error & { status?: number };
+      const e = err as Error & { status?: number; currentStatus?: InventoryLogStatus };
       if (e.status === 409) {
-        setActionError("Permintaan sudah diputuskan oleh user lain.");
+        const message = e.currentStatus
+          ? "Permintaan sudah diputuskan oleh user lain."
+          : e.message || "Permintaan sudah berubah. Muat ulang Log Stok.";
+        setActionError(message);
       } else {
         setActionError(e.message || "Gagal menyetujui permintaan.");
       }
@@ -349,11 +401,11 @@ export default function StockLogsTab() {
                       />
                     );
                   }
-                  const log = entry.log;
+                  const { log, statusText, cancelled } = getStockLogDisplay(entry.log);
+                  const actions = getActions(entry.log);
                   const cfg = typeConfig[log.type];
                   const isPending = log.status === "PENDING";
-                  const isRejected = log.status === "REJECTED";
-                  const canCancel = isPending && log.createdBy === userId;
+                  const isRejected = log.status === "REJECTED" || cancelled;
                   const rowMuted = isRejected ? "opacity-60" : "";
                   const outLogVerificationState = getOutLogVerificationState(log);
                   return (
@@ -363,10 +415,10 @@ export default function StockLogsTab() {
                           {isPending && (
                             <span aria-hidden="true" className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400" />
                           )}
-                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold border ${statusPillClass(log.status)}`}>
-                            {statusLabel(log.status)}
+                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold border ${statusPillClass(cancelled ? "REJECTED" : log.status)}`}>
+                            {statusText}
                           </span>
-                          {outLogVerificationState && (
+                          {outLogVerificationState && !cancelled && (
                             <div className="mt-1">
                               <OutLogVerificationBadge state={outLogVerificationState} />
                             </div>
@@ -410,7 +462,8 @@ export default function StockLogsTab() {
                         </td>
                         <td className="py-3 px-3 align-middle">
                           <p className="text-sm text-slate-500 max-w-[250px] whitespace-normal break-words">{log.note || "—"}</p>
-                          {isRejected && log.rejectionReason && (
+                          <OriginalInternalUse log={entry.log} />
+                          {isRejected && !cancelled && log.rejectionReason && (
                             <p className="text-[11px] text-red-600 mt-0.5 max-w-[250px] whitespace-normal break-words">
                               Ditolak: {log.rejectionReason}
                             </p>
@@ -418,9 +471,9 @@ export default function StockLogsTab() {
                         </td>
                         <td className="py-3 px-3 align-middle">
                           <RowActions
-                            log={log}
+                            log={entry.log}
                             isOwner={isOwner}
-                            canCancel={canCancel}
+                            {...actions}
                             isApproving={approveMut.isPending && approveMut.variables === log.id}
                             isRejecting={rejectMut.isPending}
                             onApprove={() => handleApprove(log.id)}
@@ -466,11 +519,11 @@ export default function StockLogsTab() {
                   />
                 );
               }
-              const log = entry.log;
+              const { log, statusText, cancelled } = getStockLogDisplay(entry.log);
+              const actions = getActions(entry.log);
               const cfg = typeConfig[log.type];
               const isPending = log.status === "PENDING";
-              const isRejected = log.status === "REJECTED";
-              const canCancel = isPending && log.createdBy === userId;
+              const isRejected = log.status === "REJECTED" || cancelled;
               const outLogVerificationState = getOutLogVerificationState(log);
               return (
                 <div
@@ -505,10 +558,10 @@ export default function StockLogsTab() {
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${cfg.color} ${cfg.bg} ${cfg.border} border`}>
                       {cfg.icon} {cfg.label}
                     </span>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${statusPillClass(log.status)}`}>
-                      {statusLabel(log.status)}
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${statusPillClass(cancelled ? "REJECTED" : log.status)}`}>
+                      {statusText}
                     </span>
-                    {outLogVerificationState && (
+                    {outLogVerificationState && !cancelled && (
                       <OutLogVerificationBadge state={outLogVerificationState} />
                     )}
                   </div>
@@ -519,17 +572,18 @@ export default function StockLogsTab() {
                       <p className="text-[11px] text-emerald-600">Disetujui {log.approverName}</p>
                     )}
                     {log.note && <p className="text-xs text-slate-500 whitespace-normal break-words">{log.note}</p>}
-                    {isRejected && log.rejectionReason && (
+                    <OriginalInternalUse log={entry.log} />
+                    {isRejected && !cancelled && log.rejectionReason && (
                       <p className="text-[11px] text-red-600 whitespace-normal break-words">Ditolak: {log.rejectionReason}</p>
                     )}
                   </div>
 
-                  {(isPending && (isOwner || canCancel)) && (
+                  {((isPending && (isOwner || actions.canCancel)) || actions.canCorrectUsage) && (
                     <div className="mt-3 flex min-w-0 flex-wrap gap-2 border-t border-slate-50 pt-3">
                       <RowActions
-                        log={log}
+                        log={entry.log}
                         isOwner={isOwner}
-                        canCancel={canCancel}
+                        {...actions}
                         isApproving={approveMut.isPending && approveMut.variables === log.id}
                         isRejecting={rejectMut.isPending}
                         onApprove={() => handleApprove(log.id)}
@@ -585,6 +639,9 @@ export default function StockLogsTab() {
         </>
       )}
       <Suspense fallback={null}>
+        {selectedUsage && (
+          <InternalUseLogModal {...selectedUsage} onClose={() => setSelectedUsage(null)} />
+        )}
         {selectedBatchId && selectedBatchType === "INBOUND_RECEIPT" && (
           <InboundReceiptStockBundleModal
             open
@@ -919,6 +976,9 @@ function RowActions({
   log,
   isOwner,
   canCancel,
+  canEditUsage,
+  canCorrectUsage,
+  onUsageAction,
   isApproving,
   isRejecting,
   onApprove,
@@ -929,6 +989,9 @@ function RowActions({
   log: InventoryLog;
   isOwner: boolean;
   canCancel: boolean;
+  canEditUsage: boolean;
+  canCorrectUsage: boolean;
+  onUsageAction: (action: InternalUseLogChange["action"]) => void;
   isApproving: boolean;
   isRejecting: boolean;
   onApprove: () => void;
@@ -936,12 +999,25 @@ function RowActions({
   onCancel: () => void;
   compact?: boolean;
 }) {
-  if (log.status !== "PENDING") {
+  const actionClass = `inline-flex items-center justify-center ${compact ? "min-h-8" : "min-h-9"} rounded-lg px-2.5 text-xs font-semibold hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-500`;
+  if (canCorrectUsage) {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button type="button" onClick={() => onUsageAction("correct")} className={`${actionClass} text-slate-700`}>
+          Koreksi
+        </button>
+        <button type="button" onClick={() => onUsageAction("cancel")} className={`${actionClass} text-red-700`}>
+          Batalkan
+        </button>
+      </div>
+    );
+  }
+  if (log.status !== "PENDING" || (!isOwner && !canCancel && !canEditUsage)) {
     return <span className="text-xs text-slate-300">—</span>;
   }
-  if (isOwner) {
-    return (
-      <div className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto">
+  return (
+    <div className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto">
+      {isOwner && <>
         <button
           type="button"
           onClick={onApprove}
@@ -960,21 +1036,19 @@ function RowActions({
           <X className="w-3.5 h-3.5" />
           Tolak
         </button>
-      </div>
-    );
-  }
-  if (canCancel) {
-    return (
-      <button
-        type="button"
-        onClick={onCancel}
-        className={`inline-flex min-w-0 items-center justify-center ${compact ? "min-h-8" : "min-h-9"} px-2.5 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-100 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40`}
-      >
-        Batalkan
-      </button>
-    );
-  }
-  return <span className="text-xs text-slate-300">—</span>;
+      </>}
+      {canEditUsage && (
+        <button type="button" onClick={() => onUsageAction("editPending")} className={`${actionClass} text-slate-700`}>
+          Edit
+        </button>
+      )}
+      {canCancel && (!isOwner || isIndividualInternalUseLog(log)) && (
+        <button type="button" onClick={onCancel} className={`${actionClass} text-slate-500`}>
+          Batalkan
+        </button>
+      )}
+    </div>
+  );
 }
 
 function RejectComposer({

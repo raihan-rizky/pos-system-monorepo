@@ -81,6 +81,7 @@ export const RBAC_RESOURCE_METADATA: Record<string, ResourceEditorMetadata> = {
   proof_upload: { label: "Bukti tersimpan", actions: ["delete"], actionLabels: { delete: "Hapus bukti" }, guidance: "Penghapusan dilakukan dari fitur asal bukti; akses halaman dan data fitur tersebut tetap diperlukan." },
   inventory: { label: "Data dan aktivitas gudang", actions: ["read", "update", "delete"] },
   "inventory.approve": { label: "Persetujuan perubahan stok", actions: [], ownerOnlyReason: "Persetujuan perubahan stok ini selalu dibatasi untuk Owner oleh kebijakan server." },
+  "inventory.internal_use": { label: "Permintaan pemakaian internal", actions: ["update"], actionLabels: { update: "Edit permintaan sendiri" }, guidance: "Berlaku untuk permintaan sendiri yang masih menunggu persetujuan. Memerlukan izin mengubah data gudang." },
   "inventory.out_log.verify": { label: "Verifikasi stok keluar", actions: ["update"], actionLabels: { update: "Verifikasi OUT log" }, guidance: "Memerlukan akses halaman Inventory dan Lihat data gudang." },
   "inventory.inbound_receipt.create": { label: "Penerimaan barang", actions: ["create"], actionLabels: { create: "Catat penerimaan" }, guidance: "Memerlukan akses halaman Inventory dan Lihat data gudang. Pengiriman penerimaan memakai Ubah data gudang." },
   "inventory.inbound_receipt.approve": { label: "Persetujuan penerimaan", actions: ["update"], actionLabels: { update: "Setujui penerimaan" } },

@@ -277,6 +277,7 @@ export const RBAC_PERMISSION_MODULES: RbacPermissionModule[] = [
     pageTargets: [],
     resourceTargets: [
       "inventory.approve",
+      "inventory.internal_use",
       "inventory.out_log.verify",
       "inventory.inbound_receipt.approve",
       "inventory.inbound_receipt.reject",

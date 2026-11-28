@@ -34,7 +34,7 @@ export async function POST(
       }
 
       const updatedLog = await tx.inventoryLog.update({
-        where: { id },
+        where: { id, status: "PENDING" },
         data: {
           status: "REJECTED",
           approvedBy: user.id,
@@ -53,6 +53,9 @@ export async function POST(
     if (authErr) return authErr;
 
     if (error instanceof Error) {
+      if ("code" in error && error.code === "P2025") {
+        return apiError("Permintaan sudah diputuskan. Muat ulang Log Stok.", 409, { code: "Conflict" });
+      }
       if (error.message === "NOT_FOUND") {
         return apiError("Permintaan tidak ditemukan", 404, { code: "NotFound" });
       }

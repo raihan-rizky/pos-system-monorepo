@@ -96,6 +96,7 @@ export const RESOURCE_TARGETS = [
   "supplier.backdated_payment.correction",
   "inventory",
   "inventory.approve",
+  "inventory.internal_use",
   "inventory.out_log.verify",
   "inventory.inbound_receipt.approve",
   "inventory.inbound_receipt.reject",
@@ -329,6 +330,12 @@ const RESOURCE_GRANULAR_ACCESS: Partial<
     update: [],
     delete: [],
   },
+  "inventory.internal_use": {
+    read: [],
+    create: [],
+    update: ["OWNER", "ADMIN", "INVENTORY"],
+    delete: [],
+  },
   "inventory.out_log.verify": {
     read: ["OWNER", "ADMIN", "INVENTORY"],
     create: [],
@@ -456,6 +463,9 @@ export function normalizeRolePermissions(entries: PermissionEntry[] | null): Rol
   // grants only for missing rows. Explicit legacy denies and new overrides win.
   if (entries?.length) {
     for (const role of EDITABLE_ROLES) {
+      if (!configuredResources.has(`${role}:inventory.internal_use:update`)) {
+        permissions[role].resources["inventory.internal_use"].update = permissions[role].resources.inventory.update;
+      }
       const customer = permissions[role].resources.customer;
       const transaction = permissions[role].resources.transaction;
       const receivable = permissions[role].resources["customer.receivable"];

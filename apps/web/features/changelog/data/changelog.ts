@@ -3,6 +3,27 @@ import type { ChangeEntry } from "../types";
 /** Manually curated release notes. Keep historical entries; the popup filters the last seven WIB days. */
 export const CHANGELOG: ChangeEntry[] = [
   {
+    id: "internal-stock-out-edit-cancel",
+    date: "2026-11-28",
+    revision: 1,
+    highlight: {
+      title: "Edit dan batal pemakaian internal",
+      summary: "Perbaiki atau batalkan catatan Stock Out Internal dari Log Stok.",
+    },
+    title: "Edit atau batalkan Pemakaian Internal",
+    summary: "Perbaiki pemakaian yang salah dari Log Stok. Owner dapat mengoreksi atau mengembalikan stok dari entri yang sudah disetujui selama hari stok terbuka.",
+    kind: "feature",
+    impact: "major",
+    area: "Inventaris",
+    href: "/inventory",
+    visual: "history-table",
+    steps: [
+      { title: "Buka Log Stok", detail: "Masuk ke Inventaris → Riwayat → Log Stok dan cari entri pemakaian." },
+      { title: "Pilih tindakan", detail: "Pemohon dapat mengedit atau membatalkan entri yang menunggu. Owner dapat mengoreksi atau membatalkan entri yang sudah disetujui selama hari stok terbuka." },
+      { title: "Konfirmasi perubahan", detail: "Simpan perubahan atau konfirmasi pembatalan. Isi alasan untuk koreksi atau pembatalan entri yang sudah disetujui." },
+    ],
+  },
+  {
     id: "giro-nominal-jadwal-bulan-berjalan", date: "2026-11-28", revision: 1,
     highlight: { title: "Nominal Giro mengikuti jadwal", summary: "Form koreksi mengisi nominal Giro yang jatuh tempo bulan ini." },
     title: "Koreksi nominal Giro dari jadwal bulan ini",

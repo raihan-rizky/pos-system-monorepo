@@ -481,3 +481,9 @@ Di baki pemindahan, pilih **ATK** atau **PERCETAKAN**, lalu subkategori; di pons
 1. Di **Laporan Keuangan**, klik **Laporan Harian** di samping **Ekspor** atau pemilih tanggal. Owner juga bisa membukanya dari **Lihat sebagai Sales** dengan keterangan **Dibuka sebagai Owner**.
 2. Pilih tanggal WIB. **Banyak halaman** memuat jurnal per invoice. **1 halaman** memuat ringkasan metode pembayaran, kategori, dan subkategori, termasuk **Rp 0**.
 3. Pilih **Cetak A4** atau **Unduh PDF**. Hak akses **Laporan Harian** aktif secara bawaan untuk Kasir, Owner, dan Admin. Bagian pengeluaran dan laba mengikuti izin data terkait.
+
+### Q57: Bagaimana cara mengedit atau membatalkan Stock Out Internal?
+
+1. Buka **Inventaris → Riwayat → Log Stok** dan periksa status entri pemakaian.
+2. Untuk permintaan sendiri yang menunggu, pilih **Edit** untuk memperbarui produk, jumlah, atau alasan. Pilih **Batalkan** untuk menarik permintaan. Aksi mengikuti izin akun.
+3. Untuk pemakaian yang sudah disetujui, Owner dapat memilih **Koreksi** atau **Batalkan** dan mengisi alasan selama hari stok masih terbuka. Pembatalan mengembalikan jumlah pemakaian yang masih tercatat keluar. Gunakan **Input awal** untuk memeriksa log asli dan **Rekap Pemakaian Internal** untuk melihat hasilnya.
