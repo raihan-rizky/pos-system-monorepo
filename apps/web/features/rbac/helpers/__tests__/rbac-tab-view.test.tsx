@@ -90,7 +90,7 @@ describe("RbacSettingsView", () => {
     ["proof-media", 1, "Hapus bukti"],
     ["inventory-inbound-receipts", 1, "Catat penerimaan"],
     ["settings", 3, "Khusus Owner"],
-    ["inventory-approval", 4, "Khusus Owner"],
+    ["inventory-approval", 5, "Khusus Owner"],
   ])("renders supported controls and friendly labels for %s", async (moduleId, count, label) => {
     const html = await renderEditor(moduleId);
     expect(html.match(/role="switch"/g)).toHaveLength(count);
@@ -98,6 +98,11 @@ describe("RbacSettingsView", () => {
     expect(html).toContain("Kritis");
     expect(html).toContain("Detail teknis");
     expect(html).not.toMatch(/aria-label="Admin (create|read|update|delete) (rbac|inventory\.approve)"/);
+  });
+
+  it("labels the permission for editing an internal usage request", async () => {
+    const html = await renderEditor("inventory-approval");
+    expect(html).toContain('aria-label="Admin Edit permintaan sendiri Permintaan pemakaian internal"');
   });
 
   it("offers a POS shortcut and an effective history preview with missing permission reasons", async () => {
