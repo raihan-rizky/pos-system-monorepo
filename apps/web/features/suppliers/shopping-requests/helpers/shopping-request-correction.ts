@@ -1,5 +1,9 @@
 import { Prisma } from "@pos/db";
 
+export function normalizeCorrectionUnit(unit: string | null): string | null {
+  return unit?.trim() ?? null;
+}
+
 export type CorrectionTotalLine = { receivedQty: number; unitPrice: string };
 export type CorrectionStockLine = {
   productId: string;

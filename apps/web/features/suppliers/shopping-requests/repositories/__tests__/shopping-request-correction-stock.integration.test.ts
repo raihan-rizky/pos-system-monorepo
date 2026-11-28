@@ -63,6 +63,71 @@ describe.skipIf(!enabled)("penyesuaian stok koreksi di PostgreSQL sementara", ()
     });
   }
 
+  async function paddedUnitCorrection() {
+    const ids = await fixture(20);
+    await db.goodsPurchaseItem.update({
+      where: { id: ids.purchaseItem },
+      data: { unitSnapshot: "lembar " },
+    });
+    const editor = await db.$transaction((tx) =>
+      loadShoppingRequestCorrectionEditor(tx, { storeId: actor.storeId, requestId: ids.request }),
+    );
+    const data: ShoppingRequestCorrectionInput = {
+      idempotencyKey: "koreksi-satuan-spasi",
+      expectedVersion: editor.version,
+      reason: "Periksa perubahan barang",
+      header: editor.header,
+      items: editor.items,
+      payment: { method: null, dueDate: null, allocations: [], corrections: [] },
+      catalog: [],
+    };
+    return { ids, data };
+  }
+
+  it("menganggap daftar tanpa edit tetap sama meskipun satuan tersimpan memiliki spasi", async () => {
+    const { ids, data } = await paddedUnitCorrection();
+    await expect(db.$transaction((tx) =>
+      planShoppingRequestCorrection(tx, { storeId: actor.storeId, requestId: ids.request, data }),
+    )).rejects.toMatchObject({ status: 422, message: "Tidak ada perubahan untuk disimpan." });
+    expect(await db.shoppingRequestCorrection.count({ where: { shoppingRequestId: ids.request } })).toBe(0);
+  });
+
+  it("meninjau dan menyimpan perubahan jumlah tanpa perubahan satuan semu", async () => {
+    const { ids, data } = await paddedUnitCorrection();
+    data.items = data.items.map((item) => ({ ...item, requestedQty: 12 }));
+    const { preview } = await db.$transaction((tx) =>
+      planShoppingRequestCorrection(tx, { storeId: actor.storeId, requestId: ids.request, data }),
+    );
+    await db.$transaction((tx) =>
+      commitShoppingRequestCorrectionRecord(tx, {
+        requestId: ids.request, actor, data: { ...data, expectedPreviewVersion: preview.version },
+      }),
+    );
+
+    expect(preview.changes.filter(({ field }) => field.startsWith("barang."))).toEqual([
+      { field: "barang.Kertas.requestedQty", before: 10, after: 12 },
+    ]);
+    expect(await db.shoppingRequestItem.findUniqueOrThrow({ where: { id: ids.requestItem } }))
+      .toHaveProperty("requestedQty", 12);
+    expect(await db.goodsPurchaseItem.findUniqueOrThrow({ where: { id: ids.purchaseItem } }))
+      .toHaveProperty("unitSnapshot", "lembar ");
+  });
+
+  it("tetap menolak penggantian satuan menjadi satuan lain", async () => {
+    const { ids, data } = await paddedUnitCorrection();
+    data.items = data.items.map((item) => ({ ...item, unit: "rim" }));
+    const { preview } = await db.$transaction((tx) =>
+      planShoppingRequestCorrection(tx, { storeId: actor.storeId, requestId: ids.request, data }),
+    );
+    expect(preview.changes).toContainEqual({ field: "barang.Kertas.unit", before: expect.stringMatching(/^lembar\s*$/), after: "rim" });
+    await expect(db.$transaction((tx) =>
+      commitShoppingRequestCorrectionRecord(tx, {
+        requestId: ids.request, actor, data: { ...data, expectedPreviewVersion: preview.version },
+      }),
+    )).rejects.toMatchObject({ status: 409, message: "Jenis perubahan ini belum dapat disimpan." });
+    expect(await db.shoppingRequestCorrection.count({ where: { shoppingRequestId: ids.request } })).toBe(0);
+  });
+
   it("mengurangi stok sesuai selisih dan mempertahankan penerimaan asal", async () => {
     const ids = await fixture(8);
     await correct(ids, 10, 7, "koreksi-1");

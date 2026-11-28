@@ -1,6 +1,6 @@
 import { Prisma } from "@pos/db";
 import { createHash } from "node:crypto";
-import { calculateCorrectionTotal, planCorrectionPayments, planCorrectionStock, summarizeCorrectionPayment } from "../helpers/shopping-request-correction";
+import { calculateCorrectionTotal, normalizeCorrectionUnit, planCorrectionPayments, planCorrectionStock, summarizeCorrectionPayment } from "../helpers/shopping-request-correction";
 import { parseShoppingRequestCorrection } from "../helpers/shopping-request-correction-input";
 import { planCorrectionReceiptChanges } from "../helpers/shopping-request-correction-lines";
 import type { CorrectionPreview, ShoppingRequestCorrectionInput } from "../types/shopping-request-correction";
@@ -99,7 +99,10 @@ export async function planShoppingRequestCorrection(
   for (const old of editor.items) {
     const item = data.items.find((entry) => old.purchaseItemId ? entry.purchaseItemId === old.purchaseItemId : entry.requestItemId === old.requestItemId);
     if (!item) { addChange(`barang.${old.productName}`, old, null); continue; }
-    for (const key of ["unit", "requestedQty", "approvedQty", "orderedQty", "unitPrice", "receipts"] as const) addChange(`barang.${old.productName}.${key}`, old[key], item[key]);
+    if (normalizeCorrectionUnit(old.unit) !== item.unit) {
+      addChange(`barang.${old.productName}.unit`, old.unit, item.unit);
+    }
+    for (const key of ["requestedQty", "approvedQty", "orderedQty", "unitPrice", "receipts"] as const) addChange(`barang.${old.productName}.${key}`, old[key], item[key]);
   }
   for (const item of data.items) {
     if (!editor.items.some((old) => item.purchaseItemId ? old.purchaseItemId === item.purchaseItemId : item.requestItemId && old.requestItemId === item.requestItemId)) addChange("barang.baru", null, item);
