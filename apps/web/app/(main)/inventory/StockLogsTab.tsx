@@ -212,9 +212,12 @@ export default function StockLogsTab() {
     try {
       await approveMut.mutateAsync(id);
     } catch (err) {
-      const e = err as Error & { status?: number };
+      const e = err as Error & { status?: number; currentStatus?: InventoryLogStatus };
       if (e.status === 409) {
-        setActionError(e.message || "Permintaan sudah berubah. Muat ulang Log Stok.");
+        const message = e.currentStatus
+          ? "Permintaan sudah diputuskan oleh user lain."
+          : e.message || "Permintaan sudah berubah. Muat ulang Log Stok.";
+        setActionError(message);
       } else {
         setActionError(e.message || "Gagal menyetujui permintaan.");
       }

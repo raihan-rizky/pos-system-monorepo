@@ -175,6 +175,22 @@ test.describe("Stock approval flow — role-aware behavior", () => {
       await expect(sa.conflictToast()).toBeVisible();
     });
 
+    test("shows refresh instructions when an approval conflicts with a change to the request", async ({ page }) => {
+      await setupRole(page, "OWNER", { initialLogs: [PENDING_FROM_ADMIN] });
+      const sa = new StockApprovalPage(page);
+      const message = "Permintaan sudah berubah. Muat ulang Log Stok sebelum menyetujui.";
+
+      await sa.gotoInventory();
+      await sa.openStockLogsTab();
+      await page.route("**/api/inventory/log-pending-1/approve", async (route) => {
+        if (route.request().method() !== "POST") return route.fallback();
+        await route.fulfill({ status: 409, json: { message, code: "Conflict" } });
+      });
+
+      await sa.approveRow("Kertas HVS A4");
+      await expect(page.getByText(message)).toBeVisible();
+    });
+
     test("OWNER override: cancels a request that was created by a different user", async ({
       page,
     }) => {

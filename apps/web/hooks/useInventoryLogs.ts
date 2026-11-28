@@ -162,11 +162,13 @@ async function postJson(url: string, body?: unknown) {
     const data = (await res.json().catch(() => ({}))) as {
       message?: string;
       code?: string;
+      currentStatus?: InventoryLogStatus;
     };
-    const error = new Error(data.message || `Request failed (${res.status})`);
-    (error as Error & { status?: number; code?: string }).status = res.status;
-    (error as Error & { status?: number; code?: string }).code = data.code;
-    throw error;
+    throw Object.assign(new Error(data.message || `Request failed (${res.status})`), {
+      status: res.status,
+      code: data.code,
+      currentStatus: data.currentStatus,
+    });
   }
   return res.json();
 }
